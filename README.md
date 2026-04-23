@@ -37,9 +37,15 @@ CPU-only is a first-class path, not a fallback afterthought.
 
 **Phase 1: Evidence.** Benchmark Gemma models across hardware tiers, backends, and quantizations. Document what actually works, how fast, and at what quality. No opinions without data.
 
+- *Sharing plan:* We plan to publish the benchmark matrix (model, quant, backend, hardware tier, latency, quality) as a Reddit post on r/LocalLLaMA with full tables and reproducible configs. Results and artifacts will also go into GitHub release notes or a wiki page. A short YouTube walkthrough will show how to reproduce the benchmarks on your own hardware.
+
 **Phase 2: Productization.** Build the auto-detection and profile-selection tooling. Ship a `gemmaclaw doctor` command that diagnoses your system and recommends (or provisions) the right setup. Package tested profiles so they work out of the box.
 
+- *Sharing plan:* We plan to post a YouTube demo of the `gemmaclaw doctor` flow (hardware detect, profile select, provision, verify) alongside release notes. An X/Twitter thread will highlight the key wins with links back to the repo. A Reddit post on r/LocalLLaMA will cover the release details and invite feedback.
+
 **Phase 3: Community loop.** Open the profile registry to contributions. Users report what works on their hardware, profiles get refined, coverage grows. A working group keeps the evidence current as new Gemma releases land.
+
+- *Sharing plan:* We plan to maintain a monthly Reddit update on r/LocalLLaMA covering new profiles, hardware reports, and Gemma release compatibility. GitHub Discussions and a changelog will track ongoing progress. Occasional YouTube deep-dives will walk through notable additions or architectural changes.
 
 ## Status
 
