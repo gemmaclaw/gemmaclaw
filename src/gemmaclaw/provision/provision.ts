@@ -7,6 +7,7 @@ import type {
   ProvisionOpts,
   ProvisionProgress,
   ProvisionResult,
+  RuntimeHandle,
   RuntimeManager,
 } from "./types.js";
 
@@ -47,19 +48,30 @@ export async function provision(opts: ProvisionOpts): Promise<ProvisionResult> {
     log(`[${manager.displayName}] Runtime already installed.`);
   }
 
-  // Step 2: Start the runtime.
-  log(`[${manager.displayName}] Starting runtime...`);
-  const handle = await manager.start(port);
-  log(`[${manager.displayName}] Runtime started on port ${handle.port} (PID ${handle.pid}).`);
+  // Step 2+3: Pull model and start runtime.
+  // Ollama can start first then pull via API. llama.cpp/gemma.cpp need the model
+  // file on disk before the server starts.
+  let handle: RuntimeHandle;
 
-  // Step 3: Pull / download the model.
-  try {
-    log(`[${manager.displayName}] Pulling model ${modelId}...`);
-    await manager.pullModel(modelId, handle.port, log);
+  if (backend === "ollama") {
+    log(`[${manager.displayName}] Starting runtime...`);
+    handle = await manager.start(port);
+    log(`[${manager.displayName}] Runtime started on port ${handle.port} (PID ${handle.pid}).`);
+    try {
+      log(`[${manager.displayName}] Pulling model ${modelId}...`);
+      await manager.pullModel(modelId, handle.port, log);
+      log(`[${manager.displayName}] Model ready.`);
+    } catch (err) {
+      await handle.stop();
+      throw err;
+    }
+  } else {
+    log(`[${manager.displayName}] Downloading model ${modelId}...`);
+    await manager.pullModel(modelId, 0, log);
     log(`[${manager.displayName}] Model ready.`);
-  } catch (err) {
-    await handle.stop();
-    throw err;
+    log(`[${manager.displayName}] Starting runtime...`);
+    handle = await manager.start(port);
+    log(`[${manager.displayName}] Runtime started on port ${handle.port} (PID ${handle.pid}).`);
   }
 
   // Step 4: Verify healthcheck.
