@@ -92,7 +92,7 @@ export function createOllamaManager(): RuntimeManager {
           OLLAMA_HOST: `127.0.0.1:${actualPort}`,
           OLLAMA_MODELS: modelsDir,
         },
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: "ignore",
         detached: true,
       });
 
