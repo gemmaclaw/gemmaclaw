@@ -40,6 +40,12 @@ async function resolveServerBinary(): Promise<string> {
     return flatBin;
   }
 
+  // Some release zips extract to build/bin/ instead of bin/.
+  const buildBin = path.join(resolveRuntimeDir(BACKEND_ID), "build", "bin", "llama-server");
+  if (await fileExists(buildBin)) {
+    return buildBin;
+  }
+
   throw new Error("llama-server is not installed. Run install() first.");
 }
 
@@ -67,7 +73,11 @@ export function createLlamaCppManager(): RuntimeManager {
       }
 
       const flatBin = path.join(resolveRuntimeDir(BACKEND_ID), "llama-server");
-      return fileExists(flatBin);
+      if (await fileExists(flatBin)) {
+        return true;
+      }
+      const buildBin = path.join(resolveRuntimeDir(BACKEND_ID), "build", "bin", "llama-server");
+      return fileExists(buildBin);
     },
 
     async install(progress?: ProvisionProgress): Promise<void> {
@@ -96,21 +106,27 @@ export function createLlamaCppManager(): RuntimeManager {
       await extractZip(archivePath, runtimeDir);
       await fs.unlink(archivePath).catch(() => {});
 
-      // Make all binaries executable.
-      const binDir = path.join(runtimeDir, "bin");
-      try {
-        const entries = await fs.readdir(binDir);
-        for (const entry of entries) {
-          await fs.chmod(path.join(binDir, entry), "755").catch(() => {});
+      // Make all binaries executable. Check multiple possible layouts.
+      for (const binDir of [path.join(runtimeDir, "bin"), path.join(runtimeDir, "build", "bin")]) {
+        try {
+          const entries = await fs.readdir(binDir);
+          for (const entry of entries) {
+            await fs.chmod(path.join(binDir, entry), "755").catch(() => {});
+          }
+        } catch {
+          // Directory doesn't exist, try next.
         }
-      } catch {
-        // bin/ subdir might not exist; try flat layout.
+      }
+      // Also try flat layout.
+      try {
         const entries = await fs.readdir(runtimeDir);
         for (const entry of entries) {
           if (entry.includes("llama") || entry === "server") {
             await fs.chmod(path.join(runtimeDir, entry), "755").catch(() => {});
           }
         }
+      } catch {
+        // Ignore.
       }
 
       progress?.("llama.cpp server installed.");
