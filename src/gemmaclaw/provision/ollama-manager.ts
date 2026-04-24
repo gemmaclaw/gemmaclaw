@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { downloadFile, fileExists, waitForHealthy, whichBinary } from "./download.js";
+import { downloadFile, extractTarGz, fileExists, waitForHealthy, whichBinary } from "./download.js";
 import { DEFAULT_MODELS, resolveOllamaBinaryUrl } from "./model-registry.js";
 import type { ProvisionProgress, RuntimeHandle, RuntimeManager } from "./types.js";
 import { resolveModelsDir, resolveRuntimeDir } from "./types.js";
@@ -48,10 +48,11 @@ export function createOllamaManager(): RuntimeManager {
       }
 
       const url = resolveOllamaBinaryUrl();
-      const dest = binaryPath();
+      const runtimeDir = resolveRuntimeDir(BACKEND_ID);
+      const archiveDest = path.join(runtimeDir, "ollama.tgz");
       progress?.(`Downloading Ollama from ${url}...`);
 
-      const result = await downloadFile(url, dest, {
+      const result = await downloadFile(url, archiveDest, {
         onProgress: (bytes, total) => {
           if (total) {
             const pct = Math.round((bytes / total) * 100);
@@ -59,6 +60,21 @@ export function createOllamaManager(): RuntimeManager {
           }
         },
       });
+
+      progress?.("Extracting Ollama...");
+      await extractTarGz(archiveDest, runtimeDir);
+      await fs.unlink(archiveDest).catch(() => {});
+
+      // The archive extracts to bin/ollama. Move it to the expected location.
+      const extractedBin = path.join(runtimeDir, "bin", "ollama");
+      const dest = binaryPath();
+      try {
+        await fs.access(extractedBin);
+        await fs.rename(extractedBin, dest);
+        await fs.rm(path.join(runtimeDir, "bin"), { recursive: true, force: true });
+      } catch {
+        // Some versions extract directly as "ollama" in the root.
+      }
 
       await fs.chmod(dest, "755");
       progress?.(`Ollama installed (sha256: ${result.sha256.slice(0, 12)}...).`);

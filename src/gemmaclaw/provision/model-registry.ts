@@ -26,7 +26,8 @@ export type ModelArtifact = {
 
 export const OLLAMA_RUNTIME: RuntimeArtifact = {
   version: "0.6.2",
-  urlTemplate: "https://github.com/ollama/ollama/releases/download/v{version}/ollama-linux-{arch}",
+  urlTemplate:
+    "https://github.com/ollama/ollama/releases/download/v{version}/ollama-linux-{arch}.tgz",
 };
 
 export const LLAMACPP_RUNTIME: RuntimeArtifact = {
