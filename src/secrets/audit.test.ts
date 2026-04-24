@@ -554,7 +554,7 @@ describe("secrets audit", () => {
     expect(report.filesScanned).toContain(externalModelsPath);
   });
 
-  it("does not flag non-sensitive routing headers in openclaw config", async () => {
+  it("does not flag non-sensitive routing headers in gemmaclaw config", async () => {
     await writeJsonFile(fixture.configPath, {
       models: {
         providers: {

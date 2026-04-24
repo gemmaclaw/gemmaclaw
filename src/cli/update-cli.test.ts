@@ -1423,7 +1423,7 @@ describe("update-cli", () => {
       "Git-based updates need a clean working tree before they can switch commits, fetch, or rebase.",
     );
     expect(logs.join("\n")).toContain(
-      "Commit, stash, or discard the local changes, then rerun `openclaw update`.",
+      "Commit, stash, or discard the local changes, then rerun `gemmaclaw update`.",
     );
     expect(defaultRuntime.exit).toHaveBeenCalledWith(0);
   });

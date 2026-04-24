@@ -221,10 +221,10 @@ exit 0
       const log = await fs.readFile(path.join(stateDir, "logs", "gateway-restart.log"), "utf-8");
 
       expect(result.code).toBe(42);
-      expect(log).toContain("openclaw restart attempt source=update target=ai.openclaw.gateway");
+      expect(log).toContain("gemmaclaw restart attempt source=update target=ai.openclaw.gateway");
       expect(log).toContain("launchctl kickstart -k gui/501/ai.openclaw.gateway");
-      expect(log).toContain("openclaw restart failed source=update status=42");
-      expect(log).not.toContain("openclaw restart done source=update");
+      expect(log).toContain("gemmaclaw restart failed source=update status=42");
+      expect(log).not.toContain("gemmaclaw restart done source=update");
     });
 
     it("continues the macOS restart path when log setup fails", async () => {
@@ -305,7 +305,7 @@ exit 0
       expect(scriptPath.endsWith(".bat")).toBe(true);
       expect(content).toContain("@echo off");
       expect(content).toContain("gateway-restart.log");
-      expect(content).toContain("openclaw restart attempt source=update target=OpenClaw Gateway");
+      expect(content).toContain("gemmaclaw restart attempt source=update target=OpenClaw Gateway");
       expect(content).toContain('schtasks /End /TN "OpenClaw Gateway"');
       expect(content).toContain('schtasks /Run /TN "OpenClaw Gateway" >>');
       expectWindowsRestartWaitOrdering(content);

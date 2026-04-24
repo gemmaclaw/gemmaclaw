@@ -368,7 +368,7 @@ describe("modelsAuthLoginCommand", () => {
       "Default model available: openai-codex/gpt-5.4 (use --set-default to apply)",
     );
     expect(runtime.log).toHaveBeenCalledWith(
-      "Tip: Codex-capable models can use native Codex web search. Enable it with openclaw configure --section web (recommended mode: cached). Docs: https://docs.openclaw.ai/tools/web",
+      "Tip: Codex-capable models can use native Codex web search. Enable it with gemmaclaw configure --section web (recommended mode: cached). Docs: https://docs.openclaw.ai/tools/web",
     );
   });
 

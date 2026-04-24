@@ -78,7 +78,7 @@ describe("install-sh smoke runner", () => {
     expect(script).toContain("==> Still running");
     expect(script).toContain("print_install_audit");
     expect(script).toContain('install -g "$@"');
-    expect(script).toContain("openclaw update --tag");
+    expect(script).toContain("gemmaclaw update --tag");
   });
 
   it("covers plain npm global installs and npm-driven updates", () => {

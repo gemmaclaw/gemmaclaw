@@ -115,7 +115,7 @@ describe("relaunchGatewayScheduledTask", () => {
     expect(script).toContain("timeout /t 1 /nobreak >nul");
     expect(script).toContain("gateway-restart.log");
     expect(script).toContain(
-      'openclaw restart attempt source=windows-task-handoff target="OpenClaw Gateway (work)"',
+      'gemmaclaw restart attempt source=windows-task-handoff target="OpenClaw Gateway (work)"',
     );
     expect(script).toContain('schtasks /Run /TN "OpenClaw Gateway (work)" >>');
     expect(script).toContain('del "%~f0" >nul 2>&1');

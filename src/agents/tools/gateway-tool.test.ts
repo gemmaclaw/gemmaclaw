@@ -13,7 +13,7 @@ const extractDeliveryInfoMock = vi.fn(() => ({
   },
   threadId: "thread-42",
 }));
-const formatDoctorNonInteractiveHintMock = vi.fn(() => "Run: openclaw doctor --non-interactive");
+const formatDoctorNonInteractiveHintMock = vi.fn(() => "Run: gemmaclaw doctor --non-interactive");
 const writeRestartSentinelMock = vi.fn(async (_payload: RestartSentinelPayload) => "/tmp/restart");
 const removeRestartSentinelFileMock = vi.fn(async (_path: string | null | undefined) => undefined);
 const scheduleGatewaySigusr1RestartMock = vi.fn((_opts?: ScheduleGatewayRestartArgs) => ({
@@ -70,7 +70,7 @@ describe("gateway tool restart continuation", () => {
       threadId: "thread-42",
     });
     formatDoctorNonInteractiveHintMock.mockReset();
-    formatDoctorNonInteractiveHintMock.mockReturnValue("Run: openclaw doctor --non-interactive");
+    formatDoctorNonInteractiveHintMock.mockReturnValue("Run: gemmaclaw doctor --non-interactive");
     writeRestartSentinelMock.mockReset();
     writeRestartSentinelMock.mockResolvedValue("/tmp/restart");
     removeRestartSentinelFileMock.mockClear();

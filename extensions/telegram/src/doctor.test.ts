@@ -282,10 +282,10 @@ describe("telegram doctor", () => {
   it("formats invalid allowFrom warnings", () => {
     const warnings = collectTelegramInvalidAllowFromWarnings({
       hits: [{ path: "channels.telegram.allowFrom", entry: "@top" }],
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
     });
 
     expect(warnings[0]).toContain("invalid sender entries");
-    expect(warnings[1]).toContain("openclaw doctor --fix");
+    expect(warnings[1]).toContain("gemmaclaw doctor --fix");
   });
 });

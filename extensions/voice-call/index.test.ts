@@ -203,7 +203,7 @@ describe("voice-call plugin", () => {
       },
     });
     expect(noopLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Run "openclaw doctor --fix"'),
+      expect.stringContaining('Run "gemmaclaw doctor --fix"'),
     );
   });
 

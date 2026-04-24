@@ -112,6 +112,6 @@ describe("stopKnownBrowserProfiles", () => {
       onWarn,
     });
 
-    expect(onWarn).toHaveBeenCalledWith("openclaw browser stop failed: Error: oops");
+    expect(onWarn).toHaveBeenCalledWith("gemmaclaw browser stop failed: Error: oops");
   });
 });

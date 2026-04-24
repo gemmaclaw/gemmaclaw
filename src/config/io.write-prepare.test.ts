@@ -149,8 +149,8 @@ describe("config io write prepare", () => {
       'channels.telegram.dmPolicy = "open" requires channels.telegram.allowFrom to include "*"',
     );
 
-    expect(message).toContain("openclaw config set channels.telegram.allowFrom '[\"*\"]'");
-    expect(message).toContain('openclaw config set channels.telegram.dmPolicy "pairing"');
+    expect(message).toContain("gemmaclaw config set channels.telegram.allowFrom '[\"*\"]'");
+    expect(message).toContain('gemmaclaw config set channels.telegram.dmPolicy "pairing"');
   });
 
   it("unsets explicit paths when runtime defaults would otherwise reappear", () => {

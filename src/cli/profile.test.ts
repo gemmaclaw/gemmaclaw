@@ -146,25 +146,25 @@ describe("formatCliCommand", () => {
   it.each([
     {
       name: "no profile is set",
-      cmd: "openclaw doctor --fix",
+      cmd: "gemmaclaw doctor --fix",
       env: {},
       expected: "gemmaclaw doctor --fix",
     },
     {
       name: "profile is default",
-      cmd: "openclaw doctor --fix",
+      cmd: "gemmaclaw doctor --fix",
       env: { OPENCLAW_PROFILE: "default" },
       expected: "gemmaclaw doctor --fix",
     },
     {
       name: "profile is Default (case-insensitive)",
-      cmd: "openclaw doctor --fix",
+      cmd: "gemmaclaw doctor --fix",
       env: { OPENCLAW_PROFILE: "Default" },
       expected: "gemmaclaw doctor --fix",
     },
     {
       name: "profile is invalid",
-      cmd: "openclaw doctor --fix",
+      cmd: "gemmaclaw doctor --fix",
       env: { OPENCLAW_PROFILE: "bad profile" },
       expected: "gemmaclaw doctor --fix",
     },
@@ -185,14 +185,14 @@ describe("formatCliCommand", () => {
   });
 
   it("inserts --profile flag when profile is set", () => {
-    expect(formatCliCommand("openclaw doctor --fix", { OPENCLAW_PROFILE: "work" })).toBe(
+    expect(formatCliCommand("gemmaclaw doctor --fix", { OPENCLAW_PROFILE: "work" })).toBe(
       "gemmaclaw --profile work doctor --fix",
     );
   });
 
   it("trims whitespace from profile", () => {
-    expect(formatCliCommand("openclaw doctor --fix", { OPENCLAW_PROFILE: "  jbopenclaw  " })).toBe(
-      "gemmaclaw --profile jbopenclaw doctor --fix",
+    expect(formatCliCommand("gemmaclaw doctor --fix", { OPENCLAW_PROFILE: "  jbopenclaw  " })).toBe(
+      "gemmaclaw --profile jbgemmaclaw doctor --fix",
     );
   });
 
@@ -203,20 +203,20 @@ describe("formatCliCommand", () => {
   });
 
   it("handles pnpm wrapper", () => {
-    expect(formatCliCommand("pnpm openclaw doctor", { OPENCLAW_PROFILE: "work" })).toBe(
+    expect(formatCliCommand("pnpm gemmaclaw doctor", { OPENCLAW_PROFILE: "work" })).toBe(
       "pnpm gemmaclaw --profile work doctor",
     );
   });
 
   it("inserts --container when a container hint is set", () => {
     expect(
-      formatCliCommand("openclaw gateway status --deep", { OPENCLAW_CONTAINER_HINT: "demo" }),
+      formatCliCommand("gemmaclaw gateway status --deep", { OPENCLAW_CONTAINER_HINT: "demo" }),
     ).toBe("gemmaclaw --container demo gateway status --deep");
   });
 
   it("ignores unsafe container hints", () => {
     expect(
-      formatCliCommand("openclaw gateway status --deep", {
+      formatCliCommand("gemmaclaw gateway status --deep", {
         OPENCLAW_CONTAINER_HINT: "demo; rm -rf /",
       }),
     ).toBe("gemmaclaw gateway status --deep");
@@ -224,7 +224,7 @@ describe("formatCliCommand", () => {
 
   it("preserves both --container and --profile hints", () => {
     expect(
-      formatCliCommand("openclaw doctor", {
+      formatCliCommand("gemmaclaw doctor", {
         OPENCLAW_CONTAINER_HINT: "demo",
         OPENCLAW_PROFILE: "work",
       }),
@@ -232,11 +232,11 @@ describe("formatCliCommand", () => {
   });
 
   it("does not prepend --container for update commands", () => {
-    expect(formatCliCommand("openclaw update", { OPENCLAW_CONTAINER_HINT: "demo" })).toBe(
+    expect(formatCliCommand("gemmaclaw update", { OPENCLAW_CONTAINER_HINT: "demo" })).toBe(
       "gemmaclaw update",
     );
     expect(
-      formatCliCommand("pnpm openclaw update --channel beta", { OPENCLAW_CONTAINER_HINT: "demo" }),
+      formatCliCommand("pnpm gemmaclaw update --channel beta", { OPENCLAW_CONTAINER_HINT: "demo" }),
     ).toBe("pnpm gemmaclaw update --channel beta");
   });
 });

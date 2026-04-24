@@ -117,7 +117,7 @@ describe("printDaemonStatus", () => {
       expect.stringContaining("Gateway runtime PID does not own the listening port"),
     );
     expect(runtime.error).toHaveBeenCalledWith(
-      expect.stringContaining(formatCliCommand("openclaw gateway restart")),
+      expect.stringContaining(formatCliCommand("gemmaclaw gateway restart")),
     );
   });
 

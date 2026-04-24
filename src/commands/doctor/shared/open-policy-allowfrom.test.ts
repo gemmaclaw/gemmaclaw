@@ -131,12 +131,12 @@ describe("doctor open-policy allowFrom repair", () => {
   it("formats open-policy wildcard warnings", () => {
     const warnings = collectOpenPolicyAllowFromWarnings({
       changes: ['- channels.signal.allowFrom: set to ["*"] (required by dmPolicy="open")'],
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
     });
 
     expect(warnings).toEqual([
       expect.stringContaining('channels.signal.allowFrom: set to ["*"]'),
-      expect.stringContaining('Run "openclaw doctor --fix"'),
+      expect.stringContaining('Run "gemmaclaw doctor --fix"'),
     ]);
   });
 });

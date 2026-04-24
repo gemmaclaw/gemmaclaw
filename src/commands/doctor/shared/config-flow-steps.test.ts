@@ -5,7 +5,7 @@ import { applyLegacyCompatibilityStep, applyUnknownConfigKeyStep } from "./confi
 
 function createLegacyStepResult(
   snapshot: DoctorConfigPreflightResult["snapshot"],
-  doctorFixCommand = "openclaw doctor --fix",
+  doctorFixCommand = "gemmaclaw doctor --fix",
 ) {
   return applyLegacyCompatibilityStep({
     snapshot,
@@ -40,7 +40,7 @@ describe("doctor config flow steps", () => {
     expect(result.issueLines).toEqual([expect.stringContaining("- heartbeat:")]);
     expect(result.changeLines).not.toEqual([]);
     expect(result.state.fixHints).toContain(
-      'Run "openclaw doctor --fix" to migrate legacy config keys.',
+      'Run "gemmaclaw doctor --fix" to migrate legacy config keys.',
     );
     expect(result.state.pendingChanges).toBe(true);
   });
@@ -69,7 +69,7 @@ describe("doctor config flow steps", () => {
     expect(result.changeLines).toEqual([]);
     expect(result.state.pendingChanges).toBe(true);
     expect(result.state.fixHints).toContain(
-      'Run "openclaw doctor --fix" to migrate legacy config keys.',
+      'Run "gemmaclaw doctor --fix" to migrate legacy config keys.',
     );
   });
 
@@ -82,11 +82,11 @@ describe("doctor config flow steps", () => {
         fixHints: [],
       },
       shouldRepair: false,
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
     });
 
     expect(result.removed).toEqual(["bogus"]);
     expect(result.state.candidate).toEqual({});
-    expect(result.state.fixHints).toContain('Run "openclaw doctor --fix" to remove these keys.');
+    expect(result.state.fixHints).toContain('Run "gemmaclaw doctor --fix" to remove these keys.');
   });
 });

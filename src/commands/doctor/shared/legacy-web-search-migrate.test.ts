@@ -108,7 +108,7 @@ describe("legacy web search config", () => {
       {
         path: "tools.web.search",
         message:
-          'tools.web.search provider-owned config moved to plugins.entries.<plugin>.config.webSearch. Run "openclaw doctor --fix".',
+          'tools.web.search provider-owned config moved to plugins.entries.<plugin>.config.webSearch. Run "gemmaclaw doctor --fix".',
       },
     ]);
 

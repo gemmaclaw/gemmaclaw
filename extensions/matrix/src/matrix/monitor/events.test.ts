@@ -1468,7 +1468,7 @@ describe("registerMatrixMonitorEvents verification routing", () => {
     );
     expect(logger.warn).toHaveBeenNthCalledWith(
       2,
-      "matrix: failed to decrypt a message from this same Matrix user. This usually means another Matrix device did not share the room key, or another OpenClaw runtime is using the same account. Check 'openclaw matrix verify status --verbose --account ops' and 'openclaw matrix devices list --account ops'.",
+      "matrix: failed to decrypt a message from this same Matrix user. This usually means another Matrix device did not share the room key, or another OpenClaw runtime is using the same account. Check 'gemmaclaw matrix verify status --verbose --account ops' and 'gemmaclaw matrix devices list --account ops'.",
       {
         roomId: "!room:example.org",
         eventId: "$enc-self",
@@ -1570,7 +1570,7 @@ describe("registerMatrixMonitorEvents verification routing", () => {
       );
       expect(logger.warn).toHaveBeenNthCalledWith(
         4,
-        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'openclaw matrix verify status --verbose --account ops' and 'openclaw matrix devices list --account ops'.",
+        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'gemmaclaw matrix verify status --verbose --account ops' and 'gemmaclaw matrix devices list --account ops'.",
         expect.objectContaining({
           failureCount: 3,
           roomCount: 3,
@@ -1681,14 +1681,14 @@ describe("registerMatrixMonitorEvents verification routing", () => {
 
       expect(logger.warn).toHaveBeenNthCalledWith(
         4,
-        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'openclaw matrix verify status --verbose --account ops' and 'openclaw matrix devices list --account ops'.",
+        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'gemmaclaw matrix verify status --verbose --account ops' and 'gemmaclaw matrix devices list --account ops'.",
         expect.objectContaining({
           sampleEventIds: ["$enc-wave-1-1", "$enc-wave-1-2", "$enc-wave-1-3"],
         }),
       );
       expect(logger.warn).toHaveBeenNthCalledWith(
         8,
-        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'openclaw matrix verify status --verbose --account ops' and 'openclaw matrix devices list --account ops'.",
+        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'gemmaclaw matrix verify status --verbose --account ops' and 'gemmaclaw matrix devices list --account ops'.",
         expect.objectContaining({
           sampleEventIds: ["$enc-wave-2-1", "$enc-wave-2-2", "$enc-wave-2-3"],
         }),
@@ -1770,7 +1770,7 @@ describe("registerMatrixMonitorEvents verification routing", () => {
       );
       expect(logger.warn).toHaveBeenNthCalledWith(
         8,
-        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'openclaw matrix verify status --verbose --account ops' and 'openclaw matrix devices list --account ops'.",
+        "matrix: repeated fresh encrypted messages are still failing to decrypt after Matrix resumed healthy sync. This device may still be missing new room keys. Check 'gemmaclaw matrix verify status --verbose --account ops' and 'gemmaclaw matrix devices list --account ops'.",
         expect.objectContaining({
           sampleEventIds: ["$enc-second-1", "$enc-second-2", "$enc-second-3"],
         }),

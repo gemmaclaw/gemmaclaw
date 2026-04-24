@@ -50,8 +50,8 @@ describe("status.command-sections", () => {
     expect(lines).toContain("    critical detail");
     expect(lines).toContain("    muted(Fix: fix it)");
     expect(lines).toContain("muted(… +1 more)");
-    expect(lines.at(-2)).toBe("muted(Full report: cmd:openclaw security audit)");
-    expect(lines.at(-1)).toBe("muted(Deep probe: cmd:openclaw security audit --deep)");
+    expect(lines.at(-2)).toBe("muted(Full report: cmd:gemmaclaw security audit)");
+    expect(lines.at(-1)).toBe("muted(Deep probe: cmd:gemmaclaw security audit --deep)");
   });
 
   it("builds verbose sessions rows and empty fallback rows", () => {
@@ -152,9 +152,9 @@ describe("status.command-sections", () => {
       "",
       "warn(upgrade ready)",
       "Next steps:",
-      "  Need to share?      cmd:openclaw status --all",
+      "  Need to share?      cmd:gemmaclaw status --all",
       "  Need to debug live? cmd:openclaw logs --follow",
-      "  Fix reachability first: cmd:openclaw gateway probe",
+      "  Fix reachability first: cmd:gemmaclaw gateway probe",
     ]);
   });
 
@@ -188,9 +188,9 @@ describe("status.command-sections", () => {
       "warn(Gateway scope upgrade approval required.)",
       "muted(Reason: device is asking for more scopes than currently approved.)",
       "muted(Hint: Review the requested scopes, then approve the pending upgrade.)",
-      "muted(Recovery: cmd:openclaw devices approve req-123)",
-      "muted(Fallback: cmd:openclaw devices approve --latest)",
-      "muted(Inspect: cmd:openclaw devices list)",
+      "muted(Recovery: cmd:gemmaclaw devices approve req-123)",
+      "muted(Fallback: cmd:gemmaclaw devices approve --latest)",
+      "muted(Inspect: cmd:gemmaclaw devices list)",
     ]);
   });
 

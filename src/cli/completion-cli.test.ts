@@ -89,7 +89,7 @@ describe("completion-cli", () => {
 
     expect(script).toContain("if ($commandPath -eq 'gateway') {");
     expect(script).toContain("if ($commandPath -eq 'gateway status') {");
-    expect(script).not.toContain("if ($commandPath -eq 'openclaw gateway') {");
+    expect(script).not.toContain("if ($commandPath -eq 'gemmaclaw gateway') {");
     expect(script).toContain("$completions = @('status','restart','--force')");
   });
 

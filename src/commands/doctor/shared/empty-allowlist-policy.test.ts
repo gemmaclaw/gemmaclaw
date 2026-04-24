@@ -23,7 +23,7 @@ describe("doctor empty allowlist policy warnings", () => {
     const warnings = collectEmptyAllowlistPolicyWarningsForAccount({
       account: { dmPolicy: "allowlist" },
       channelName: "signal",
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
       prefix: "channels.signal",
     });
 
@@ -36,7 +36,7 @@ describe("doctor empty allowlist policy warnings", () => {
     const warnings = collectEmptyAllowlistPolicyWarningsForAccount({
       account: { groupPolicy: "allowlist" },
       channelName: "imessage",
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
       prefix: "channels.imessage",
     });
 
@@ -49,7 +49,7 @@ describe("doctor empty allowlist policy warnings", () => {
     const warnings = collectEmptyAllowlistPolicyWarningsForAccount({
       account: { groupPolicy: "allowlist" },
       channelName: "zalouser",
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
       prefix: "channels.zalouser",
     });
 
@@ -60,7 +60,7 @@ describe("doctor empty allowlist policy warnings", () => {
     const warnings = collectEmptyAllowlistPolicyWarningsForAccount({
       account: { groupPolicy: "allowlist" },
       channelName: "discord",
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
       prefix: "channels.discord",
     });
 

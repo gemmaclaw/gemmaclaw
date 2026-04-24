@@ -35,7 +35,7 @@ describe("buildStatusCommandReportData", () => {
       Value: "macOS · node " + process.versions.node,
     });
     expect(result.taskMaintenanceHint).toBe(
-      "Task maintenance: cmd:openclaw tasks maintenance --apply",
+      "Task maintenance: cmd:gemmaclaw tasks maintenance --apply",
     );
     expect(result.pluginCompatibilityLines).toEqual(["  warn(WARN) legacy"]);
     expect(result.pairingRecoveryLines[0]).toBe("warn(Gateway pairing approval required.)");
@@ -46,6 +46,6 @@ describe("buildStatusCommandReportData", () => {
       Status: "ok(reachable)",
       Detail: "42ms",
     });
-    expect(result.footerLines.at(-1)).toBe("  Need to test channels? cmd:openclaw status --deep");
+    expect(result.footerLines.at(-1)).toBe("  Need to test channels? cmd:gemmaclaw status --deep");
   });
 });

@@ -89,7 +89,7 @@ describe("ports helpers", () => {
     };
 
     await handlePortError(
-      new PortInUseError(18789, "node dist/index.js openclaw gateway"),
+      new PortInUseError(18789, "node dist/index.js gemmaclaw gateway"),
       18789,
       "gateway start",
       runtime,

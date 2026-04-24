@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
     },
     threadId: "thread-1",
   })),
-  formatDoctorNonInteractiveHint: vi.fn(() => "Run: openclaw doctor --non-interactive"),
+  formatDoctorNonInteractiveHint: vi.fn(() => "Run: gemmaclaw doctor --non-interactive"),
   writeRestartSentinel: vi.fn(async (_payload: RestartSentinelPayload) => "/tmp/sentinel.json"),
   scheduleGatewaySigusr1Restart: vi.fn((_opts?: ScheduleGatewayRestartArgs) => ({
     scheduled: true,

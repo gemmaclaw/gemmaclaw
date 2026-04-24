@@ -71,13 +71,13 @@ describe("doctor legacy toolsBySender helpers", () => {
           targetKey: "id:owner",
         },
       ],
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "gemmaclaw doctor --fix",
     });
 
     expect(warnings).toEqual([
       expect.stringContaining("legacy untyped toolsBySender key"),
       expect.stringContaining("explicit prefixes"),
-      expect.stringContaining('Run "openclaw doctor --fix"'),
+      expect.stringContaining('Run "gemmaclaw doctor --fix"'),
     ]);
   });
 });

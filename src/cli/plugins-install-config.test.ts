@@ -175,7 +175,7 @@ describe("loadConfigForInstall", () => {
         rawSpec: "alpha",
         normalizedSpec: "alpha",
       }),
-    ).rejects.toThrow("Config invalid; run `openclaw doctor --fix` before installing plugins.");
+    ).rejects.toThrow("Config invalid; run `gemmaclaw doctor --fix` before installing plugins.");
     expect(readConfigFileSnapshotMock).not.toHaveBeenCalled();
   });
 
@@ -194,7 +194,7 @@ describe("loadConfigForInstall", () => {
     );
 
     await expect(loadConfigForInstall(matrixNpmRequest)).rejects.toThrow(
-      "Config file could not be parsed; run `openclaw doctor` to repair it.",
+      "Config file could not be parsed; run `gemmaclaw doctor` to repair it.",
     );
   });
 
@@ -208,7 +208,7 @@ describe("loadConfigForInstall", () => {
     readConfigFileSnapshotMock.mockResolvedValue(makeSnapshot({ exists: false, parsed: {} }));
 
     await expect(loadConfigForInstall(matrixNpmRequest)).rejects.toThrow(
-      "Config file could not be parsed; run `openclaw doctor` to repair it.",
+      "Config file could not be parsed; run `gemmaclaw doctor` to repair it.",
     );
   });
 

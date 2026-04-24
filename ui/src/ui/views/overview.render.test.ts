@@ -106,7 +106,7 @@ describe("overview view rendering", () => {
     expect(container.textContent).toContain(
       "This device is already paired, but the requested wider scope is waiting for approval.",
     );
-    expect(container.textContent).toContain("openclaw devices approve req-123");
+    expect(container.textContent).toContain("gemmaclaw devices approve req-123");
   });
 
   it("does not suggest preview-only latest approval when the request id is absent", async () => {
@@ -120,7 +120,7 @@ describe("overview view rendering", () => {
     await Promise.resolve();
 
     expect(container.textContent).toContain("Scope upgrade pending approval.");
-    expect(container.textContent).toContain("openclaw devices list");
-    expect(container.textContent).not.toContain("openclaw devices approve --latest");
+    expect(container.textContent).toContain("gemmaclaw devices list");
+    expect(container.textContent).not.toContain("gemmaclaw devices approve --latest");
   });
 });

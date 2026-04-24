@@ -459,7 +459,7 @@ describe("matrix CLI verification commands", () => {
     );
     expect(console.log).toHaveBeenCalledWith("Backup version: 7");
     expect(console.log).toHaveBeenCalledWith(
-      "Matrix device hygiene warning: stale OpenClaw devices detected (BritdXC6iL). Run 'openclaw matrix devices prune-stale --account ops'.",
+      "Matrix device hygiene warning: stale OpenClaw devices detected (BritdXC6iL). Run 'gemmaclaw matrix devices prune-stale --account ops'.",
     );
   });
 
@@ -846,10 +846,10 @@ describe("matrix CLI verification commands", () => {
       "Backup issue: backup decryption key is not loaded on this device (secret storage did not return a key)",
     );
     expect(console.log).toHaveBeenCalledWith(
-      "- Backup key is not loaded on this device. Run 'openclaw matrix verify backup restore' to load it and restore old room keys.",
+      "- Backup key is not loaded on this device. Run 'gemmaclaw matrix verify backup restore' to load it and restore old room keys.",
     );
     expect(console.log).not.toHaveBeenCalledWith(
-      "- Backup is present but not trusted for this device. Re-run 'openclaw matrix verify device <key>'.",
+      "- Backup is present but not trusted for this device. Re-run 'gemmaclaw matrix verify device <key>'.",
     );
   });
 
@@ -913,7 +913,7 @@ describe("matrix CLI verification commands", () => {
     await program.parseAsync(["matrix", "verify", "status"], { from: "user" });
 
     expect(console.log).toHaveBeenCalledWith(
-      "- If you want a fresh backup baseline and accept losing unrecoverable history, run 'openclaw matrix verify backup reset --yes'. This may also repair secret storage so the new backup key can be loaded after restart.",
+      "- If you want a fresh backup baseline and accept losing unrecoverable history, run 'gemmaclaw matrix verify backup reset --yes'. This may also repair secret storage so the new backup key can be loaded after restart.",
     );
   });
 
@@ -985,10 +985,10 @@ describe("matrix CLI verification commands", () => {
     });
     expect(console.log).toHaveBeenCalledWith("Account: assistant");
     expect(console.log).toHaveBeenCalledWith(
-      "- Run 'openclaw matrix verify device <key> --account assistant' to verify this device.",
+      "- Run 'gemmaclaw matrix verify device <key> --account assistant' to verify this device.",
     );
     expect(console.log).toHaveBeenCalledWith(
-      "- Run 'openclaw matrix verify bootstrap --account assistant' to create a room key backup.",
+      "- Run 'gemmaclaw matrix verify bootstrap --account assistant' to create a room key backup.",
     );
   });
 
