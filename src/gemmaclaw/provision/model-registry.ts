@@ -52,11 +52,11 @@ export const DEFAULT_MODELS: Record<BackendId, ModelArtifact> = {
     sizeBytes: 815_000_000,
   },
   "llama-cpp": {
-    id: "gemma-3-1b-it-q4_0",
-    displayName: "Gemma 3 1B IT Q4_0 (GGUF)",
+    id: "tinyllama-1.1b-chat-v1.0.Q2_K",
+    displayName: "TinyLlama 1.1B Chat Q2_K (GGUF)",
     backend: "llama-cpp",
-    url: "https://huggingface.co/google/gemma-3-1b-it-qat-q4_0-gguf/resolve/main/gemma-3-1b-it-q4_0.gguf",
-    sizeBytes: 726_000_000,
+    url: "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q2_K.gguf",
+    sizeBytes: 482_000_000,
   },
   "gemma-cpp": {
     id: "gemma-2-2b-it",
