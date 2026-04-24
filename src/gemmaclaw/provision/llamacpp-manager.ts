@@ -204,15 +204,17 @@ export function createLlamaCppManager(): RuntimeManager {
 
     async pullModel(modelId: string, _port: number, progress?: ProvisionProgress): Promise<void> {
       const model = DEFAULT_MODELS["llama-cpp"];
-      const url = modelId || model.url;
+
+      // If modelId is a URL, use it directly; otherwise use the registered default URL.
+      const isUrl = modelId.startsWith("http://") || modelId.startsWith("https://");
+      const url = isUrl ? modelId : model.url;
       if (!url) {
         throw new Error("No model URL provided and no default URL configured for llama-cpp.");
       }
 
       const modelsDir = resolveModelsDir(BACKEND_ID);
-      const fileName = modelId
-        ? `${modelId.replace(/[^a-zA-Z0-9._-]/g, "_")}.gguf`
-        : `${model.id}.gguf`;
+      // Always use model.id for the filename so start() can find it via defaultModelPath().
+      const fileName = `${model.id}.gguf`;
       const dest = path.join(modelsDir, fileName);
 
       if (await fileExists(dest)) {

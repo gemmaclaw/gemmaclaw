@@ -30,11 +30,9 @@ export function createRuntimeManager(backend: BackendId): RuntimeManager {
  */
 export async function provision(opts: ProvisionOpts): Promise<ProvisionResult> {
   const { backend, port, progress } = opts;
-  const modelId =
-    opts.model ??
-    DEFAULT_MODELS[backend].ollamaTag ??
-    DEFAULT_MODELS[backend].url ??
-    DEFAULT_MODELS[backend].id;
+  // Use the model identifier (tag or name), never the download URL.
+  // The URL is only used internally by pullModel().
+  const modelId = opts.model ?? DEFAULT_MODELS[backend].ollamaTag ?? DEFAULT_MODELS[backend].id;
   const manager = createRuntimeManager(backend);
 
   const log: ProvisionProgress = progress ?? (() => {});
