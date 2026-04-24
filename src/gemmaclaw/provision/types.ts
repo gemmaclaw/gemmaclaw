@@ -38,6 +38,45 @@ export type ProvisionOpts = {
   progress?: ProvisionProgress;
 };
 
+// ---------------------------------------------------------------------------
+// Setup wizard types
+// ---------------------------------------------------------------------------
+
+export type HardwareInfo = {
+  cpu: {
+    arch: string;
+    cores: number;
+    model: string;
+  };
+  ram: {
+    totalBytes: number;
+    availableBytes: number;
+  };
+  gpu: {
+    detected: boolean;
+    nvidia: boolean;
+    name?: string;
+    vramBytes?: number;
+  };
+};
+
+export type SystemTools = {
+  ollamaInstalled: boolean;
+  ollamaPath?: string;
+  llamacppInstalled: boolean;
+  llamacppPath?: string;
+  cmakeInstalled: boolean;
+  cppCompilerInstalled: boolean;
+  gitInstalled: boolean;
+};
+
+export type SetupProfile = {
+  backend: BackendId;
+  model?: string;
+  port: number;
+  reason: string;
+};
+
 export function resolveGemmaclawHome(): string {
   return process.env.GEMMACLAW_HOME ?? path.join(process.env.HOME ?? "/tmp", ".gemmaclaw");
 }

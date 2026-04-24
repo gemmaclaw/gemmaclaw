@@ -24,12 +24,8 @@ vi.mock("node:os", () => ({
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
-import {
-  detectHardware,
-  detectSystemTools,
-  formatHardwareInfo,
-  type HardwareInfo,
-} from "./hardware.js";
+import { detectHardware, detectSystemTools, formatHardwareInfo } from "./hardware.js";
+import type { HardwareInfo } from "./types.js";
 
 const mockExecSync = vi.mocked(execSync);
 const mockExistsSync = vi.mocked(fs.existsSync);

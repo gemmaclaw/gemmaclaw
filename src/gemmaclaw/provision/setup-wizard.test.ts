@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { HardwareInfo, SystemTools } from "./hardware.js";
 import { formatModelSize, selectQuickProfile, validateBackendChoice } from "./setup-wizard.js";
+import type { HardwareInfo, SystemTools } from "./types.js";
 
 function makeHw(overrides?: Partial<HardwareInfo>): HardwareInfo {
   return {

@@ -1,34 +1,7 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
-
-export type HardwareInfo = {
-  cpu: {
-    arch: string;
-    cores: number;
-    model: string;
-  };
-  ram: {
-    totalBytes: number;
-    availableBytes: number;
-  };
-  gpu: {
-    detected: boolean;
-    nvidia: boolean;
-    name?: string;
-    vramBytes?: number;
-  };
-};
-
-export type SystemTools = {
-  ollamaInstalled: boolean;
-  ollamaPath?: string;
-  llamacppInstalled: boolean;
-  llamacppPath?: string;
-  cmakeInstalled: boolean;
-  cppCompilerInstalled: boolean;
-  gitInstalled: boolean;
-};
+import type { HardwareInfo, SystemTools } from "./types.js";
 
 /**
  * Detect hardware: CPU arch/cores, RAM, GPU presence.

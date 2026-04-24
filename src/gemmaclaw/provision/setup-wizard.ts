@@ -1,14 +1,6 @@
 import readline from "node:readline/promises";
-import type { HardwareInfo, SystemTools } from "./hardware.js";
 import { DEFAULT_MODELS } from "./model-registry.js";
-import type { BackendId } from "./types.js";
-
-export type SetupProfile = {
-  backend: BackendId;
-  model?: string;
-  port: number;
-  reason: string;
-};
+import type { BackendId, HardwareInfo, SetupProfile, SystemTools } from "./types.js";
 
 // -----------------------------------------------------------------------
 // Profile selection (pure logic, no I/O)
