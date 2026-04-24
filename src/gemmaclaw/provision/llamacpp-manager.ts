@@ -141,6 +141,9 @@ export function createLlamaCppManager(): RuntimeManager {
         throw new Error(`Model file not found at ${modelPath}. Run pullModel() first.`);
       }
 
+      // Capture stderr for diagnostics. Using "pipe" without consuming
+      // the stream would block the child when the OS pipe buffer fills,
+      // so we drain both streams into a ring buffer.
       const child: ChildProcess = spawn(
         bin,
         [
@@ -161,6 +164,13 @@ export function createLlamaCppManager(): RuntimeManager {
         },
       );
 
+      // Drain stdout/stderr so the pipe buffer never fills and blocks the child.
+      let stderrTail = "";
+      child.stdout?.resume();
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderrTail = (stderrTail + chunk.toString()).slice(-4096);
+      });
+
       child.unref();
       const pid = child.pid;
       if (!pid) {
@@ -169,13 +179,18 @@ export function createLlamaCppManager(): RuntimeManager {
 
       const baseUrl = `http://127.0.0.1:${actualPort}`;
       const healthy = await waitForHealthy(`${baseUrl}/health`, {
-        timeoutMs: 60_000,
+        timeoutMs: 120_000,
         intervalMs: 1000,
       });
       if (!healthy) {
         child.kill("SIGTERM");
-        throw new Error(`llama-server did not become healthy at ${baseUrl} within 60s.`);
+        const hint = stderrTail.trim() ? `\nServer stderr (last 4 KB):\n${stderrTail.trim()}` : "";
+        throw new Error(`llama-server did not become healthy at ${baseUrl} within 120s.${hint}`);
       }
+
+      // Detach from the streams now that the server is healthy.
+      child.stdout?.destroy();
+      child.stderr?.destroy();
 
       return {
         pid,
