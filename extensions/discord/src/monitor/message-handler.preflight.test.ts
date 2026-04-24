@@ -973,7 +973,7 @@ describe("preflightDiscordMessage", () => {
           ...DEFAULT_PREFLIGHT_CFG,
           messages: {
             groupChat: {
-              mentionPatterns: ["openclaw"],
+              mentionPatterns: ["gemmaclaw"],
             },
           },
         } as import("openclaw/plugin-sdk/config-runtime").OpenClawConfig,
@@ -1041,7 +1041,7 @@ describe("preflightDiscordMessage", () => {
           ...DEFAULT_PREFLIGHT_CFG,
           messages: {
             groupChat: {
-              mentionPatterns: ["openclaw"],
+              mentionPatterns: ["gemmaclaw"],
             },
           },
         } as import("openclaw/plugin-sdk/config-runtime").OpenClawConfig,
