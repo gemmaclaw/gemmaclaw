@@ -13,6 +13,7 @@
 # Environment variables:
 #   GEMMACLAW_HOME  — Override install directory (default: ~/.gemmaclaw)
 #   HF_TOKEN        — HuggingFace token (required for gemma-cpp)
+#   OLLAMA_TEST_MODEL — Override Ollama model for CI (default: qwen2.5:0.5b)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -53,8 +54,15 @@ test_backend() {
     *)         fail "Unknown backend: $backend"; return 1 ;;
   esac
 
+  # Use a small model for Ollama in CI to avoid slow CPU inference.
+  local model_flag=""
+  if [[ "$backend" == "ollama" ]]; then
+    local ci_model="${OLLAMA_TEST_MODEL:-qwen2.5:0.5b}"
+    model_flag="--model $ci_model"
+  fi
+
   log "Provisioning $backend on port $port..."
-  if ! $GEMMACLAW provision --backend "$backend" --port "$port" 2>&1; then
+  if ! $GEMMACLAW provision --backend "$backend" --port "$port" $model_flag 2>&1; then
     log "DEBUG: GEMMACLAW_HOME=$GEMMACLAW_HOME HOME=$HOME"
     log "DEBUG: Models dir contents:"
     find "${GEMMACLAW_HOME:-$HOME/.gemmaclaw}" -type f 2>/dev/null | head -20 || true
