@@ -141,6 +141,11 @@ export function createLlamaCppManager(): RuntimeManager {
         throw new Error(`Model file not found at ${modelPath}. Run pullModel() first.`);
       }
 
+      // The release zip bundles libllama.so alongside the binary. Set
+      // LD_LIBRARY_PATH so the dynamic linker can find it.
+      const binDir = path.dirname(bin);
+      const ldPath = [binDir, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+
       // Capture stderr for diagnostics. Using "pipe" without consuming
       // the stream would block the child when the OS pipe buffer fills,
       // so we drain both streams into a ring buffer.
@@ -160,6 +165,7 @@ export function createLlamaCppManager(): RuntimeManager {
         ],
         {
           stdio: ["ignore", "pipe", "pipe"],
+          env: { ...process.env, LD_LIBRARY_PATH: ldPath },
           detached: true,
         },
       );
