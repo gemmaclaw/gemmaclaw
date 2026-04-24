@@ -72,17 +72,22 @@ test_backend() {
   fi
 
   # Double-check: send our own curl request to the API.
-  log "Sending independent verification request to $backend..."
+  # For Ollama, the model name must match a pulled model (not "test").
+  local curl_model="test"
+  if [[ "$backend" == "ollama" ]]; then
+    curl_model="${OLLAMA_TEST_MODEL:-qwen2.5:0.5b}"
+  fi
+  log "Sending independent verification request to $backend (model: $curl_model)..."
   local response
   response=$(curl -sf --max-time 120 \
     "http://127.0.0.1:${port}/v1/chat/completions" \
     -H "Content-Type: application/json" \
-    -d '{
-      "model": "test",
-      "messages": [{"role": "user", "content": "Reply with exactly the word OK"}],
-      "max_tokens": 16,
-      "temperature": 0
-    }' 2>&1) || true
+    -d "{
+      \"model\": \"$curl_model\",
+      \"messages\": [{\"role\": \"user\", \"content\": \"Reply with exactly the word OK\"}],
+      \"max_tokens\": 16,
+      \"temperature\": 0
+    }" 2>&1) || true
 
   if [[ -z "$response" ]]; then
     fail "$backend returned empty curl response"
