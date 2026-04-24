@@ -55,6 +55,10 @@ test_backend() {
 
   log "Provisioning $backend on port $port..."
   if ! $GEMMACLAW provision --backend "$backend" --port "$port" 2>&1; then
+    log "DEBUG: GEMMACLAW_HOME=$GEMMACLAW_HOME HOME=$HOME"
+    log "DEBUG: Models dir contents:"
+    find "${GEMMACLAW_HOME:-$HOME/.gemmaclaw}" -type f 2>/dev/null | head -20 || true
+    ls -laR "${GEMMACLAW_HOME:-$HOME/.gemmaclaw}/models/" 2>/dev/null || true
     fail "$backend provision command failed"
     return 1
   fi
