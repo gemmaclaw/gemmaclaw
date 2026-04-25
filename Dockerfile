@@ -261,8 +261,9 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     fi
 
 # Expose the CLI binary without requiring npm global writes as non-root.
-RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
- && chmod 755 /app/openclaw.mjs
+RUN ln -sf /app/gemmaclaw.mjs /usr/local/bin/gemmaclaw \
+ && ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
+ && chmod 755 /app/gemmaclaw.mjs /app/openclaw.mjs
 
 ENV NODE_ENV=production
 
