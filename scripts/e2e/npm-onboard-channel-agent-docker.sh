@@ -42,9 +42,9 @@ prepare_package_tgz() {
   local pack_dir
   pack_dir="$(mktemp -d "${TMPDIR:-/tmp}/openclaw-npm-onboard-pack.XXXXXX")"
   run_logged npm-onboard-channel-agent-pack npm pack --ignore-scripts --pack-destination "$pack_dir"
-  PACKAGE_TGZ="$(find "$pack_dir" -maxdepth 1 -name 'openclaw-*.tgz' -print -quit)"
+  PACKAGE_TGZ="$(find "$pack_dir" -maxdepth 1 \( -name 'openclaw-*.tgz' -o -name 'gemmaclaw-*.tgz' \) -print -quit)"
   if [ -z "$PACKAGE_TGZ" ]; then
-    echo "missing packed OpenClaw tarball" >&2
+    echo "missing packed tarball (expected openclaw-*.tgz or gemmaclaw-*.tgz)" >&2
     exit 1
   fi
   PACKAGE_TGZ="$(cd "$(dirname "$PACKAGE_TGZ")" && pwd)/$(basename "$PACKAGE_TGZ")"
