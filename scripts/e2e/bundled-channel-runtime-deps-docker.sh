@@ -687,7 +687,14 @@ fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 NODE
 
 CLI_BIN=$(command -v gemmaclaw 2>/dev/null || command -v openclaw 2>/dev/null || echo openclaw)
+set +e
 $CLI_BIN doctor --non-interactive >/tmp/openclaw-setup-entry-doctor.log 2>&1
+doctor_status=$?
+set -e
+if [ "$doctor_status" -ne 0 ]; then
+  echo "doctor exited with status $doctor_status (may be expected for dep repair)" >&2
+  cat /tmp/openclaw-setup-entry-doctor.log >&2 || true
+fi
 
 if [ -e "$root/dist/extensions/$CHANNEL/node_modules/$DEP_SENTINEL/package.json" ]; then
   echo "expected configured Feishu deps to be installed externally, not into bundled plugin tree" >&2
