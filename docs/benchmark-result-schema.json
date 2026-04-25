@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gemmaclaw.dev/benchmark/result.schema.json",
+  "title": "Benchmark Result",
+  "description": "Schema for gemmaclaw/jake-benchmark unified result format.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "timestamp",
+    "hardware",
+    "model",
+    "config",
+    "summary",
+    "tasks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0",
+      "description": "Schema version for forward compatibility."
+    },
+    "runId": {
+      "type": "string",
+      "description": "Unique run identifier, e.g. gemma3:4b__2026-04-25_180000."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the run completed."
+    },
+    "hardware": {
+      "type": "object",
+      "required": ["cpu", "ram"],
+      "properties": {
+        "cpu": {
+          "type": "object",
+          "required": ["arch", "cores"],
+          "properties": {
+            "arch": { "type": "string", "description": "e.g. x64, arm64" },
+            "cores": { "type": "integer", "minimum": 1 },
+            "model": { "type": "string", "description": "CPU model name." }
+          }
+        },
+        "ram": {
+          "type": "object",
+          "required": ["totalBytes"],
+          "properties": {
+            "totalBytes": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "gpu": {
+          "type": "object",
+          "properties": {
+            "detected": { "type": "boolean" },
+            "name": { "type": "string" },
+            "vramBytes": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Model identifier, e.g. gemma3:4b, qwen3.5:27b-q4_K_M."
+        },
+        "backend": {
+          "type": "string",
+          "enum": ["ollama", "llama.cpp", "gemma.cpp"],
+          "description": "Inference backend."
+        },
+        "quantization": { "type": "string", "description": "Quant level, e.g. Q4_K_M, Q8_0, F16." },
+        "parameterCount": { "type": "string", "description": "e.g. 4B, 27B, 31B." },
+        "contextWindow": {
+          "type": "integer",
+          "description": "Effective context window used in this run."
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "taskPack": {
+          "type": "string",
+          "description": "Task pack used: core, jake-agent, or custom."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["quick", "full", "sweep"],
+          "description": "Benchmark mode."
+        },
+        "scoringMethod": { "type": "string", "enum": ["deterministic", "llm_judge", "mixed"] },
+        "thinkingLevel": { "type": "string", "enum": ["off", "low", "medium", "high", "xhigh"] },
+        "ollamaUrl": { "type": "string" },
+        "gpuLayers": { "type": "integer" },
+        "batchSize": { "type": "integer" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["totalScore", "maxScore", "percentage", "totalTimeMs"],
+      "properties": {
+        "totalScore": { "type": "number" },
+        "maxScore": { "type": "number" },
+        "percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "totalTimeMs": { "type": "integer" },
+        "avgTokensPerSecond": { "type": "number" },
+        "passedCount": { "type": "integer" },
+        "failedCount": { "type": "integer" },
+        "errorCount": { "type": "integer" }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "score", "maxScore", "elapsedMs"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "difficulty": { "type": "string" },
+          "score": { "type": "number" },
+          "maxScore": { "type": "number" },
+          "percentage": { "type": "number" },
+          "passed": { "type": "boolean" },
+          "method": { "type": "string", "enum": ["deterministic", "llm_judge"] },
+          "details": { "type": "string" },
+          "elapsedMs": { "type": "integer" },
+          "tokensPerSecond": { "type": "number" },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}
