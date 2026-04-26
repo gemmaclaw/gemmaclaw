@@ -1,12 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { BackendType } from "../gemmaclaw/benchmark/runner.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 
 export type BenchmarkGemmaCommandOpts = {
   mock?: boolean;
   model?: string;
+  backend?: string;
   ollamaUrl?: string;
+  llamaCppUrl?: string;
+  gguf?: string;
   filter?: string;
   outputDir?: string;
   contextLength?: number;
@@ -21,11 +25,22 @@ export async function benchmarkGemmaCommand(
   const { detectHardware, formatHardwareInfo } = await import("../gemmaclaw/provision/hardware.js");
   const { BENCHMARK_TASKS, runBenchmark, writeResults, getMaxPossibleScore } =
     await import("../gemmaclaw/benchmark/index.js");
+  const { findPreset } = await import("../gemmaclaw/provision/model-registry.js");
+
+  // Resolve backend.
+  const backend: BackendType = (
+    opts.backend === "llama-cpp" ? "llama-cpp" : "ollama"
+  ) as BackendType;
 
   // Resolve model. Priority: --model flag > gemmaclaw config > default.
   const model = opts.model ?? resolveConfiguredModel() ?? "gemma3:4b";
   const ollamaUrl = opts.ollamaUrl ?? "http://127.0.0.1:11434";
+  const llamaCppUrl = opts.llamaCppUrl ?? "http://127.0.0.1:8080";
   const isMock = Boolean(opts.mock);
+
+  // Look up preset for context length defaults.
+  const preset = findPreset(model);
+  const contextLength = opts.contextLength ?? preset?.defaultContextLength;
 
   runtime.log("");
   runtime.log("========================================");
@@ -60,12 +75,23 @@ export async function benchmarkGemmaCommand(
     return;
   }
 
+  runtime.log(`Backend: ${backend}`);
   runtime.log(`Model: ${model}`);
-  runtime.log(`Ollama: ${ollamaUrl}`);
+  if (preset) {
+    runtime.log(`Preset: ${preset.displayName} (${preset.architecture}, ${preset.parameterCount})`);
+  }
+  if (backend === "ollama") {
+    runtime.log(`Ollama: ${ollamaUrl}`);
+  } else {
+    runtime.log(`llama-server: ${llamaCppUrl}`);
+    if (opts.gguf) {
+      runtime.log(`GGUF: ${opts.gguf}`);
+    }
+  }
   runtime.log(`Tasks: ${tasks.length} (max ${getMaxPossibleScore()} points)`);
   runtime.log(`Mode: ${isMock ? "deterministic (mock)" : "full (LLM judge)"}`);
-  if (opts.contextLength) {
-    runtime.log(`Context length: ${opts.contextLength}`);
+  if (contextLength) {
+    runtime.log(`Context length: ${contextLength}`);
   }
   if (opts.gpuLayers != null) {
     runtime.log(`GPU layers: ${opts.gpuLayers}`);
@@ -75,22 +101,36 @@ export async function benchmarkGemmaCommand(
   }
   runtime.log("");
 
-  // Verify Ollama is reachable (unless mock-only with no real inference needed).
+  // Verify backend is reachable (unless mock-only with no real inference needed).
   if (!isMock) {
-    try {
-      const { content } = await ollamaPing(ollamaUrl, model);
-      if (!content) {
-        throw new Error("Empty response");
+    if (backend === "ollama") {
+      try {
+        const { content } = await ollamaPing(ollamaUrl, model);
+        if (!content) {
+          throw new Error("Empty response");
+        }
+        runtime.log("Ollama connection verified.");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        runtime.error(`Cannot reach Ollama at ${ollamaUrl}: ${msg}`);
+        runtime.error("Make sure Ollama is running with the model loaded.");
+        runtime.error("  ollama serve");
+        runtime.error(`  ollama pull ${model}`);
+        runtime.exit(1);
+        return;
       }
-      runtime.log("Ollama connection verified.");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      runtime.error(`Cannot reach Ollama at ${ollamaUrl}: ${msg}`);
-      runtime.error("Make sure Ollama is running with the model loaded.");
-      runtime.error("  ollama serve");
-      runtime.error(`  ollama pull ${model}`);
-      runtime.exit(1);
-      return;
+    } else {
+      try {
+        await llamaCppPing(llamaCppUrl);
+        runtime.log("llama-server connection verified.");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        runtime.error(`Cannot reach llama-server at ${llamaCppUrl}: ${msg}`);
+        runtime.error("Make sure llama-server is running:");
+        runtime.error(`  llama-server --model <gguf-path> --port 8080 --host 127.0.0.1 -ngl 99`);
+        runtime.exit(1);
+        return;
+      }
     }
   }
 
@@ -98,11 +138,14 @@ export async function benchmarkGemmaCommand(
   const result = await runBenchmark(
     tasks,
     {
+      backend,
       ollamaUrl,
+      llamaCppUrl,
       model,
+      ggufPath: opts.gguf,
       mock: isMock,
       filter: opts.filter,
-      contextLength: opts.contextLength,
+      contextLength,
       gpuLayers: opts.gpuLayers,
       batchSize: opts.batchSize,
     },
@@ -112,10 +155,11 @@ export async function benchmarkGemmaCommand(
 
   // Write results.
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const backendSuffix = backend === "llama-cpp" ? "__llamacpp" : "__ollama";
   const defaultDir = path.join(
     process.cwd(),
     "results",
-    `${model.replace(/[/:]/g, "-")}__${timestamp}`,
+    `${model.replace(/[/:]/g, "-")}${backendSuffix}__${timestamp}`,
   );
   const outputDir = opts.outputDir ?? defaultDir;
   const files = writeResults(result, outputDir);
@@ -126,11 +170,32 @@ export async function benchmarkGemmaCommand(
   runtime.log("========================================");
   runtime.log("  RESULTS");
   runtime.log("========================================");
+  runtime.log(`  Backend: ${backend}`);
   runtime.log(`  Score: ${s.totalScore} / ${s.maxScore} (${s.percentage}%)`);
-  runtime.log(`  Passed: ${s.passedCount} / ${s.passedCount + s.failedCount}`);
+  runtime.log(`  Pass rate: ${s.passRate}% (${s.passedCount}/${s.passedCount + s.failedCount})`);
   runtime.log(`  Time: ${(s.totalTimeMs / 1000).toFixed(1)}s`);
   if (s.avgTokensPerSecond != null) {
     runtime.log(`  Avg tok/s: ${s.avgTokensPerSecond}`);
+  }
+  if (s.medianTokensPerSecond != null) {
+    runtime.log(`  Median tok/s: ${s.medianTokensPerSecond}`);
+  }
+  if (s.p50LatencyMs != null) {
+    runtime.log(`  p50 latency: ${(s.p50LatencyMs / 1000).toFixed(1)}s`);
+  }
+  if (s.p95LatencyMs != null) {
+    runtime.log(`  p95 latency: ${(s.p95LatencyMs / 1000).toFixed(1)}s`);
+  }
+  if (s.totalPromptTokens > 0) {
+    runtime.log(`  Prompt tokens: ${s.totalPromptTokens}`);
+  }
+  if (s.totalCompletionTokens > 0) {
+    runtime.log(`  Completion tokens: ${s.totalCompletionTokens}`);
+  }
+  // Show failure modes if any errors occurred.
+  const errorModes = Object.entries(s.failureModes).filter(([k]) => k !== "none");
+  if (errorModes.length > 0) {
+    runtime.log(`  Failures: ${errorModes.map(([k, v]) => `${k}=${v}`).join(", ")}`);
   }
   runtime.log("");
   runtime.log(`  JSON: ${files.json}`);
@@ -205,6 +270,39 @@ async function ollamaPing(url: string, model: string): Promise<{ content: string
       reject(new Error("Ollama ping timed out"));
     });
     req.write(body);
+    req.end();
+  });
+}
+
+async function llamaCppPing(url: string): Promise<void> {
+  const http = await import("node:http");
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || 8080,
+        path: "/health",
+        method: "GET",
+        timeout: 10_000,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          if (res.statusCode === 200) {
+            resolve();
+          } else {
+            reject(new Error(`llama-server health check returned ${res.statusCode}`));
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("llama-server ping timed out"));
+    });
     req.end();
   });
 }

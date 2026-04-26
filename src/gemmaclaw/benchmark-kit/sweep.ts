@@ -88,7 +88,9 @@ export async function runSweep(
     log(`\n${runLabel} ${model} ctx=${ctx} thinking=${thinking}`);
 
     const config: BenchmarkConfig = {
+      backend: "ollama",
       ollamaUrl: sweepCfg.ollamaUrl,
+      llamaCppUrl: "http://127.0.0.1:8080",
       model,
       mock: false,
       contextLength: ctx,

@@ -5,7 +5,9 @@ import { anonymize, checkGhCli } from "./upload.js";
 function makeMockResult(): BenchmarkResult {
   return {
     config: {
+      backend: "ollama",
       ollamaUrl: "http://192.168.1.100:11434",
+      llamaCppUrl: "http://127.0.0.1:8080",
       model: "gemma3:4b-q4_k_m",
       mock: false,
       contextLength: 8192,
@@ -37,6 +39,7 @@ function makeMockResult(): BenchmarkResult {
         },
         elapsedMs: 1500,
         tokensPerSecond: 22.5,
+        failureMode: "none",
       },
     ],
     summary: {
@@ -47,6 +50,10 @@ function makeMockResult(): BenchmarkResult {
       avgTokensPerSecond: 22.5,
       passedCount: 1,
       failedCount: 0,
+      passRate: 100,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      failureModes: { none: 1 },
     },
     timestamp: "2026-04-25T15:00:00.000Z",
   };

@@ -37,9 +37,13 @@ export function writeJsonResults(result: BenchmarkResult, outputDir: string): st
 
   const output = {
     model: result.config.model,
+    backend: result.config.backend,
     timestamp: result.timestamp,
     config: {
+      backend: result.config.backend,
       ollamaUrl: result.config.ollamaUrl,
+      llamaCppUrl: result.config.llamaCppUrl,
+      ggufPath: result.config.ggufPath,
       mock: result.config.mock,
       contextLength: result.config.contextLength,
       gpuLayers: result.config.gpuLayers,
@@ -68,6 +72,9 @@ export function writeJsonResults(result: BenchmarkResult, outputDir: string): st
       details: t.score.details,
       elapsedMs: t.elapsedMs,
       tokensPerSecond: t.tokensPerSecond,
+      promptTokens: t.promptTokens,
+      completionTokens: t.completionTokens,
+      failureMode: t.failureMode,
       error: t.error,
     })),
   };
@@ -86,6 +93,7 @@ export function writeMarkdownSummary(result: BenchmarkResult, outputDir: string)
     `# Benchmark Results: ${result.config.model}`,
     "",
     `**Date:** ${result.timestamp}`,
+    `**Backend:** ${result.config.backend}`,
     `**Mode:** ${result.config.mock ? "Deterministic (mock)" : "Full (LLM judge)"}`,
     "",
     "## Hardware",
@@ -102,21 +110,42 @@ export function writeMarkdownSummary(result: BenchmarkResult, outputDir: string)
     `| Metric | Value |`,
     `| --- | --- |`,
     `| Total Score | ${s.totalScore} / ${s.maxScore} (${s.percentage}%) |`,
-    `| Passed | ${s.passedCount} / ${s.passedCount + s.failedCount} |`,
+    `| Pass Rate | ${s.passRate}% (${s.passedCount}/${s.passedCount + s.failedCount}) |`,
     `| Total Time | ${formatDuration(s.totalTimeMs)} |`,
     ...(s.avgTokensPerSecond != null ? [`| Avg Tokens/s | ${s.avgTokensPerSecond} |`] : []),
+    ...(s.medianTokensPerSecond != null
+      ? [`| Median Tokens/s | ${s.medianTokensPerSecond} |`]
+      : []),
+    ...(s.p50LatencyMs != null ? [`| p50 Latency | ${formatDuration(s.p50LatencyMs)} |`] : []),
+    ...(s.p95LatencyMs != null ? [`| p95 Latency | ${formatDuration(s.p95LatencyMs)} |`] : []),
+    ...(s.totalPromptTokens > 0 ? [`| Prompt Tokens | ${s.totalPromptTokens} |`] : []),
+    ...(s.totalCompletionTokens > 0 ? [`| Completion Tokens | ${s.totalCompletionTokens} |`] : []),
     "",
+  ];
+
+  // Failure modes breakdown.
+  const errorModes = Object.entries(s.failureModes).filter(([k]) => k !== "none");
+  if (errorModes.length > 0) {
+    lines.push("## Failure Modes", "");
+    for (const [mode, count] of errorModes) {
+      lines.push(`- **${mode}**: ${count} task(s)`);
+    }
+    lines.push("");
+  }
+
+  lines.push(
     "## Task Results",
     "",
-    "| Task | Category | Difficulty | Score | Status | Time | tok/s |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
-  ];
+    "| Task | Category | Difficulty | Score | Status | Time | tok/s | Failure |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+  );
 
   for (const t of result.tasks) {
     const status = t.score.passed ? "PASS" : "FAIL";
     const tps = t.tokensPerSecond ? t.tokensPerSecond.toFixed(1) : "-";
+    const failure = t.failureMode === "none" ? "-" : t.failureMode;
     lines.push(
-      `| ${t.task.name} | ${t.task.category} | ${t.task.difficulty} | ${t.score.score}/${t.score.maxScore} | ${status} | ${formatDuration(t.elapsedMs)} | ${tps} |`,
+      `| ${t.task.name} | ${t.task.category} | ${t.task.difficulty} | ${t.score.score}/${t.score.maxScore} | ${status} | ${formatDuration(t.elapsedMs)} | ${tps} | ${failure} |`,
     );
   }
 
@@ -130,7 +159,10 @@ export function writeMarkdownSummary(result: BenchmarkResult, outputDir: string)
     const catScore = catTasks.reduce((s, t) => s + t.score.score, 0);
     const catMax = catTasks.reduce((s, t) => s + t.score.maxScore, 0);
     const catPct = catMax > 0 ? Math.round((catScore / catMax) * 100) : 0;
-    lines.push(`- **${cat}**: ${catScore}/${catMax} (${catPct}%)`);
+    const catPassed = catTasks.filter((t) => t.score.passed).length;
+    lines.push(
+      `- **${cat}**: ${catScore}/${catMax} (${catPct}%) - ${catPassed}/${catTasks.length} passed`,
+    );
   }
 
   lines.push("");
@@ -150,6 +182,8 @@ export function writeHtmlDashboard(result: BenchmarkResult, outputDir: string): 
         ? '<span class="badge pass">PASS</span>'
         : '<span class="badge fail">FAIL</span>';
       const tps = t.tokensPerSecond ? t.tokensPerSecond.toFixed(1) : "-";
+      const failure =
+        t.failureMode === "none" ? "-" : `<span class="badge fail">${t.failureMode}</span>`;
       return `<tr>
         <td>${t.task.name}</td>
         <td>${t.task.category}</td>
@@ -158,6 +192,7 @@ export function writeHtmlDashboard(result: BenchmarkResult, outputDir: string): 
         <td>${status}</td>
         <td>${formatDuration(t.elapsedMs)}</td>
         <td>${tps}</td>
+        <td>${failure}</td>
       </tr>`;
     })
     .join("\n");
@@ -204,7 +239,7 @@ body { font-family: 'Google Sans', 'Segoe UI', system-ui, sans-serif; background
 h1 { font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
 h2 { font-size: 1.2rem; font-weight: 500; margin: 24px 0 12px; color: var(--muted); }
 .subtitle { color: var(--muted); margin-bottom: 24px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
 .card .label { font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
 .card .value { font-size: 1.6rem; font-weight: 500; }
@@ -231,12 +266,16 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border
 <body>
 <div class="container">
   <h1>Gemmaclaw Benchmark</h1>
-  <p class="subtitle">${result.config.model} | ${result.config.mock ? "Deterministic" : "LLM Judge"} | ${result.timestamp}</p>
+  <p class="subtitle">${result.config.model} | ${result.config.backend} | ${result.config.mock ? "Deterministic" : "LLM Judge"} | ${result.timestamp}</p>
 
   <div class="cards">
     <div class="card">
       <div class="label">Overall Score</div>
       <div class="value score">${s.percentage}%</div>
+    </div>
+    <div class="card">
+      <div class="label">Pass Rate</div>
+      <div class="value">${s.passRate}%</div>
     </div>
     <div class="card">
       <div class="label">Score</div>
@@ -255,6 +294,21 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border
         ? `<div class="card"><div class="label">Avg tok/s</div><div class="value">${s.avgTokensPerSecond}</div></div>`
         : ""
     }
+    ${
+      s.medianTokensPerSecond != null
+        ? `<div class="card"><div class="label">Median tok/s</div><div class="value">${s.medianTokensPerSecond}</div></div>`
+        : ""
+    }
+    ${
+      s.p50LatencyMs != null
+        ? `<div class="card"><div class="label">p50 Latency</div><div class="value">${formatDuration(s.p50LatencyMs)}</div></div>`
+        : ""
+    }
+    ${
+      s.p95LatencyMs != null
+        ? `<div class="card"><div class="label">p95 Latency</div><div class="value">${formatDuration(s.p95LatencyMs)}</div></div>`
+        : ""
+    }
   </div>
 
   <h2>By Category</h2>
@@ -271,14 +325,14 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border
   <h2>Task Results</h2>
   <table>
     <thead>
-      <tr><th>Task</th><th>Category</th><th>Difficulty</th><th>Score</th><th>Status</th><th>Time</th><th>tok/s</th></tr>
+      <tr><th>Task</th><th>Category</th><th>Difficulty</th><th>Score</th><th>Status</th><th>Time</th><th>tok/s</th><th>Failure</th></tr>
     </thead>
     <tbody>
       ${taskRows}
     </tbody>
   </table>
 
-  <footer>Generated by gemmaclaw benchmark | ${result.timestamp}</footer>
+  <footer>Generated by gemmaclaw benchmark | ${result.config.backend} | ${result.timestamp}</footer>
 </div>
 </body>
 </html>`;
