@@ -4,31 +4,212 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gemmaclaw</title>
+  <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmarked on Gemma 4 26B MoE: 98% quality at 117-133 tok/s on a single RTX 3090.">
   <style>
-    :root { --bg: #0d1117; --fg: #e6edf3; --accent: #4285f4; --muted: #8b949e; }
+    :root {
+      --bg: #0d1117;
+      --bg-elev: #161b22;
+      --bg-elev-2: #1c2129;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --fg-soft: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #4285f4;
+      --accent-soft: #1f3a5f;
+      --good: #3fb950;
+      --warn: #d29922;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
-    .hero { text-align: center; max-width: 640px; }
-    h1 { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+    .hero { text-align: center; padding: 2rem 0 4rem; }
+    h1 { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; letter-spacing: -0.02em; }
     h1 span { color: var(--accent); }
-    .tagline { font-size: 1.25rem; color: var(--muted); margin-bottom: 2rem; line-height: 1.6; }
-    .links { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-    .links a { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 0.95rem; transition: opacity 0.15s; }
-    .links a:hover { opacity: 0.85; }
+    .tagline { font-size: 1.2rem; color: var(--muted); max-width: 560px; margin: 0 auto 2rem; }
+    .links { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .links a {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.7rem 1.4rem; border-radius: 8px;
+      text-decoration: none; font-weight: 500; font-size: 0.95rem;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .links a:hover { opacity: 0.9; transform: translateY(-1px); }
     .btn-primary { background: var(--accent); color: #fff; }
-    .btn-secondary { border: 1px solid var(--muted); color: var(--fg); }
-    footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; }
+    .btn-secondary { border: 1px solid var(--border); color: var(--fg); background: var(--bg-elev); }
+
+    section { margin-top: 3.5rem; }
+    h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
+    h3 { font-size: 1.05rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: var(--fg-soft); }
+    p { color: var(--fg-soft); margin-bottom: 1rem; }
+
+    .callout {
+      background: linear-gradient(135deg, var(--accent-soft) 0%, var(--bg-elev) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem 1.75rem 1.5rem;
+    }
+    .callout .badge {
+      display: inline-block; font-size: 0.75rem; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 0.75rem;
+    }
+    .callout h2 { margin-bottom: 0.75rem; }
+    .callout p:last-child { margin-bottom: 0; }
+
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); margin: 1.25rem 0 0.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { background: var(--bg-elev); font-weight: 600; color: var(--fg); font-size: 0.85rem; letter-spacing: 0.02em; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-elev-2); }
+    td.num { font-variant-numeric: tabular-nums; }
+    td.win { color: var(--good); font-weight: 600; }
+    td.bad { color: var(--muted); }
+
+    ul.takeaways { list-style: none; margin: 0.5rem 0 0; }
+    ul.takeaways li {
+      padding: 1rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 0.75rem;
+      background: var(--bg-elev);
+    }
+    ul.takeaways strong { color: var(--fg); display: block; margin-bottom: 0.25rem; }
+    ul.takeaways span { color: var(--fg-soft); font-size: 0.94rem; }
+
+    .meta {
+      font-size: 0.85rem; color: var(--muted);
+      padding: 0.75rem 1rem; background: var(--bg-elev); border-radius: 8px;
+      border: 1px solid var(--border); margin-top: 1.25rem;
+    }
+    .meta code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--fg-soft); }
+
+    a.inline { color: var(--accent); text-decoration: none; }
+    a.inline:hover { text-decoration: underline; }
+
+    footer {
+      margin-top: 5rem; padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 0.85rem; text-align: center;
+    }
+    footer a { color: var(--muted); }
+
+    @media (max-width: 560px) {
+      h1 { font-size: 2.25rem; }
+      .tagline { font-size: 1.05rem; }
+      .wrap { padding: 2.5rem 1rem 4rem; }
+      th, td { padding: 0.6rem 0.75rem; font-size: 0.85rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="hero">
-    <h1><span>Gemma</span>claw</h1>
-    <p class="tagline">Out-of-the-box best Gemma setup for your hardware. Auto-selects backend, model size, quantization, and runtime settings so you can focus on building.</p>
-    <div class="links">
-      <a class="btn-primary" href="https://github.com/gemmaclaw/gemmaclaw">GitHub Repository</a>
-      <a class="btn-secondary" href="https://github.com/gemmaclaw/gemmaclaw#readme">Documentation</a>
-    </div>
+  <div class="wrap">
+    <header class="hero">
+      <h1><span>Gemma</span>claw</h1>
+      <p class="tagline">Out-of-the-box best Gemma setup for your hardware. Auto-selects backend, model size, quantization, and runtime settings so you can focus on building.</p>
+      <div class="links">
+        <a class="btn-primary" href="https://github.com/gemmaclaw/gemmaclaw">GitHub Repository</a>
+        <a class="btn-secondary" href="https://github.com/gemmaclaw/gemmaclaw#readme">Documentation</a>
+      </div>
+    </header>
+
+    <section class="callout">
+      <span class="badge">New &middot; April 2026</span>
+      <h2>Gemma 4 on a 24 GB GPU</h2>
+      <p>Gemma 4 launched on April 2, 2026 in two variants: a 26B A4B MoE model with about 3.8B active parameters per token, and a 31B dense model. Both target consumer-class GPUs, but only one is actually a good fit on a single 24 GB card. We ran the Gemmaclaw benchmark harness against both, plus the Gemma 3 4B baseline, on an RTX 3090.</p>
+      <p>The 26B MoE model clears 98% on quality at interactive speed. The 31B dense model is impractical on consumer hardware. Numbers below.</p>
+    </section>
+
+    <section>
+      <h2>Benchmark snapshot</h2>
+      <p>Hardware: NVIDIA RTX 3090 (24 GB), AMD Ryzen 9 5900X, 30 GB system RAM, WSL2 Ubuntu. All models Q4_K_M. Quality is scored by an LLM judge across 15 tool-use-style tasks (instruction following, reasoning, extraction, safety, coding). Throughput measured at the local HTTP API.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Backend</th>
+              <th>VRAM</th>
+              <th>Score</th>
+              <th>Pass rate</th>
+              <th>Median tok/s</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Gemma 3 4B</td>
+              <td>Ollama</td>
+              <td class="num">~3 GB</td>
+              <td class="num">134/140 (96%)</td>
+              <td class="num">100% (15/15)</td>
+              <td class="num">178</td>
+            </tr>
+            <tr>
+              <td>Gemma 4 26B MoE</td>
+              <td>Ollama</td>
+              <td class="num">~17 GB</td>
+              <td class="num">137/140 (98%)</td>
+              <td class="num">100% (15/15)</td>
+              <td class="num">117</td>
+            </tr>
+            <tr>
+              <td>Gemma 4 26B MoE</td>
+              <td>llama.cpp standalone</td>
+              <td class="num">~17 GB</td>
+              <td class="num">127/140 (91%)</td>
+              <td class="num">93.3% (14/15)</td>
+              <td class="num win">133</td>
+            </tr>
+            <tr>
+              <td class="bad">Gemma 4 31B dense</td>
+              <td class="bad">Ollama</td>
+              <td class="num bad">~21 GB</td>
+              <td class="num bad">97/140 (69%)</td>
+              <td class="num bad">73% (11/15)</td>
+              <td class="num bad">2.6</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="meta">
+        Reproduce: <code>gemmaclaw benchmark --model gemma4:26b</code> &nbsp;&middot;&nbsp;
+        Full per-task breakdown, methodology, and HTML dashboards in
+        <a class="inline" href="https://github.com/gemmaclaw/gemmaclaw/blob/main/benchmark-results/BENCHMARK-SUMMARY.md">benchmark-results/BENCHMARK-SUMMARY.md</a>.
+      </div>
+    </section>
+
+    <section>
+      <h2>What this means in practice</h2>
+      <ul class="takeaways">
+        <li>
+          <strong>Gemma 4 26B MoE is the sweet spot for a 24 GB GPU.</strong>
+          <span>98% quality, about 117 tok/s on Ollama, comfortable VRAM headroom for KV cache. The MoE design activates only a roughly 4B-parameter subset per token, which is why a 26B model fits and runs this fast on consumer hardware.</span>
+        </li>
+        <li>
+          <strong>llama.cpp standalone is meaningfully faster for the same model.</strong>
+          <span>About 14% higher median throughput and roughly half the p50 latency, because it skips the request orchestration layer. The single missed task was a thinking-template artifact, not a quality regression. Both backends are now blessed for Gemma 4: pick llama.cpp for raw speed, Ollama for zero-config plus rendering-aware output parsing for thinking models.</span>
+        </li>
+        <li>
+          <strong>Gemma 3 4B is still useful when speed wins.</strong>
+          <span>Roughly 50% faster than 26B MoE with only a 2-point quality gap. Good fit for latency-sensitive or batch workloads.</span>
+        </li>
+        <li>
+          <strong>Skip Gemma 4 31B dense on a 24 GB card.</strong>
+          <span>Q4_K_M loads at about 21 GB, leaving very little room for KV cache. CPU offload pressure drops throughput to about 2.6 tok/s, and coding tasks time out before they can finish. The 31B dense variant needs 40+ GB VRAM (A6000, L40, dual-GPU) to be practical.</span>
+        </li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Volunteer-driven, Gemma-first. Built on <a href="https://github.com/openclaw/openclaw">OpenClaw</a>. Not an official Google project.</p>
+    </footer>
   </div>
-  <footer>Gemmaclaw Project</footer>
 </body>
 </html>
