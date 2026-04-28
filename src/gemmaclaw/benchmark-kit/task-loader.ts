@@ -1,11 +1,22 @@
 /**
- * Task pack loader: reads JSON task packs and converts to BenchmarkTask objects.
+ * Task pack loader: reads JSON task packs and converts to BenchmarkTask
+ * objects (legacy tool-free shape) or typed `BenchmarkPack` objects (v1
+ * shape with family discriminator).
+ *
+ * Two surfaces are exposed:
+ *   - `loadCoreTasks()` / `loadTaskPack()` / `filterQuickTasks()`:
+ *       legacy tool-free helpers that produce `BenchmarkTask[]`. Existing
+ *       callers (`gemmaclaw benchmark`) keep using these.
+ *   - `loadBenchmarkPack()` / `loadBuiltinPack()` / `loadJakeAgentTasks()`:
+ *       v1 helpers that produce typed `BenchmarkPack` objects, including
+ *       agent packs that the core-model runner cannot grade.
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BenchmarkTask } from "../benchmark/tasks.js";
+import { type AgentPack, type BenchmarkPack, parseBenchmarkPack } from "./pack-types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,19 +48,42 @@ type TaskPackJson = {
 };
 
 /**
- * Load the built-in core task pack.
+ * Built-in task pack identifiers that ship with benchmark-kit.
  */
-export function loadCoreTasks(): BenchmarkTask[] {
-  const packPath = path.join(__dirname, "tasks", "core.json");
-  return loadTaskPack(packPath);
+export const BUILTIN_PACKS = ["core", "jake-agent"] as const;
+export type BuiltinPackName = (typeof BUILTIN_PACKS)[number];
+
+/**
+ * Resolve a built-in pack name to an absolute file path.
+ */
+export function builtinPackPath(name: BuiltinPackName): string {
+  return path.join(__dirname, "tasks", `${name}.json`);
 }
 
 /**
- * Load a task pack from a JSON file path.
+ * Load the built-in tool-free core task pack.
+ */
+export function loadCoreTasks(): BenchmarkTask[] {
+  return loadTaskPack(builtinPackPath("core"));
+}
+
+/**
+ * Load a tool-free task pack from a JSON file path. Legacy shape (no
+ * `family`/`schemaVersion`) and v1 `family: "tool-free"` shape both work.
+ *
+ * Throws if the file is an agent pack: tool-free callers should use
+ * `loadBenchmarkPack` for the discriminated-union surface.
  */
 export function loadTaskPack(filePath: string): BenchmarkTask[] {
   const raw = fs.readFileSync(filePath, "utf8");
-  const pack: TaskPackJson = JSON.parse(raw);
+  const parsedJson = JSON.parse(raw) as Record<string, unknown>;
+  if (parsedJson.family === "agent") {
+    throw new Error(
+      `task pack at ${filePath} is family='agent'; use loadBenchmarkPack() ` +
+        `or loadJakeAgentTasks() instead`,
+    );
+  }
+  const pack = parsedJson as unknown as TaskPackJson;
 
   return pack.tasks.map((t) =>
     Object.assign(
@@ -85,4 +119,35 @@ export function loadTaskPack(filePath: string): BenchmarkTask[] {
  */
 export function filterQuickTasks(tasks: BenchmarkTask[]): BenchmarkTask[] {
   return tasks.filter((t) => (t as BenchmarkTask & { tags?: string[] }).tags?.includes("quick"));
+}
+
+/**
+ * Load a v1-shaped pack file as a typed `BenchmarkPack`. Accepts both the
+ * v1 shape and the legacy benchmark-kit shape (auto-promoted to
+ * `family: "tool-free"`).
+ */
+export function loadBenchmarkPack(filePath: string): BenchmarkPack {
+  const raw = fs.readFileSync(filePath, "utf8");
+  const parsedJson = JSON.parse(raw) as unknown;
+  return parseBenchmarkPack(parsedJson);
+}
+
+/**
+ * Load a built-in pack by name (`"core"` or `"jake-agent"`).
+ */
+export function loadBuiltinPack(name: BuiltinPackName): BenchmarkPack {
+  return loadBenchmarkPack(builtinPackPath(name));
+}
+
+/**
+ * Convenience: load the built-in jake-agent pack as a typed `AgentPack`.
+ * Throws if the vendored pack is somehow not family='agent' (would mean a
+ * regression in the source-of-truth file).
+ */
+export function loadJakeAgentTasks(): AgentPack {
+  const pack = loadBuiltinPack("jake-agent");
+  if (pack.family !== "agent") {
+    throw new Error(`built-in jake-agent pack must be family='agent', got '${pack.family}'`);
+  }
+  return pack;
 }

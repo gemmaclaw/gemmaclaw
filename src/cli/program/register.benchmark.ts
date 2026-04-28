@@ -19,11 +19,29 @@ export function registerBenchmarkCommand(program: Command) {
     .option("--filter <text>", "Run only tasks matching this text (id, category, difficulty, name)")
     .option(
       "--output-dir <dir>",
-      "Output directory for results (default: ./results/<model>__<timestamp>)",
+      "Output directory for results (default: ./benchmark-results/<run>__<timestamp>)",
     )
     .option("--context-length <n>", "Context window size (num_ctx)", parseInt)
     .option("--gpu-layers <n>", "Number of GPU layers (num_gpu)", parseInt)
     .option("--batch-size <n>", "Batch size (num_batch)", parseInt)
+    .option(
+      "--pack <name|path>",
+      "Task pack: 'core' (default tool-free), 'jake-agent' (agent pack), or path to a pack JSON",
+    )
+    .option(
+      "--runner <kind>",
+      "Runner: 'core-model' (tool-free), 'mock-agent' (default for jake-agent), or 'agent' (requires registered runner)",
+    )
+    .option(
+      "--list-pack",
+      "Print pack metadata and task summaries instead of running. Useful with --pack jake-agent.",
+      false,
+    )
+    .option(
+      "--validate-pack",
+      "Validate the pack against the v1 schema and exit. Combine with --pack <name|path>.",
+      false,
+    )
     .action(async (opts) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         const { benchmarkGemmaCommand } = await import("../../commands/benchmark-gemma.js");
@@ -39,6 +57,10 @@ export function registerBenchmarkCommand(program: Command) {
           contextLength: opts.contextLength as number | undefined,
           gpuLayers: opts.gpuLayers as number | undefined,
           batchSize: opts.batchSize as number | undefined,
+          pack: opts.pack as string | undefined,
+          runner: opts.runner as string | undefined,
+          listPack: Boolean(opts.listPack),
+          validatePack: Boolean(opts.validatePack),
         });
       });
     });
