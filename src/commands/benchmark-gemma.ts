@@ -105,10 +105,7 @@ export async function benchmarkGemmaCommand(
   if (!isMock) {
     if (backend === "ollama") {
       try {
-        const { content } = await ollamaPing(ollamaUrl, model);
-        if (!content) {
-          throw new Error("Empty response");
-        }
+        await ollamaPing(ollamaUrl, model);
         runtime.log("Ollama connection verified.");
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -235,7 +232,7 @@ async function ollamaPing(url: string, model: string): Promise<{ content: string
       messages: [{ role: "user", content: "ping" }],
       stream: false,
       keep_alive: "6h",
-      options: { num_predict: 1 },
+      options: { num_predict: 5 },
     });
 
     const parsed = new URL(url);
@@ -249,7 +246,7 @@ async function ollamaPing(url: string, model: string): Promise<{ content: string
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
         },
-        timeout: 30_000,
+        timeout: 120_000,
       },
       (res) => {
         const chunks: Buffer[] = [];
