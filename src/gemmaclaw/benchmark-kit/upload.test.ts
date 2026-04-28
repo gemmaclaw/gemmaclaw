@@ -15,7 +15,13 @@ function makeMockResult(): BenchmarkResult {
     hardware: {
       cpu: { arch: "x86_64", cores: 12, model: "AMD Ryzen 9 5900X" },
       ram: { totalBytes: 33_554_432_000, availableBytes: 16_000_000_000 },
-      gpu: { detected: true, nvidia: true, name: "NVIDIA RTX 3090", vramBytes: 25_769_803_776 },
+      gpu: {
+        detected: true,
+        nvidia: true,
+        apple: false,
+        name: "NVIDIA RTX 3090",
+        vramBytes: 25_769_803_776,
+      },
     },
     tasks: [
       {

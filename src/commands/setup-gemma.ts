@@ -1,9 +1,188 @@
+import { execSync, spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import readline from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 
 export type SetupGemmaCommandOpts = {
   advanced?: boolean;
+  noContainer?: boolean;
 };
+
+const HEALTH_POLL_INTERVAL_MS = 500;
+const HEALTH_POLL_MAX_ATTEMPTS = 60;
+
+async function probeGatewayHealth(port: number): Promise<boolean> {
+  try {
+    const url = `http://127.0.0.1:${String(port)}/healthz`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      return false;
+    }
+    const body = await res.text();
+    return body.includes("ok");
+  } catch {
+    return false;
+  }
+}
+
+async function waitForGatewayReady(port: number): Promise<boolean> {
+  for (let i = 0; i < HEALTH_POLL_MAX_ATTEMPTS; i++) {
+    if (await probeGatewayHealth(port)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS));
+  }
+  return false;
+}
+
+function killProcessesOnPort(port: number): void {
+  try {
+    const pids = execSync(`lsof -ti :${port}`, {
+      encoding: "utf-8",
+      timeout: 5_000,
+      stdio: "pipe",
+    }).trim();
+    if (pids) {
+      for (const pid of pids.split("\n").filter(Boolean)) {
+        try {
+          process.kill(Number(pid), "SIGTERM");
+        } catch {
+          // Already gone.
+        }
+      }
+      // Give processes a moment to exit.
+      execSync("sleep 1", { stdio: "pipe" });
+      // Force kill any that survived.
+      for (const pid of pids.split("\n").filter(Boolean)) {
+        try {
+          process.kill(Number(pid), "SIGKILL");
+        } catch {
+          // Already gone.
+        }
+      }
+    }
+  } catch {
+    // No processes on port, or lsof not available.
+  }
+}
+
+function resolveCliEntryPath(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.resolve(here, "../dist/entry.js"),
+    path.resolve(here, "../gemmaclaw.mjs"),
+    path.resolve(here, "../openclaw.mjs"),
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      return c;
+    }
+  }
+  return process.argv[1] ?? candidates[0];
+}
+
+function spawnGatewayDetached(port: number): ChildProcess {
+  const entryPath = resolveCliEntryPath();
+  const child = spawn(process.execPath, [entryPath, "gateway", "run", "--port", String(port)], {
+    stdio: "ignore",
+    detached: true,
+    env: process.env,
+  });
+  child.unref();
+  return child;
+}
+
+function isDockerInstalled(): boolean {
+  try {
+    execSync("docker --version", { stdio: "pipe", timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isDockerRunning(): boolean {
+  try {
+    execSync("docker info", { stdio: "pipe", timeout: 10_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function promptSandboxChoice(runtime: RuntimeEnv): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    runtime.log("");
+    runtime.log("How would you like the agent to run tools (shell, files, browser)?");
+    runtime.log("");
+    runtime.log("  1) Docker sandbox (recommended)");
+    runtime.log("     Tools run inside isolated Docker containers. The agent gets full");
+    runtime.log("     access to execute commands, read/write files, and browse the web,");
+    runtime.log("     but it cannot touch your host system. If anything goes wrong, the");
+    runtime.log("     container is disposable. Requires Docker to be installed and running.");
+    runtime.log("");
+    runtime.log("  2) Directly on this machine");
+    runtime.log("     Tools run directly on your host. This is simpler and faster, but the");
+    runtime.log("     agent can access your files, run commands, and make changes to your");
+    runtime.log("     system with no isolation. Only choose this if you trust the model or");
+    runtime.log("     are comfortable reviewing what it does.");
+    runtime.log("");
+
+    const answer = await rl.question("Choose [1/2, default=1]: ");
+    const choice = answer.trim();
+    return choice === "2" || choice.toLowerCase() === "direct";
+  } finally {
+    rl.close();
+  }
+}
+
+async function ensureDockerReady(runtime: RuntimeEnv): Promise<boolean> {
+  if (!isDockerInstalled()) {
+    runtime.log("");
+    runtime.log("Docker is not installed. Install it before continuing:");
+    runtime.log("  macOS:   brew install --cask docker   (then open Docker.app)");
+    runtime.log("  Linux:   curl -fsSL https://get.docker.com | sh");
+    runtime.log("  Windows: https://docs.docker.com/desktop/install/windows-install/");
+    runtime.log("");
+    runtime.log("After installing, re-run: gemmaclaw setup");
+    return false;
+  }
+
+  if (!isDockerRunning()) {
+    runtime.log("");
+    runtime.log("Docker is installed but the daemon is not running. Start it:");
+    runtime.log("  macOS:   Open Docker Desktop (or: open -a Docker)");
+    runtime.log("  Linux:   sudo systemctl start docker");
+    runtime.log("");
+
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const answer = await rl.question(
+        "Press Enter once Docker is running (or type 'skip' to run without it): ",
+      );
+      if (answer.trim().toLowerCase() === "skip") {
+        return false;
+      }
+    } finally {
+      rl.close();
+    }
+
+    if (!isDockerRunning()) {
+      runtime.error("Docker daemon is still not running.");
+      runtime.error("Start Docker and re-run setup, or use: gemmaclaw setup --no-container");
+      runtime.exit(1);
+    }
+  }
+
+  return true;
+}
 
 export async function setupGemmaCommand(
   opts: SetupGemmaCommandOpts,
@@ -15,7 +194,29 @@ export async function setupGemmaCommand(
   const { selectQuickProfile, runAdvancedWizard, createStdioWizardIO, formatModelSize } =
     await import("../gemmaclaw/provision/setup-wizard.js");
   const { provision, verifyCompletion } = await import("../gemmaclaw/provision/provision.js");
-  const { DEFAULT_MODELS } = await import("../gemmaclaw/provision/model-registry.js");
+  const { DEFAULT_GATEWAY_PORT } = await import("../config/paths.js");
+
+  // Check Node.js version.
+  const nodeVersion = Number.parseInt(process.versions.node.split(".")[0], 10);
+  if (nodeVersion < 22) {
+    runtime.error(`Node.js 22+ required (current: ${process.versions.node}).`);
+    runtime.error("  nvm:     nvm install 22 && nvm use 22");
+    runtime.error("  macOS:   brew install node@22");
+    runtime.exit(1);
+  }
+
+  // Determine sandbox mode: interactive prompt unless --no-container was passed.
+  let useDocker = false;
+  if (opts.noContainer) {
+    useDocker = false;
+  } else {
+    const wantsDirect = await promptSandboxChoice(runtime);
+    if (wantsDirect) {
+      useDocker = false;
+    } else {
+      useDocker = await ensureDockerReady(runtime);
+    }
+  }
 
   runtime.log("");
   runtime.log("Detecting hardware...");
@@ -38,11 +239,12 @@ export async function setupGemmaCommand(
       io.close();
     }
   } else {
-    // Quick: auto-select the safest backend.
+    // Quick: auto-select best backend and model for this hardware.
     profile = selectQuickProfile(hw, tools);
-    const model = DEFAULT_MODELS[profile.backend];
+    const displayName = profile.modelDisplayName ?? profile.model ?? "default model";
+    const dlSize = formatModelSize(profile.modelDownloadBytes);
     runtime.log("");
-    runtime.log(`Recommended: ${model.displayName} (${formatModelSize(model.sizeBytes)} download)`);
+    runtime.log(`Recommended: ${displayName} (${dlSize} download)`);
     runtime.log(`  ${profile.reason}`);
   }
 
@@ -66,15 +268,109 @@ export async function setupGemmaCommand(
 
     if (verification.ok) {
       runtime.log(`Smoke test passed. Response: "${verification.content}"`);
+
+      // Write gateway config pointing to the local Ollama provider.
+      runtime.log("");
+      runtime.log("Writing gateway configuration...");
+      const { mutateConfigFile } = await import("../config/mutate.js");
+      const ollamaModel = result.modelId;
+      const ollamaBaseUrl = `${result.handle.apiBaseUrl}/v1`;
+      const enableSandbox = useDocker;
+      await mutateConfigFile({
+        mutate: (draft) => {
+          draft.gateway ??= {};
+          draft.gateway.mode = "local";
+          draft.gateway.auth ??= {};
+          draft.gateway.auth.mode = "none";
+
+          draft.models ??= {};
+          draft.models.providers ??= {};
+          draft.models.providers.ollama = {
+            baseUrl: ollamaBaseUrl,
+            api: "ollama",
+            models: [
+              {
+                id: ollamaModel,
+                name: ollamaModel,
+                reasoning: false,
+                input: ["text", "image"],
+                contextWindow: 262_144,
+                maxTokens: 8_192,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              },
+            ],
+          };
+
+          draft.agents ??= {};
+          draft.agents.defaults ??= {};
+          draft.agents.defaults.model = `ollama/${ollamaModel}`;
+
+          // Enable full tool access with sandbox isolation.
+          // The gateway runs on the host, but agent tool execution (shell, file
+          // ops, browser) runs inside Docker sandbox containers.
+          draft.tools ??= {};
+          draft.tools.exec ??= {};
+          (draft.tools.exec as Record<string, unknown>).security = "full";
+          (draft.tools.exec as Record<string, unknown>).ask = "off";
+
+          if (enableSandbox) {
+            draft.agents.defaults.sandbox = {
+              mode: "all",
+              backend: "docker",
+              scope: "session",
+              workspaceAccess: "rw",
+            };
+          }
+        },
+      });
+      runtime.log(`  Provider: ollama (${ollamaBaseUrl})`);
+      runtime.log(`  Model: ollama/${ollamaModel}`);
+
+      if (enableSandbox) {
+        runtime.log(`  Sandbox: Docker (tools run in isolated containers)`);
+      } else {
+        runtime.log(`  Sandbox: off (tools run on host)`);
+      }
+
       runtime.log("");
       runtime.log("Setup complete! Your Gemma assistant is ready.");
-      runtime.log(`  Model: ${result.modelId}`);
-      runtime.log(`  API: ${result.handle.apiBaseUrl}/v1/chat/completions`);
+
+      // Build Control UI assets so the gateway starts instantly.
+      const { ensureControlUiAssetsBuilt } = await import("../infra/control-ui-assets.js");
       runtime.log("");
-      runtime.log("Next steps:");
-      runtime.log("  Chat in terminal:  gemmaclaw chat");
-      runtime.log("  Chat in browser:   gemmaclaw start, then open http://localhost:18789");
+      runtime.log("Checking Control UI assets...");
+      const uiBuild = await ensureControlUiAssetsBuilt(runtime);
+      if (uiBuild.ok) {
+        runtime.log(uiBuild.built ? "Control UI built." : "Control UI assets ready.");
+      } else {
+        runtime.error(`Control UI: ${uiBuild.message}`);
+        runtime.error("The gateway will attempt to build them on first start.");
+      }
+
+      // Start the gateway on the host. Tool execution is sandboxed in Docker
+      // containers via agents.defaults.sandbox when Docker is available.
+      const gwPort = DEFAULT_GATEWAY_PORT;
+
+      // Clean up any stale gateway process before starting fresh.
+      killProcessesOnPort(gwPort);
+
       runtime.log("");
+      runtime.log(`Starting gateway on port ${gwPort}...`);
+      spawnGatewayDetached(gwPort);
+
+      const ready = await waitForGatewayReady(gwPort);
+      if (!ready) {
+        runtime.error("Gateway did not become ready within 30 seconds.");
+        runtime.error("You can start it manually with: gemmaclaw chat");
+        runtime.log("");
+        runtime.log(`Backend PID: ${result.handle.pid} (stop with: kill ${result.handle.pid})`);
+        return;
+      }
+      runtime.log("Gateway is ready.");
+
+      const chatUrl = `http://127.0.0.1:${gwPort}/`;
+      runtime.log("");
+      runtime.log(`Chat UI: ${chatUrl}`);
       runtime.log(`Backend PID: ${result.handle.pid} (stop with: kill ${result.handle.pid})`);
     } else {
       runtime.error(`Smoke test failed: ${verification.error}`);

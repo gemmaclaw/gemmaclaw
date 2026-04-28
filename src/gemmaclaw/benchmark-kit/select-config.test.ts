@@ -46,7 +46,7 @@ function makeResult(overrides: {
     hardware: {
       cpu: { arch: "x86_64", cores: 8, model: "test" },
       ram: { totalBytes: 16e9, availableBytes: 8e9 },
-      gpu: { detected: false, nvidia: false },
+      gpu: { detected: false, nvidia: false, apple: false },
     },
     tasks,
     summary: {

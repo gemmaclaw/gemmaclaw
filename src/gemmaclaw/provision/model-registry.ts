@@ -25,9 +25,8 @@ export type ModelArtifact = {
 // -----------------------------------------------------------------------
 
 export const OLLAMA_RUNTIME: RuntimeArtifact = {
-  version: "0.6.2",
-  urlTemplate:
-    "https://github.com/ollama/ollama/releases/download/v{version}/ollama-linux-{arch}.tgz",
+  version: "0.21.2",
+  urlTemplate: "https://github.com/ollama/ollama/releases/download/v{version}/ollama-{os}-{arch}",
 };
 
 export const LLAMACPP_RUNTIME: RuntimeArtifact = {
@@ -86,7 +85,7 @@ export type GemmaModelPreset = {
 };
 
 export const GEMMA_MODEL_PRESETS: GemmaModelPreset[] = [
-  // ── Gemma 3 ──
+  // Gemma 3
   {
     id: "gemma3-1b",
     displayName: "Gemma 3 1B",
@@ -107,7 +106,7 @@ export const GEMMA_MODEL_PRESETS: GemmaModelPreset[] = [
     defaultContextLength: 32768,
     sizeBytes: 3_300_000_000,
   },
-  // ── Gemma 4 ──
+  // Gemma 4
   {
     id: "gemma4-26b-moe",
     displayName: "Gemma 4 26B MoE (A4B)",
@@ -164,11 +163,27 @@ export function findPreset(modelIdOrTag: string): GemmaModelPreset | undefined {
   );
 }
 
-export function resolveOllamaBinaryUrl(): string {
+export type OllamaArtifactInfo = {
+  url: string;
+  /** "tgz" for Linux archives, "zip" for the macOS app bundle. */
+  format: "tgz" | "zip";
+};
+
+export function resolveOllamaBinaryUrl(): OllamaArtifactInfo {
+  const isDarwin = process.platform === "darwin";
+
+  if (isDarwin) {
+    const url = `https://github.com/ollama/ollama/releases/download/v${OLLAMA_RUNTIME.version}/Ollama-darwin.zip`;
+    return { url, format: "zip" };
+  }
+
   const arch = process.arch === "x64" ? "amd64" : "arm64";
-  return OLLAMA_RUNTIME.urlTemplate
-    .replace("{version}", OLLAMA_RUNTIME.version)
-    .replace("{arch}", arch);
+  const url =
+    OLLAMA_RUNTIME.urlTemplate
+      .replace("{version}", OLLAMA_RUNTIME.version)
+      .replace("{os}", "linux")
+      .replace("{arch}", arch) + ".tgz";
+  return { url, format: "tgz" };
 }
 
 export function resolveLlamaCppUrl(): string {
