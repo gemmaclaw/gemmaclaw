@@ -47,6 +47,28 @@ CPU-only is a first-class path, not a fallback afterthought.
 
 Phase 2 tooling is live: `gemmaclaw setup` auto-detects hardware and provisions the best backend. Phase 1 benchmarks continue in parallel. Contributions and hardware reports are welcome.
 
+## Benchmark snapshot: Gemma 4 on a 24 GB GPU
+
+Gemma 4 launched on April 2, 2026 in two variants: a **26B A4B MoE** model with about 3.8B active parameters per token, and a **31B dense** model. Both are positioned for consumer-class GPUs, but only one of them is actually a good fit on a single 24 GB card. The harness inside Gemmaclaw was used to compare them against the existing Gemma 3 4B baseline on an RTX 3090, across both Ollama and a standalone `llama-server` backend.
+
+**Hardware tested:** NVIDIA RTX 3090 (24 GB), AMD Ryzen 9 5900X (12 cores / 24 threads), 30 GB system RAM, WSL2 Ubuntu. All models used Q4_K_M quantization. Quality is scored by an LLM judge across 15 tool-use-style tasks spanning instruction following, reasoning, extraction, safety, and coding; throughput is measured at the local HTTP API.
+
+| Model             | Backend              | VRAM   | Score         | Pass rate     | Median tok/s |
+| ----------------- | -------------------- | ------ | ------------- | ------------- | ------------ |
+| Gemma 3 4B        | Ollama               | ~3 GB  | 134/140 (96%) | 100% (15/15)  | 178          |
+| Gemma 4 26B MoE   | Ollama               | ~17 GB | 137/140 (98%) | 100% (15/15)  | 117          |
+| Gemma 4 26B MoE   | llama.cpp standalone | ~17 GB | 127/140 (91%) | 93.3% (14/15) | **133**      |
+| Gemma 4 31B dense | Ollama               | ~21 GB | 97/140 (69%)  | 73% (11/15)   | 2.6          |
+
+### What this means in practice
+
+- **Gemma 4 26B MoE is the sweet spot for a 24 GB GPU.** It clears 98% on quality, runs at interactive speed (about 117 tok/s on Ollama), and leaves comfortable VRAM headroom for the KV cache. The MoE design activates only a roughly 4B-parameter subset per token, which is why a 26B model can fit and run this fast on consumer hardware.
+- **llama.cpp is meaningfully faster than Ollama for this model.** About 14% higher median throughput and roughly half the p50 latency, because it skips the request orchestration layer. The single missed task in that run was a thinking-template artifact (the final response budget was consumed by reasoning tokens), not a quality regression. Both backends are now blessed for Gemma 4 26B MoE: pick llama.cpp for raw speed, Ollama for zero-config model management plus rendering-aware output parsing for thinking models.
+- **Gemma 3 4B is still useful when speed is the priority.** It is roughly 50% faster than the 26B MoE model with only a 2-point quality gap, which makes it a good fit for latency-sensitive or batch workloads.
+- **Skip Gemma 4 31B dense on a 24 GB card.** Q4_K_M loads at about 21 GB, leaving very little room for the KV cache, and the resulting CPU-offload pressure drops throughput to about 2.6 tok/s. Coding tasks time out before they can finish. The 31B dense variant needs 40+ GB VRAM (A6000, L40, dual-GPU) to be practical.
+
+The full result set, per-task breakdown, methodology, and HTML dashboards live in [`benchmark-results/BENCHMARK-SUMMARY.md`](benchmark-results/BENCHMARK-SUMMARY.md). Reproduce with `gemmaclaw benchmark --model gemma4:26b` (Ollama) or by pointing the harness at a `llama-server` instance running `bartowski/google_gemma-4-26B-A4B-it-Q4_K_M.gguf`.
+
 ## Getting started
 
 ### Prerequisites
