@@ -162,6 +162,7 @@ Scoped guides:
 - If bulk PR close/reopen affects >5 PRs, ask with exact count/scope.
 - PR/issue workflows: use `$openclaw-pr-maintainer`.
 - `/landpr`: use `~/.codex/prompts/landpr.md`.
+- PRs: always target `gemmaclaw/gemmaclaw`, not the upstream `openclaw/openclaw`. Use `gh pr create -R gemmaclaw/gemmaclaw`. The repo fork parent is openclaw; `gh` defaults to upstream without `-R`.
 
 ## Security / Release
 
