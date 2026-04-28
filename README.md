@@ -224,8 +224,17 @@ gemmaclaw benchmark
 # Run deterministic scoring only (fast, no judge needed)
 gemmaclaw benchmark --mock
 
+# Quick mode: tagged subset, under 10 minutes
+gemmaclaw benchmark --quick
+
 # Benchmark a specific model
 gemmaclaw benchmark --model gemma3:4b
+
+# Sweep: test a matrix of models, resumable overnight
+gemmaclaw benchmark --sweep --models gemma3:4b,gemma3:12b
+
+# Share results with the community (opens a PR)
+gemmaclaw benchmark --upload --upload-repo gemmaclaw/gemmaclaw
 
 # Run only coding tasks
 gemmaclaw benchmark --filter coding
@@ -239,6 +248,8 @@ Results are written to `results/<model>__<timestamp>/` with three formats:
 - `results.json`: machine-readable scores, timing, and hardware info
 - `RESULTS.md`: markdown summary table
 - `index.html`: GitHub Pages compatible dashboard
+
+For full details on task packs, scoring methodology, sweep mode, config selection, and the result schema, see the [Benchmark Kit documentation](src/gemmaclaw/benchmark-kit/README.md).
 
 ## Commands
 
