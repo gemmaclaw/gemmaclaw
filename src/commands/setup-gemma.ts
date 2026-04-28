@@ -1,6 +1,7 @@
 import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
@@ -115,59 +116,72 @@ function isDockerRunning(): boolean {
   }
 }
 
-type PrereqCheck = { name: string; ok: boolean; help?: string };
+async function promptSandboxChoice(runtime: RuntimeEnv): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    runtime.log("");
+    runtime.log("How would you like the agent to run tools (shell, files, browser)?");
+    runtime.log("");
+    runtime.log("  1) Docker sandbox (recommended)");
+    runtime.log("     Tools run inside isolated Docker containers. The agent gets full");
+    runtime.log("     access to execute commands, read/write files, and browse the web,");
+    runtime.log("     but it cannot touch your host system. If anything goes wrong, the");
+    runtime.log("     container is disposable. Requires Docker to be installed and running.");
+    runtime.log("");
+    runtime.log("  2) Directly on this machine");
+    runtime.log("     Tools run directly on your host. This is simpler and faster, but the");
+    runtime.log("     agent can access your files, run commands, and make changes to your");
+    runtime.log("     system with no isolation. Only choose this if you trust the model or");
+    runtime.log("     are comfortable reviewing what it does.");
+    runtime.log("");
 
-function checkPrerequisites(noContainer: boolean): PrereqCheck[] {
-  const checks: PrereqCheck[] = [];
+    const answer = await rl.question("Choose [1/2, default=1]: ");
+    const choice = answer.trim();
+    return choice === "2" || choice.toLowerCase() === "direct";
+  } finally {
+    rl.close();
+  }
+}
 
-  const nodeVersion = Number.parseInt(process.versions.node.split(".")[0], 10);
-  checks.push({
-    name: "Node.js 22+",
-    ok: nodeVersion >= 22,
-    help:
-      nodeVersion < 22
-        ? `Found Node.js ${process.versions.node}. Install Node 22+:\n` +
-          `  macOS:   brew install node@22\n` +
-          `  Linux:   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash - && sudo apt-get install -y nodejs\n` +
-          `  nvm:     nvm install 22 && nvm use 22`
-        : undefined,
-  });
+async function ensureDockerReady(runtime: RuntimeEnv): Promise<boolean> {
+  if (!isDockerInstalled()) {
+    runtime.log("");
+    runtime.log("Docker is not installed. Install it before continuing:");
+    runtime.log("  macOS:   brew install --cask docker   (then open Docker.app)");
+    runtime.log("  Linux:   curl -fsSL https://get.docker.com | sh");
+    runtime.log("  Windows: https://docs.docker.com/desktop/install/windows-install/");
+    runtime.log("");
+    runtime.log("After installing, re-run: gemmaclaw setup");
+    return false;
+  }
 
-  if (!noContainer) {
-    const installed = isDockerInstalled();
-    const running = installed && isDockerRunning();
+  if (!isDockerRunning()) {
+    runtime.log("");
+    runtime.log("Docker is installed but the daemon is not running. Start it:");
+    runtime.log("  macOS:   Open Docker Desktop (or: open -a Docker)");
+    runtime.log("  Linux:   sudo systemctl start docker");
+    runtime.log("");
 
-    if (!installed) {
-      checks.push({
-        name: "Docker",
-        ok: false,
-        help:
-          `Docker is not installed. Install it to run the gateway in an isolated container:\n` +
-          `  macOS:   brew install --cask docker   (then open Docker.app)\n` +
-          `  Linux:   curl -fsSL https://get.docker.com | sh\n` +
-          `  Windows: https://docs.docker.com/desktop/install/windows-install/\n` +
-          `\n` +
-          `  Or skip Docker and run directly on the host:\n` +
-          `    gemmaclaw setup --no-container`,
-      });
-    } else if (!running) {
-      checks.push({
-        name: "Docker daemon",
-        ok: false,
-        help:
-          `Docker is installed but the daemon is not running.\n` +
-          `  macOS:   Open Docker Desktop (or: open -a Docker)\n` +
-          `  Linux:   sudo systemctl start docker\n` +
-          `\n` +
-          `  Or skip Docker and run directly on the host:\n` +
-          `    gemmaclaw setup --no-container`,
-      });
-    } else {
-      checks.push({ name: "Docker", ok: true });
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const answer = await rl.question(
+        "Press Enter once Docker is running (or type 'skip' to run without it): ",
+      );
+      if (answer.trim().toLowerCase() === "skip") {
+        return false;
+      }
+    } finally {
+      rl.close();
+    }
+
+    if (!isDockerRunning()) {
+      runtime.error("Docker daemon is still not running.");
+      runtime.error("Start Docker and re-run setup, or use: gemmaclaw setup --no-container");
+      runtime.exit(1);
     }
   }
 
-  return checks;
+  return true;
 }
 
 export async function setupGemmaCommand(
@@ -182,27 +196,26 @@ export async function setupGemmaCommand(
   const { provision, verifyCompletion } = await import("../gemmaclaw/provision/provision.js");
   const { DEFAULT_GATEWAY_PORT } = await import("../config/paths.js");
 
-  runtime.log("");
-  runtime.log("Checking prerequisites...");
-  const prereqs = checkPrerequisites(Boolean(opts.noContainer));
-  const failedPrereqs = prereqs.filter((p) => !p.ok);
-
-  for (const p of prereqs) {
-    runtime.log(`  ${p.ok ? "+" : "x"} ${p.name}`);
+  // Check Node.js version.
+  const nodeVersion = Number.parseInt(process.versions.node.split(".")[0], 10);
+  if (nodeVersion < 22) {
+    runtime.error(`Node.js 22+ required (current: ${process.versions.node}).`);
+    runtime.error("  nvm:     nvm install 22 && nvm use 22");
+    runtime.error("  macOS:   brew install node@22");
+    runtime.exit(1);
   }
 
-  if (failedPrereqs.length > 0) {
-    runtime.log("");
-    for (const p of failedPrereqs) {
-      runtime.error(`Missing: ${p.name}`);
-      if (p.help) {
-        for (const line of p.help.split("\n")) {
-          runtime.error(`  ${line}`);
-        }
-      }
-      runtime.error("");
+  // Determine sandbox mode: interactive prompt unless --no-container was passed.
+  let useDocker = false;
+  if (opts.noContainer) {
+    useDocker = false;
+  } else {
+    const wantsDirect = await promptSandboxChoice(runtime);
+    if (wantsDirect) {
+      useDocker = false;
+    } else {
+      useDocker = await ensureDockerReady(runtime);
     }
-    runtime.exit(1);
   }
 
   runtime.log("");
@@ -262,7 +275,7 @@ export async function setupGemmaCommand(
       const { mutateConfigFile } = await import("../config/mutate.js");
       const ollamaModel = result.modelId;
       const ollamaBaseUrl = `${result.handle.apiBaseUrl}/v1`;
-      const enableSandbox = !opts.noContainer && isDockerRunning();
+      const enableSandbox = useDocker;
       await mutateConfigFile({
         mutate: (draft) => {
           draft.gateway ??= {};

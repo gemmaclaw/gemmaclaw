@@ -141,6 +141,11 @@ export function registerWebchatCli(program: Command) {
         }
 
         defaultRuntime.log(`Gateway is ready (PID ${pid ?? "unknown"}).`);
+        defaultRuntime.log(
+          theme.muted(
+            "Note: if you rebuild the project, run `gemmaclaw chat` again to restart the gateway.",
+          ),
+        );
 
         if (opts.open !== false) {
           const browserCmd = await resolveBrowserOpenCommand();
