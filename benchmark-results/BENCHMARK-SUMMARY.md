@@ -102,9 +102,24 @@ Gemma 4 31B:     █████████████████████
                                                             * timeouts, not quality
 ```
 
-### 5. llama.cpp Backend Note
+### 5. Ollama vs llama.cpp Standalone (Gemma 4 26B MoE)
 
-Ollama internally uses llama.cpp as its inference engine. Standalone llama-server testing was blocked because Ollama's GGUF blobs use a modified format incompatible with standalone llama-server (tensor count mismatch, missing metadata keys). Downloading separate HuggingFace GGUFs would be required for standalone llama-server testing. Since Ollama wraps llama.cpp, the Ollama results effectively reflect llama.cpp performance characteristics.
+To verify both supported backends, the recommended Gemma 4 26B MoE model was also benchmarked against a standalone `llama-server` using a HuggingFace-sourced GGUF (`bartowski/google_gemma-4-26B-A4B-it-Q4_K_M.gguf`, 17.04 GB). Note that Ollama's stored GGUF blobs use a modified internal format (658 tensors) that is incompatible with the standalone llama.cpp loader, which expects 1014 tensors for the gemma4 architecture, so a fresh HF download was used for the standalone runs.
+
+| Metric        | Ollama        | llama.cpp standalone | Δ        |
+| ------------- | ------------- | -------------------- | -------- |
+| Score         | 137/140 (98%) | 127/140 (91%)        | -10 pts  |
+| Pass rate     | 100% (15/15)  | 93.3% (14/15)        | -1 task  |
+| Median tok/s  | 116.7         | **133.3**            | **+14%** |
+| Avg tok/s     | 115.9         | **129.6**            | **+12%** |
+| p50 latency   | 5.7s          | 2.8s                 | -51%     |
+| p95 latency   | 26.7s         | 17.3s                | -35%     |
+| Total time    | 3m 20s        | 2m 28s               | -26%     |
+| Failure modes | none          | empty_response × 1   | —        |
+
+**llama.cpp standalone is faster** (about 14% higher median throughput, half the p50 latency) because it skips Ollama's request orchestration layer. The single failure was the "Summarize in Exactly 3 Sentences" task: the model emitted a `<|think|>` chain-of-thought block that consumed the response budget before any user-facing content was produced. Ollama's gemma4 RENDERER+PARSER masks this by suppressing the thinking tokens before they reach the user. Standalone llama-server returns thinking content separately in `reasoning_content` and final output in `content`, which is what the benchmark harness reads — but tasks where reasoning runs long can leave `content` empty. This is a harness/template tuning issue, not a model quality difference; the other 14 tasks scored identically across both backends.
+
+**Both backends are now blessed for Gemma 4 26B MoE.** llama.cpp is preferred when you want maximum throughput and direct OpenAI-compatible HTTP control; Ollama is preferred when you want zero-config model management plus rendering-aware output parsing for thinking models like Gemma 4.
 
 ## Recommendation for RTX 3090 Users
 
