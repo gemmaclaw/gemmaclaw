@@ -18,7 +18,11 @@ describe("unit-fast vitest lane", () => {
 
     expect(config.test?.isolate).toBe(false);
     expect(config.test?.runner).toBeUndefined();
-    expect(config.test?.setupFiles).toEqual([]);
+    // Only the minimal env-isolation shim should run; the heavy
+    // installSharedTestSetup() must stay out of unit-fast.
+    expect(config.test?.setupFiles).toEqual([
+      expect.stringMatching(/[\\/]test[\\/]setup\.unit-fast\.ts$/),
+    ]);
     expect(config.test?.include).toContain(
       "src/agents/pi-tools.deferred-followup-guidance.test.ts",
     );
