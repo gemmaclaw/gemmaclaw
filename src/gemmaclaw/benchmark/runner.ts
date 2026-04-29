@@ -20,7 +20,7 @@ import {
 } from "./scorer.js";
 import type { BenchmarkTask } from "./tasks.js";
 
-export type BackendType = "ollama" | "llama-cpp";
+export type BackendType = "ollama" | "llama-cpp" | "gemini";
 
 export type BenchmarkConfig = {
   backend: BackendType;
@@ -33,6 +33,8 @@ export type BenchmarkConfig = {
   contextLength?: number;
   gpuLayers?: number;
   batchSize?: number;
+  geminiApiKey?: string;
+  geminiModel?: string;
 };
 
 export type FailureMode =
@@ -196,6 +198,74 @@ function llamaCppChat(
   });
 }
 
+async function geminiChat(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  system?: string,
+): Promise<ChatResponse> {
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  if (system) {
+    contents.push({ role: "user", parts: [{ text: system }] });
+    contents.push({ role: "model", parts: [{ text: "Understood." }] });
+  }
+  contents.push({ role: "user", parts: [{ text: prompt }] });
+
+  const body = JSON.stringify({ contents });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const https = await import("node:https");
+  const parsed = new URL(url);
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        path: `${parsed.pathname}${parsed.search}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+        timeout: 300_000,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const status = res.statusCode ?? 0;
+          const text = Buffer.concat(chunks).toString();
+          if (status >= 400) {
+            reject(new Error(`Gemini HTTP ${status}: ${text.slice(0, 300)}`));
+            return;
+          }
+          try {
+            const data = JSON.parse(text);
+            const candidate = data.candidates?.[0];
+            const content =
+              candidate?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+            const usage = data.usageMetadata;
+            resolve({
+              content,
+              promptTokens: usage?.promptTokenCount,
+              completionTokens: usage?.candidatesTokenCount,
+            });
+          } catch (e) {
+            reject(new Error(`Invalid Gemini response: ${String(e)}`));
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Gemini request timed out"));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
 function classifyFailure(error: string): FailureMode {
   const lower = error.toLowerCase();
   if (lower.includes("timed out") || lower.includes("timeout")) {
@@ -242,6 +312,7 @@ export async function runBenchmark(
     num_ctx: config.contextLength,
   };
 
+  const isGemini = config.backend === "gemini";
   const isLlamaCpp = config.backend === "llama-cpp";
   const chatUrl = isLlamaCpp ? config.llamaCppUrl : config.ollamaUrl;
 
@@ -262,7 +333,14 @@ export async function runBenchmark(
 
     try {
       let response: ChatResponse;
-      if (isLlamaCpp) {
+      if (isGemini) {
+        response = await geminiChat(
+          config.geminiApiKey!,
+          config.geminiModel ?? config.model,
+          prompt,
+          task.system,
+        );
+      } else if (isLlamaCpp) {
         response = await llamaCppChat(chatUrl, prompt, task.system, llamaCppOptions);
       } else {
         response = await ollamaChat(chatUrl, config.model, prompt, task.system, ollamaOptions);
@@ -310,12 +388,21 @@ export async function runBenchmark(
       // LLM judge mode: ask the same model to grade the output.
       try {
         const judgePrompt = buildJudgePrompt(task, output);
+        const judgeSystem = "You are a strict but fair evaluator. Score the response accurately.";
         let judgeContent: string;
-        if (isLlamaCpp) {
+        if (isGemini) {
+          const judgeResponse = await geminiChat(
+            config.geminiApiKey!,
+            config.geminiModel ?? config.model,
+            judgePrompt,
+            judgeSystem,
+          );
+          judgeContent = judgeResponse.content;
+        } else if (isLlamaCpp) {
           const judgeResponse = await llamaCppChat(
             chatUrl,
             judgePrompt,
-            "You are a strict but fair evaluator. Score the response accurately.",
+            judgeSystem,
             llamaCppOptions,
           );
           judgeContent = judgeResponse.content;
@@ -324,7 +411,7 @@ export async function runBenchmark(
             config.ollamaUrl,
             config.model,
             judgePrompt,
-            "You are a strict but fair evaluator. Score the response accurately.",
+            judgeSystem,
             ollamaOptions,
           );
           judgeContent = judgeResponse.content;

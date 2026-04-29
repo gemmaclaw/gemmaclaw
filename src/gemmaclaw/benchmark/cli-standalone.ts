@@ -120,6 +120,8 @@ if (opts.sandbox) {
         : undefined,
       gpuLayers: opts.gpuLayers ? Number.parseInt(String(opts.gpuLayers), 10) : undefined,
       batchSize: opts.batchSize ? Number.parseInt(String(opts.batchSize), 10) : undefined,
+      geminiApiKey: opts.geminiApiKey as string | undefined,
+      geminiModel: opts.geminiModel as string | undefined,
     },
     defaultRuntime,
   ).catch((err) => {

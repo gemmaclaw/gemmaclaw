@@ -23,6 +23,10 @@ export type BenchmarkGemmaCommandOpts = {
   validatePack?: boolean;
   /** Skip Docker and run the benchmark directly on the host. */
   local?: boolean;
+  /** Gemini API key for cloud-based evaluation (uses Gemini instead of local Ollama). */
+  geminiApiKey?: string;
+  /** Gemini model to use (e.g. gemini-2.5-flash). Only applies when geminiApiKey is set. */
+  geminiModel?: string;
 };
 
 export type BenchmarkSandboxOpts = {
@@ -154,9 +158,12 @@ async function runLocally(opts: BenchmarkGemmaCommandOpts, runtime: RuntimeEnv):
     await import("../gemmaclaw/benchmark/index.js");
   const { findPreset } = await import("../gemmaclaw/provision/model-registry.js");
 
-  const backend: BackendType = (
-    opts.backend === "llama-cpp" ? "llama-cpp" : "ollama"
-  ) as BackendType;
+  const geminiApiKey = opts.geminiApiKey ?? process.env.GEMINI_API_KEY;
+  const geminiModel = opts.geminiModel ?? process.env.GEMINI_MODEL;
+
+  const backend: BackendType = geminiApiKey
+    ? "gemini"
+    : ((opts.backend === "llama-cpp" ? "llama-cpp" : "ollama") as BackendType);
 
   const model = opts.model ?? resolveConfiguredModel() ?? "gemma3:4b";
   const ollamaUrl = opts.ollamaUrl ?? "http://127.0.0.1:11434";
@@ -198,6 +205,9 @@ async function runLocally(opts: BenchmarkGemmaCommandOpts, runtime: RuntimeEnv):
   }
 
   runtime.log(`Backend: ${backend}`);
+  if (backend === "gemini") {
+    runtime.log(`Gemini model: ${geminiModel ?? "gemini-2.5-pro"}`);
+  }
   runtime.log(`Model: ${model}`);
   if (preset) {
     runtime.log(`Preset: ${preset.displayName} (${preset.architecture}, ${preset.parameterCount})`);
@@ -223,7 +233,7 @@ async function runLocally(opts: BenchmarkGemmaCommandOpts, runtime: RuntimeEnv):
   }
   runtime.log("");
 
-  if (!isMock) {
+  if (!isMock && backend !== "gemini") {
     if (backend === "ollama") {
       try {
         await ollamaPing(ollamaUrl, model);
@@ -265,6 +275,8 @@ async function runLocally(opts: BenchmarkGemmaCommandOpts, runtime: RuntimeEnv):
       contextLength,
       gpuLayers: opts.gpuLayers,
       batchSize: opts.batchSize,
+      geminiApiKey,
+      geminiModel,
     },
     hw,
     (msg) => runtime.log(msg),
