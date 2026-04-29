@@ -15,6 +15,7 @@ from datetime import datetime
 REPO_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = REPO_DIR / "benchmark-results"
 SITE_DIR = REPO_DIR / "site"
+COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 
 
 def load_benchmark_results():
@@ -192,6 +193,51 @@ def generate_hardware_guide_cards(results):
     return "\n".join(cards)
 
 
+def load_community_configs():
+    """Load community-reported hardware configs from Reddit extraction."""
+    if not COMMUNITY_CONFIGS_FILE.exists():
+        return []
+    try:
+        with open(COMMUNITY_CONFIGS_FILE) as f:
+            data = json.load(f)
+        return [e for e in data if e.get("hardware_mentions")]
+    except (json.JSONDecodeError, KeyError):
+        return []
+
+
+def html_escape(text):
+    """Escape HTML special characters."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def generate_community_cards(configs):
+    """Generate community hardware report cards from Reddit data."""
+    if not configs:
+        return ""
+    cards = []
+    for entry in configs:
+        post_id = entry.get("post", "")
+        mentions = entry.get("hardware_mentions", [])
+        if not mentions:
+            continue
+        # Build search text from all mentions
+        search_text = html_escape(" ".join(mentions).lower())
+        # Show up to 5 hardware mention lines
+        mention_items = "\n".join(
+            f'<li>{html_escape(m)}</li>' for m in mentions[:5]
+        )
+        reddit_url = f"https://reddit.com/r/LocalLLaMA/comments/{post_id}"
+        cards.append(f"""<div class="hw-card community-report" data-search="{search_text}">
+  <div class="hw-card-header">
+    <div class="hw-specs">
+      <ul class="community-mentions">{mention_items}</ul>
+    </div>
+    <a href="{reddit_url}" class="community-source" target="_blank" rel="noopener">r/LocalLLaMA source</a>
+  </div>
+</div>""")
+    return "\n".join(cards)
+
+
 def generate_site():
     results = load_benchmark_results()
     best = best_results(results)
@@ -208,6 +254,9 @@ def generate_site():
     benchmark_rows = generate_benchmark_table_rows(best)
     model_details = generate_model_detail_sections(best)
     hw_cards = generate_hardware_guide_cards(results)
+    community_configs = load_community_configs()
+    community_cards = generate_community_cards(community_configs)
+    community_count = len(community_configs)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -348,6 +397,12 @@ gemmaclaw chat</code></pre>
           <li><strong>CPU only (8-16 GB RAM):</strong> Gemma 3 4B or Gemma 2 via gemma.cpp. Smaller but functional.</li>
         </ul>
       </div>
+
+      {"" if not community_count else f'''<div class="community-section">
+        <h3>Community Reports ({community_count} from r/LocalLLaMA)</h3>
+        <p>Hardware configurations reported by the community. These are user reports, not official benchmarks. Search above to filter.</p>
+        <div id="community-cards">{community_cards}</div>
+      </div>'''}
     </section>
 
     <!-- Section 3: Benchmark Results -->
@@ -436,13 +491,15 @@ gemmaclaw chat</code></pre>
   </footer>
 
   <script>
-    // Hardware search filter
+    // Hardware search filter (includes community cards)
     const searchInput = document.getElementById('hw-search');
-    const cards = document.querySelectorAll('.hw-card');
+    const hwCards = document.querySelectorAll('#hw-cards .hw-card');
+    const communityCards = document.querySelectorAll('#community-cards .hw-card');
+    const allCards = [...hwCards, ...communityCards];
     if (searchInput) {{
       searchInput.addEventListener('input', function() {{
         const q = this.value.toLowerCase().trim();
-        cards.forEach(card => {{
+        allCards.forEach(card => {{
           const text = card.getAttribute('data-search') || '';
           card.style.display = (!q || text.includes(q)) ? '' : 'none';
         }});
@@ -479,6 +536,7 @@ gemmaclaw chat</code></pre>
     print(f"Site generated at {SITE_DIR / 'index.html'}")
     print(f"  {len(results)} benchmark results loaded")
     print(f"  {len(best)} unique model/backend combos")
+    print(f"  {community_count} community hardware reports loaded")
 
 
 CSS = """
@@ -706,6 +764,17 @@ CSS = """
     }
 
     .hosting-notes { margin-top: 2rem; }
+
+    /* Community reports */
+    .community-section { margin-top: 2rem; }
+    .community-mentions { list-style: none; margin: 0; font-size: 0.88rem; color: var(--fg-soft); }
+    .community-mentions li { padding: 0.2rem 0; }
+    .community-source {
+      font-size: 0.82rem; color: var(--accent); text-decoration: none;
+      margin-top: 0.5rem; display: inline-block;
+    }
+    .community-source:hover { text-decoration: underline; }
+    .community-report { border-left: 3px solid var(--accent-soft); }
 
     /* Footer */
     footer {
