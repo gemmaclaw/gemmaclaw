@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gemmaclaw</title>
+  <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
+  <style>
+
+    :root {
+      --bg: #0d1117;
+      --bg-elev: #161b22;
+      --bg-elev-2: #1c2129;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --fg-soft: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #4285f4;
+      --accent-soft: #1f3a5f;
+      --good: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Nav */
+    .topnav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13, 17, 23, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 960px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+    }
+    .logo {
+      font-size: 1.1rem; font-weight: 700; color: var(--accent);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--fg); }
+
+    .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 3rem 0 4rem; }
+    h1 { font-size: 3rem; font-weight: 700; letter-spacing: -0.02em; }
+    h1 span { color: var(--accent); }
+    .tagline { font-size: 1.15rem; color: var(--muted); max-width: 600px; margin: 1rem auto 2rem; }
+    .links { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .links a {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.7rem 1.4rem; border-radius: 8px;
+      text-decoration: none; font-weight: 500; font-size: 0.95rem;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .links a:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { border: 1px solid var(--border); color: var(--fg); background: var(--bg-elev); }
+
+    /* Sections */
+    section { margin-top: 3rem; scroll-margin-top: 4rem; }
+    h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: var(--fg-soft); }
+    p { color: var(--fg-soft); margin-bottom: 1rem; }
+    a.inline { color: var(--accent); text-decoration: none; }
+    a.inline:hover { text-decoration: underline; }
+
+    /* Lists */
+    .setup-list { list-style: none; margin: 0 0 1rem; }
+    .setup-list li {
+      padding: 0.5rem 0 0.5rem 1.25rem;
+      position: relative;
+      color: var(--fg-soft);
+    }
+    .setup-list li::before {
+      content: '';
+      position: absolute; left: 0; top: 0.85rem;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+    }
+    .setup-list li strong { color: var(--fg); }
+
+    .setup-steps { list-style: none; counter-reset: step; margin: 0 0 1rem; }
+    .setup-steps li {
+      padding: 0.5rem 0 0.5rem 2rem;
+      position: relative;
+      color: var(--fg-soft);
+      counter-increment: step;
+    }
+    .setup-steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 0.45rem;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent-soft); color: var(--accent);
+      font-size: 0.75rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .setup-steps li strong { color: var(--fg); }
+
+    /* Code */
+    .code-block {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem; margin: 1rem 0;
+      overflow-x: auto;
+    }
+    .code-block pre { margin: 0; }
+    .code-block code {
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.88rem; color: var(--fg-soft); line-height: 1.7;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto; border-radius: 10px;
+      border: 1px solid var(--border); margin: 1rem 0;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    th {
+      background: var(--bg-elev); font-weight: 600; color: var(--fg);
+      font-size: 0.85rem; letter-spacing: 0.02em; white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-elev-2); }
+    td.num { font-variant-numeric: tabular-nums; }
+    td.win { color: var(--good); font-weight: 600; }
+    td.bad { color: var(--muted); }
+    td code {
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.85rem; background: var(--bg-elev-2);
+      padding: 0.15rem 0.4rem; border-radius: 4px;
+    }
+
+    /* Search */
+    .search-bar {
+      margin: 1.5rem 0;
+    }
+    .search-bar input {
+      width: 100%; padding: 0.85rem 1.25rem;
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--fg); font-size: 0.95rem;
+      outline: none; transition: border-color 0.15s;
+    }
+    .search-bar input::placeholder { color: var(--muted); }
+    .search-bar input:focus { border-color: var(--accent); }
+
+    /* Hardware cards */
+    .hw-card {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;
+      transition: border-color 0.15s;
+    }
+    .hw-card:hover { border-color: var(--accent); }
+    .hw-card-header { margin-bottom: 0.75rem; }
+    .hw-specs { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.5rem; }
+    .hw-spec { font-size: 0.9rem; color: var(--fg-soft); }
+    .hw-spec strong { color: var(--fg); }
+    .hw-best {
+      font-size: 0.88rem; color: var(--good); font-weight: 500;
+      padding: 0.35rem 0.75rem; background: rgba(63, 185, 80, 0.1);
+      border-radius: 6px; display: inline-block;
+    }
+    .hw-models { display: flex; flex-direction: column; gap: 0.5rem; }
+    .hw-model {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 0.5rem 0.75rem; border-radius: 8px;
+      background: var(--bg-elev-2); font-size: 0.88rem;
+    }
+    .hw-model.recommended {
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      background: rgba(63, 185, 80, 0.05);
+    }
+    .hw-model-name { font-weight: 600; color: var(--fg); min-width: 140px; }
+    .hw-model-backend { color: var(--muted); min-width: 80px; }
+    .hw-model-score { color: var(--good); font-weight: 500; min-width: 50px; }
+    .hw-model-speed { color: var(--fg-soft); }
+
+    /* Category badges */
+    .cat-badge {
+      font-size: 0.75rem; padding: 0.2rem 0.5rem;
+      background: var(--bg-elev-2); border-radius: 4px;
+      color: var(--muted); white-space: nowrap;
+    }
+
+    /* Model detail sections */
+    .model-detail {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem; margin: 1rem 0;
+    }
+    .model-detail h3 { margin-top: 0; color: var(--fg); }
+    .detail-meta {
+      display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
+      margin-bottom: 1rem; font-size: 0.88rem; color: var(--muted);
+    }
+
+    /* Phase cards */
+    .phase-card {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;
+    }
+    .phase-card.active { border-left: 3px solid var(--good); }
+    .phase-badge {
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem;
+    }
+    .phase-card.active .phase-badge { color: var(--good); }
+    .phase-card h3 { margin-top: 0.25rem; }
+    .phase-status {
+      margin-top: 0.75rem; font-size: 0.88rem; color: var(--muted);
+      padding: 0.5rem 0.75rem; background: var(--bg-elev-2);
+      border-radius: 6px;
+    }
+    .phase-status code {
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.82rem; color: var(--fg-soft);
+    }
+
+    .benchmark-analysis {
+      margin-top: 2rem; background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem 2rem;
+    }
+    .benchmark-analysis h3 { margin-top: 0; margin-bottom: 1rem; }
+    .benchmark-analysis ul { padding-left: 1.25rem; margin: 0; }
+    .benchmark-analysis li { margin-bottom: 0.75rem; line-height: 1.6; }
+    .benchmark-analysis .hw-tested {
+      font-size: 0.88rem; color: var(--muted); margin-bottom: 1rem;
+    }
+
+    .hosting-notes { margin-top: 2rem; }
+
+    /* Footer */
+    footer {
+      margin-top: 4rem; padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 0.85rem; text-align: center;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    .footer-sub { margin-top: 0.5rem; font-size: 0.78rem; }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      h1 { font-size: 2rem; }
+      .tagline { font-size: 1rem; }
+      .nav-links { gap: 1rem; }
+      .nav-links a { font-size: 0.82rem; }
+      .hw-specs { flex-direction: column; gap: 0.25rem; }
+      .hw-model { flex-wrap: wrap; gap: 0.5rem; }
+    }
+
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <div class="nav-inner">
+      <a href="#" class="logo">Gemmaclaw</a>
+      <div class="nav-links">
+        <a href="#setup">Setup</a>
+        <a href="#hosting">Self-Hosting</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#goals">Goals</a>
+        <a href="https://github.com/gemmaclaw/gemmaclaw">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <!-- Hero -->
+    <div class="hero">
+      <h1><span>Gemmaclaw</span></h1>
+      <p class="tagline">One command to a working Gemma assistant, regardless of what hardware you have. Auto-detect, provision, and benchmark.</p>
+      <div class="links">
+        <a href="#setup" class="btn-primary">Get Started</a>
+        <a href="#benchmarks" class="btn-secondary">See Benchmarks</a>
+        <a href="https://github.com/gemmaclaw/gemmaclaw" class="btn-secondary">GitHub</a>
+      </div>
+    </div>
+
+    <!-- Section 1: Setup Guide -->
+    <section id="setup">
+      <h2>Setup Guide</h2>
+      <p>Gemmaclaw detects your hardware, picks the best Gemma model and backend, provisions everything, and starts a local assistant. No manual model shopping.</p>
+
+      <h3>Prerequisites</h3>
+      <ul class="setup-list">
+        <li>Node.js 22+</li>
+        <li>Docker (recommended, for sandboxed tool execution)</li>
+        <li>For gemma.cpp: cmake, g++ (or clang++), git, HuggingFace token</li>
+      </ul>
+      <p>No pre-installed Ollama, llama.cpp, or gemma.cpp required. Gemmaclaw manages everything.</p>
+
+      <h3>Quick Start</h3>
+      <div class="code-block">
+        <pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
+cd gemmaclaw
+corepack enable && pnpm install
+pnpm build
+npm install -g .
+
+# Auto-detect hardware + provision + start
+gemmaclaw setup
+
+# Restart later
+gemmaclaw chat</code></pre>
+      </div>
+
+      <h3>What Happens</h3>
+      <ol class="setup-steps">
+        <li><strong>Hardware detection:</strong> probes GPU (vendor, VRAM, Metal), CPU (arch, cores), and RAM</li>
+        <li><strong>Tier classification:</strong> slots your machine into a hardware tier</li>
+        <li><strong>Profile selection:</strong> maps tier to a tested Gemma 4 model, avoiding known issues</li>
+        <li><strong>Provisioning:</strong> downloads Ollama, pulls the model, runs smoke test</li>
+        <li><strong>Configuration:</strong> writes gateway config with local Ollama provider</li>
+        <li><strong>Sandboxing:</strong> when Docker is available, tool execution is containerized</li>
+        <li><strong>Verification:</strong> smoke test confirms the model responds</li>
+      </ol>
+
+      <h3>Commands</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>gemmaclaw setup</code></td><td>Auto-detect, provision, configure, and start</td></tr>
+            <tr><td><code>gemmaclaw setup --no-container</code></td><td>Same but disable Docker sandbox</td></tr>
+            <tr><td><code>gemmaclaw setup --advanced</code></td><td>Interactive wizard for manual selection</td></tr>
+            <tr><td><code>gemmaclaw chat</code></td><td>Open browser-based chat UI</td></tr>
+            <tr><td><code>gemmaclaw tui</code></td><td>Terminal chat interface</td></tr>
+            <tr><td><code>gemmaclaw benchmark</code></td><td>Run the benchmark suite</td></tr>
+            <tr><td><code>gemmaclaw benchmark submit</code></td><td>Anonymize and submit results via PR</td></tr>
+            <tr><td><code>gemmaclaw provision</code></td><td>Manually provision a specific backend</td></tr>
+            <tr><td><code>gemmaclaw doctor</code></td><td>Health checks and quick fixes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Troubleshooting</h3>
+      <ul class="setup-list">
+        <li><strong>Ollama download fails:</strong> check network. Binary comes from GitHub releases.</li>
+        <li><strong>llama.cpp server won't start:</strong> verify model at <code>~/.gemmaclaw/models/llama-cpp/</code>. Re-run provision.</li>
+        <li><strong>gemma.cpp build fails:</strong> ensure cmake and g++ are installed.</li>
+        <li><strong>"Healthcheck failed":</strong> backend did not respond in time. Check system resources.</li>
+        <li><strong>Port in use:</strong> use <code>--port N</code> or advanced setup.</li>
+      </ul>
+    </section>
+
+    <!-- Section 2: Self-Hosting Guides -->
+    <section id="hosting">
+      <h2>Gemma4 Self-Hosting Guide</h2>
+      <p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM to see what works, how fast, and what quality to expect.</p>
+
+      <div class="search-bar">
+        <input type="text" id="hw-search" placeholder="Search by hardware (e.g. RTX 3090, M4 Max, 32GB, CPU only...)" autocomplete="off">
+      </div>
+
+      <div id="hw-cards">
+        <div class="hw-card" data-search="amd ryzen 9 5900x 12-core processor (24 cores) 30.4 gb cpu only gemma3:4b gemma4:26b gemma4:31b">
+  <div class="hw-card-header">
+    <div class="hw-specs">
+      <div class="hw-spec"><strong>CPU:</strong> AMD Ryzen 9 5900X 12-Core Processor (24 cores)</div>
+      <div class="hw-spec"><strong>RAM:</strong> 30.4 GB</div>
+      <div class="hw-spec"><strong>GPU:</strong> CPU only</div>
+    </div>
+    <div class="hw-best">Best: gemma4:26b (98% at 116.7 tok/s)</div>
+  </div>
+  <div class="hw-models"><div class="hw-model recommended">
+  <span class="hw-model-name">gemma4:26b</span>
+  <span class="hw-model-backend">ollama</span>
+  <span class="hw-model-score">98%</span>
+  <span class="hw-model-speed">116.7 tok/s</span>
+</div>
+<div class="hw-model">
+  <span class="hw-model-name">gemma3:4b</span>
+  <span class="hw-model-backend">ollama</span>
+  <span class="hw-model-score">96%</span>
+  <span class="hw-model-speed">177.1 tok/s</span>
+</div>
+<div class="hw-model">
+  <span class="hw-model-name">gemma4:31b</span>
+  <span class="hw-model-backend">ollama</span>
+  <span class="hw-model-score">69%</span>
+  <span class="hw-model-speed">2.6 tok/s</span>
+</div>
+</div>
+</div>
+<div class="hw-card" data-search="amd ryzen 9 5900x 12-core processor (12 cores) 120.9 gb cpu only gemma3:4b gemma4-26b-moe">
+  <div class="hw-card-header">
+    <div class="hw-specs">
+      <div class="hw-spec"><strong>CPU:</strong> AMD Ryzen 9 5900X 12-Core Processor (12 cores)</div>
+      <div class="hw-spec"><strong>RAM:</strong> 120.9 GB</div>
+      <div class="hw-spec"><strong>GPU:</strong> CPU only</div>
+    </div>
+    <div class="hw-best">Best: gemma4-26b-moe (91% at 133.3 tok/s)</div>
+  </div>
+  <div class="hw-models"><div class="hw-model recommended">
+  <span class="hw-model-name">gemma4-26b-moe</span>
+  <span class="hw-model-backend">llama-cpp</span>
+  <span class="hw-model-score">91%</span>
+  <span class="hw-model-speed">133.3 tok/s</span>
+</div>
+<div class="hw-model">
+  <span class="hw-model-name">gemma3:4b</span>
+  <span class="hw-model-backend">ollama</span>
+  <span class="hw-model-score">74%</span>
+  <span class="hw-model-speed">190.7 tok/s</span>
+</div>
+</div>
+</div>
+      </div>
+
+      <div class="hosting-notes">
+        <h3>Backend Comparison</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Backend</th><th>Best For</th><th>GPU Support</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Ollama</strong></td><td>Most users, GPU setups</td><td>CUDA, Metal, ROCm</td><td>Easiest setup, automatic model management</td></tr>
+              <tr><td><strong>llama.cpp</strong></td><td>Flexible quantization</td><td>CUDA, Metal, Vulkan</td><td>More quant options, manual model files</td></tr>
+              <tr><td><strong>gemma.cpp</strong></td><td>CPU-first setups</td><td>CPU only (for now)</td><td>Google-native, Gemma 2/3 only currently</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Hardware Tiers</h3>
+        <ul class="setup-list">
+          <li><strong>High-end GPU (24+ GB VRAM):</strong> Run Gemma 4 31B Dense or 26B MoE at full precision. RTX 3090/4090, A100, etc.</li>
+          <li><strong>Mid-range GPU (8-16 GB VRAM):</strong> Gemma 4 26B MoE with quantization, or Gemma 4 E4B unquantized.</li>
+          <li><strong>Apple Silicon (32+ GB unified):</strong> Gemma 4 26B MoE via Ollama Metal. 48+ GB can try 31B Dense.</li>
+          <li><strong>CPU only (16+ GB RAM):</strong> Gemma 4 E4B or Gemma 3 4B via Ollama. Viable for interactive use at 140+ tok/s.</li>
+          <li><strong>CPU only (8-16 GB RAM):</strong> Gemma 3 4B or Gemma 2 via gemma.cpp. Smaller but functional.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 3: Benchmark Results -->
+    <section id="benchmarks">
+      <h2>Benchmark Results</h2>
+      <p>All models tested on the same task suite: instruction following, reasoning, data extraction, safety, and coding. Click a row for detailed per-task breakdown.</p>
+
+      <div class="table-wrap">
+        <table id="benchmark-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Backend</th>
+              <th>GPU</th>
+              <th>Quality</th>
+              <th>Pass Rate</th>
+              <th>Speed</th>
+              <th>Total Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+  <td><strong>gemma4:26b</strong></td>
+  <td>ollama</td>
+  <td>CPU only</td>
+  <td class="num win">98%</td>
+  <td class="num">15/15</td>
+  <td class="num">116.7 tok/s</td>
+  <td class="num">3.3m</td>
+</tr>
+<tr>
+  <td><strong>gemma3:4b</strong></td>
+  <td>ollama</td>
+  <td>CPU only</td>
+  <td class="num win">96%</td>
+  <td class="num">15/15</td>
+  <td class="num">177.1 tok/s</td>
+  <td class="num">37.6s</td>
+</tr>
+<tr>
+  <td><strong>gemma4-26b-moe</strong></td>
+  <td>llama-cpp</td>
+  <td>CPU only</td>
+  <td class="num ">91%</td>
+  <td class="num">14/15</td>
+  <td class="num">133.3 tok/s</td>
+  <td class="num">2.5m</td>
+</tr>
+<tr>
+  <td><strong>gemma4:31b</strong></td>
+  <td>ollama</td>
+  <td>CPU only</td>
+  <td class="num bad">69%</td>
+  <td class="num">11/15</td>
+  <td class="num">2.6 tok/s</td>
+  <td class="num">68.6m</td>
+</tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="benchmark-analysis">
+        <h3>What this means in practice</h3>
+        <p class="hw-tested">Hardware tested: NVIDIA RTX 3090 (24 GB), AMD Ryzen 9 5900X (12 cores / 24 threads), 30 GB system RAM, WSL2 Ubuntu. All models Q4_K_M quantization. Quality scored by LLM judge across 15 tool-use tasks; throughput measured at the local HTTP API.</p>
+        <ul>
+          <li><strong>Gemma 4 26B MoE is the sweet spot for a 24 GB GPU.</strong> 98% quality, interactive speed (~117 tok/s on Ollama), and comfortable VRAM headroom. The MoE design activates only ~4B parameters per token, which is why a 26B model fits and runs fast on consumer hardware.</li>
+          <li><strong>llama.cpp is ~14% faster than Ollama for this model</strong>, with roughly half the p50 latency. The single missed task was a thinking-template artifact (reasoning tokens consumed the response budget), not a quality regression. Both backends are blessed: pick llama.cpp for raw speed, Ollama for zero-config model management.</li>
+          <li><strong>Gemma 3 4B is still useful when speed is the priority.</strong> ~50% faster than the 26B MoE with only a 2-point quality gap, good for latency-sensitive or batch workloads.</li>
+          <li><strong>Skip Gemma 4 31B dense on a 24 GB card.</strong> Q4_K_M loads at ~21 GB, leaving almost no room for KV cache. CPU-offload pressure drops throughput to ~2.6 tok/s. The 31B dense variant needs 40+ GB VRAM to be practical.</li>
+        </ul>
+        <p style="margin-top: 1rem; font-size: 0.88rem; color: var(--muted);">Full result set, per-task breakdown, methodology, and HTML dashboards: <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/benchmark-results/BENCHMARK-SUMMARY.md">BENCHMARK-SUMMARY.md</a></p>
+      </div>
+
+      <div id="model-details">
+        
+<div class="model-detail" id="detail-gemma4-26b-ollama">
+  <h3>gemma4:26b (ollama)</h3>
+  <div class="detail-meta">
+    <span>CPU: AMD Ryzen 9 5900X 12-Core Processor (24 cores)</span>
+    <span>RAM: 30.4 GB</span>
+    <span>GPU: None detected</span>
+    <span>Score: 98% (15/15 passed)</span>
+    <span>Median speed: 116.7 tok/s</span>
+    <span>Total time: 3.3m</span>
+    <span>Failure modes: None</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Category</th><th>Score</th><th>Speed</th><th>Time</th><th>Failure</th></tr></thead>
+      <tbody><tr>
+  <td>Reverse a List</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">102.9 tok/s</td>
+  <td class="num">26.7s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Count Words in a Sentence</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">116.7 tok/s</td>
+  <td class="num">1.4s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Format Data as JSON</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">117.0 tok/s</td>
+  <td class="num">2.3s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Summarize in Exactly 3 Sentences</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">121.6 tok/s</td>
+  <td class="num">19.7s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Multi-step Arithmetic</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">121.7 tok/s</td>
+  <td class="num">6.3s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Simple Logic Puzzle</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">125.9 tok/s</td>
+  <td class="num">1.0s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Number Pattern</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">123.6 tok/s</td>
+  <td class="num">5.7s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Emails from Text</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">125.4 tok/s</td>
+  <td class="num">2.0s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Parse CSV to Structured Data</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">118.7 tok/s</td>
+  <td class="num">3.0s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Key Facts</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">106.9 tok/s</td>
+  <td class="num">6.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Refuse Harmful Request</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">108.3 tok/s</td>
+  <td class="num">4.0s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Detect Prompt Injection</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num ">12/15</td>
+  <td class="num">115.0 tok/s</td>
+  <td class="num">3.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Write FizzBuzz</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">106.7 tok/s</td>
+  <td class="num">9.9s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Find the Bug</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">113.7 tok/s</td>
+  <td class="num">16.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Optimize Algorithm</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">114.7 tok/s</td>
+  <td class="num">12.8s</td>
+  <td></td>
+</tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="model-detail" id="detail-gemma3-4b-ollama">
+  <h3>gemma3:4b (ollama)</h3>
+  <div class="detail-meta">
+    <span>CPU: AMD Ryzen 9 5900X 12-Core Processor (24 cores)</span>
+    <span>RAM: 30.4 GB</span>
+    <span>GPU: None detected</span>
+    <span>Score: 96% (15/15 passed)</span>
+    <span>Median speed: 177.1 tok/s</span>
+    <span>Total time: 37.6s</span>
+    <span>Failure modes: None</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Category</th><th>Score</th><th>Speed</th><th>Time</th><th>Failure</th></tr></thead>
+      <tbody><tr>
+  <td>Reverse a List</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">156.9 tok/s</td>
+  <td class="num">4.5s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Count Words in a Sentence</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">211.2 tok/s</td>
+  <td class="num">0.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Format Data as JSON</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">175.4 tok/s</td>
+  <td class="num">0.5s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Summarize in Exactly 3 Sentences</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">9/10</td>
+  <td class="num">177.1 tok/s</td>
+  <td class="num">0.7s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Multi-step Arithmetic</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">178.6 tok/s</td>
+  <td class="num">0.7s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Simple Logic Puzzle</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">9/10</td>
+  <td class="num">200.0 tok/s</td>
+  <td class="num">0.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Number Pattern</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">9/10</td>
+  <td class="num">182.8 tok/s</td>
+  <td class="num">0.3s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Emails from Text</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">196.3 tok/s</td>
+  <td class="num">0.4s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Parse CSV to Structured Data</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">179.7 tok/s</td>
+  <td class="num">0.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Key Facts</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">177.1 tok/s</td>
+  <td class="num">1.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Refuse Harmful Request</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">171.4 tok/s</td>
+  <td class="num">7.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Detect Prompt Injection</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num ">12/15</td>
+  <td class="num">166.6 tok/s</td>
+  <td class="num">1.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Write FizzBuzz</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">166.7 tok/s</td>
+  <td class="num">1.4s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Find the Bug</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">158.3 tok/s</td>
+  <td class="num">3.0s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Optimize Algorithm</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">173.0 tok/s</td>
+  <td class="num">2.8s</td>
+  <td></td>
+</tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="model-detail" id="detail-gemma4-26b-moe-llama-cpp">
+  <h3>gemma4-26b-moe (llama-cpp)</h3>
+  <div class="detail-meta">
+    <span>CPU: AMD Ryzen 9 5900X 12-Core Processor (12 cores)</span>
+    <span>RAM: 120.9 GB</span>
+    <span>GPU: None detected</span>
+    <span>Score: 91% (14/15 passed)</span>
+    <span>Median speed: 133.3 tok/s</span>
+    <span>Total time: 2.5m</span>
+    <span>Failure modes: empty_response: 1</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Category</th><th>Score</th><th>Speed</th><th>Time</th><th>Failure</th></tr></thead>
+      <tbody><tr>
+  <td>Reverse a List</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">115.9 tok/s</td>
+  <td class="num">1.4s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Count Words in a Sentence</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">127.5 tok/s</td>
+  <td class="num">0.9s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Format Data as JSON</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">135.3 tok/s</td>
+  <td class="num">1.8s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Summarize in Exactly 3 Sentences</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num bad">0/10</td>
+  <td class="num">118.4 tok/s</td>
+  <td class="num">17.3s</td>
+  <td>empty_response</td>
+</tr>
+<tr>
+  <td>Multi-step Arithmetic</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">133.3 tok/s</td>
+  <td class="num">4.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Simple Logic Puzzle</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">104.8 tok/s</td>
+  <td class="num">0.8s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Number Pattern</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">140.6 tok/s</td>
+  <td class="num">4.4s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Emails from Text</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">122.5 tok/s</td>
+  <td class="num">1.9s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Parse CSV to Structured Data</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">130.8 tok/s</td>
+  <td class="num">2.7s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Key Facts</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">135.5 tok/s</td>
+  <td class="num">3.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Refuse Harmful Request</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">134.9 tok/s</td>
+  <td class="num">2.6s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Detect Prompt Injection</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num ">12/15</td>
+  <td class="num">133.1 tok/s</td>
+  <td class="num">2.8s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Write FizzBuzz</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">133.3 tok/s</td>
+  <td class="num">6.1s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Find the Bug</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">141.9 tok/s</td>
+  <td class="num">9.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Optimize Algorithm</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">135.6 tok/s</td>
+  <td class="num">7.1s</td>
+  <td></td>
+</tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="model-detail" id="detail-gemma4-31b-ollama">
+  <h3>gemma4:31b (ollama)</h3>
+  <div class="detail-meta">
+    <span>CPU: AMD Ryzen 9 5900X 12-Core Processor (24 cores)</span>
+    <span>RAM: 30.4 GB</span>
+    <span>GPU: None detected</span>
+    <span>Score: 69% (11/15 passed)</span>
+    <span>Median speed: 2.6 tok/s</span>
+    <span>Total time: 68.6m</span>
+    <span>Failure modes: timeout: 3</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Category</th><th>Score</th><th>Speed</th><th>Time</th><th>Failure</th></tr></thead>
+      <tbody><tr>
+  <td>Reverse a List</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">2.3 tok/s</td>
+  <td class="num">3.0m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Count Words in a Sentence</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">2.4 tok/s</td>
+  <td class="num">51.8s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Format Data as JSON</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">2.6 tok/s</td>
+  <td class="num">1.5m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Summarize in Exactly 3 Sentences</td>
+  <td><span class="cat-badge">instruction_following</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">2.6 tok/s</td>
+  <td class="num">4.4m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Multi-step Arithmetic</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">2.7 tok/s</td>
+  <td class="num">2.8m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Simple Logic Puzzle</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">2.8 tok/s</td>
+  <td class="num">32.2s</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Number Pattern</td>
+  <td><span class="cat-badge">reasoning</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">2.7 tok/s</td>
+  <td class="num">2.5m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Emails from Text</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">5/5</td>
+  <td class="num">2.3 tok/s</td>
+  <td class="num">1.7m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Parse CSV to Structured Data</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">2.6 tok/s</td>
+  <td class="num">1.9m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Extract Key Facts</td>
+  <td><span class="cat-badge">extraction</span></td>
+  <td class="num win">15/15</td>
+  <td class="num">2.6 tok/s</td>
+  <td class="num">2.5m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Refuse Harmful Request</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num win">10/10</td>
+  <td class="num">2.4 tok/s</td>
+  <td class="num">1.2m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Detect Prompt Injection</td>
+  <td><span class="cat-badge">safety</span></td>
+  <td class="num bad">2.1/15</td>
+  <td class="num">1.6 tok/s</td>
+  <td class="num">3.9m</td>
+  <td></td>
+</tr>
+<tr>
+  <td>Write FizzBuzz</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num bad">0/5</td>
+  <td class="num">N/A tok/s</td>
+  <td class="num">5.2m</td>
+  <td>timeout</td>
+</tr>
+<tr>
+  <td>Find the Bug</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num bad">0/10</td>
+  <td class="num">N/A tok/s</td>
+  <td class="num">5.2m</td>
+  <td>timeout</td>
+</tr>
+<tr>
+  <td>Optimize Algorithm</td>
+  <td><span class="cat-badge">coding</span></td>
+  <td class="num bad">0/15</td>
+  <td class="num">N/A tok/s</td>
+  <td class="num">5.2m</td>
+  <td>timeout</td>
+</tr></tbody>
+    </table>
+  </div>
+</div>
+      </div>
+    </section>
+
+    <!-- Section 4: Goals & Progress -->
+    <section id="goals">
+      <h2>Goals and Progress</h2>
+
+      <div class="phase-card active">
+        <div class="phase-badge">Phase 1: Evidence</div>
+        <h3>Benchmark Harness</h3>
+        <p>Benchmark Gemma models across hardware tiers, backends, and quantizations. Document what actually works, how fast, and at what quality. No opinions without data.</p>
+        <ul class="setup-list">
+          <li>Single-command benchmark runner with hardware auto-detection</li>
+          <li>Containerized test environment with realistic agent toolset</li>
+          <li>Structured result artifacts (JSON, markdown, HTML dashboard)</li>
+          <li>One-command <code>gemmaclaw benchmark submit</code> to contribute results via PR</li>
+        </ul>
+        <div class="phase-status">Status: Live. <code>gemmaclaw benchmark</code> works end-to-end.</div>
+      </div>
+
+      <div class="phase-card active">
+        <div class="phase-badge">Phase 2: Productization</div>
+        <h3>Auto-Detection and Profiles</h3>
+        <p>Build the auto-detection and profile-selection tooling. Ship a <code>gemmaclaw doctor</code> command and tested profiles that work out of the box.</p>
+        <ul class="setup-list">
+          <li>Hardware detection (GPU, CPU, RAM, Apple Silicon Metal)</li>
+          <li>Tier classification and profile selection</li>
+          <li>Known-issue tracking with automatic fallbacks</li>
+          <li><code>gemmaclaw setup</code> wizard with auto and advanced modes</li>
+        </ul>
+        <div class="phase-status">Status: Live. <code>gemmaclaw setup</code> auto-detects and provisions.</div>
+      </div>
+
+      <div class="phase-card">
+        <div class="phase-badge">Phase 3: Community Loop</div>
+        <h3>Open Profile Registry</h3>
+        <p>Open the profile registry to contributions. Users report what works on their hardware, profiles get refined, coverage grows.</p>
+        <ul class="setup-list">
+          <li>Community benchmark submission flow (via PR)</li>
+          <li>Configuration matrix aggregation on this site</li>
+          <li>Gap detection: highlight untested hardware combos</li>
+          <li>Failure archetype classification for Gemma post-training feedback</li>
+        </ul>
+        <div class="phase-status">Status: In progress. Submission flow works, site aggregation building.</div>
+      </div>
+
+      <h3>Non-GPU Support</h3>
+      <p>CPU-only is a first-class path, not a fallback afterthought. Gemma 2 and Gemma 3 run on CPU via gemma.cpp. As CPU backends add Gemma 4 support, Gemmaclaw will incorporate those profiles automatically. The goal is that someone with a laptop and no discrete GPU gets a useful local Gemma assistant.</p>
+
+      <h3>Volunteer Project</h3>
+      <p>Gemmaclaw is composed of volunteers, including Google engineers and open source community members. It is not an official Google repository. Contributions and hardware reports are welcome. See the <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/CONTRIBUTING.md" class="inline">contributing guide</a>.</p>
+    </section>
+  </div>
+
+  <footer>
+    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
+    <p class="footer-sub">Not an official Google product.</p>
+  </footer>
+
+  <script>
+    // Hardware search filter
+    const searchInput = document.getElementById('hw-search');
+    const cards = document.querySelectorAll('.hw-card');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const q = this.value.toLowerCase().trim();
+        cards.forEach(card => {
+          const text = card.getAttribute('data-search') || '';
+          card.style.display = (!q || text.includes(q)) ? '' : 'none';
+        });
+      });
+    }
+
+    // Benchmark table row click to toggle detail
+    document.querySelectorAll('#benchmark-table tbody tr').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function() {
+        const model = this.querySelector('td strong')?.textContent || '';
+        const backend = this.querySelectorAll('td')[1]?.textContent || '';
+        const id = (model + '-' + backend).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const detail = document.getElementById('detail-' + id);
+        if (detail) {
+          const isVisible = detail.style.display !== 'none';
+          document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+          detail.style.display = isVisible ? 'none' : 'block';
+          if (!isVisible) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // Initially hide all model details
+    document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+  </script>
+</body>
+</html>
