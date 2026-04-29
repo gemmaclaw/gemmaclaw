@@ -30,8 +30,12 @@ else
 fi
 
 # Step 2: Regenerate site
-python3 scripts/site/generate-site.py
+WORKSPACE="$WORKSPACE" python3 scripts/site/generate-site.py
 echo "Site regenerated."
+
+# Step 2b: Run quality checks (fail early if raw Markdown or broken cards detected)
+bash scripts/site/check-site-quality.sh
+echo "Site quality checks passed."
 
 # Step 3: Check if anything changed
 if git diff --quiet site/ && git diff --quiet --cached site/; then
