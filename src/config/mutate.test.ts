@@ -96,6 +96,33 @@ describe("config mutate helpers", () => {
     );
   });
 
+  it("skips write when mutation produces no changes", async () => {
+    const snapshot = createSnapshot({
+      hash: "noop-hash",
+      sourceConfig: {
+        gateway: { port: 18789 },
+        agents: { defaults: { model: "ollama/gemma4:26b" } },
+      },
+    });
+    ioMocks.readConfigFileSnapshotForWrite.mockResolvedValue({
+      snapshot,
+      writeOptions: { expectedConfigPath: snapshot.path },
+    });
+
+    const result = await mutateConfigFile({
+      mutate(draft) {
+        draft.gateway ??= {};
+        draft.gateway.port = 18789;
+        draft.agents ??= {};
+        draft.agents.defaults ??= {};
+        draft.agents.defaults.model = "ollama/gemma4:26b";
+      },
+    });
+
+    expect(result.previousHash).toBe("noop-hash");
+    expect(ioMocks.writeConfigFile).not.toHaveBeenCalled();
+  });
+
   it("rejects stale replace attempts when the base hash changed", async () => {
     ioMocks.readConfigFileSnapshotForWrite.mockResolvedValue({
       snapshot: createSnapshot({

@@ -181,15 +181,17 @@ export async function mutateConfigFile<T = void>(params: {
   const baseConfig = params.base === "runtime" ? snapshot.runtimeConfig : snapshot.sourceConfig;
   const draft = structuredClone(baseConfig) as OpenClawConfig;
   const result = (await params.mutate(draft, { snapshot, previousHash })) as T | undefined;
-  const wroteInclude = await tryWriteSingleTopLevelIncludeMutation({
-    snapshot,
-    nextConfig: draft,
-  });
-  if (!wroteInclude) {
-    await writeConfigFile(draft, {
-      ...writeOptions,
-      ...params.writeOptions,
+  if (!isDeepStrictEqual(baseConfig, draft)) {
+    const wroteInclude = await tryWriteSingleTopLevelIncludeMutation({
+      snapshot,
+      nextConfig: draft,
     });
+    if (!wroteInclude) {
+      await writeConfigFile(draft, {
+        ...writeOptions,
+        ...params.writeOptions,
+      });
+    }
   }
   return {
     path: snapshot.path,
