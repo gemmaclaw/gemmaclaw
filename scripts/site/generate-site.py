@@ -16,6 +16,9 @@ REPO_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = REPO_DIR / "benchmark-results"
 SITE_DIR = REPO_DIR / "site"
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
+# Workspace knowledge directory for Reddit post files (set via env or default)
+WORKSPACE_DIR = Path(os.environ.get("WORKSPACE", str(REPO_DIR.parent.parent)))
+POSTS_DIR = WORKSPACE_DIR / "knowledge" / "reddit" / "localllama" / "posts"
 
 
 def load_benchmark_results():
@@ -193,49 +196,356 @@ def generate_hardware_guide_cards(results):
     return "\n".join(cards)
 
 
-def load_community_configs():
-    """Load community-reported hardware configs from Reddit extraction."""
-    if not COMMUNITY_CONFIGS_FILE.exists():
-        return []
-    try:
-        with open(COMMUNITY_CONFIGS_FILE) as f:
-            data = json.load(f)
-        return [e for e in data if e.get("hardware_mentions")]
-    except (json.JSONDecodeError, KeyError):
-        return []
-
-
 def html_escape(text):
     """Escape HTML special characters."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
-def generate_community_cards(configs):
-    """Generate community hardware report cards from Reddit data."""
-    if not configs:
-        return ""
-    cards = []
-    for entry in configs:
-        post_id = entry.get("post", "")
-        mentions = entry.get("hardware_mentions", [])
-        if not mentions:
+def clean_markdown(text):
+    """Strip markdown syntax to plain text for display in HTML cards."""
+    # Remove markdown links where the text is itself a URL: [url](url) -> empty
+    text = re.sub(r'\[https?://[^\]]*\]\([^\)]+\)', '', text)
+    # Convert remaining markdown links [text](url) to just text
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    # Remove bare URLs (http/https) that aren't useful as display text
+    text = re.sub(r'https?://\S+', '', text)
+    # Remove markdown emphasis
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    text = re.sub(r'_([^_]+)_', r'\1', text)
+    # Remove markdown escape backslashes
+    text = re.sub(r'\\([_*#\[\]()])', r'\1', text)
+    # Remove markdown headings
+    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+    # Remove markdown list markers
+    text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+    # Remove stray brackets from incomplete/truncated markdown links
+    text = re.sub(r'\[\s*\]', '', text)
+    text = re.sub(r'\[\s*$', '', text)  # trailing orphan open bracket
+    text = re.sub(r'^\s*\]', '', text)  # leading orphan close bracket
+    # Collapse whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+# Hardware category definitions for classifying community posts
+HARDWARE_CATEGORIES = {
+    "apple-silicon": {
+        "label": "Apple Silicon",
+        "keywords": ["apple silicon", "m1", "m2", "m3", "m4", "m5", "macbook", "mac mini",
+                      "mac studio", "mac pro", "metal", "unified memory", "mbp", "m4 max",
+                      "m4 pro", "m5 max", "m5 pro", "m3 max", "m3 pro", "mlx"],
+        "icon": "apple",
+    },
+    "high-gpu": {
+        "label": "High-end GPU (24+ GB)",
+        "keywords": ["rtx 3090", "rtx 4090", "rtx 5090", "a100", "a6000", "h100",
+                      "48gb", "24gb vram", "80gb", "3090", "4090", "5090", "a100",
+                      "titan", "dual gpu", "multi gpu", "sli", "nvlink"],
+        "icon": "gpu-high",
+    },
+    "mid-gpu": {
+        "label": "Mid-range GPU (8-16 GB)",
+        "keywords": ["rtx 3060", "rtx 3070", "rtx 4060", "rtx 4070", "rtx 5060",
+                      "rtx 5070", "rx 7900", "rx 7800", "8gb vram", "12gb vram",
+                      "16gb vram", "3060", "3070", "4060", "4070", "5060", "5070"],
+        "icon": "gpu-mid",
+    },
+    "cpu-only": {
+        "label": "CPU / Raspberry Pi",
+        "keywords": ["cpu only", "cpu-only", "no gpu", "raspberry pi", "gemma.cpp",
+                      "arm", "aarch64", "pi 5", "cpu inference", "cpu only"],
+        "icon": "cpu",
+    },
+    "laptop": {
+        "label": "Laptops",
+        "keywords": ["laptop", "notebook", "portable", "strix halo", "framework",
+                      "thinkpad", "zenbook", "surface", "dell xps", "legion"],
+        "icon": "laptop",
+    },
+    "quantization": {
+        "label": "Quantization & Backends",
+        "keywords": ["gguf", "gptq", "awq", "exl2", "quant", "quantiz", "4-bit",
+                      "8-bit", "q4_k", "q8_0", "iq4", "fp16", "bf16", "nvfp4",
+                      "llama.cpp", "ollama", "lm studio", "vllm", "tgi",
+                      "exllamav2", "koboldcpp", "text-generation"],
+        "icon": "quant",
+    },
+}
+
+
+def parse_reddit_post(post_id):
+    """Parse a Reddit post markdown file into structured data."""
+    md_path = POSTS_DIR / f"{post_id}.md"
+    if not md_path.exists():
+        return None
+
+    try:
+        text = md_path.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+    post = {"id": post_id, "title": "", "score": 0, "comments_count": 0,
+            "author": "", "date": "", "summary": "", "flair": "",
+            "comments": [], "tags": []}
+
+    lines = text.split("\n")
+    in_summary = False
+    in_takeaways = False
+    in_tags = False
+    current_comment = None
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Title (first h1)
+        if stripped.startswith("# ") and not post["title"]:
+            post["title"] = stripped[2:].strip()
             continue
-        # Build search text from all mentions
-        search_text = html_escape(" ".join(mentions).lower())
-        # Show up to 5 hardware mention lines
-        mention_items = "\n".join(
-            f'<li>{html_escape(m)}</li>' for m in mentions[:5]
+
+        # Metadata lines
+        if stripped.startswith("- Score: "):
+            try:
+                post["score"] = int(stripped.split("- Score: ")[1].strip())
+            except (ValueError, IndexError):
+                pass
+            continue
+        if stripped.startswith("- Comments: "):
+            try:
+                post["comments_count"] = int(stripped.split("- Comments: ")[1].strip())
+            except (ValueError, IndexError):
+                pass
+            continue
+        if stripped.startswith("- Author: "):
+            post["author"] = stripped.split("- Author: ")[1].strip()
+            continue
+        if stripped.startswith("- Date: "):
+            post["date"] = stripped.split("- Date: ")[1].strip()[:10]
+            continue
+        if stripped.startswith("- Flair: "):
+            post["flair"] = stripped.split("- Flair: ")[1].strip()
+            continue
+
+        # Section headers
+        if stripped == "## Short summary":
+            in_summary = True
+            in_takeaways = False
+            in_tags = False
+            continue
+        if stripped == "## Key takeaways from comments":
+            in_summary = False
+            in_takeaways = True
+            in_tags = False
+            if current_comment:
+                post["comments"].append(current_comment)
+                current_comment = None
+            continue
+        if stripped == "## Tags":
+            in_summary = False
+            in_takeaways = False
+            in_tags = True
+            if current_comment:
+                post["comments"].append(current_comment)
+                current_comment = None
+            continue
+        if stripped.startswith("## ") and stripped not in ("## Short summary", "## Key takeaways from comments", "## Tags"):
+            in_summary = False
+            in_takeaways = False
+            in_tags = False
+            if current_comment:
+                post["comments"].append(current_comment)
+                current_comment = None
+            continue
+
+        # Parse summary text
+        if in_summary and stripped:
+            if post["summary"]:
+                post["summary"] += " " + stripped
+            else:
+                post["summary"] = stripped
+
+        # Parse comment takeaways
+        if in_takeaways:
+            # Numbered comment line: "1. [u/username (score N)](url)"
+            match = re.match(r'^\d+\.\s+\[u/(\S+)\s+\(score\s+(\d+)\)\]\((https?://[^\)]+)\)', stripped)
+            if match:
+                if current_comment:
+                    post["comments"].append(current_comment)
+                current_comment = {
+                    "user": match.group(1),
+                    "score": int(match.group(2)),
+                    "url": match.group(3),
+                    "text": "",
+                }
+                continue
+            # Continuation of comment text (indented lines after the numbered line)
+            if current_comment and stripped:
+                if current_comment["text"]:
+                    current_comment["text"] += " " + stripped
+                else:
+                    current_comment["text"] = stripped
+
+        # Parse tags
+        if in_tags and stripped.startswith("- "):
+            post["tags"].append(stripped[2:].strip().lower())
+
+    if current_comment:
+        post["comments"].append(current_comment)
+
+    return post
+
+
+def categorize_post(post):
+    """Classify a post into hardware categories based on title, summary, tags, and comments."""
+    search_text = " ".join([
+        post.get("title", ""),
+        post.get("summary", ""),
+        " ".join(post.get("tags", [])),
+        " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+    ]).lower()
+
+    categories = []
+    for cat_id, cat_def in HARDWARE_CATEGORIES.items():
+        if any(kw in search_text for kw in cat_def["keywords"]):
+            categories.append(cat_id)
+
+    return categories if categories else ["general"]
+
+
+def load_community_configs():
+    """Load community posts from JSON index and parse from Reddit markdown files."""
+    if not COMMUNITY_CONFIGS_FILE.exists():
+        return []
+
+    try:
+        with open(COMMUNITY_CONFIGS_FILE) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, KeyError):
+        return []
+
+    posts = []
+    for entry in data:
+        post_id = entry.get("post", "")
+        if not post_id:
+            continue
+
+        parsed = parse_reddit_post(post_id)
+        if not parsed or not parsed["title"]:
+            continue
+
+        parsed["categories"] = categorize_post(parsed)
+        posts.append(parsed)
+
+    # Sort by score descending
+    posts.sort(key=lambda p: -p["score"])
+    return posts
+
+
+def generate_community_cards(posts):
+    """Generate structured community report cards from parsed Reddit posts."""
+    if not posts:
+        return ""
+
+    # Build category filter tabs
+    cat_counts = {}
+    for p in posts:
+        for c in p["categories"]:
+            cat_counts[c] = cat_counts.get(c, 0) + 1
+
+    tabs = ['<button class="cat-filter-btn active" data-cat="all">All</button>']
+    for cat_id, cat_def in HARDWARE_CATEGORIES.items():
+        if cat_id in cat_counts:
+            tabs.append(
+                f'<button class="cat-filter-btn" data-cat="{cat_id}">'
+                f'{html_escape(cat_def["label"])} ({cat_counts[cat_id]})</button>'
+            )
+    if "general" in cat_counts:
+        tabs.append(
+            f'<button class="cat-filter-btn" data-cat="general">'
+            f'Other ({cat_counts["general"]})</button>'
         )
+
+    filter_bar = f'<div class="cat-filter-bar">{"".join(tabs)}</div>'
+
+    # Build cards
+    cards = []
+    for post in posts:
+        post_id = post["id"]
+        title = html_escape(post["title"][:120])
+        score = post["score"]
+        clean_summary = clean_markdown(post["summary"])
+        if not clean_summary:
+            # Fall back to first comment text if summary is just URLs
+            first_text = next((c["text"] for c in post.get("comments", []) if c.get("text")), "")
+            clean_summary = clean_markdown(first_text) if first_text else ""
+        summary = html_escape(clean_summary[:250])
+        if len(clean_summary) > 250:
+            summary += "..."
+        author = html_escape(post["author"])
+        date_str = post["date"]
+        flair = html_escape(post["flair"]) if post["flair"] else ""
         reddit_url = f"https://reddit.com/r/LocalLLaMA/comments/{post_id}"
-        cards.append(f"""<div class="hw-card community-report" data-search="{search_text}">
-  <div class="hw-card-header">
-    <div class="hw-specs">
-      <ul class="community-mentions">{mention_items}</ul>
+        cats = " ".join(post["categories"])
+
+        # Build search text from all meaningful fields (cleaned)
+        search_text = html_escape(clean_markdown(
+            f"{post['title']} {post['summary']} "
+            f"{' '.join(post.get('tags', []))} "
+            f"{' '.join(c.get('text', '')[:100] for c in post.get('comments', [])[:3])}"
+        )).lower()[:500]
+
+        # Build top comments (max 3, only those with actual text)
+        comment_html = ""
+        useful_comments = [c for c in post.get("comments", []) if c.get("text")][:3]
+        if useful_comments:
+            comment_items = []
+            for c in useful_comments:
+                clean_text = clean_markdown(c["text"])
+                c_text = html_escape(clean_text[:200])
+                if len(clean_text) > 200:
+                    c_text += "..."
+                c_user = html_escape(c["user"])
+                c_score = c["score"]
+                comment_items.append(
+                    f'<div class="cr-comment">'
+                    f'<span class="cr-comment-meta">u/{c_user} (+{c_score})</span>'
+                    f'<span class="cr-comment-text">{c_text}</span>'
+                    f'</div>'
+                )
+            comment_html = f'<div class="cr-comments">{"".join(comment_items)}</div>'
+
+        # Score badge color
+        score_class = "cr-score-high" if score >= 200 else ("cr-score-mid" if score >= 50 else "")
+
+        # Flair badge
+        flair_html = f'<span class="cr-flair">{flair}</span>' if flair else ""
+
+        # Category badges
+        cat_badges = ""
+        for cat in post["categories"]:
+            label = HARDWARE_CATEGORIES.get(cat, {}).get("label", cat.replace("-", " ").title())
+            cat_badges += f'<span class="cr-cat-badge">{html_escape(label)}</span>'
+
+        cards.append(f"""<div class="cr-card" data-search="{search_text}" data-cats="{cats}">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="{reddit_url}" target="_blank" rel="noopener">{title}</a></h4>
+      <span class="cr-score {score_class}">+{score}</span>
     </div>
-    <a href="{reddit_url}" class="community-source" target="_blank" rel="noopener">r/LocalLLaMA source</a>
+    <div class="cr-meta">
+      <span class="cr-author">{author}</span>
+      <span class="cr-date">{date_str}</span>
+      {flair_html}
+      {cat_badges}
+    </div>
   </div>
+  <p class="cr-summary">{summary}</p>
+  {comment_html}
+  <a href="{reddit_url}" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>""")
-    return "\n".join(cards)
+
+    return filter_bar + '\n<div id="community-cards">' + "\n".join(cards) + '</div>'
 
 
 def generate_site():
@@ -398,10 +708,10 @@ gemmaclaw chat</code></pre>
         </ul>
       </div>
 
-      {"" if not community_count else f'''<div class="community-section">
+      {"" if not community_count else f'''<div class="community-section" id="community">
         <h3>Community Reports ({community_count} from r/LocalLLaMA)</h3>
-        <p>Hardware configurations reported by the community. These are user reports, not official benchmarks. Search above to filter.</p>
-        <div id="community-cards">{community_cards}</div>
+        <p>Real-world hardware experiences from the community. Filter by hardware category or search above. These are user reports, not official benchmarks.</p>
+        {community_cards}
       </div>'''}
     </section>
 
@@ -491,20 +801,54 @@ gemmaclaw chat</code></pre>
   </footer>
 
   <script>
-    // Hardware search filter (includes community cards)
+    // Hardware search filter (hw-cards + community cards)
     const searchInput = document.getElementById('hw-search');
     const hwCards = document.querySelectorAll('#hw-cards .hw-card');
-    const communityCards = document.querySelectorAll('#community-cards .hw-card');
-    const allCards = [...hwCards, ...communityCards];
-    if (searchInput) {{
-      searchInput.addEventListener('input', function() {{
-        const q = this.value.toLowerCase().trim();
-        allCards.forEach(card => {{
-          const text = card.getAttribute('data-search') || '';
-          card.style.display = (!q || text.includes(q)) ? '' : 'none';
-        }});
+    const crCards = document.querySelectorAll('#community-cards .cr-card');
+    const allSearchable = [...hwCards, ...crCards];
+    let activeCat = 'all';
+
+    function applyFilters() {{
+      const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      allSearchable.forEach(card => {{
+        const text = card.getAttribute('data-search') || '';
+        const cats = card.getAttribute('data-cats') || '';
+        const matchesSearch = !q || text.includes(q);
+        const matchesCat = activeCat === 'all' || cats.split(' ').includes(activeCat);
+        card.style.display = (matchesSearch && matchesCat) ? '' : 'none';
       }});
+      // Update no-results message
+      const container = document.getElementById('community-cards');
+      if (container) {{
+        const visible = container.querySelectorAll('.cr-card:not([style*="display: none"])');
+        let noResults = container.querySelector('.no-results');
+        if (visible.length === 0) {{
+          if (!noResults) {{
+            noResults = document.createElement('p');
+            noResults.className = 'no-results';
+            noResults.textContent = 'No reports match your filters. Try a different search or category.';
+            container.appendChild(noResults);
+          }}
+          noResults.style.display = '';
+        }} else if (noResults) {{
+          noResults.style.display = 'none';
+        }}
+      }}
     }}
+
+    if (searchInput) {{
+      searchInput.addEventListener('input', applyFilters);
+    }}
+
+    // Category filter buttons
+    document.querySelectorAll('.cat-filter-btn').forEach(btn => {{
+      btn.addEventListener('click', function() {{
+        document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        activeCat = this.getAttribute('data-cat');
+        applyFilters();
+      }});
+    }});
 
     // Benchmark table row click to toggle detail
     document.querySelectorAll('#benchmark-table tbody tr').forEach(row => {{
@@ -767,14 +1111,89 @@ CSS = """
 
     /* Community reports */
     .community-section { margin-top: 2rem; }
-    .community-mentions { list-style: none; margin: 0; font-size: 0.88rem; color: var(--fg-soft); }
-    .community-mentions li { padding: 0.2rem 0; }
-    .community-source {
-      font-size: 0.82rem; color: var(--accent); text-decoration: none;
-      margin-top: 0.5rem; display: inline-block;
+
+    /* Category filter bar */
+    .cat-filter-bar {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+      margin: 1rem 0 1.5rem; padding: 0;
     }
-    .community-source:hover { text-decoration: underline; }
-    .community-report { border-left: 3px solid var(--accent-soft); }
+    .cat-filter-btn {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      color: var(--muted); font-size: 0.82rem; font-weight: 500;
+      padding: 0.4rem 0.9rem; border-radius: 20px;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .cat-filter-btn:hover { border-color: var(--accent); color: var(--fg-soft); }
+    .cat-filter-btn.active {
+      background: var(--accent); border-color: var(--accent);
+      color: #fff; font-weight: 600;
+    }
+
+    /* Community report cards */
+    .cr-card {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem; margin-bottom: 0.75rem;
+      transition: border-color 0.15s;
+    }
+    .cr-card:hover { border-color: var(--accent); }
+    .cr-card-header { margin-bottom: 0.5rem; }
+    .cr-title-row {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .cr-title {
+      font-size: 1rem; font-weight: 600; color: var(--fg);
+      margin: 0; line-height: 1.4;
+    }
+    .cr-title a { color: var(--fg); text-decoration: none; }
+    .cr-title a:hover { color: var(--accent); }
+    .cr-score {
+      flex-shrink: 0; font-size: 0.82rem; font-weight: 600;
+      color: var(--muted); background: var(--bg-elev-2);
+      padding: 0.2rem 0.6rem; border-radius: 6px;
+      white-space: nowrap;
+    }
+    .cr-score-high { color: var(--good); background: rgba(63, 185, 80, 0.1); }
+    .cr-score-mid { color: var(--warn); background: rgba(210, 153, 34, 0.1); }
+    .cr-meta {
+      display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem;
+      margin-top: 0.35rem; font-size: 0.8rem; color: var(--muted);
+    }
+    .cr-flair {
+      background: var(--bg-elev-2); padding: 0.1rem 0.45rem;
+      border-radius: 4px; font-size: 0.75rem;
+    }
+    .cr-cat-badge {
+      background: var(--accent-soft); color: var(--accent);
+      padding: 0.1rem 0.45rem; border-radius: 4px;
+      font-size: 0.72rem; font-weight: 500;
+    }
+    .cr-summary {
+      font-size: 0.9rem; color: var(--fg-soft); margin: 0.5rem 0;
+      line-height: 1.5;
+    }
+    .cr-comments {
+      margin: 0.5rem 0; padding: 0.5rem 0;
+      border-top: 1px solid var(--border);
+    }
+    .cr-comment {
+      display: flex; flex-direction: column; gap: 0.15rem;
+      padding: 0.35rem 0; font-size: 0.85rem;
+    }
+    .cr-comment + .cr-comment { border-top: 1px solid rgba(48, 54, 61, 0.5); padding-top: 0.45rem; }
+    .cr-comment-meta {
+      color: var(--muted); font-size: 0.78rem; font-weight: 500;
+    }
+    .cr-comment-text { color: var(--fg-soft); line-height: 1.45; }
+    .cr-source {
+      font-size: 0.82rem; color: var(--accent); text-decoration: none;
+      display: inline-block; margin-top: 0.35rem;
+    }
+    .cr-source:hover { text-decoration: underline; }
+    .no-results {
+      text-align: center; color: var(--muted); padding: 2rem 1rem;
+      font-size: 0.95rem;
+    }
 
     /* Footer */
     footer {
@@ -793,6 +1212,11 @@ CSS = """
       .nav-links a { font-size: 0.82rem; }
       .hw-specs { flex-direction: column; gap: 0.25rem; }
       .hw-model { flex-wrap: wrap; gap: 0.5rem; }
+      .cat-filter-bar { gap: 0.35rem; }
+      .cat-filter-btn { font-size: 0.75rem; padding: 0.35rem 0.7rem; }
+      .cr-title { font-size: 0.92rem; }
+      .cr-card { padding: 1rem; }
+      .cr-comment-text { font-size: 0.82rem; }
     }
 """
 
