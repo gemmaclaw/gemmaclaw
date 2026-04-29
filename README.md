@@ -233,9 +233,6 @@ gemmaclaw benchmark --model gemma3:4b
 # Sweep: test a matrix of models, resumable overnight
 gemmaclaw benchmark --sweep --models gemma3:4b,gemma3:12b
 
-# Share results with the community (opens a PR)
-gemmaclaw benchmark --upload --upload-repo gemmaclaw/gemmaclaw
-
 # Run only coding tasks
 gemmaclaw benchmark --filter coding
 
@@ -243,11 +240,39 @@ gemmaclaw benchmark --filter coding
 gemmaclaw benchmark --context-length 8192 --gpu-layers 35 --batch-size 512
 ```
 
-Results are written to `results/<model>__<timestamp>/` with three formats:
+Results are written to `benchmark-results/<run>__<timestamp>/` with three formats:
 
 - `results.json`: machine-readable scores, timing, and hardware info
 - `RESULTS.md`: markdown summary table
 - `index.html`: GitHub Pages compatible dashboard
+
+#### Sharing results with the community
+
+After a run completes, package and submit the result to the public configuration matrix with one command:
+
+```bash
+# Auto-detect the most recent run under ./benchmark-results and open a PR
+gemmaclaw benchmark submit
+
+# Submit a specific run
+gemmaclaw benchmark submit benchmark-results/gemma3-4b__ollama__2026-04-28T21-02-21
+
+# Preview the anonymized payload and PR body without pushing anything
+gemmaclaw benchmark submit --dry-run
+
+# Submit to a different repo (e.g. a fork or a private mirror)
+gemmaclaw benchmark submit --repo my-org/my-fork --dataset-dir my-results
+```
+
+The `submit` command:
+
+1. Reads `results.json` from the chosen run directory (auto-detects newest if no path is given).
+2. Strips known private identifiers (hostname, username, home paths, RFC1918 / loopback URLs).
+3. Forks `gemmaclaw/gemmaclaw` (idempotent), creates a `benchmark/<run-id>` branch on the fork.
+4. Commits the anonymized result under `community-benchmarks/<run-id>.json`.
+5. Pushes the branch and opens a PR against `gemmaclaw/gemmaclaw:main`.
+
+Prerequisites: install the [GitHub CLI](https://cli.github.com/) and run `gh auth login` once. `submit` calls `gh` for the fork, push, and PR steps.
 
 For full details on task packs, scoring methodology, sweep mode, config selection, and the result schema, see the [Benchmark Kit documentation](src/gemmaclaw/benchmark-kit/README.md).
 
@@ -264,6 +289,7 @@ For full details on task packs, scoring methodology, sweep mode, config selectio
 | `gemmaclaw tui`                  | Open terminal chat (TUI) with your Gemma assistant          |
 | `gemmaclaw benchmark`            | Run the benchmark suite (full LLM judge mode)               |
 | `gemmaclaw benchmark --mock`     | Run benchmark with deterministic scoring (fast CI mode)     |
+| `gemmaclaw benchmark submit`     | Anonymize the latest run and open a PR to share results     |
 | `gemmaclaw provision`            | Low-level: manually provision a specific backend            |
 | `gemmaclaw doctor`               | Health checks and quick fixes                               |
 | `gemmaclaw config`               | View and edit configuration                                 |
