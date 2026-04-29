@@ -1,3 +1,4 @@
+import { execSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { BackendType } from "../gemmaclaw/benchmark/runner.js";
@@ -20,15 +21,129 @@ export type BenchmarkGemmaCommandOpts = {
   runner?: string;
   listPack?: boolean;
   validatePack?: boolean;
+  /** Skip Docker and run the benchmark directly on the host. */
+  local?: boolean;
 };
 
-export async function benchmarkGemmaCommand(
-  opts: BenchmarkGemmaCommandOpts,
-  runtime: RuntimeEnv = defaultRuntime,
-): Promise<void> {
-  // Pack-aware short-circuits run before any backend probing or runner setup.
-  // These cover: --validate-pack, --list-pack, and any agent-family pack (which
-  // is not executable through the tool-free benchmark runner).
+export type BenchmarkSandboxOpts = {
+  file: string;
+  model?: string;
+  mock?: boolean;
+  /** Keep container running after the benchmark finishes (for inspection). */
+  keep?: boolean;
+  /** Gemini API key for cloud-based evaluation (uses Gemini instead of local Ollama). */
+  geminiApiKey?: string;
+  /** Gemini model to use (e.g. gemini-2.5-pro). Only applies when geminiApiKey is set. */
+  geminiModel?: string;
+};
+
+const DOCKER_IMAGE = "gemmaclaw-benchmark";
+
+// ---------------------------------------------------------------------------
+// Docker helpers
+// ---------------------------------------------------------------------------
+
+function isDockerAvailable(): boolean {
+  try {
+    execSync("docker info", { stdio: "pipe", timeout: 10_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function findRepoRoot(): string {
+  let dir = path.dirname(new URL(import.meta.url).pathname);
+  while (dir !== "/") {
+    if (fs.existsSync(path.join(dir, "Dockerfile.benchmark"))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return process.cwd();
+}
+
+function dockerBuild(repoRoot: string, runtime: RuntimeEnv): boolean {
+  runtime.log("Building Docker image (this may take a while on first run)...");
+  try {
+    execSync(`docker build -f Dockerfile.benchmark -t ${DOCKER_IMAGE} .`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+      timeout: 600_000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runInDocker(opts: BenchmarkGemmaCommandOpts, runtime: RuntimeEnv): Promise<number> {
+  const repoRoot = findRepoRoot();
+
+  if (!dockerBuild(repoRoot, runtime)) {
+    runtime.error("Docker build failed. Run with --local to skip Docker.");
+    return Promise.resolve(1);
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const model = opts.model ?? "gemma3:1b";
+  const hostResultsDir =
+    opts.outputDir ??
+    path.join(process.cwd(), "results", `${model.replace(/[/:]/g, "-")}__${timestamp}`);
+
+  fs.mkdirSync(hostResultsDir, { recursive: true });
+
+  const args: string[] = ["run", "--rm"];
+
+  args.push("-v", `${hostResultsDir}:/results`);
+
+  if (opts.model) {
+    args.push("-e", `BENCHMARK_MODEL=${opts.model}`);
+  }
+
+  args.push(DOCKER_IMAGE);
+
+  if (opts.mock) {
+    args.push("--mock");
+  }
+  if (opts.model) {
+    args.push("--model", opts.model);
+  }
+  if (opts.filter) {
+    args.push("--filter", opts.filter);
+  }
+  if (opts.contextLength != null) {
+    args.push("--context-length", String(opts.contextLength));
+  }
+  if (opts.gpuLayers != null) {
+    args.push("--gpu-layers", String(opts.gpuLayers));
+  }
+  if (opts.batchSize != null) {
+    args.push("--batch-size", String(opts.batchSize));
+  }
+
+  return new Promise<number>((resolve) => {
+    runtime.log("");
+    runtime.log("========================================");
+    runtime.log("  Running benchmark in Docker");
+    runtime.log("========================================");
+    runtime.log(`  Results will be written to: ${hostResultsDir}`);
+    runtime.log("");
+
+    const child = spawn("docker", args, { stdio: "inherit" });
+    child.on("close", (code) => resolve(code ?? 1));
+    child.on("error", (err) => {
+      runtime.error(`Docker process error: ${err.message}`);
+      resolve(1);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Local (direct) benchmark run
+// ---------------------------------------------------------------------------
+
+async function runLocally(opts: BenchmarkGemmaCommandOpts, runtime: RuntimeEnv): Promise<void> {
   const packHandled = await handlePackCommands(opts, runtime);
   if (packHandled) {
     return;
@@ -39,18 +154,15 @@ export async function benchmarkGemmaCommand(
     await import("../gemmaclaw/benchmark/index.js");
   const { findPreset } = await import("../gemmaclaw/provision/model-registry.js");
 
-  // Resolve backend.
   const backend: BackendType = (
     opts.backend === "llama-cpp" ? "llama-cpp" : "ollama"
   ) as BackendType;
 
-  // Resolve model. Priority: --model flag > gemmaclaw config > default.
   const model = opts.model ?? resolveConfiguredModel() ?? "gemma3:4b";
   const ollamaUrl = opts.ollamaUrl ?? "http://127.0.0.1:11434";
   const llamaCppUrl = opts.llamaCppUrl ?? "http://127.0.0.1:8080";
   const isMock = Boolean(opts.mock);
 
-  // Look up preset for context length defaults.
   const preset = findPreset(model);
   const contextLength = opts.contextLength ?? preset?.defaultContextLength;
 
@@ -60,7 +172,6 @@ export async function benchmarkGemmaCommand(
   runtime.log("========================================");
   runtime.log("");
 
-  // Detect hardware.
   runtime.log("Detecting hardware...");
   const hw = detectHardware();
   for (const line of formatHardwareInfo(hw)) {
@@ -68,7 +179,6 @@ export async function benchmarkGemmaCommand(
   }
   runtime.log("");
 
-  // Filter tasks if requested.
   let tasks = [...BENCHMARK_TASKS];
   if (opts.filter) {
     const f = opts.filter.toLowerCase();
@@ -113,7 +223,6 @@ export async function benchmarkGemmaCommand(
   }
   runtime.log("");
 
-  // Verify backend is reachable (unless mock-only with no real inference needed).
   if (!isMock) {
     if (backend === "ollama") {
       try {
@@ -143,7 +252,6 @@ export async function benchmarkGemmaCommand(
     }
   }
 
-  // Run benchmark.
   const result = await runBenchmark(
     tasks,
     {
@@ -162,7 +270,6 @@ export async function benchmarkGemmaCommand(
     (msg) => runtime.log(msg),
   );
 
-  // Write results.
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const backendSuffix = backend === "llama-cpp" ? "__llamacpp" : "__ollama";
   const defaultDir = path.join(
@@ -173,7 +280,6 @@ export async function benchmarkGemmaCommand(
   const outputDir = opts.outputDir ?? defaultDir;
   const files = writeResults(result, outputDir);
 
-  // Print summary.
   const s = result.summary;
   runtime.log("");
   runtime.log("========================================");
@@ -201,7 +307,6 @@ export async function benchmarkGemmaCommand(
   if (s.totalCompletionTokens > 0) {
     runtime.log(`  Completion tokens: ${s.totalCompletionTokens}`);
   }
-  // Show failure modes if any errors occurred.
   const errorModes = Object.entries(s.failureModes).filter(([k]) => k !== "none");
   if (errorModes.length > 0) {
     runtime.log(`  Failures: ${errorModes.map(([k, v]) => `${k}=${v}`).join(", ")}`);
@@ -213,8 +318,183 @@ export async function benchmarkGemmaCommand(
   runtime.log("========================================");
 }
 
+// ---------------------------------------------------------------------------
+// Public entry point
+// ---------------------------------------------------------------------------
+
+export async function benchmarkGemmaCommand(
+  opts: BenchmarkGemmaCommandOpts,
+  runtime: RuntimeEnv = defaultRuntime,
+): Promise<void> {
+  const hasPack = opts.pack || opts.runner || opts.listPack || opts.validatePack;
+  if (opts.local || hasPack) {
+    await runLocally(opts, runtime);
+    return;
+  }
+
+  if (!isDockerAvailable()) {
+    runtime.log("Docker is not available. Falling back to local execution.");
+    runtime.log("Install Docker or use --local to suppress this message.");
+    runtime.log("");
+    await runLocally(opts, runtime);
+    return;
+  }
+
+  const exitCode = await runInDocker(opts, runtime);
+  if (exitCode !== 0) {
+    runtime.exit(exitCode);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sandbox: include a file, get back a container ID
+// ---------------------------------------------------------------------------
+
+export async function benchmarkSandboxCommand(
+  opts: BenchmarkSandboxOpts,
+  runtime: RuntimeEnv = defaultRuntime,
+): Promise<void> {
+  const filePath = path.resolve(opts.file);
+
+  if (!fs.existsSync(filePath)) {
+    runtime.error(`File not found: ${filePath}`);
+    runtime.exit(1);
+    return;
+  }
+
+  if (!isDockerAvailable()) {
+    runtime.error("Docker is required for benchmark sandbox. Install Docker and try again.");
+    runtime.exit(1);
+    return;
+  }
+
+  const repoRoot = findRepoRoot();
+
+  if (!dockerBuild(repoRoot, runtime)) {
+    runtime.error("Docker build failed.");
+    runtime.exit(1);
+    return;
+  }
+
+  const model = opts.model ?? "gemma3:1b";
+  const fileName = path.basename(filePath);
+  const containerFile = `/workspace/${fileName}`;
+
+  const createArgs: string[] = [
+    "create",
+    "-e",
+    `BENCHMARK_MODEL=${model}`,
+    "-e",
+    `BENCHMARK_FILE=${containerFile}`,
+    "-e",
+    "BENCHMARK_SANDBOX=1",
+  ];
+
+  if (opts.mock) {
+    createArgs.push("-e", "BENCHMARK_MOCK=1");
+  }
+
+  if (opts.keep) {
+    createArgs.push("-e", "BENCHMARK_KEEP=1");
+  }
+
+  if (opts.geminiApiKey) {
+    createArgs.push("-e", `GEMINI_API_KEY=${opts.geminiApiKey}`);
+  }
+
+  if (opts.geminiModel) {
+    createArgs.push("-e", `GEMINI_MODEL=${opts.geminiModel}`);
+  }
+
+  createArgs.push(DOCKER_IMAGE);
+
+  runtime.log("");
+  runtime.log("========================================");
+  runtime.log("  Benchmark Sandbox");
+  runtime.log("========================================");
+  runtime.log(`  File: ${filePath}`);
+  runtime.log(`  Model: ${model}`);
+  if (opts.geminiApiKey) {
+    runtime.log(`  Gemini: ${opts.geminiModel ?? "gemini-2.5-pro"} (API key provided)`);
+  }
+  runtime.log("");
+
+  let containerId: string;
+  try {
+    containerId = execSync(`docker ${createArgs.join(" ")}`, {
+      cwd: repoRoot,
+      timeout: 30_000,
+      encoding: "utf-8",
+    }).trim();
+  } catch (err) {
+    runtime.error(
+      `Failed to create container: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    runtime.exit(1);
+    return;
+  }
+
+  const shortId = containerId.slice(0, 12);
+
+  try {
+    execSync(`docker cp "${filePath}" ${containerId}:${containerFile}`, {
+      timeout: 30_000,
+    });
+  } catch (err) {
+    runtime.error(
+      `Failed to copy file into container: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    execSync(`docker rm ${containerId}`, { stdio: "pipe" }).toString();
+    runtime.exit(1);
+    return;
+  }
+
+  runtime.log(`  Container: ${shortId}`);
+  runtime.log(`  File mounted at: ${containerFile}`);
+  runtime.log("");
+  runtime.log("Starting container...");
+
+  const child = spawn("docker", ["start", "-a", containerId], { stdio: "inherit" });
+
+  await new Promise<void>((resolve) => {
+    child.on("close", (code) => {
+      runtime.log("");
+      runtime.log("========================================");
+      runtime.log("  Sandbox Complete");
+      runtime.log("========================================");
+      runtime.log(`  Container ID: ${shortId}`);
+      runtime.log("");
+      runtime.log("  Modify and rerun:");
+      runtime.log(`    docker cp <new-file> ${shortId}:${containerFile}`);
+      runtime.log(`    docker start -a ${shortId}`);
+      runtime.log("");
+      runtime.log("  Inspect the container:");
+      runtime.log(`    docker exec -it ${shortId} bash`);
+      runtime.log("");
+      runtime.log("  Read results:");
+      runtime.log(`    docker cp ${shortId}:/results ./results`);
+      runtime.log("");
+      runtime.log("  Clean up:");
+      runtime.log(`    docker rm ${shortId}`);
+      runtime.log("========================================");
+
+      if (code !== 0 && code !== null) {
+        runtime.exit(code);
+      }
+      resolve();
+    });
+    child.on("error", (err) => {
+      runtime.error(`Container error: ${err.message}`);
+      resolve();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function resolveConfiguredModel(): string | undefined {
-  // Check openclaw.json for a configured model.
   const configPaths = [
     path.join(process.env.HOME ?? "", ".openclaw", "openclaw.json"),
     path.join(process.cwd(), "openclaw.json"),
@@ -224,7 +504,6 @@ function resolveConfiguredModel(): string | undefined {
     try {
       const raw = fs.readFileSync(cp, "utf8");
       const config = JSON.parse(raw);
-      // Look for model in various config locations.
       const model = config.model ?? config.llm?.model ?? config.agents?.defaults?.model;
       if (typeof model === "string" && model.length > 0) {
         return model;
@@ -244,7 +523,7 @@ async function ollamaPing(url: string, model: string): Promise<{ content: string
       messages: [{ role: "user", content: "ping" }],
       stream: false,
       keep_alive: "6h",
-      options: { num_predict: 5 },
+      options: { num_predict: 1 },
     });
 
     const parsed = new URL(url);
@@ -258,7 +537,7 @@ async function ollamaPing(url: string, model: string): Promise<{ content: string
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
         },
-        timeout: 120_000,
+        timeout: 30_000,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -283,10 +562,6 @@ async function ollamaPing(url: string, model: string): Promise<{ content: string
   });
 }
 
-/**
- * Resolve the pack argument to either a built-in name or a filesystem path.
- * Returns null if no `--pack` was supplied (existing core flow keeps running).
- */
 async function handlePackCommands(
   opts: BenchmarkGemmaCommandOpts,
   runtime: RuntimeEnv,
@@ -296,8 +571,6 @@ async function handlePackCommands(
   const wantsList = Boolean(opts.listPack);
   const wantsValidate = Boolean(opts.validatePack);
 
-  // Without --pack, --list-pack, --validate-pack, or --runner, fall through
-  // to the existing core flow (back-compat: `gemmaclaw benchmark` still works).
   if (!requestedPack && !wantsList && !wantsValidate && !requestedRunner) {
     return false;
   }
@@ -305,9 +578,6 @@ async function handlePackCommands(
   const { BUILTIN_PACKS, builtinPackPath, loadBenchmarkPack } =
     await import("../gemmaclaw/benchmark-kit/index.js");
 
-  // Resolve the pack source. Default to "core" if other pack-only flags were
-  // passed without --pack (validate/list of nothing is unhelpful but
-  // explicit > implicit when the user asked).
   const packArg = requestedPack ?? "core";
   let packPath: string;
   const isBuiltin = (BUILTIN_PACKS as readonly string[]).includes(packArg);
@@ -358,11 +628,6 @@ async function handlePackCommands(
     return true;
   }
 
-  // Agent-family packs run through the explicit agent runner seam. The
-  // default public path is deterministic `mock-agent`: it proves the Jake
-  // agent pack is loadable and executable in Gemmaclaw, and writes the same
-  // standard artifact bundle, without requiring Frank's private Jake/OpenClaw
-  // runtime. Live OpenClaw/Jake runners can still register under `agent`.
   if (pack.family === "agent") {
     const normalizedRequestedRunner = normalizeRunnerKind(requestedRunner);
     if (requestedRunner && !normalizedRequestedRunner) {
@@ -462,10 +727,6 @@ async function handlePackCommands(
     return true;
   }
 
-  // Tool-free pack with explicit --pack: the user wants the existing core
-  // flow but pointed at a different pack file. Only the built-in 'core' pack
-  // is wired into the benchmark/index.ts task graph today; for other tool-
-  // free packs, point users at --list-pack / --validate-pack.
   if (requestedPack && requestedPack !== "core") {
     runtime.error(
       `Tool-free pack '${pack.pack}' is supported by the loader and v1 schema, ` +
@@ -486,7 +747,6 @@ async function handlePackCommands(
     return true;
   }
 
-  // Fall through: tool-free 'core' pack, no --runner override → existing flow.
   return false;
 }
 
