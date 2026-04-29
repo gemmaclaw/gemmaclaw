@@ -203,7 +203,9 @@ def html_escape(text):
 
 def clean_markdown(text):
     """Strip markdown syntax to plain text for display in HTML cards."""
-    # Convert markdown links [text](url) to just text
+    # Remove markdown links where the text is itself a URL: [url](url) -> empty
+    text = re.sub(r'\[https?://[^\]]*\]\([^\)]+\)', '', text)
+    # Convert remaining markdown links [text](url) to just text
     text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
     # Remove bare URLs (http/https) that aren't useful as display text
     text = re.sub(r'https?://\S+', '', text)
@@ -218,6 +220,10 @@ def clean_markdown(text):
     text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
     # Remove markdown list markers
     text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+    # Remove stray brackets from incomplete/truncated markdown links
+    text = re.sub(r'\[\s*\]', '', text)
+    text = re.sub(r'\[\s*$', '', text)  # trailing orphan open bracket
+    text = re.sub(r'^\s*\]', '', text)  # leading orphan close bracket
     # Collapse whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     return text
@@ -469,6 +475,10 @@ def generate_community_cards(posts):
         title = html_escape(post["title"][:120])
         score = post["score"]
         clean_summary = clean_markdown(post["summary"])
+        if not clean_summary:
+            # Fall back to first comment text if summary is just URLs
+            first_text = next((c["text"] for c in post.get("comments", []) if c.get("text")), "")
+            clean_summary = clean_markdown(first_text) if first_text else ""
         summary = html_escape(clean_summary[:250])
         if len(clean_summary) > 250:
             summary += "..."
