@@ -3,7 +3,7 @@ import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 
 export function registerBenchmarkCommand(program: Command) {
-  program
+  const benchmark = program
     .command("benchmark")
     .description("Run the gemmaclaw benchmark suite against your local Gemma model")
     .option("--mock", "Run deterministic scoring only (no LLM judge, fast CI mode)", false)
@@ -62,6 +62,46 @@ export function registerBenchmarkCommand(program: Command) {
           listPack: Boolean(opts.listPack),
           validatePack: Boolean(opts.validatePack),
         });
+      });
+    });
+
+  benchmark
+    .command("submit [results-dir]")
+    .description(
+      "Package a benchmark result, anonymize it, and open a PR to share it with the community",
+    )
+    .option(
+      "--repo <owner/name>",
+      "GitHub repo to open the PR against (default: gemmaclaw/gemmaclaw)",
+    )
+    .option(
+      "--dataset-dir <dir>",
+      "Subdirectory in the target repo for results (default: community-benchmarks)",
+    )
+    .option(
+      "--results-root <dir>",
+      "Root directory containing benchmark runs when auto-detecting (default: ./benchmark-results)",
+    )
+    .option(
+      "--dry-run",
+      "Print the anonymized payload and PR body without forking or pushing",
+      false,
+    )
+    .option("-y, --yes", "Skip confirmation prompts", false)
+    .action(async (resultsDir: string | undefined, opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const { submitBenchmarkCommand } = await import("../../commands/submit-benchmark.js");
+        await submitBenchmarkCommand(
+          {
+            resultsDir,
+            repo: opts.repo as string | undefined,
+            datasetDir: opts.datasetDir as string | undefined,
+            resultsRoot: opts.resultsRoot as string | undefined,
+            dryRun: Boolean(opts.dryRun),
+            yes: Boolean(opts.yes),
+          },
+          defaultRuntime,
+        );
       });
     });
 }
