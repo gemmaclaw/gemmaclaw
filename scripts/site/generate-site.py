@@ -16,6 +16,7 @@ REPO_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = REPO_DIR / "benchmark-results"
 SITE_DIR = REPO_DIR / "site"
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
+FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
 # Workspace knowledge directory for Reddit post files (set via env or default)
 WORKSPACE_DIR = Path(os.environ.get("WORKSPACE", str(REPO_DIR.parent.parent)))
 POSTS_DIR = WORKSPACE_DIR / "knowledge" / "reddit" / "localllama" / "posts"
@@ -548,6 +549,92 @@ def generate_community_cards(posts):
     return filter_bar + '\n<div id="community-cards">' + "\n".join(cards) + '</div>'
 
 
+def render_field_notes_markdown(md_text):
+    """Render the curated field-notes Markdown into an HTML fragment.
+
+    Supports the small Markdown subset used in site/data/field-notes.md:
+    headings (## / ###), paragraphs, italics (*x*), bold (**x**),
+    inline links [text](url), bullet lists, and emphasized last-updated lines.
+    Output is plain HTML wrapped in a <div class="field-notes">.
+    """
+    lines = md_text.splitlines()
+    html_parts = []
+    in_list = False
+    para_buf = []
+
+    def flush_para():
+        if para_buf:
+            text = " ".join(para_buf).strip()
+            if text:
+                html_parts.append(f"<p>{render_inline(text)}</p>")
+            para_buf.clear()
+
+    def close_list():
+        nonlocal in_list
+        if in_list:
+            html_parts.append("</ul>")
+            in_list = False
+
+    def render_inline(text):
+        # Inline links [text](url)
+        def link_sub(m):
+            label, url = m.group(1), m.group(2)
+            return (f'<a href="{html_escape(url)}" target="_blank" '
+                    f'rel="noopener">{html_escape(label)}</a>')
+        # Escape first, then re-apply markdown so links/emphasis work safely.
+        escaped = html_escape(text)
+        # Convert escaped brackets back so the regex matches our markdown links.
+        escaped = escaped.replace("&lt;", "<").replace("&gt;", ">")
+        escaped = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link_sub, escaped)
+        # Bold then italic (order matters so ** wins over *).
+        escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+        escaped = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", escaped)
+        return escaped
+
+    for raw in lines:
+        line = raw.rstrip()
+        if not line.strip():
+            flush_para()
+            close_list()
+            continue
+        if line.startswith("### "):
+            flush_para()
+            close_list()
+            html_parts.append(f"<h3>{render_inline(line[4:].strip())}</h3>")
+            continue
+        if line.startswith("## "):
+            flush_para()
+            close_list()
+            html_parts.append(f"<h2>{render_inline(line[3:].strip())}</h2>")
+            continue
+        if line.lstrip().startswith("- "):
+            flush_para()
+            if not in_list:
+                html_parts.append('<ul class="setup-list">')
+                in_list = True
+            item = line.lstrip()[2:].strip()
+            html_parts.append(f"<li>{render_inline(item)}</li>")
+            continue
+        para_buf.append(line.strip())
+
+    flush_para()
+    close_list()
+    return '<div class="field-notes">' + "\n".join(html_parts) + "</div>"
+
+
+def load_field_notes():
+    """Return rendered HTML for the curated field-notes section, or empty string."""
+    if not FIELD_NOTES_FILE.exists():
+        return ""
+    try:
+        md_text = FIELD_NOTES_FILE.read_text()
+    except OSError:
+        return ""
+    if not md_text.strip():
+        return ""
+    return render_field_notes_markdown(md_text)
+
+
 def generate_site():
     results = load_benchmark_results()
     best = best_results(results)
@@ -567,6 +654,8 @@ def generate_site():
     community_configs = load_community_configs()
     community_cards = generate_community_cards(community_configs)
     community_count = len(community_configs)
+    field_notes_html = load_field_notes()
+    field_notes_nav = '<a href="#field-notes">Field Notes</a>' if field_notes_html else ""
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -586,6 +675,7 @@ def generate_site():
       <div class="nav-links">
         <a href="#setup">Setup</a>
         <a href="#hosting">Self-Hosting</a>
+        {field_notes_nav}
         <a href="#benchmarks">Benchmarks</a>
         <a href="#goals">Goals</a>
         <a href="https://github.com/gemmaclaw/gemmaclaw">GitHub</a>
@@ -714,6 +804,11 @@ gemmaclaw chat</code></pre>
         {community_cards}
       </div>'''}
     </section>
+
+    {"" if not field_notes_html else f'''<!-- Section 2b: Curated Field Notes -->
+    <section id="field-notes">
+      {field_notes_html}
+    </section>'''}
 
     <!-- Section 3: Benchmark Results -->
     <section id="benchmarks">
@@ -956,6 +1051,50 @@ CSS = """
     p { color: var(--fg-soft); margin-bottom: 1rem; }
     a.inline { color: var(--accent); text-decoration: none; }
     a.inline:hover { text-decoration: underline; }
+
+    /* Field Notes (curated weekly synthesis) */
+    .field-notes {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 1.75rem;
+      margin: 0;
+    }
+    .field-notes h2 {
+      font-size: 1.5rem; font-weight: 600;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.01em;
+    }
+    .field-notes h3 {
+      font-size: 1.05rem; font-weight: 600;
+      margin: 1.5rem 0 0.5rem;
+      color: var(--fg);
+    }
+    .field-notes p { color: var(--fg-soft); margin: 0 0 0.75rem; }
+    .field-notes p em { color: var(--muted); }
+    .field-notes ul {
+      list-style: none; margin: 0 0 1rem; padding: 0;
+    }
+    .field-notes li {
+      padding: 0.4rem 0 0.4rem 1.25rem;
+      position: relative;
+      color: var(--fg-soft);
+    }
+    .field-notes li::before {
+      content: '';
+      position: absolute; left: 0; top: 0.75rem;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+    }
+    .field-notes li strong { color: var(--fg); }
+    .field-notes a {
+      color: var(--accent); text-decoration: none;
+    }
+    .field-notes a:hover { text-decoration: underline; }
+    @media (max-width: 640px) {
+      .field-notes { padding: 1rem 1.1rem; }
+      .field-notes h2 { font-size: 1.3rem; }
+    }
 
     /* Lists */
     .setup-list { list-style: none; margin: 0 0 1rem; }
