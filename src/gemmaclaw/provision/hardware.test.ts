@@ -109,7 +109,7 @@ describe("detectHardware", () => {
       return p === "/dev/nvidia0";
     });
     mockExecSync.mockImplementation((cmd) => {
-      if (cmd.includes("nvidia-smi --query")) {
+      if (cmd.includes("--query-gpu")) {
         return "NVIDIA RTX 3090, 24576\n";
       }
       if (cmd.includes("which nvidia-smi")) {
@@ -122,6 +122,47 @@ describe("detectHardware", () => {
     expect(hw.gpu.nvidia).toBe(true);
     expect(hw.gpu.name).toBe("NVIDIA RTX 3090");
     expect(hw.gpu.vramBytes).toBe(24576 * 1024 * 1024);
+  });
+
+  it("detects GPU via WSL2 nvidia-smi fallback path", () => {
+    // WSL2: no /dev/nvidia0, no nvidia-smi on PATH,
+    // but /usr/lib/wsl/lib/nvidia-smi exists and WSLInterop is present.
+    mockExistsSync.mockImplementation((p) => {
+      if (p === "/proc/sys/fs/binfmt_misc/WSLInterop") {
+        return true;
+      }
+      if (p === "/usr/lib/wsl/lib/nvidia-smi") {
+        return true;
+      }
+      return false;
+    });
+    mockExecSync.mockImplementation((cmd) => {
+      if (cmd.includes("--query-gpu")) {
+        return "NVIDIA GeForce RTX 3090, 24576\n";
+      }
+      // 'which nvidia-smi' fails (not on PATH)
+      throw new Error("not found");
+    });
+    const hw = detectHardware();
+    expect(hw.gpu.detected).toBe(true);
+    expect(hw.gpu.nvidia).toBe(true);
+    expect(hw.gpu.name).toBe("NVIDIA GeForce RTX 3090");
+    expect(hw.gpu.vramBytes).toBe(24576 * 1024 * 1024);
+  });
+
+  it("no GPU when WSL2 nvidia-smi path also missing", () => {
+    // WSL2 environment but nvidia-smi not present at all.
+    mockExistsSync.mockImplementation((p) => {
+      if (p === "/proc/sys/fs/binfmt_misc/WSLInterop") {
+        return true;
+      }
+      return false;
+    });
+    const hw = detectHardware();
+    if (process.platform !== "darwin" || process.arch !== "arm64") {
+      expect(hw.gpu.detected).toBe(false);
+      expect(hw.gpu.nvidia).toBe(false);
+    }
   });
 
   it("handles empty cpus array gracefully", () => {

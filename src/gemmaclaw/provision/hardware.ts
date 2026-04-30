@@ -104,19 +104,50 @@ function safeFileExists(filePath: string): boolean {
   }
 }
 
-function hasNvidiaSmi(): boolean {
+/** WSL2 nvidia-smi lives outside PATH at /usr/lib/wsl/lib/nvidia-smi. */
+const WSL2_NVIDIA_SMI = "/usr/lib/wsl/lib/nvidia-smi";
+
+function isWsl2(): boolean {
   try {
-    execSync("which nvidia-smi", { timeout: 3_000, stdio: "pipe" });
-    return true;
+    return fs.existsSync("/proc/sys/fs/binfmt_misc/WSLInterop");
   } catch {
     return false;
   }
 }
 
+function findNvidiaSmi(): string | null {
+  // Standard PATH lookup first.
+  try {
+    const p = execSync("which nvidia-smi", {
+      timeout: 3_000,
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    if (p) {
+      return p;
+    }
+  } catch {
+    // not on PATH
+  }
+  // WSL2 fallback: nvidia-smi is in /usr/lib/wsl/lib/ which is not always on PATH.
+  if (isWsl2() && safeFileExists(WSL2_NVIDIA_SMI)) {
+    return WSL2_NVIDIA_SMI;
+  }
+  return null;
+}
+
+function hasNvidiaSmi(): boolean {
+  return findNvidiaSmi() !== null;
+}
+
 function queryNvidiaSmi(): { name: string; vramMb?: number } | null {
+  const smiPath = findNvidiaSmi();
+  if (!smiPath) {
+    return null;
+  }
   try {
     const output = execSync(
-      "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits",
+      `"${smiPath}" --query-gpu=name,memory.total --format=csv,noheader,nounits`,
       { timeout: 5_000, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
     ).trim();
     if (!output) {

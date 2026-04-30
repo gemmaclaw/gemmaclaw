@@ -62,6 +62,7 @@ export function writeJsonResults(result: BenchmarkResult, outputDir: string): st
     tasks: result.tasks.map((t) => ({
       id: t.task.id,
       name: t.task.name,
+      description: t.task.description,
       category: t.task.category,
       difficulty: t.task.difficulty,
       score: t.score.score,
