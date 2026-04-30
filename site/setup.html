@@ -572,11 +572,17 @@ corepack enable &amp;&amp; pnpm install
 pnpm build
 npm install -g .
 
-# Auto-detect hardware + provision + start
+# Auto-detect hardware + provision backend
 gemmaclaw setup
 
-# Restart later
-gemmaclaw chat</code></pre></div>
+# Create a named agent instance
+gemmaclaw create work
+
+# Open chat UI (picks agent interactively if multiple)
+gemmaclaw chat
+
+# One-shot message
+gemmaclaw message --agent work "hello"</code></pre></div>
       <h3>What Happens</h3>
       <ol class="setup-steps">
         <li><strong>Hardware detection:</strong> probes GPU (vendor, VRAM, Metal), CPU (arch, cores), and RAM</li>
@@ -609,6 +615,7 @@ gemmaclaw chat</code></pre></div>
             <tr><td><code>--advanced</code></td><td>Interactive wizard for manual backend/model/port selection</td></tr>
             <tr><td><code>--no-container</code></td><td>Run gateway directly on the host (skip Docker sandbox)</td></tr>
             <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
+            <tr><td><code>--accept-risk</code></td><td>Required with <code>--non-interactive</code>; acknowledges local agent system-access risk</td></tr>
             <tr><td><code>--wizard</code></td><td>Run interactive workspace config onboarding</td></tr>
             <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory (default: <code>~/.openclaw/workspace</code>)</td></tr>
             <tr><td><code>--workspace-only</code></td><td>Only initialize workspace config, skip Gemma provisioning</td></tr>
@@ -621,21 +628,84 @@ gemmaclaw setup
 gemmaclaw setup --advanced
 
 # CI/scripted environments
-gemmaclaw setup --non-interactive --no-container</code></pre></div>
+gemmaclaw setup --non-interactive --accept-risk --no-container</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-create"><code>gemmaclaw create</code></h4>
+        <p>Create a new named Gemmaclaw instance (agent). Each instance gets its own workspace, sessions, and configuration. Provision a backend with <code>gemmaclaw setup</code> first.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[name]</code></td><td>Agent name/id (positional or via <code>--name</code>)</td></tr>
+            <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Workspace directory for this instance</td></tr>
+            <tr><td><code>--model &lt;id&gt;</code></td><td>Model id (e.g. <code>ollama/gemma3:4b</code>)</td></tr>
+            <tr><td><code>--non-interactive</code></td><td>Disable prompts (requires name)</td></tr>
+            <tr><td><code>--json</code></td><td>Output JSON summary</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code># Interactive create
+gemmaclaw create work
+
+# Non-interactive with model
+gemmaclaw create dev --model ollama/gemma3:4b --workspace ~/.openclaw/workspace/dev
+
+# Scripted/CI
+gemmaclaw create play --non-interactive</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-list"><code>gemmaclaw list</code></h4>
+        <p>List all configured Gemmaclaw instances. Alias for <code>gemmaclaw agents list</code>.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--json</code></td><td>Output JSON instead of text</td></tr>
+            <tr><td><code>--bindings</code></td><td>Include routing bindings</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw list
+gemmaclaw list --json</code></pre></div>
       </div>
 
       <div class="cli-cmd-card">
         <h4 id="cmd-chat"><code>gemmaclaw chat</code></h4>
-        <p>Start the gateway and open the web chat UI in your default browser.</p>
+        <p>Start the gateway and open the web chat UI in your default browser. When multiple agents are configured, pass <code>--agent</code> or pick one interactively.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Option</th><th>Description</th></tr></thead>
           <tbody>
+            <tr><td><code>--agent &lt;id&gt;</code></td><td>Target agent id (skips interactive picker)</td></tr>
             <tr><td><code>--no-open</code></td><td>Start gateway but don't auto-open the browser</td></tr>
             <tr><td><code>--port &lt;port&gt;</code></td><td>Gateway port (default: auto-detected from config)</td></tr>
           </tbody>
         </table></div>
         <div class="code-block"><pre><code>gemmaclaw chat
+gemmaclaw chat --agent work
 gemmaclaw chat --no-open --port 3001</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-message"><code>gemmaclaw message</code></h4>
+        <p>Send a one-shot message to a Gemmaclaw agent and print the response. Supports positional text, <code>--text</code> flag, or piped stdin. Useful for scripting and automation.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--agent &lt;id&gt;</code></td><td>Target agent id (required if multiple agents configured)</td></tr>
+            <tr><td><code>--text &lt;text&gt;</code></td><td>Message body (alternative to positional or stdin)</td></tr>
+            <tr><td><code>--json</code></td><td>Output result as JSON</td></tr>
+            <tr><td><code>--thinking &lt;level&gt;</code></td><td>Thinking level: off, minimal, low, medium, high</td></tr>
+            <tr><td><code>--timeout &lt;seconds&gt;</code></td><td>Override agent command timeout</td></tr>
+            <tr><td><code>--local</code></td><td>Run the embedded agent locally</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code># One-shot message
+gemmaclaw message --agent dev "summarize today's news"
+
+# Pipe from stdin
+echo "what is 2+2?" | gemmaclaw message --agent dev
+
+# JSON output
+gemmaclaw message --agent dev --text "hi" --json</code></pre></div>
       </div>
 
       <div class="cli-cmd-card">

@@ -10,6 +10,16 @@ const coreCliCommandCatalog = defineCommandDescriptorCatalog([
     hasSubcommands: false,
   },
   {
+    name: "create",
+    description: "Create a new Gemmaclaw instance (named, isolated agent)",
+    hasSubcommands: false,
+  },
+  {
+    name: "list",
+    description: "List configured Gemmaclaw instances (alias for 'agents list')",
+    hasSubcommands: false,
+  },
+  {
     name: "onboard",
     description: "Interactive onboarding for gateway, workspace, and skills",
     hasSubcommands: false,
@@ -52,7 +62,7 @@ const coreCliCommandCatalog = defineCommandDescriptorCatalog([
   },
   {
     name: "message",
-    description: "Send, read, and manage messages",
+    description: "Talk to your Gemmaclaw agent (default), or use subcommands for channel ops",
     hasSubcommands: true,
   },
   {

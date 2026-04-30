@@ -4,6 +4,7 @@ import { theme } from "../../terminal/theme.js";
 import { formatHelpExamples } from "../help-format.js";
 import type { ProgramContext } from "./context.js";
 import { createMessageCliHelpers } from "./message/helpers.js";
+import { registerMessageAskCommand } from "./message/register.ask.js";
 import { registerMessageBroadcastCommand } from "./message/register.broadcast.js";
 import { registerMessageDiscordAdminCommands } from "./message/register.discord-admin.js";
 import {
@@ -24,33 +25,29 @@ import { registerMessageThreadCommands } from "./message/register.thread.js";
 export function registerMessageCommands(program: Command, ctx: ProgramContext) {
   const message = program
     .command("message")
-    .description("Send, read, and manage messages and channel actions")
+    .description("Talk to your Gemmaclaw agent (default), or use subcommands for channel ops")
     .addHelpText(
       "after",
       () =>
         `
 ${theme.heading("Examples:")}
 ${formatHelpExamples([
-  ['openclaw message send --target +15555550123 --message "Hi"', "Send a text message."],
   [
-    'openclaw message send --target +15555550123 --message "Hi" --media photo.jpg',
-    "Send a message with media.",
+    'gemmaclaw message --agent dev "summarize today\'s news"',
+    "Send a one-shot message to the 'dev' agent.",
   ],
+  ['echo "what is 2+2?" | gemmaclaw message --agent dev', "Pipe message to agent via stdin."],
+  ['openclaw message send --target +15555550123 --message "Hi"', "Send a channel text message."],
   [
     'openclaw message poll --channel discord --target channel:123 --poll-question "Snack?" --poll-option Pizza --poll-option Sushi',
     "Create a Discord poll.",
   ],
-  [
-    'openclaw message react --channel discord --target 123 --message-id 456 --emoji "✅"',
-    "React to a message.",
-  ],
 ])}
 
 ${theme.muted("Docs:")} ${formatDocsLink("/cli/message", "docs.openclaw.ai/cli/message")}`,
-    )
-    .action(() => {
-      message.help({ error: true });
-    });
+    );
+
+  registerMessageAskCommand(message);
 
   const helpers = createMessageCliHelpers(message, ctx.messageChannelOptions);
   registerMessageSendCommand(message, helpers);

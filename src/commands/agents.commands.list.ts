@@ -18,6 +18,7 @@ import {
 type AgentsListOptions = {
   json?: boolean;
   bindings?: boolean;
+  configuredOnly?: boolean;
 };
 
 function formatSummary(summary: AgentSummary) {
@@ -81,7 +82,9 @@ export async function agentsListCommand(
     return;
   }
 
-  const summaries = buildAgentSummaries(cfg);
+  const summaries = buildAgentSummaries(cfg, {
+    includeImplicitDefault: opts.configuredOnly !== true,
+  });
   const bindingMap = new Map<string, AgentRouteBinding[]>();
   for (const binding of listRouteBindings(cfg)) {
     const agentId = normalizeAgentId(binding.agentId);
@@ -123,6 +126,11 @@ export async function agentsListCommand(
 
   if (opts.json) {
     writeRuntimeJson(runtime, summaries);
+    return;
+  }
+
+  if (summaries.length === 0) {
+    runtime.log("No agents configured. Run 'gemmaclaw create <name>' to create an instance first.");
     return;
   }
 

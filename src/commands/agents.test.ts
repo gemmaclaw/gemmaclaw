@@ -56,6 +56,10 @@ describe("agents helpers", () => {
     expect(work?.isDefault).toBe(true);
   });
 
+  it("buildAgentSummaries can omit the implicit default when no agents are configured", () => {
+    expect(buildAgentSummaries({}, { includeImplicitDefault: false })).toEqual([]);
+  });
+
   it("applyAgentConfig merges updates", () => {
     const cfg: OpenClawConfig = {
       agents: {
