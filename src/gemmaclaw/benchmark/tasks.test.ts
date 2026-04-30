@@ -22,6 +22,13 @@ describe("BENCHMARK_TASKS", () => {
     }
   });
 
+  it("all tasks have descriptions", () => {
+    for (const task of BENCHMARK_TASKS) {
+      expect(task.description).toBeTruthy();
+      expect(task.description!.length).toBeGreaterThan(20);
+    }
+  });
+
   it("all tasks have unique IDs", () => {
     const ids = BENCHMARK_TASKS.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
