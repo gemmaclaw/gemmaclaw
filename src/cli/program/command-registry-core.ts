@@ -57,6 +57,16 @@ const coreEntrySpecs: readonly CommandGroupDescriptorSpec<
         exportName: "registerSetupCommand",
       },
       {
+        commandNames: ["create"],
+        loadModule: () => import("./register.create.js"),
+        exportName: "registerCreateCommand",
+      },
+      {
+        commandNames: ["list"],
+        loadModule: () => import("./register.list.js"),
+        exportName: "registerListCommand",
+      },
+      {
         commandNames: ["onboard"],
         loadModule: () => import("./register.onboard.js"),
         exportName: "registerOnboardCommand",

@@ -93,12 +93,13 @@ describe("registerSetupCommand", () => {
   });
 
   it("runs setup wizard command when wizard-only flags are passed explicitly", async () => {
-    await runCli(["setup", "--mode", "remote", "--non-interactive"]);
+    await runCli(["setup", "--mode", "remote", "--non-interactive", "--accept-risk"]);
 
     expect(setupWizardCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "remote",
         nonInteractive: true,
+        acceptRisk: true,
       }),
       runtime,
     );

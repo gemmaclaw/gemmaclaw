@@ -13,8 +13,10 @@ corepack enable && pnpm install
 pnpm build
 npm install -g .
 
-gemmaclaw setup    # auto-detect hardware, provision, and start
-gemmaclaw chat     # open chat UI
+gemmaclaw setup           # auto-detect hardware, provision Gemma backend
+gemmaclaw create work     # create a named agent instance
+gemmaclaw chat            # open chat UI (picks agent interactively)
+gemmaclaw message --agent work "summarize this repo"   # one-shot message
 ```
 
 ## Documentation

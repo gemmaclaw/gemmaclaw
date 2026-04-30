@@ -65,13 +65,19 @@ export function loadAgentIdentity(workspace: string): AgentIdentity | null {
   return identityHasValues(parsed) ? parsed : null;
 }
 
-export function buildAgentSummaries(cfg: OpenClawConfig): AgentSummary[] {
+export function buildAgentSummaries(
+  cfg: OpenClawConfig,
+  opts: { includeImplicitDefault?: boolean } = {},
+): AgentSummary[] {
   const defaultAgentId = normalizeAgentId(resolveDefaultAgentId(cfg));
   const configuredAgents = listAgentEntries(cfg);
+  const includeImplicitDefault = opts.includeImplicitDefault !== false;
   const orderedIds =
     configuredAgents.length > 0
       ? configuredAgents.map((agent) => normalizeAgentId(agent.id))
-      : [defaultAgentId];
+      : includeImplicitDefault
+        ? [defaultAgentId]
+        : [];
   const bindingCounts = new Map<string, number>();
   for (const binding of listRouteBindings(cfg)) {
     const agentId = normalizeAgentId(binding.agentId);

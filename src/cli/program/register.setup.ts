@@ -32,6 +32,11 @@ export function registerSetupCommand(program: Command) {
     .option("--workspace-only", "Only initialize workspace config (skip Gemma provisioning)", false)
     .option("--wizard", "Run interactive onboarding (workspace config)", false)
     .option("--non-interactive", "Run onboarding without prompts", false)
+    .option(
+      "--accept-risk",
+      "Acknowledge agent system-access risk (required for --non-interactive onboarding)",
+      false,
+    )
     .option("--mode <mode>", "Onboard mode: local|remote")
     .option("--remote-url <url>", "Remote Gateway WebSocket URL")
     .option("--remote-token <token>", "Remote Gateway token (optional)")
@@ -42,6 +47,7 @@ export function registerSetupCommand(program: Command) {
         const hasWorkspaceOnlyFlags = hasExplicitOptions(command, [
           "wizard",
           "nonInteractive",
+          "acceptRisk",
           "mode",
           "remoteUrl",
           "remoteToken",
@@ -52,6 +58,7 @@ export function registerSetupCommand(program: Command) {
               {
                 workspace: opts.workspace as string | undefined,
                 nonInteractive: Boolean(opts.nonInteractive),
+                acceptRisk: Boolean(opts.acceptRisk),
                 mode: opts.mode as "local" | "remote" | undefined,
                 remoteUrl: opts.remoteUrl as string | undefined,
                 remoteToken: opts.remoteToken as string | undefined,

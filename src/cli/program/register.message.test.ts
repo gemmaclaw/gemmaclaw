@@ -5,6 +5,7 @@ import { registerMessageCommands } from "./register.message.js";
 
 const mocks = vi.hoisted(() => ({
   createMessageCliHelpersMock: vi.fn(() => ({ helper: true })),
+  registerMessageAskCommandMock: vi.fn(),
   registerMessageSendCommandMock: vi.fn(),
   registerMessageBroadcastCommandMock: vi.fn(),
   registerMessagePollCommandMock: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 const createMessageCliHelpersMock = mocks.createMessageCliHelpersMock;
+const registerMessageAskCommandMock = mocks.registerMessageAskCommandMock;
 const registerMessageSendCommandMock = mocks.registerMessageSendCommandMock;
 const registerMessageBroadcastCommandMock = mocks.registerMessageBroadcastCommandMock;
 const registerMessagePollCommandMock = mocks.registerMessagePollCommandMock;
@@ -35,6 +37,10 @@ const registerMessageDiscordAdminCommandsMock = mocks.registerMessageDiscordAdmi
 
 vi.mock("./message/helpers.js", () => ({
   createMessageCliHelpers: mocks.createMessageCliHelpersMock,
+}));
+
+vi.mock("./message/register.ask.js", () => ({
+  registerMessageAskCommand: mocks.registerMessageAskCommandMock,
 }));
 
 vi.mock("./message/register.send.js", () => ({
@@ -98,6 +104,7 @@ describe("registerMessageCommands", () => {
 
     const message = program.commands.find((command) => command.name() === "message");
     expect(message).toBeDefined();
+    expect(registerMessageAskCommandMock).toHaveBeenCalledWith(message);
     expect(createMessageCliHelpersMock).toHaveBeenCalledWith(message, "telegram|discord");
 
     const expectedRegistrars = [
@@ -117,18 +124,5 @@ describe("registerMessageCommands", () => {
     for (const registrar of expectedRegistrars) {
       expect(registrar).toHaveBeenCalledWith(message, { helper: true });
     }
-  });
-
-  it("shows command help when root message command is invoked", async () => {
-    const program = new Command().exitOverride();
-    registerMessageCommands(program, ctx);
-    const message = program.commands.find((command) => command.name() === "message");
-    expect(message).toBeDefined();
-    const helpSpy = vi.spyOn(message as Command, "help").mockImplementation(() => {
-      throw new Error("help-called");
-    });
-
-    await expect(program.parseAsync(["message"], { from: "user" })).rejects.toThrow("help-called");
-    expect(helpSpy).toHaveBeenCalledWith({ error: true });
   });
 });
