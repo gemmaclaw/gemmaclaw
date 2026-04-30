@@ -69,6 +69,144 @@ def format_time(ms):
     return f"{m:.1f}m"
 
 
+SIZE_CLASSES = {
+    "Small (4B)": {
+        "models": ["gemma3:4b", "gemma4-e4b", "gemma4:e4b"],
+        "hw_rec": "Runs on 8GB RAM laptops or any machine with 4GB+ VRAM. Fast inference, good for quick tasks.",
+        "icon": "&#128187;",
+    },
+    "Medium (27B MoE)": {
+        "models": ["gemma4-26b-moe", "gemma4:26b-moe", "gemma4-27b"],
+        "hw_rec": "Needs 16GB+ RAM or a GPU with 12GB+ VRAM. MoE architecture activates only part of the model per token, so it runs faster than its size suggests.",
+        "icon": "&#9889;",
+    },
+    "Large (31B Dense)": {
+        "models": ["gemma4-31b-dense", "gemma4:31b-dense"],
+        "hw_rec": "Needs 24GB+ VRAM (e.g. RTX 3090/4090) or 64GB+ RAM for CPU inference. Highest quality but slowest.",
+        "icon": "&#128296;",
+    },
+}
+
+
+def classify_model_size(model_name):
+    name_lower = model_name.lower().replace(":", "-").replace("__", "-")
+    for cls_name, cls_info in SIZE_CLASSES.items():
+        for pattern in cls_info["models"]:
+            if pattern.lower().replace(":", "-") in name_lower:
+                return cls_name
+    if "4b" in name_lower or "e4b" in name_lower:
+        return "Small (4B)"
+    if "26b" in name_lower or "27b" in name_lower or "moe" in name_lower:
+        return "Medium (27B MoE)"
+    if "31b" in name_lower or "dense" in name_lower:
+        return "Large (31B Dense)"
+    return "Other"
+
+
+def generate_size_class_sections(results):
+    grouped = {}
+    for r in results:
+        cls = classify_model_size(r["model"])
+        if cls not in grouped:
+            grouped[cls] = []
+        grouped[cls].append(r)
+
+    sections = []
+    for cls_name in list(SIZE_CLASSES.keys()) + ["Other"]:
+        if cls_name not in grouped:
+            continue
+        cls_results = sorted(grouped[cls_name], key=lambda x: -x["summary"]["percentage"])
+        cls_info = SIZE_CLASSES.get(cls_name, {"hw_rec": "", "icon": "&#128300;"})
+
+        model_rows = []
+        for r in cls_results:
+            s = r["summary"]
+            hw = r.get("hardware", {})
+            gpu = hw.get("gpu", "None detected")
+            if gpu == "None detected":
+                gpu = "CPU only"
+            pct = s["percentage"]
+            pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
+            speed = format_speed(s.get("medianTokensPerSecond"))
+            quant = ""
+            model_name = r["model"]
+            if "q5km" in model_name.lower() or "q5_k_m" in model_name.lower():
+                quant = '<span class="quant-badge">Q5_K_M</span>'
+            elif "q6k" in model_name.lower() or "q6_k" in model_name.lower():
+                quant = '<span class="quant-badge">Q6_K</span>'
+            model_rows.append(f"""<tr>
+  <td><strong>{model_name}</strong> {quant}</td>
+  <td>{r['backend']}</td>
+  <td>{gpu}</td>
+  <td class="num {pct_class}">{pct}%</td>
+  <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
+  <td class="num">{speed} tok/s</td>
+  <td class="num">{format_time(s.get('totalTimeMs'))}</td>
+</tr>""")
+
+        rows_html = "\n".join(model_rows)
+        sections.append(f"""
+<div class="size-class-group">
+  <h3>{cls_info.get('icon', '')} {cls_name}</h3>
+  <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
+  <div class="table-wrap"><table class="benchmark-table">
+    <thead><tr><th>Model</th><th>Backend</th><th>GPU</th><th>Quality</th><th>Pass Rate</th><th>Speed</th><th>Total Time</th></tr></thead>
+    <tbody>{rows_html}</tbody>
+  </table></div>
+</div>""")
+
+    return "\n".join(sections)
+
+
+def generate_task_explanations(results):
+    if not results:
+        return ""
+    tasks = results[0].get("tasks", [])
+    if not tasks:
+        return ""
+
+    categories = {}
+    for t in tasks:
+        cat = t.get("category", "other")
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(t)
+
+    cat_labels = {
+        "instruction_following": ("Instruction Following", "Can the model follow specific output format and content constraints?"),
+        "reasoning": ("Reasoning", "Can the model perform logical and mathematical reasoning?"),
+        "extraction": ("Data Extraction", "Can the model extract and restructure information from text?"),
+        "safety": ("Safety", "Does the model refuse harmful requests and resist prompt injection?"),
+        "coding": ("Coding", "Can the model write, debug, and optimize code?"),
+    }
+
+    sections = []
+    for cat, cat_tasks in categories.items():
+        label, desc = cat_labels.get(cat, (cat.replace("_", " ").title(), ""))
+        task_items = []
+        for t in cat_tasks:
+            description = t.get("description", "")
+            prompt_preview = t.get("prompt", "")[:120]
+            if len(t.get("prompt", "")) > 120:
+                prompt_preview += "..."
+            prompt_preview = html_escape(prompt_preview).replace("\n", " ")
+            diff_badge = f'<span class="diff-badge diff-{t.get("difficulty", "medium")}">{t.get("difficulty", "medium")}</span>'
+            task_items.append(f"""<div class="task-explanation">
+  <div class="task-header"><strong>{t['name']}</strong> {diff_badge}</div>
+  <p class="task-desc">{html_escape(description)}</p>
+  <p class="task-prompt"><em>Example:</em> <code>{prompt_preview}</code></p>
+</div>""")
+
+        items_html = "\n".join(task_items)
+        sections.append(f"""<div class="task-category">
+  <h4>{label}</h4>
+  <p class="cat-desc">{desc}</p>
+  {items_html}
+</div>""")
+
+    return "\n".join(sections)
+
+
 def generate_benchmark_table_rows(results):
     rows = []
     for r in results:
@@ -750,28 +888,265 @@ gemmaclaw chat</code></pre></div>
         <li><strong>Sandboxing:</strong> when Docker is available, tool execution is containerized</li>
         <li><strong>Verification:</strong> smoke test confirms the model responds</li>
       </ol>
-      <h3>Commands</h3>
+      <h3>CLI Reference</h3>
+      <p>Global options available on all commands:</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Option</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--profile &lt;name&gt;</code></td><td>Use a named profile (isolates state under <code>~/.openclaw-&lt;name&gt;</code>)</td></tr>
+          <tr><td><code>--dev</code></td><td>Dev profile: isolate state under <code>~/.openclaw-dev</code>, use port 19001</td></tr>
+          <tr><td><code>--log-level &lt;level&gt;</code></td><td>Log level: silent, fatal, error, warn, info, debug, trace</td></tr>
+          <tr><td><code>--no-color</code></td><td>Disable ANSI colors</td></tr>
+          <tr><td><code>-V, --version</code></td><td>Print version and commit hash</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-setup"><code>gemmaclaw setup</code></h4>
+        <p>Initialize local config, auto-detect hardware, provision a Gemma backend, and start the assistant. Recommended first command for new installs.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--advanced</code></td><td>Interactive wizard for manual backend/model/port selection</td></tr>
+            <tr><td><code>--no-container</code></td><td>Run gateway directly on the host (skip Docker sandbox)</td></tr>
+            <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
+            <tr><td><code>--wizard</code></td><td>Run interactive workspace config onboarding</td></tr>
+            <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory (default: <code>~/.openclaw/workspace</code>)</td></tr>
+            <tr><td><code>--workspace-only</code></td><td>Only initialize workspace config, skip Gemma provisioning</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code># Auto-detect everything (recommended)
+gemmaclaw setup
+
+# Manual backend/model selection
+gemmaclaw setup --advanced
+
+# CI/scripted environments
+gemmaclaw setup --non-interactive --no-container</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-chat"><code>gemmaclaw chat</code></h4>
+        <p>Start the gateway and open the web chat UI in your default browser.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--no-open</code></td><td>Start gateway but don't auto-open the browser</td></tr>
+            <tr><td><code>--port &lt;port&gt;</code></td><td>Gateway port (default: auto-detected from config)</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw chat
+gemmaclaw chat --no-open --port 3001</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-tui"><code>gemmaclaw tui</code></h4>
+        <p>Terminal-based chat UI. Useful for SSH sessions or when you prefer the terminal.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--message &lt;text&gt;</code></td><td>Send an initial message after connecting</td></tr>
+            <tr><td><code>--session &lt;key&gt;</code></td><td>Session key (default: "main")</td></tr>
+            <tr><td><code>--local</code></td><td>Run against the local embedded agent runtime</td></tr>
+            <tr><td><code>--url &lt;url&gt;</code></td><td>Gateway WebSocket URL (for remote gateways)</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw tui
+gemmaclaw tui --message "summarize my last meeting"
+gemmaclaw tui --url ws://192.168.1.50:3001</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-gateway"><code>gemmaclaw gateway</code></h4>
+        <p>Run, manage, and inspect the WebSocket gateway that handles communication between the model, chat channels, and the web UI.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Subcommand</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>run</code></td><td>Run the gateway in the foreground</td></tr>
+            <tr><td><code>start / stop / restart</code></td><td>Manage the gateway system service</td></tr>
+            <tr><td><code>status</code></td><td>Show service status and connectivity info</td></tr>
+            <tr><td><code>health</code></td><td>Fetch health from the running gateway</td></tr>
+            <tr><td><code>install / uninstall</code></td><td>Install or remove the system service</td></tr>
+            <tr><td><code>discover</code></td><td>Find gateways on the local network</td></tr>
+            <tr><td><code>diagnostics</code></td><td>Export support diagnostics bundle</td></tr>
+          </tbody>
+        </table></div>
+        <p>Key options for <code>gateway run</code>:</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--port &lt;port&gt;</code></td><td>Port for the gateway WebSocket</td></tr>
+            <tr><td><code>--bind &lt;mode&gt;</code></td><td>Bind mode: loopback, lan, tailnet, auto, custom</td></tr>
+            <tr><td><code>--auth &lt;mode&gt;</code></td><td>Auth: none, token, password, trusted-proxy</td></tr>
+            <tr><td><code>--verbose</code></td><td>Verbose logging to stdout/stderr</td></tr>
+            <tr><td><code>--tailscale &lt;mode&gt;</code></td><td>Tailscale exposure: off, serve, funnel</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw gateway run --verbose
+gemmaclaw gateway install &amp;&amp; gemmaclaw gateway start
+gemmaclaw gateway status</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-models"><code>gemmaclaw models</code></h4>
+        <p>Discover, scan, and configure models. Manage which model your assistant uses and set fallbacks.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Subcommand</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>list</code></td><td>List configured models</td></tr>
+            <tr><td><code>set &lt;model&gt;</code></td><td>Set the default model</td></tr>
+            <tr><td><code>status</code></td><td>Show configured model state</td></tr>
+            <tr><td><code>scan</code></td><td>Scan OpenRouter free models</td></tr>
+            <tr><td><code>aliases</code></td><td>Manage model aliases</td></tr>
+            <tr><td><code>fallbacks</code></td><td>Manage model fallback list</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw models status
+gemmaclaw models list
+gemmaclaw models set gemma3:12b</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-channels"><code>gemmaclaw channels</code></h4>
+        <p>Manage connected chat channels (Telegram, Discord, WhatsApp, and more).</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Subcommand</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>list</code></td><td>List configured channels and auth profiles</td></tr>
+            <tr><td><code>add</code></td><td>Add or update a channel account</td></tr>
+            <tr><td><code>login</code></td><td>Link a channel account (interactive)</td></tr>
+            <tr><td><code>status</code></td><td>Show gateway channel status</td></tr>
+            <tr><td><code>capabilities</code></td><td>Show provider capabilities</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw channels list
+gemmaclaw channels add --channel telegram --token &lt;bot-token&gt;
+gemmaclaw channels login --channel whatsapp
+gemmaclaw channels status --probe</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-benchmark"><code>gemmaclaw benchmark</code></h4>
+        <p>Run the benchmark suite against your local Gemma model. Tests instruction following, reasoning, data extraction, safety, and coding across 15+ tasks.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--model &lt;model&gt;</code></td><td>Model name or Ollama tag</td></tr>
+            <tr><td><code>--backend &lt;backend&gt;</code></td><td>Backend: ollama or llama-cpp</td></tr>
+            <tr><td><code>--mock</code></td><td>Deterministic scoring (no LLM judge, fast CI mode)</td></tr>
+            <tr><td><code>--filter &lt;text&gt;</code></td><td>Run only tasks matching this text</td></tr>
+            <tr><td><code>--context-length &lt;n&gt;</code></td><td>Context window size</td></tr>
+            <tr><td><code>--gpu-layers &lt;n&gt;</code></td><td>Number of GPU layers</td></tr>
+            <tr><td><code>--pack &lt;name&gt;</code></td><td>Task pack: core, jake-agent, or custom path</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw benchmark --model gemma3:4b
+gemmaclaw benchmark --mock --model gemma3:4b
+gemmaclaw benchmark --filter "coding" --model gemma3:4b</code></pre></div>
+        <h4 id="cmd-benchmark-submit"><code>gemmaclaw benchmark submit</code></h4>
+        <p>Anonymize results and open a PR to share with the community.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--dry-run</code></td><td>Print payload without pushing</td></tr>
+            <tr><td><code>-y, --yes</code></td><td>Skip confirmation prompts</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw benchmark submit --dry-run
+gemmaclaw benchmark submit</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-doctor"><code>gemmaclaw doctor</code></h4>
+        <p>Health checks on the gateway, channels, and configuration with auto-fix capabilities.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--fix</code></td><td>Apply recommended repairs automatically</td></tr>
+            <tr><td><code>--deep</code></td><td>Scan system services for extra gateway installs</td></tr>
+            <tr><td><code>--force</code></td><td>Aggressive repairs (overwrites custom config)</td></tr>
+            <tr><td><code>--non-interactive</code></td><td>Run without prompts</td></tr>
+            <tr><td><code>--generate-gateway-token</code></td><td>Generate a gateway auth token</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw doctor
+gemmaclaw doctor --fix
+gemmaclaw doctor --deep --fix --non-interactive</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-plugins"><code>gemmaclaw plugins</code></h4>
+        <p>Manage plugins and extensions. Install community plugins, enable/disable bundled ones, and diagnose issues.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Subcommand</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>list</code></td><td>List discovered plugins</td></tr>
+            <tr><td><code>install &lt;spec&gt;</code></td><td>Install a plugin (path, npm, or marketplace)</td></tr>
+            <tr><td><code>uninstall / enable / disable</code></td><td>Manage installed plugins</td></tr>
+            <tr><td><code>update</code></td><td>Update installed plugins</td></tr>
+            <tr><td><code>doctor</code></td><td>Report plugin load issues</td></tr>
+            <tr><td><code>marketplace</code></td><td>Browse plugin marketplaces</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw plugins list
+gemmaclaw plugins install @example/my-plugin
+gemmaclaw plugins doctor</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-provision"><code>gemmaclaw provision</code></h4>
+        <p>Manually install and start a specific Gemma backend.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--backend &lt;backend&gt;</code></td><td>Backend: ollama, llama-cpp, or gemma-cpp</td></tr>
+            <tr><td><code>--model &lt;model&gt;</code></td><td>Model to pull</td></tr>
+            <tr><td><code>--port &lt;port&gt;</code></td><td>Port for the backend API server</td></tr>
+            <tr><td><code>--no-verify</code></td><td>Skip post-provision verification</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code>gemmaclaw provision --backend ollama --model gemma3:12b
+gemmaclaw provision --backend llama-cpp --port 8081
+gemmaclaw provision --backend gemma-cpp</code></pre></div>
+      </div>
+
+      <h3>Other Useful Commands</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>Command</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>gemmaclaw setup</code></td><td>Auto-detect, provision, configure, and start</td></tr>
-          <tr><td><code>gemmaclaw setup --no-container</code></td><td>Same but disable Docker sandbox</td></tr>
-          <tr><td><code>gemmaclaw setup --advanced</code></td><td>Interactive wizard for manual selection</td></tr>
-          <tr><td><code>gemmaclaw chat</code></td><td>Open browser-based chat UI</td></tr>
-          <tr><td><code>gemmaclaw tui</code></td><td>Terminal chat interface</td></tr>
-          <tr><td><code>gemmaclaw benchmark</code></td><td>Run the benchmark suite</td></tr>
-          <tr><td><code>gemmaclaw benchmark submit</code></td><td>Anonymize and submit results via PR</td></tr>
-          <tr><td><code>gemmaclaw provision</code></td><td>Manually provision a specific backend</td></tr>
-          <tr><td><code>gemmaclaw doctor</code></td><td>Health checks and quick fixes</td></tr>
+          <tr><td><code>gemmaclaw status</code></td><td>Show channel health and recent sessions</td></tr>
+          <tr><td><code>gemmaclaw health</code></td><td>Fetch health from the running gateway</td></tr>
+          <tr><td><code>gemmaclaw config get/set</code></td><td>Read or write config values</td></tr>
+          <tr><td><code>gemmaclaw configure</code></td><td>Interactive config wizard</td></tr>
+          <tr><td><code>gemmaclaw logs</code></td><td>Tail gateway logs</td></tr>
+          <tr><td><code>gemmaclaw memory</code></td><td>Search and reindex the memory system</td></tr>
+          <tr><td><code>gemmaclaw skills</code></td><td>List available skills</td></tr>
+          <tr><td><code>gemmaclaw sessions</code></td><td>List stored sessions</td></tr>
+          <tr><td><code>gemmaclaw reset</code></td><td>Reset local config and state</td></tr>
+          <tr><td><code>gemmaclaw dashboard</code></td><td>Open the Control UI</td></tr>
+          <tr><td><code>gemmaclaw completion</code></td><td>Generate shell completion script</td></tr>
         </tbody>
       </table></div>
+
+      <h3>Configuration</h3>
+      <p>Config lives at <code>~/.openclaw/openclaw.json</code>. Edit directly or use the CLI:</p>
+      <div class="code-block"><pre><code>gemmaclaw config get gateway.port
+gemmaclaw config set gateway.port 3001
+gemmaclaw config validate
+gemmaclaw configure</code></pre></div>
+      <p>Named profiles (<code>--profile mytest</code>) isolate all state under <code>~/.openclaw-mytest/</code>, useful for testing or running multiple instances.</p>
+
       <h3>Troubleshooting</h3>
       <ul class="setup-list">
         <li><strong>Ollama download fails:</strong> check network. Binary comes from GitHub releases.</li>
-        <li><strong>llama.cpp server won't start:</strong> verify model at <code>~/.gemmaclaw/models/llama-cpp/</code>. Re-run provision.</li>
-        <li><strong>gemma.cpp build fails:</strong> ensure cmake and g++ are installed.</li>
-        <li><strong>"Healthcheck failed":</strong> backend did not respond in time. Check system resources.</li>
-        <li><strong>Port in use:</strong> use <code>--port N</code> or advanced setup.</li>
+        <li><strong>llama.cpp server won't start:</strong> verify model at <code>~/.gemmaclaw/models/llama-cpp/</code>. Re-run <code>gemmaclaw provision --backend llama-cpp</code>.</li>
+        <li><strong>gemma.cpp build fails:</strong> ensure cmake and g++ (or clang++) are installed.</li>
+        <li><strong>"Healthcheck failed":</strong> backend did not respond in time. Run <code>gemmaclaw doctor</code>.</li>
+        <li><strong>Port in use:</strong> use <code>--port N</code> or <code>gemmaclaw setup --advanced</code>.</li>
+        <li><strong>Config validation warnings:</strong> run <code>gemmaclaw doctor --fix</code>.</li>
+        <li><strong>Plugin load errors:</strong> run <code>gemmaclaw plugins doctor</code>.</li>
+        <li><strong>Channel disconnected:</strong> check <code>gemmaclaw channels status --probe</code> and re-login.</li>
+        <li><strong>Gateway won't start:</strong> try <code>gemmaclaw gateway run --verbose</code>, then <code>gemmaclaw doctor --deep --fix</code>.</li>
       </ul>
     </section>"""
     return page_template("Setup Guide", body, active_page="setup.html")
@@ -813,19 +1188,21 @@ def generate_self_hosting_page(hw_cards):
 """
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
-def generate_benchmarks_page(benchmark_rows, model_details):
+def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html=""):
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmark Results</div>
     <section id="benchmarks">
-      <h2>Benchmark Results</h2>
-      <p>All models tested on the same task suite: instruction following, reasoning, data extraction, safety, and coding. Click a row for detailed per-task breakdown.</p>
-      <div class="table-wrap"><table id="benchmark-table">
-        <thead><tr><th>Model</th><th>Backend</th><th>GPU</th><th>Quality</th><th>Pass Rate</th><th>Speed</th><th>Total Time</th></tr></thead>
-        <tbody>{benchmark_rows}</tbody>
-      </table></div>
+      <h2>Benchmark Results by Size Class</h2>
+      <p>All models tested on the same 15-task suite covering instruction following, reasoning, data extraction, safety, and coding. Models are grouped by size class with recommended hardware for each tier.</p>
+      {size_class_html}
       <div id="model-details">{model_details}</div>
+    </section>
+    <section id="task-explanations">
+      <h2>What We Test</h2>
+      <p>Each benchmark run evaluates the model on 15 tasks across 5 categories. Here is what each task measures and an example prompt.</p>
+      {task_explanations_html}
     </section>"""
     scripts = """
-    document.querySelectorAll('#benchmark-table tbody tr').forEach(row => {{
+    document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {{
       row.style.cursor = 'pointer';
       row.addEventListener('click', function() {{
         const model = this.querySelector('td strong')?.textContent || '';
@@ -947,6 +1324,8 @@ def generate_site():
     best = best_results(results)
     benchmark_rows = generate_benchmark_table_rows(best)
     model_details = generate_model_detail_sections(best)
+    size_class_html = generate_size_class_sections(best)
+    task_explanations_html = generate_task_explanations(best)
     hw_cards = generate_hardware_guide_cards(results)
     community_configs = load_community_configs()
     community_cards = generate_community_cards(community_configs)
@@ -957,7 +1336,7 @@ def generate_site():
         "index.html": generate_index_page(),
         "setup.html": generate_setup_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
-        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details),
+        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
         "goals.html": generate_goals_page(),
     }
@@ -1477,7 +1856,30 @@ CSS = """
       .cap-intro { font-size: 0.92rem; }
       .cli-cmd-card { padding: 1rem; }
       .cli-cmd-card h4 { font-size: 0.95rem; }
+      .task-explanation { padding: 0.6rem 0.8rem; }
+      .task-prompt code { font-size: 0.72rem; }
     }
+
+    /* Size class grouping */
+    .size-class-group { margin-bottom: 2rem; }
+    .size-class-group h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
+    .hw-recommendation { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.8rem; padding: 0.5rem 0.8rem; background: var(--bg-elev); border-radius: 8px; border-left: 3px solid var(--accent); }
+    .quant-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; background: var(--bg-elev-2); color: var(--muted); font-weight: 500; vertical-align: middle; margin-left: 4px; }
+
+    /* Task explanations */
+    #task-explanations { margin-top: 2.5rem; }
+    .task-category { margin-bottom: 1.5rem; }
+    .task-category h4 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.3rem; }
+    .cat-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.6rem; }
+    .task-explanation { padding: 0.7rem 1rem; margin-bottom: 0.5rem; background: var(--bg-elev); border-radius: 8px; }
+    .task-header { margin-bottom: 0.25rem; }
+    .task-desc { font-size: 0.85rem; color: var(--text); margin-bottom: 0.3rem; }
+    .task-prompt { font-size: 0.8rem; color: var(--muted); }
+    .task-prompt code { font-size: 0.78rem; background: var(--bg-elev-2); padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    .diff-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; font-weight: 500; vertical-align: middle; margin-left: 4px; }
+    .diff-easy { background: #e6f4ea; color: #1a7f37; }
+    .diff-medium { background: #fff3cd; color: #856404; }
+    .diff-hard { background: #fce8e6; color: #c93c37; }
 """
 
 
