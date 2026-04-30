@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gemmaclaw</title>
+  <title>Gemmaclaw - Setup Guide</title>
   <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
   <style>
 
@@ -521,7 +521,7 @@
     <div class="nav-inner">
       <a href="index.html" class="logo">Gemmaclaw</a>
       <div class="nav-links">
-        <a href="setup.html">Setup</a>
+        <a href="setup.html" class="active">Setup</a>
         <a href="self-hosting.html">Self-Hosting</a>
         <a href="benchmarks.html">Benchmarks</a>
         <a href="community.html">Community</a>
@@ -531,23 +531,63 @@
     </div>
   </nav>
   <div class="wrap">
-    <!-- Hero -->
-    <div class="hero">
-      <h1><span>Gemmaclaw</span></h1>
-      <p class="tagline">One command to a working Gemma assistant, regardless of what hardware you have. Auto-detect, provision, and benchmark.</p>
-      <div class="links">
-        <a href="setup.html" class="btn-primary">Get Started</a>
-        <a href="benchmarks.html" class="btn-secondary">See Benchmarks</a>
-        <a href="https://github.com/gemmaclaw/gemmaclaw" class="btn-secondary">GitHub</a>
-      </div>
-    </div>
-    <div class="page-cards">
-      <a href="setup.html" class="page-card"><div class="page-card-icon">&#9881;</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
-      <a href="self-hosting.html" class="page-card"><div class="page-card-icon">&#9729;</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
-      <a href="benchmarks.html" class="page-card"><div class="page-card-icon">&#9889;</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
-      <a href="community.html" class="page-card"><div class="page-card-icon">&#128101;</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
-      <a href="goals.html" class="page-card"><div class="page-card-icon">&#127919;</div><h3>Goals & Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
-    </div>
+    <div class="breadcrumb"><a href="index.html">Home</a> / Setup Guide</div>
+    <section id="setup">
+      <h2>Setup Guide</h2>
+      <p>Gemmaclaw detects your hardware, picks the best Gemma model and backend, provisions everything, and starts a local assistant. No manual model shopping.</p>
+      <h3>Prerequisites</h3>
+      <ul class="setup-list">
+        <li>Node.js 22+</li>
+        <li>Docker (recommended, for sandboxed tool execution)</li>
+        <li>For gemma.cpp: cmake, g++ (or clang++), git, HuggingFace token</li>
+      </ul>
+      <p>No pre-installed Ollama, llama.cpp, or gemma.cpp required. Gemmaclaw manages everything.</p>
+      <h3>Quick Start</h3>
+      <div class="code-block"><pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
+cd gemmaclaw
+corepack enable &amp;&amp; pnpm install
+pnpm build
+npm install -g .
+
+# Auto-detect hardware + provision + start
+gemmaclaw setup
+
+# Restart later
+gemmaclaw chat</code></pre></div>
+      <h3>What Happens</h3>
+      <ol class="setup-steps">
+        <li><strong>Hardware detection:</strong> probes GPU (vendor, VRAM, Metal), CPU (arch, cores), and RAM</li>
+        <li><strong>Tier classification:</strong> slots your machine into a hardware tier</li>
+        <li><strong>Profile selection:</strong> maps tier to a tested Gemma 4 model, avoiding known issues</li>
+        <li><strong>Provisioning:</strong> downloads Ollama, pulls the model, runs smoke test</li>
+        <li><strong>Configuration:</strong> writes gateway config with local Ollama provider</li>
+        <li><strong>Sandboxing:</strong> when Docker is available, tool execution is containerized</li>
+        <li><strong>Verification:</strong> smoke test confirms the model responds</li>
+      </ol>
+      <h3>Commands</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Command</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>gemmaclaw setup</code></td><td>Auto-detect, provision, configure, and start</td></tr>
+          <tr><td><code>gemmaclaw setup --no-container</code></td><td>Same but disable Docker sandbox</td></tr>
+          <tr><td><code>gemmaclaw setup --advanced</code></td><td>Interactive wizard for manual selection</td></tr>
+          <tr><td><code>gemmaclaw chat</code></td><td>Open browser-based chat UI</td></tr>
+          <tr><td><code>gemmaclaw tui</code></td><td>Terminal chat interface</td></tr>
+          <tr><td><code>gemmaclaw benchmark</code></td><td>Run the benchmark suite</td></tr>
+          <tr><td><code>gemmaclaw benchmark submit</code></td><td>Anonymize and submit results via PR</td></tr>
+          <tr><td><code>gemmaclaw provision</code></td><td>Manually provision a specific backend</td></tr>
+          <tr><td><code>gemmaclaw doctor</code></td><td>Health checks and quick fixes</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Troubleshooting</h3>
+      <ul class="setup-list">
+        <li><strong>Ollama download fails:</strong> check network. Binary comes from GitHub releases.</li>
+        <li><strong>llama.cpp server won't start:</strong> verify model at <code>~/.gemmaclaw/models/llama-cpp/</code>. Re-run provision.</li>
+        <li><strong>gemma.cpp build fails:</strong> ensure cmake and g++ are installed.</li>
+        <li><strong>"Healthcheck failed":</strong> backend did not respond in time. Check system resources.</li>
+        <li><strong>Port in use:</strong> use <code>--port N</code> or advanced setup.</li>
+      </ul>
+    </section>
   </div>
   <footer>
     <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>

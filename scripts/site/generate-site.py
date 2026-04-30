@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Gemmaclaw Site Generator
-Generates a complete GitHub Pages static site from benchmark results and project docs.
-4 sections: Setup Guide, Self-Hosting Guides, Benchmark Results, Goals & Progress.
+Generates a multi-page GitHub Pages static site from benchmark results and project docs.
+Pages: index (landing), setup, self-hosting, benchmarks, community, goals.
 """
 
 import json
@@ -641,35 +641,35 @@ def load_field_notes():
     return render_field_notes_markdown(md_text)
 
 
-def generate_site():
-    results = load_benchmark_results()
-    best = best_results(results)
 
-    # Data for JavaScript
-    results_json = json.dumps([{
-        "model": r["model"],
-        "backend": r["backend"],
-        "hardware": r.get("hardware", {}),
-        "summary": r["summary"],
-        "dir": r["_dir"],
-    } for r in results])
+# --- Multi-page layout ---
 
-    benchmark_rows = generate_benchmark_table_rows(best)
-    model_details = generate_model_detail_sections(best)
-    hw_cards = generate_hardware_guide_cards(results)
-    community_configs = load_community_configs()
-    community_cards = generate_community_cards(community_configs)
-    community_count = len(community_configs)
-    field_notes_html = load_field_notes()
-    field_notes_nav = '<a href="#field-notes">Field Notes</a>' if field_notes_html else ""
+NAV_ITEMS = [
+    ("Setup", "setup.html", False),
+    ("Self-Hosting", "self-hosting.html", False),
+    ("Benchmarks", "benchmarks.html", False),
+    ("Community", "community.html", False),
+    ("Goals", "goals.html", False),
+    ("GitHub", "https://github.com/gemmaclaw/gemmaclaw", True),
+]
 
-    html = f"""<!DOCTYPE html>
+
+def page_template(title, body_content, active_page="", extra_scripts=""):
+    page_title = f"Gemmaclaw - {title}" if title else "Gemmaclaw"
+    nav_links = []
+    for label, href, is_external in NAV_ITEMS:
+        active_class = ' class="active"' if href == active_page else ""
+        target = ' target="_blank" rel="noopener"' if is_external else ""
+        nav_links.append(f'<a href="{href}"{active_class}{target}>{label}</a>')
+    nav_html = "\n        ".join(nav_links)
+    script_tag = f'<script>{extra_scripts}</script>' if extra_scripts else ''
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gemmaclaw</title>
-  <meta name="description" content="A full AI assistant platform running Google Gemma on your own hardware. Chat integrations, scheduled tasks, memory, voice, browser automation, and 100+ plugins.">
+  <title>{page_title}</title>
+  <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
   <style>
 {CSS}
   </style>
@@ -677,104 +677,50 @@ def generate_site():
 <body>
   <nav class="topnav">
     <div class="nav-inner">
-      <a href="#" class="logo">Gemmaclaw</a>
+      <a href="index.html" class="logo">Gemmaclaw</a>
       <div class="nav-links">
-        <a href="#setup">Setup</a>
-        <a href="#hosting">Self-Hosting</a>
-        {field_notes_nav}
-        <a href="#benchmarks">Benchmarks</a>
-        <a href="#goals">Goals</a>
-        <a href="https://github.com/gemmaclaw/gemmaclaw">GitHub</a>
+        {nav_html}
       </div>
     </div>
   </nav>
-
   <div class="wrap">
-    <!-- Hero -->
+    {body_content}
+  </div>
+  <footer>
+    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
+    <p class="footer-sub">Not an official Google product.</p>
+  </footer>
+  {script_tag}
+</body>
+</html>"""
+
+
+def generate_index_page():
+    body = """<!-- Hero -->
     <div class="hero">
       <h1><span>Gemmaclaw</span></h1>
-      <p class="tagline">A full AI assistant platform running Google Gemma on your own hardware. One command to set up. 100+ plugins to connect everything.</p>
+      <p class="tagline">One command to a working Gemma assistant, regardless of what hardware you have. Auto-detect, provision, and benchmark.</p>
       <div class="links">
-        <a href="#setup" class="btn-primary">Get Started</a>
-        <a href="#benchmarks" class="btn-secondary">See Benchmarks</a>
+        <a href="setup.html" class="btn-primary">Get Started</a>
+        <a href="benchmarks.html" class="btn-secondary">See Benchmarks</a>
         <a href="https://github.com/gemmaclaw/gemmaclaw" class="btn-secondary">GitHub</a>
       </div>
     </div>
+    <div class="page-cards">
+      <a href="setup.html" class="page-card"><div class="page-card-icon">&#9881;</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
+      <a href="self-hosting.html" class="page-card"><div class="page-card-icon">&#9729;</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
+      <a href="benchmarks.html" class="page-card"><div class="page-card-icon">&#9889;</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
+      <a href="community.html" class="page-card"><div class="page-card-icon">&#128101;</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
+      <a href="goals.html" class="page-card"><div class="page-card-icon">&#127919;</div><h3>Goals & Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
+    </div>"""
+    return page_template("", body)
 
-    <!-- Capabilities -->
-    <div class="capabilities">
-      <h2>More than a chatbot</h2>
-      <p class="cap-intro">Gemmaclaw is not just "run Gemma locally." It is a complete AI agent platform that connects to the tools and services you already use, all running privately on your own machine.</p>
 
-      <div class="cap-grid">
-        <div class="cap-card">
-          <div class="cap-icon">&#128172;</div>
-          <h3>Chat everywhere</h3>
-          <p>Connect your assistant to Discord, Telegram, WhatsApp, Slack, IRC, Matrix, or iMessage. Run a family group chat bot that remembers conversations and responds naturally.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#128197;</div>
-          <h3>Calendar and task management</h3>
-          <p>Sync with Google Calendar, manage tasks, and get smart reminders. "What is on my schedule this week?" works out of the box.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#128231;</div>
-          <h3>Email assistant</h3>
-          <p>Auto-summarize your inbox every morning. Draft replies, track threads waiting for responses, and surface what needs attention.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#128240;</div>
-          <h3>Daily briefings</h3>
-          <p>Schedule a daily news briefing delivered to Telegram or email. Combine world news, weather, calendar, and personal priorities into one digest.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#129504;</div>
-          <h3>Persistent memory</h3>
-          <p>Your assistant remembers context across conversations. It learns your preferences, tracks ongoing projects, and builds knowledge over time.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#127908;</div>
-          <h3>Voice and speech</h3>
-          <p>Talk to your assistant with voice messages and get spoken responses back. Supports text-to-speech, speech-to-text, and even voice calls.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#127760;</div>
-          <h3>Browser automation</h3>
-          <p>Let your assistant browse the web, fill out forms, take screenshots, and interact with sites on your behalf. Built-in headless Chrome support.</p>
-        </div>
-        <div class="cap-card">
-          <div class="cap-icon">&#9200;</div>
-          <h3>Scheduled tasks</h3>
-          <p>Set up recurring jobs: monitor a website for changes, check stock prices, run health checks, or post a weekly summary. Cron-style scheduling with AI reasoning.</p>
-        </div>
-      </div>
-
-      <div class="cap-examples">
-        <h3>What people build</h3>
-        <div class="example-list">
-          <div class="example-item">
-            <strong>Family assistant</strong> &mdash; A group chat bot that tracks grocery lists, reminds about appointments, answers homework questions, and sends weather alerts before school.
-          </div>
-          <div class="example-item">
-            <strong>Dev ops companion</strong> &mdash; Monitors your servers, summarizes error logs, creates incident reports, and pages you on Telegram when something breaks.
-          </div>
-          <div class="example-item">
-            <strong>Research agent</strong> &mdash; Searches the web, reads papers, compares products, and delivers a structured report with sources to your inbox.
-          </div>
-          <div class="example-item">
-            <strong>Personal CRM</strong> &mdash; Tracks your contacts, reminds you to follow up on emails, logs meeting notes, and keeps a knowledge base of every conversation.
-          </div>
-        </div>
-      </div>
-
-      <p class="cap-footer">All of this runs on your hardware. Your data never leaves your machine. Gemmaclaw supports 100+ plugins out of the box, from image generation to phone control to Notion sync.</p>
-    </div>
-
-    <!-- Section 1: Setup Guide -->
+def generate_setup_page():
+    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Setup Guide</div>
     <section id="setup">
       <h2>Setup Guide</h2>
       <p>Gemmaclaw detects your hardware, picks the best Gemma model and backend, provisions everything, and starts a local assistant. No manual model shopping.</p>
-
       <h3>Prerequisites</h3>
       <ul class="setup-list">
         <li>Node.js 22+</li>
@@ -782,12 +728,10 @@ def generate_site():
         <li>For gemma.cpp: cmake, g++ (or clang++), git, HuggingFace token</li>
       </ul>
       <p>No pre-installed Ollama, llama.cpp, or gemma.cpp required. Gemmaclaw manages everything.</p>
-
       <h3>Quick Start</h3>
-      <div class="code-block">
-        <pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
+      <div class="code-block"><pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
 cd gemmaclaw
-corepack enable && pnpm install
+corepack enable &amp;&amp; pnpm install
 pnpm build
 npm install -g .
 
@@ -795,9 +739,7 @@ npm install -g .
 gemmaclaw setup
 
 # Restart later
-gemmaclaw chat</code></pre>
-      </div>
-
+gemmaclaw chat</code></pre></div>
       <h3>What Happens</h3>
       <ol class="setup-steps">
         <li><strong>Hardware detection:</strong> probes GPU (vendor, VRAM, Metal), CPU (arch, cores), and RAM</li>
@@ -808,25 +750,21 @@ gemmaclaw chat</code></pre>
         <li><strong>Sandboxing:</strong> when Docker is available, tool execution is containerized</li>
         <li><strong>Verification:</strong> smoke test confirms the model responds</li>
       </ol>
-
       <h3>Commands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Command</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr><td><code>gemmaclaw setup</code></td><td>Auto-detect, provision, configure, and start</td></tr>
-            <tr><td><code>gemmaclaw setup --no-container</code></td><td>Same but disable Docker sandbox</td></tr>
-            <tr><td><code>gemmaclaw setup --advanced</code></td><td>Interactive wizard for manual selection</td></tr>
-            <tr><td><code>gemmaclaw chat</code></td><td>Open browser-based chat UI</td></tr>
-            <tr><td><code>gemmaclaw tui</code></td><td>Terminal chat interface</td></tr>
-            <tr><td><code>gemmaclaw benchmark</code></td><td>Run the benchmark suite</td></tr>
-            <tr><td><code>gemmaclaw benchmark submit</code></td><td>Anonymize and submit results via PR</td></tr>
-            <tr><td><code>gemmaclaw provision</code></td><td>Manually provision a specific backend</td></tr>
-            <tr><td><code>gemmaclaw doctor</code></td><td>Health checks and quick fixes</td></tr>
-          </tbody>
-        </table>
-      </div>
-
+      <div class="table-wrap"><table>
+        <thead><tr><th>Command</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>gemmaclaw setup</code></td><td>Auto-detect, provision, configure, and start</td></tr>
+          <tr><td><code>gemmaclaw setup --no-container</code></td><td>Same but disable Docker sandbox</td></tr>
+          <tr><td><code>gemmaclaw setup --advanced</code></td><td>Interactive wizard for manual selection</td></tr>
+          <tr><td><code>gemmaclaw chat</code></td><td>Open browser-based chat UI</td></tr>
+          <tr><td><code>gemmaclaw tui</code></td><td>Terminal chat interface</td></tr>
+          <tr><td><code>gemmaclaw benchmark</code></td><td>Run the benchmark suite</td></tr>
+          <tr><td><code>gemmaclaw benchmark submit</code></td><td>Anonymize and submit results via PR</td></tr>
+          <tr><td><code>gemmaclaw provision</code></td><td>Manually provision a specific backend</td></tr>
+          <tr><td><code>gemmaclaw doctor</code></td><td>Health checks and quick fixes</td></tr>
+        </tbody>
+      </table></div>
       <h3>Troubleshooting</h3>
       <ul class="setup-list">
         <li><strong>Ollama download fails:</strong> check network. Binary comes from GitHub releases.</li>
@@ -835,34 +773,26 @@ gemmaclaw chat</code></pre>
         <li><strong>"Healthcheck failed":</strong> backend did not respond in time. Check system resources.</li>
         <li><strong>Port in use:</strong> use <code>--port N</code> or advanced setup.</li>
       </ul>
-    </section>
+    </section>"""
+    return page_template("Setup Guide", body, active_page="setup.html")
 
-    <!-- Section 2: Self-Hosting Guides -->
+def generate_self_hosting_page(hw_cards):
+    body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Self-Hosting Guide</div>
     <section id="hosting">
       <h2>Gemma4 Self-Hosting Guide</h2>
       <p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM to see what works, how fast, and what quality to expect.</p>
-
-      <div class="search-bar">
-        <input type="text" id="hw-search" placeholder="Search by hardware (e.g. RTX 3090, M4 Max, 32GB, CPU only...)" autocomplete="off">
-      </div>
-
-      <div id="hw-cards">
-        {hw_cards}
-      </div>
-
+      <div class="search-bar"><input type="text" id="hw-search" placeholder="Search by hardware (e.g. RTX 3090, M4 Max, 32GB, CPU only...)" autocomplete="off"></div>
+      <div id="hw-cards">{hw_cards}</div>
       <div class="hosting-notes">
         <h3>Backend Comparison</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Backend</th><th>Best For</th><th>GPU Support</th><th>Notes</th></tr></thead>
-            <tbody>
-              <tr><td><strong>Ollama</strong></td><td>Most users, GPU setups</td><td>CUDA, Metal, ROCm</td><td>Easiest setup, automatic model management</td></tr>
-              <tr><td><strong>llama.cpp</strong></td><td>Flexible quantization</td><td>CUDA, Metal, Vulkan</td><td>More quant options, manual model files</td></tr>
-              <tr><td><strong>gemma.cpp</strong></td><td>CPU-first setups</td><td>CPU only (for now)</td><td>Google-native, Gemma 2/3 only currently</td></tr>
-            </tbody>
-          </table>
-        </div>
-
+        <div class="table-wrap"><table>
+          <thead><tr><th>Backend</th><th>Best For</th><th>GPU Support</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Ollama</strong></td><td>Most users, GPU setups</td><td>CUDA, Metal, ROCm</td><td>Easiest setup, automatic model management</td></tr>
+            <tr><td><strong>llama.cpp</strong></td><td>Flexible quantization</td><td>CUDA, Metal, Vulkan</td><td>More quant options, manual model files</td></tr>
+            <tr><td><strong>gemma.cpp</strong></td><td>CPU-first setups</td><td>CPU only (for now)</td><td>Google-native, Gemma 2/3 only currently</td></tr>
+          </tbody>
+        </table></div>
         <h3>Hardware Tiers</h3>
         <ul class="setup-list">
           <li><strong>High-end GPU (24+ GB VRAM):</strong> Run Gemma 4 31B Dense or 26B MoE at full precision. RTX 3090/4090, A100, etc.</li>
@@ -872,155 +802,29 @@ gemmaclaw chat</code></pre>
           <li><strong>CPU only (8-16 GB RAM):</strong> Gemma 3 4B or Gemma 2 via gemma.cpp. Smaller but functional.</li>
         </ul>
       </div>
+    </section>"""
+    scripts = """
+    const searchInput = document.getElementById('hw-search');
+    const hwCards = document.querySelectorAll('#hw-cards .hw-card');
+    if (searchInput) {{ searchInput.addEventListener('input', function() {{
+      const q = this.value.toLowerCase().trim();
+      hwCards.forEach(card => {{ card.style.display = (!q || (card.getAttribute('data-search') || '').includes(q)) ? '' : 'none'; }});
+    }}); }}
+"""
+    return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
-      {"" if not community_count else f'''<div class="community-section" id="community">
-        <h3>Community Reports ({community_count} from r/LocalLLaMA)</h3>
-        <p>Real-world hardware experiences from the community. Filter by hardware category or search above. These are user reports, not official benchmarks.</p>
-        {community_cards}
-      </div>'''}
-    </section>
-
-    {"" if not field_notes_html else f'''<!-- Section 2b: Curated Field Notes -->
-    <section id="field-notes">
-      {field_notes_html}
-    </section>'''}
-
-    <!-- Section 3: Benchmark Results -->
+def generate_benchmarks_page(benchmark_rows, model_details):
+    body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmark Results</div>
     <section id="benchmarks">
       <h2>Benchmark Results</h2>
       <p>All models tested on the same task suite: instruction following, reasoning, data extraction, safety, and coding. Click a row for detailed per-task breakdown.</p>
-
-      <div class="table-wrap">
-        <table id="benchmark-table">
-          <thead>
-            <tr>
-              <th>Model</th>
-              <th>Backend</th>
-              <th>GPU</th>
-              <th>Quality</th>
-              <th>Pass Rate</th>
-              <th>Speed</th>
-              <th>Total Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {benchmark_rows}
-          </tbody>
-        </table>
-      </div>
-
-      <div id="model-details">
-        {model_details}
-      </div>
-    </section>
-
-    <!-- Section 4: Goals & Progress -->
-    <section id="goals">
-      <h2>Goals and Progress</h2>
-
-      <div class="phase-card active">
-        <div class="phase-badge">Phase 1: Evidence</div>
-        <h3>Benchmark Harness</h3>
-        <p>Benchmark Gemma models across hardware tiers, backends, and quantizations. Document what actually works, how fast, and at what quality. No opinions without data.</p>
-        <ul class="setup-list">
-          <li>Single-command benchmark runner with hardware auto-detection</li>
-          <li>Containerized test environment with realistic agent toolset</li>
-          <li>Structured result artifacts (JSON, markdown, HTML dashboard)</li>
-          <li>One-command <code>gemmaclaw benchmark submit</code> to contribute results via PR</li>
-        </ul>
-        <div class="phase-status">Status: Live. <code>gemmaclaw benchmark</code> works end-to-end.</div>
-      </div>
-
-      <div class="phase-card active">
-        <div class="phase-badge">Phase 2: Productization</div>
-        <h3>Auto-Detection and Profiles</h3>
-        <p>Build the auto-detection and profile-selection tooling. Ship a <code>gemmaclaw doctor</code> command and tested profiles that work out of the box.</p>
-        <ul class="setup-list">
-          <li>Hardware detection (GPU, CPU, RAM, Apple Silicon Metal)</li>
-          <li>Tier classification and profile selection</li>
-          <li>Known-issue tracking with automatic fallbacks</li>
-          <li><code>gemmaclaw setup</code> wizard with auto and advanced modes</li>
-        </ul>
-        <div class="phase-status">Status: Live. <code>gemmaclaw setup</code> auto-detects and provisions.</div>
-      </div>
-
-      <div class="phase-card">
-        <div class="phase-badge">Phase 3: Community Loop</div>
-        <h3>Open Profile Registry</h3>
-        <p>Open the profile registry to contributions. Users report what works on their hardware, profiles get refined, coverage grows.</p>
-        <ul class="setup-list">
-          <li>Community benchmark submission flow (via PR)</li>
-          <li>Configuration matrix aggregation on this site</li>
-          <li>Gap detection: highlight untested hardware combos</li>
-          <li>Failure archetype classification for Gemma post-training feedback</li>
-        </ul>
-        <div class="phase-status">Status: In progress. Submission flow works, site aggregation building.</div>
-      </div>
-
-      <h3>Non-GPU Support</h3>
-      <p>CPU-only is a first-class path, not a fallback afterthought. Gemma 2 and Gemma 3 run on CPU via gemma.cpp. As CPU backends add Gemma 4 support, Gemmaclaw will incorporate those profiles automatically. The goal is that someone with a laptop and no discrete GPU gets a useful local Gemma assistant.</p>
-
-      <h3>Volunteer Project</h3>
-      <p>Gemmaclaw is composed of volunteers, including Google engineers and open source community members. It is not an official Google repository. Contributions and hardware reports are welcome. See the <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/CONTRIBUTING.md" class="inline">contributing guide</a>.</p>
-    </section>
-  </div>
-
-  <footer>
-    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
-    <p class="footer-sub">Not an official Google product.</p>
-  </footer>
-
-  <script>
-    // Hardware search filter (hw-cards + community cards)
-    const searchInput = document.getElementById('hw-search');
-    const hwCards = document.querySelectorAll('#hw-cards .hw-card');
-    const crCards = document.querySelectorAll('#community-cards .cr-card');
-    const allSearchable = [...hwCards, ...crCards];
-    let activeCat = 'all';
-
-    function applyFilters() {{
-      const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
-      allSearchable.forEach(card => {{
-        const text = card.getAttribute('data-search') || '';
-        const cats = card.getAttribute('data-cats') || '';
-        const matchesSearch = !q || text.includes(q);
-        const matchesCat = activeCat === 'all' || cats.split(' ').includes(activeCat);
-        card.style.display = (matchesSearch && matchesCat) ? '' : 'none';
-      }});
-      // Update no-results message
-      const container = document.getElementById('community-cards');
-      if (container) {{
-        const visible = container.querySelectorAll('.cr-card:not([style*="display: none"])');
-        let noResults = container.querySelector('.no-results');
-        if (visible.length === 0) {{
-          if (!noResults) {{
-            noResults = document.createElement('p');
-            noResults.className = 'no-results';
-            noResults.textContent = 'No reports match your filters. Try a different search or category.';
-            container.appendChild(noResults);
-          }}
-          noResults.style.display = '';
-        }} else if (noResults) {{
-          noResults.style.display = 'none';
-        }}
-      }}
-    }}
-
-    if (searchInput) {{
-      searchInput.addEventListener('input', applyFilters);
-    }}
-
-    // Category filter buttons
-    document.querySelectorAll('.cat-filter-btn').forEach(btn => {{
-      btn.addEventListener('click', function() {{
-        document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        activeCat = this.getAttribute('data-cat');
-        applyFilters();
-      }});
-    }});
-
-    // Benchmark table row click to toggle detail
+      <div class="table-wrap"><table id="benchmark-table">
+        <thead><tr><th>Model</th><th>Backend</th><th>GPU</th><th>Quality</th><th>Pass Rate</th><th>Speed</th><th>Total Time</th></tr></thead>
+        <tbody>{benchmark_rows}</tbody>
+      </table></div>
+      <div id="model-details">{model_details}</div>
+    </section>"""
+    scripts = """
     document.querySelectorAll('#benchmark-table tbody tr').forEach(row => {{
       row.style.cursor = 'pointer';
       row.addEventListener('click', function() {{
@@ -1036,39 +840,139 @@ gemmaclaw chat</code></pre>
         }}
       }});
     }});
-
-    // Initially hide all model details
     document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+"""
+    return page_template("Benchmark Results", body, active_page="benchmarks.html", extra_scripts=scripts)
 
-    // Active nav highlight on scroll
-    const sections = document.querySelectorAll('section[id]');
-    const navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
-    function updateActiveNav() {{
-      let current = '';
-      sections.forEach(s => {{
-        if (window.scrollY >= s.offsetTop - 80) current = s.id;
+def generate_community_page(community_cards, community_count, field_notes_html):
+    field_notes_section = f'<section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p>{field_notes_html}</section>' if field_notes_html else ""
+    community_section = ""
+    if community_count:
+        community_section = f"""<div class="community-section" id="community">
+      <h3>Community Reports ({community_count} from r/LocalLLaMA)</h3>
+      <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
+      <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
+      {community_cards}
+    </div>"""
+    body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Community</div>
+    <section id="community-page">
+      <h2>Community & Hardware Reports</h2>
+      <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
+      {field_notes_section}
+      {community_section}
+    </section>"""
+    scripts = """
+    const searchInput = document.getElementById('community-search');
+    const crCards = document.querySelectorAll('#community-cards .cr-card');
+    let activeCat = 'all';
+    function applyFilters() {{
+      const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      crCards.forEach(card => {{
+        const text = card.getAttribute('data-search') || '';
+        const cats = card.getAttribute('data-cats') || '';
+        card.style.display = ((!q || text.includes(q)) && (activeCat === 'all' || cats.split(' ').includes(activeCat))) ? '' : 'none';
       }});
-      navLinks.forEach(a => {{
-        a.classList.toggle('active', a.getAttribute('href') === '#' + current);
-      }});
+      const container = document.getElementById('community-cards');
+      if (container) {{
+        const visible = container.querySelectorAll('.cr-card:not([style*="display: none"])');
+        let noResults = container.querySelector('.no-results');
+        if (visible.length === 0) {{
+          if (!noResults) {{ noResults = document.createElement('p'); noResults.className = 'no-results'; noResults.textContent = 'No reports match your filters.'; container.appendChild(noResults); }}
+          noResults.style.display = '';
+        }} else if (noResults) {{ noResults.style.display = 'none'; }}
+      }}
     }}
-    window.addEventListener('scroll', updateActiveNav, {{ passive: true }});
-    updateActiveNav();
-  </script>
-</body>
-</html>"""
+    if (searchInput) {{ searchInput.addEventListener('input', applyFilters); }}
+    document.querySelectorAll('.cat-filter-btn').forEach(btn => {{
+      btn.addEventListener('click', function() {{
+        document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        activeCat = this.getAttribute('data-cat');
+        applyFilters();
+      }});
+    }});
+""" if community_count else ""
+    return page_template("Community", body, active_page="community.html", extra_scripts=scripts)
 
+def generate_goals_page():
+    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Goals & Roadmap</div>
+    <section id="goals">
+      <h2>Goals and Progress</h2>
+      <div class="phase-card active">
+        <div class="phase-badge">Phase 1: Evidence</div>
+        <h3>Benchmark Harness</h3>
+        <p>Benchmark Gemma models across hardware tiers, backends, and quantizations. Document what actually works, how fast, and at what quality. No opinions without data.</p>
+        <ul class="setup-list">
+          <li>Single-command benchmark runner with hardware auto-detection</li>
+          <li>Containerized test environment with realistic agent toolset</li>
+          <li>Structured result artifacts (JSON, markdown, HTML dashboard)</li>
+          <li>One-command <code>gemmaclaw benchmark submit</code> to contribute results via PR</li>
+        </ul>
+        <div class="phase-status">Status: Live. <code>gemmaclaw benchmark</code> works end-to-end.</div>
+      </div>
+      <div class="phase-card active">
+        <div class="phase-badge">Phase 2: Productization</div>
+        <h3>Auto-Detection and Profiles</h3>
+        <p>Build the auto-detection and profile-selection tooling. Ship a <code>gemmaclaw doctor</code> command and tested profiles that work out of the box.</p>
+        <ul class="setup-list">
+          <li>Hardware detection (GPU, CPU, RAM, Apple Silicon Metal)</li>
+          <li>Tier classification and profile selection</li>
+          <li>Known-issue tracking with automatic fallbacks</li>
+          <li><code>gemmaclaw setup</code> wizard with auto and advanced modes</li>
+        </ul>
+        <div class="phase-status">Status: Live. <code>gemmaclaw setup</code> auto-detects and provisions.</div>
+      </div>
+      <div class="phase-card">
+        <div class="phase-badge">Phase 3: Community Loop</div>
+        <h3>Open Profile Registry</h3>
+        <p>Open the profile registry to contributions. Users report what works on their hardware, profiles get refined, coverage grows.</p>
+        <ul class="setup-list">
+          <li>Community benchmark submission flow (via PR)</li>
+          <li>Configuration matrix aggregation on this site</li>
+          <li>Gap detection: highlight untested hardware combos</li>
+          <li>Failure archetype classification for Gemma post-training feedback</li>
+        </ul>
+        <div class="phase-status">Status: In progress. Submission flow works, site aggregation building.</div>
+      </div>
+      <h3>Non-GPU Support</h3>
+      <p>CPU-only is a first-class path, not a fallback afterthought. Gemma 2 and Gemma 3 run on CPU via gemma.cpp. As CPU backends add Gemma 4 support, Gemmaclaw will incorporate those profiles automatically. The goal is that someone with a laptop and no discrete GPU gets a useful local Gemma assistant.</p>
+      <h3>Volunteer Project</h3>
+      <p>Gemmaclaw is composed of volunteers, including Google engineers and open source community members. It is not an official Google repository. Contributions and hardware reports are welcome. See the <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/CONTRIBUTING.md" class="inline">contributing guide</a>.</p>
+    </section>"""
+    return page_template("Goals & Roadmap", body, active_page="goals.html")
+
+
+def generate_site():
+    results = load_benchmark_results()
+    best = best_results(results)
+    benchmark_rows = generate_benchmark_table_rows(best)
+    model_details = generate_model_detail_sections(best)
+    hw_cards = generate_hardware_guide_cards(results)
+    community_configs = load_community_configs()
+    community_cards = generate_community_cards(community_configs)
+    community_count = len(community_configs)
+    field_notes_html = load_field_notes()
     SITE_DIR.mkdir(exist_ok=True)
-    with open(SITE_DIR / "index.html", "w") as f:
-        f.write(html)
-
-    print(f"Site generated at {SITE_DIR / 'index.html'}")
+    pages = {
+        "index.html": generate_index_page(),
+        "setup.html": generate_setup_page(),
+        "self-hosting.html": generate_self_hosting_page(hw_cards),
+        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details),
+        "community.html": generate_community_page(community_cards, community_count, field_notes_html),
+        "goals.html": generate_goals_page(),
+    }
+    for filename, html in pages.items():
+        with open(SITE_DIR / filename, "w") as f:
+            f.write(html)
+    print(f"Site generated at {SITE_DIR}/")
+    print(f"  {len(pages)} pages generated: {', '.join(pages.keys())}")
     print(f"  {len(results)} benchmark results loaded")
     print(f"  {len(best)} unique model/backend combos")
     print(f"  {community_count} community hardware reports loaded")
 
 
 CSS = """
+
     :root {
       --bg: #ffffff;
       --bg-elev: #f6f8fa;
@@ -1128,7 +1032,7 @@ CSS = """
     .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 
     /* Hero */
-    .hero { text-align: center; padding: 3rem 0 4rem; }
+    .hero { text-align: center; padding: 3rem 0 3rem; }
     h1 { font-size: 3rem; font-weight: 700; letter-spacing: -0.02em; }
     h1 span { color: var(--accent); }
     .tagline { font-size: 1.15rem; color: var(--muted); max-width: 600px; margin: 1rem auto 2rem; }
@@ -1219,7 +1123,7 @@ CSS = """
     }
 
     /* Sections */
-    section { margin-top: 3rem; scroll-margin-top: 4rem; }
+    section { margin-top: 1rem; scroll-margin-top: 4rem; }
     h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
     h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: var(--fg-soft); }
     p { color: var(--fg-soft); margin-bottom: 1rem; }
@@ -1540,6 +1444,18 @@ CSS = """
     footer a { color: var(--accent); text-decoration: none; }
     .footer-sub { margin-top: 0.5rem; font-size: 0.78rem; }
 
+
+    .breadcrumb { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .page-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
+    .page-card { display: block; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--fg); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+    .page-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(66,133,244,0.1); }
+    .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .page-card h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--fg); }
+    .page-card p { font-size: 0.9rem; color: var(--fg-soft); margin: 0; line-height: 1.5; }
+    .field-notes-section { margin-bottom: 2rem; }
+
     /* Responsive */
     @media (max-width: 640px) {
       h1 { font-size: 2rem; }
@@ -1548,6 +1464,7 @@ CSS = """
       .nav-links { gap: 0.75rem; }
       .nav-links a { font-size: 0.84rem; padding: 0.35rem 0; }
       .wrap { padding: 1.5rem 1rem 3rem; }
+      .page-cards { grid-template-columns: 1fr; }
       .hw-specs { flex-direction: column; gap: 0.25rem; }
       .hw-model { flex-wrap: wrap; gap: 0.5rem; }
       .cat-filter-bar { gap: 0.35rem; }
