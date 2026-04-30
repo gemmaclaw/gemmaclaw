@@ -18,6 +18,8 @@ export function registerBenchmarkCommand(program: Command) {
     .option("--context-length <n>", "Context window size (num_ctx)", parseInt)
     .option("--gpu-layers <n>", "Number of GPU layers (num_gpu)", parseInt)
     .option("--batch-size <n>", "Batch size (num_batch)", parseInt)
+    .option("--gemini-api-key <key>", "Gemini API key for cloud-based evaluation")
+    .option("--gemini-model <model>", "Gemini model name (default: gemini-2.5-pro)")
     .action(async (opts) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         const { benchmarkGemmaCommand } = await import("../../commands/benchmark-gemma.js");
@@ -31,6 +33,8 @@ export function registerBenchmarkCommand(program: Command) {
           contextLength: opts.contextLength as number | undefined,
           gpuLayers: opts.gpuLayers as number | undefined,
           batchSize: opts.batchSize as number | undefined,
+          geminiApiKey: opts.geminiApiKey as string | undefined,
+          geminiModel: opts.geminiModel as string | undefined,
         });
       });
     });
