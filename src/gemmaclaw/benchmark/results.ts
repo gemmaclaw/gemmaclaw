@@ -63,6 +63,7 @@ export function writeJsonResults(result: BenchmarkResult, outputDir: string): st
       id: t.task.id,
       name: t.task.name,
       description: t.task.description,
+      prompt: t.task.prompt,
       category: t.task.category,
       difficulty: t.task.difficulty,
       score: t.score.score,
