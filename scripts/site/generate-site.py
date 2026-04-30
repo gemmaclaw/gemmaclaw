@@ -589,6 +589,12 @@ def render_field_notes_markdown(md_text):
         # Bold then italic (order matters so ** wins over *).
         escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
         escaped = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", escaped)
+        # Underscore italic, but not inside identifiers like Q5_K_M.
+        escaped = re.sub(
+            r"(?<![A-Za-z0-9_])_([^_\n]+)_(?![A-Za-z0-9_])",
+            r"<em>\1</em>",
+            escaped,
+        )
         return escaped
 
     for raw in lines:
@@ -964,6 +970,21 @@ gemmaclaw chat</code></pre>
 
     // Initially hide all model details
     document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+
+    // Active nav highlight on scroll
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
+    function updateActiveNav() {{
+      let current = '';
+      sections.forEach(s => {{
+        if (window.scrollY >= s.offsetTop - 80) current = s.id;
+      }});
+      navLinks.forEach(a => {{
+        a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+      }});
+    }}
+    window.addEventListener('scroll', updateActiveNav, {{ passive: true }});
+    updateActiveNav();
   </script>
 </body>
 </html>"""
@@ -980,18 +1001,18 @@ gemmaclaw chat</code></pre>
 
 CSS = """
     :root {
-      --bg: #0d1117;
-      --bg-elev: #161b22;
-      --bg-elev-2: #1c2129;
-      --border: #30363d;
-      --fg: #e6edf3;
-      --fg-soft: #c9d1d9;
-      --muted: #8b949e;
+      --bg: #ffffff;
+      --bg-elev: #f6f8fa;
+      --bg-elev-2: #eef1f5;
+      --border: #d0d7de;
+      --fg: #1f2328;
+      --fg-soft: #424a53;
+      --muted: #656d76;
       --accent: #4285f4;
-      --accent-soft: #1f3a5f;
-      --good: #3fb950;
-      --warn: #d29922;
-      --bad: #f85149;
+      --accent-soft: #dbe8fc;
+      --good: #1a7f37;
+      --warn: #9a6700;
+      --bad: #cf222e;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -1006,7 +1027,7 @@ CSS = """
     /* Nav */
     .topnav {
       position: sticky; top: 0; z-index: 100;
-      background: rgba(13, 17, 23, 0.95);
+      background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
@@ -1019,12 +1040,19 @@ CSS = """
       font-size: 1.1rem; font-weight: 700; color: var(--accent);
       text-decoration: none;
     }
-    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links {
+      display: flex; gap: 1.5rem;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
     .nav-links a {
       color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500;
-      transition: color 0.15s;
+      transition: color 0.15s; white-space: nowrap; flex-shrink: 0;
+      padding: 0.25rem 0; border-bottom: 2px solid transparent;
     }
     .nav-links a:hover { color: var(--fg); }
+    .nav-links a.active { color: var(--accent); border-bottom-color: var(--accent); }
 
     .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 
@@ -1347,8 +1375,10 @@ CSS = """
     @media (max-width: 640px) {
       h1 { font-size: 2rem; }
       .tagline { font-size: 1rem; }
-      .nav-links { gap: 1rem; }
-      .nav-links a { font-size: 0.82rem; }
+      .nav-inner { padding: 0.5rem 1rem; }
+      .nav-links { gap: 0.75rem; }
+      .nav-links a { font-size: 0.84rem; padding: 0.35rem 0; }
+      .wrap { padding: 1.5rem 1rem 3rem; }
       .hw-specs { flex-direction: column; gap: 0.25rem; }
       .hw-model { flex-wrap: wrap; gap: 0.5rem; }
       .cat-filter-bar { gap: 0.35rem; }
