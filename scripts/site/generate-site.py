@@ -669,7 +669,7 @@ def generate_site():
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gemmaclaw</title>
-  <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
+  <meta name="description" content="A full AI assistant platform running Google Gemma on your own hardware. Chat integrations, scheduled tasks, memory, voice, browser automation, and 100+ plugins.">
   <style>
 {CSS}
   </style>
@@ -693,12 +693,81 @@ def generate_site():
     <!-- Hero -->
     <div class="hero">
       <h1><span>Gemmaclaw</span></h1>
-      <p class="tagline">One command to a working Gemma assistant, regardless of what hardware you have. Auto-detect, provision, and benchmark.</p>
+      <p class="tagline">A full AI assistant platform running Google Gemma on your own hardware. One command to set up. 100+ plugins to connect everything.</p>
       <div class="links">
         <a href="#setup" class="btn-primary">Get Started</a>
         <a href="#benchmarks" class="btn-secondary">See Benchmarks</a>
         <a href="https://github.com/gemmaclaw/gemmaclaw" class="btn-secondary">GitHub</a>
       </div>
+    </div>
+
+    <!-- Capabilities -->
+    <div class="capabilities">
+      <h2>More than a chatbot</h2>
+      <p class="cap-intro">Gemmaclaw is not just "run Gemma locally." It is a complete AI agent platform that connects to the tools and services you already use, all running privately on your own machine.</p>
+
+      <div class="cap-grid">
+        <div class="cap-card">
+          <div class="cap-icon">&#128172;</div>
+          <h3>Chat everywhere</h3>
+          <p>Connect your assistant to Discord, Telegram, WhatsApp, Slack, IRC, Matrix, or iMessage. Run a family group chat bot that remembers conversations and responds naturally.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#128197;</div>
+          <h3>Calendar and task management</h3>
+          <p>Sync with Google Calendar, manage tasks, and get smart reminders. "What is on my schedule this week?" works out of the box.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#128231;</div>
+          <h3>Email assistant</h3>
+          <p>Auto-summarize your inbox every morning. Draft replies, track threads waiting for responses, and surface what needs attention.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#128240;</div>
+          <h3>Daily briefings</h3>
+          <p>Schedule a daily news briefing delivered to Telegram or email. Combine world news, weather, calendar, and personal priorities into one digest.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#129504;</div>
+          <h3>Persistent memory</h3>
+          <p>Your assistant remembers context across conversations. It learns your preferences, tracks ongoing projects, and builds knowledge over time.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#127908;</div>
+          <h3>Voice and speech</h3>
+          <p>Talk to your assistant with voice messages and get spoken responses back. Supports text-to-speech, speech-to-text, and even voice calls.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#127760;</div>
+          <h3>Browser automation</h3>
+          <p>Let your assistant browse the web, fill out forms, take screenshots, and interact with sites on your behalf. Built-in headless Chrome support.</p>
+        </div>
+        <div class="cap-card">
+          <div class="cap-icon">&#9200;</div>
+          <h3>Scheduled tasks</h3>
+          <p>Set up recurring jobs: monitor a website for changes, check stock prices, run health checks, or post a weekly summary. Cron-style scheduling with AI reasoning.</p>
+        </div>
+      </div>
+
+      <div class="cap-examples">
+        <h3>What people build</h3>
+        <div class="example-list">
+          <div class="example-item">
+            <strong>Family assistant</strong> &mdash; A group chat bot that tracks grocery lists, reminds about appointments, answers homework questions, and sends weather alerts before school.
+          </div>
+          <div class="example-item">
+            <strong>Dev ops companion</strong> &mdash; Monitors your servers, summarizes error logs, creates incident reports, and pages you on Telegram when something breaks.
+          </div>
+          <div class="example-item">
+            <strong>Research agent</strong> &mdash; Searches the web, reads papers, compares products, and delivers a structured report with sources to your inbox.
+          </div>
+          <div class="example-item">
+            <strong>Personal CRM</strong> &mdash; Tracks your contacts, reminds you to follow up on emails, logs meeting notes, and keeps a knowledge base of every conversation.
+          </div>
+        </div>
+      </div>
+
+      <p class="cap-footer">All of this runs on your hardware. Your data never leaves your machine. Gemmaclaw supports 100+ plugins out of the box, from image generation to phone control to Notion sync.</p>
     </div>
 
     <!-- Section 1: Setup Guide -->
@@ -1074,6 +1143,81 @@ CSS = """
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-secondary { border: 1px solid var(--border); color: var(--fg); background: var(--bg-elev); }
 
+    /* Capabilities */
+    .capabilities {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .capabilities h2 {
+      text-align: center;
+      font-size: 1.6rem; font-weight: 600;
+      margin-bottom: 0.5rem; letter-spacing: -0.01em;
+    }
+    .cap-intro {
+      text-align: center;
+      max-width: 640px; margin: 0 auto 2rem;
+      font-size: 1rem; color: var(--fg-soft);
+    }
+    .cap-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .cap-card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .cap-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .cap-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .cap-card h3 {
+      font-size: 1rem; font-weight: 600;
+      margin: 0 0 0.4rem; color: var(--fg);
+    }
+    .cap-card p {
+      font-size: 0.88rem; color: var(--fg-soft);
+      margin: 0; line-height: 1.5;
+    }
+    .cap-examples {
+      margin-top: 2rem;
+    }
+    .cap-examples h3 {
+      font-size: 1.15rem; font-weight: 600;
+      margin: 0 0 1rem; color: var(--fg);
+    }
+    .example-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.75rem;
+    }
+    .example-item {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      font-size: 0.9rem; color: var(--fg-soft);
+      line-height: 1.5;
+    }
+    .example-item strong {
+      color: var(--fg);
+    }
+    .cap-footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.95rem; color: var(--muted);
+      max-width: 640px;
+      margin-left: auto; margin-right: auto;
+    }
+
     /* Sections */
     section { margin-top: 3rem; scroll-margin-top: 4rem; }
     h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
@@ -1157,6 +1301,29 @@ CSS = """
       display: flex; align-items: center; justify-content: center;
     }
     .setup-steps li strong { color: var(--fg); }
+
+    /* CLI command cards */
+    .cli-cmd-card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+    }
+    .cli-cmd-card h4 {
+      font-size: 1.05rem; font-weight: 600;
+      margin: 0 0 0.5rem; color: var(--fg);
+    }
+    .cli-cmd-card h4 code {
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.95rem; color: var(--accent);
+      background: none; padding: 0;
+    }
+    .cli-cmd-card > p {
+      font-size: 0.92rem; margin-bottom: 0.75rem;
+    }
+    .cli-cmd-card .table-wrap { margin: 0.75rem 0; }
+    .cli-cmd-card .code-block { margin: 0.75rem 0 0; }
 
     /* Code */
     .code-block {
@@ -1388,6 +1555,11 @@ CSS = """
       .cr-title { font-size: 0.92rem; }
       .cr-card { padding: 1rem; }
       .cr-comment-text { font-size: 0.82rem; }
+      .cap-grid { grid-template-columns: 1fr; }
+      .example-list { grid-template-columns: 1fr; }
+      .cap-intro { font-size: 0.92rem; }
+      .cli-cmd-card { padding: 1rem; }
+      .cli-cmd-card h4 { font-size: 0.95rem; }
     }
 """
 
