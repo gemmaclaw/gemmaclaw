@@ -19,6 +19,11 @@ export function createRuntimeManager(backend: BackendId): RuntimeManager {
       return createLlamaCppManager();
     case "gemma-cpp":
       return createGemmaCppManager();
+    case "vertex":
+      // Vertex AI is a cloud backend, not a local runtime. No manager needed.
+      throw new Error(
+        "Vertex AI does not use a local runtime manager. Use gemmaclaw setup --vertex instead.",
+      );
     default:
       throw new Error(`Unknown backend: ${backend as string}`);
   }
