@@ -909,9 +909,9 @@ def generate_setup_page():
       <h3>Contents</h3>
       <ul class="setup-list">
         <li><a href="#install" class="inline">Install Gemmaclaw</a></li>
-        <li><a href="#path-gemini" class="inline">Path 1: Gemini API</a> (fastest, no local hardware)</li>
-        <li><a href="#path-vertex" class="inline">Path 2: Vertex AI</a> (enterprise, GCP integration)</li>
-        <li><a href="#path-local" class="inline">Path 3: Local</a> (private, auto-detects your GPU)</li>
+        <li><a href="#path-local" class="inline">Path 1: Local</a> (private, auto-detects your GPU)</li>
+        <li><a href="#path-gemini" class="inline">Path 2: Gemini API</a> (cloud, no local hardware needed)</li>
+        <li><a href="#path-vertex" class="inline">Path 3: Vertex AI</a> (enterprise, GCP integration)</li>
         <li><a href="#after-setup" class="inline">After Setup</a> (create agents, chat, message)</li>
         <li><a href="#cli-reference" class="inline">CLI Reference</a></li>
         <li><a href="#troubleshooting" class="inline">Troubleshooting</a></li>
@@ -926,52 +926,7 @@ npm install -g .</code></pre></div>
       <p>Requires Node.js 22+. Docker is recommended for sandboxed tool execution but not required.</p>
       <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
 
-      <h3 id="path-gemini">Path 1: Gemini API (Cloud, fastest)</h3>
-      <p>Use Google's hosted Gemini API. No local GPU needed, no model downloads. Get an API key from <a href="https://aistudio.google.com/apikey" class="inline">Google AI Studio</a> (free tier available).</p>
-
-      <div class="code-block"><pre><code># Set your API key, then run setup
-export GEMINI_API_KEY=YOUR_KEY
-gemmaclaw setup
-
-# Or run setup interactively (will prompt you to choose a provider and enter your key)
-gemmaclaw setup --wizard</code></pre></div>
-
-      <p>Available models: gemma-3-1b-it, gemma-3-4b-it, gemma-3-12b-it, gemma-3-27b-it. The setup wizard recommends the best model for your use case.</p>
-
-      <h3 id="path-vertex">Path 2: Vertex AI (Cloud, enterprise)</h3>
-      <p>For GCP-integrated deployments. Uses your gcloud credentials or a service account. Requires a GCP project with the Vertex AI API enabled.</p>
-
-      <div class="code-block"><pre><code># Prerequisites
-gcloud auth application-default login
-gcloud config set project YOUR_PROJECT_ID
-
-# Interactive setup (prompts for project, region, model)
-gemmaclaw setup --vertex
-
-# Non-interactive with flags
-gemmaclaw setup --vertex \\
-  --vertex-project my-gcp-project \\
-  --vertex-region us-central1 \\
-  --vertex-model gemma-3-27b-it
-
-# With a service account key
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
-gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
-
-      <p>For Docker, mount your gcloud credentials:</p>
-      <div class="code-block"><pre><code>docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex</code></pre></div>
-
-      <div class="table-wrap"><table>
-        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
-        <tbody>
-          <tr><td><code>--vertex</code></td><td>Enable Vertex AI setup (required)</td></tr>
-          <tr><td><code>--vertex-project &lt;id&gt;</code></td><td>GCP project ID (auto-detected from gcloud if not set)</td></tr>
-          <tr><td><code>--vertex-region &lt;region&gt;</code></td><td>GCP region (default: us-central1)</td></tr>
-          <tr><td><code>--vertex-model &lt;model&gt;</code></td><td>Gemma model (e.g. gemma-3-27b-it)</td></tr>
-        </tbody>
-      </table></div>
-
-      <h3 id="path-local">Path 3: Local (Private, auto-detect hardware)</h3>
+      <h3 id="path-local">Path 1: Local (Private, auto-detect hardware)</h3>
       <p>Run Gemma entirely on your machine. No data leaves your network. Gemmaclaw detects your GPU and RAM, picks the best model, downloads and provisions everything automatically.</p>
 
       <div class="code-block"><pre><code># Auto-detect everything (recommended)
@@ -1010,6 +965,51 @@ gemmaclaw setup --non-interactive --accept-risk --no-container</code></pre></div
           <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
           <tr><td><code>--accept-risk</code></td><td>Required with <code>--non-interactive</code></td></tr>
           <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="path-gemini">Path 2: Gemini API (Cloud, no local hardware needed)</h3>
+      <p>Use Google's hosted Gemini API. No local GPU, no model downloads. Get a free API key from <a href="https://aistudio.google.com/apikey" class="inline">Google AI Studio</a>.</p>
+
+      <div class="code-block"><pre><code># Set your API key, then run setup
+export GEMINI_API_KEY=YOUR_KEY
+gemmaclaw setup
+
+# Or run setup interactively (prompts for provider and key)
+gemmaclaw setup</code></pre></div>
+
+      <p>Available models: gemma-3-1b-it, gemma-3-4b-it, gemma-3-12b-it, gemma-3-27b-it.</p>
+
+      <h3 id="path-vertex">Path 3: Vertex AI (Cloud, enterprise)</h3>
+      <p>For GCP-integrated deployments. Uses gcloud credentials or a service account. Requires a GCP project with the Vertex AI API enabled.</p>
+
+      <div class="code-block"><pre><code># Authenticate with gcloud
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+
+# Interactive setup (prompts for project, region, model)
+gemmaclaw setup --vertex
+
+# Non-interactive with flags
+gemmaclaw setup --vertex \\
+  --vertex-project my-gcp-project \\
+  --vertex-region us-central1 \\
+  --vertex-model gemma-3-27b-it
+
+# With a service account key
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
+gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
+
+      <p>For Docker, mount your gcloud credentials:</p>
+      <div class="code-block"><pre><code>docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex</code></pre></div>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--vertex</code></td><td>Enable Vertex AI setup (required)</td></tr>
+          <tr><td><code>--vertex-project &lt;id&gt;</code></td><td>GCP project ID (auto-detected from gcloud if not set)</td></tr>
+          <tr><td><code>--vertex-region &lt;region&gt;</code></td><td>GCP region (default: us-central1)</td></tr>
+          <tr><td><code>--vertex-model &lt;model&gt;</code></td><td>Gemma model (e.g. gemma-3-27b-it)</td></tr>
         </tbody>
       </table></div>
 
