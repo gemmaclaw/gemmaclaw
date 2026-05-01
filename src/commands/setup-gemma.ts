@@ -205,6 +205,115 @@ export async function setupGemmaCommand(
     runtime.exit(1);
   }
 
+  // Route selection: Local, Gemini API, or Vertex AI
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  runtime.log("");
+  runtime.log("How would you like to run Gemma?");
+  runtime.log("");
+  runtime.log("  1) Local       Run on this machine (auto-detects GPU, downloads model)");
+  runtime.log(
+    "  2) Gemini API  Use Google's hosted API (requires API key from aistudio.google.com)",
+  );
+  runtime.log("  3) Vertex AI   Use Google Cloud Vertex AI (requires gcloud CLI)");
+  runtime.log("");
+
+  const routeAnswer = await rl.question("Choose [1/2/3] (default: 1): ");
+  const route = routeAnswer.trim() || "1";
+
+  if (route === "2") {
+    // Gemini API route
+    runtime.log("");
+    runtime.log("Setting up with Gemini API...");
+    const apiKey =
+      process.env.GEMINI_API_KEY ??
+      (await rl.question("Gemini API key (from aistudio.google.com/apikey): "));
+    rl.close();
+    if (!apiKey?.trim()) {
+      runtime.error("No API key provided. Get one at https://aistudio.google.com/apikey");
+      runtime.exit(1);
+      return;
+    }
+    // Write config with Gemini provider
+    const { mutateConfigFile } = await import("../config/mutate.js");
+    await mutateConfigFile({
+      mutate: (draft) => {
+        draft.agents ??= {};
+        draft.agents.defaults ??= {};
+        draft.agents.defaults.model = "google/gemini-2.5-flash";
+      },
+    });
+    // Store API key in auth profile
+    const homeDir = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
+    const agentDir = path.join(homeDir, ".openclaw", "agents", "main", "agent");
+    const authPath = path.join(agentDir, "auth-profiles.json");
+    let auth: Record<string, unknown> = { version: 1, profiles: {} };
+    try {
+      auth = JSON.parse(await import("node:fs").then((fs) => fs.readFileSync(authPath, "utf-8")));
+    } catch {
+      /* first time */
+    }
+    const profiles = (auth.profiles ?? {}) as Record<string, unknown>;
+    profiles["google:api-key"] = { type: "token", provider: "google", token: apiKey.trim() };
+    auth.profiles = profiles;
+    const fsM = await import("node:fs");
+    fsM.mkdirSync(path.dirname(authPath), { recursive: true });
+    fsM.writeFileSync(authPath, JSON.stringify(auth, null, 2));
+    runtime.log("");
+    runtime.log("Gemini API configured.");
+    runtime.log("  Model: google/gemini-2.5-flash");
+    runtime.log("  Auth: API key saved");
+    runtime.log("");
+    runtime.log("Test it: gemmaclaw agent --local --message 'Hello'");
+    return;
+  }
+
+  if (route === "3") {
+    // Vertex AI route
+    rl.close();
+    const { interactiveVertexSetup, buildVertexConfig } =
+      await import("../gemmaclaw/provision/vertex-setup.js");
+    const { writeConfigFile } = await import("../config/config.js");
+
+    const result = await interactiveVertexSetup();
+    if (!result.ok || !result.config) {
+      runtime.error(`Vertex AI setup failed: ${result.error}`);
+      runtime.exit(1);
+      return;
+    }
+
+    const vertexConfigPatch = buildVertexConfig(result.config);
+    await writeConfigFile(vertexConfigPatch);
+
+    if (result.config.accessToken) {
+      const homeDir2 = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
+      const agentDir = path.join(homeDir2, ".openclaw", "agents", "main", "agent");
+      const authPath = path.join(agentDir, "auth-profiles.json");
+      let auth: Record<string, unknown> = { version: 1, profiles: {} };
+      const fsM = await import("node:fs");
+      try {
+        auth = JSON.parse(fsM.readFileSync(authPath, "utf-8"));
+      } catch {
+        /* first time */
+      }
+      const profiles = (auth.profiles ?? {}) as Record<string, unknown>;
+      profiles["google-vertex:gcloud"] = {
+        type: "token",
+        provider: "google-vertex",
+        token: result.config.accessToken,
+      };
+      auth.profiles = profiles;
+      fsM.mkdirSync(path.dirname(authPath), { recursive: true });
+      fsM.writeFileSync(authPath, JSON.stringify(auth, null, 2));
+    }
+
+    runtime.log(`\nVertex AI ready: ${result.config.model} on ${result.config.project}`);
+    runtime.log("Test it: gemmaclaw agent --local --message 'Hello'");
+    return;
+  }
+
+  // Route 1: Local setup (default, continues below)
+  rl.close();
+
   // Determine sandbox mode: interactive prompt unless --no-container was passed.
   let useDocker = false;
   if (opts.noContainer) {
