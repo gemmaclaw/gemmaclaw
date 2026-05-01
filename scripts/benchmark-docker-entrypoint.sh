@@ -139,12 +139,28 @@ if [ "$IS_AGENT" = "1" ]; then
   export OPENCLAW_HOME="/root/.openclaw"
   mkdir -p "$OPENCLAW_HOME"
 
-  # Create minimal gemmaclaw config pointing at local Ollama
+  # Determine Ollama URL: prefer env, then check host.docker.internal (host Ollama),
+  # then fall back to local container Ollama
+  OLLAMA_TARGET="${OLLAMA_URL:-}"
+  if [ -z "$OLLAMA_TARGET" ]; then
+    # Try host Ollama first (avoids GPU passthrough and model re-download)
+    if curl -sf http://host.docker.internal:11434/api/tags >/dev/null 2>&1; then
+      OLLAMA_TARGET="http://host.docker.internal:11434"
+      echo "[agent] Using host Ollama at $OLLAMA_TARGET"
+    else
+      OLLAMA_TARGET="http://127.0.0.1:11434"
+      echo "[agent] Using container-local Ollama"
+    fi
+  else
+    echo "[agent] Using configured Ollama at $OLLAMA_TARGET"
+  fi
+
+  # Create minimal gemmaclaw config
   cat > "$OPENCLAW_HOME/openclaw.json" << GCEOF
 {
   "provider": "ollama",
   "model": "$MODEL",
-  "ollamaUrl": "http://127.0.0.1:11434",
+  "ollamaUrl": "$OLLAMA_TARGET",
   "sandbox": { "mode": "off" },
   "tools": { "exec": { "host": "gateway" } },
   "security": "full",
@@ -187,7 +203,7 @@ GCEOF
     fi
   done
 
-  EXTRA_ARGS=(--model "$MODEL" --gateway-url http://127.0.0.1:3001 --ollama-url http://127.0.0.1:11434)
+  EXTRA_ARGS=(--model "$MODEL" --gateway-url http://127.0.0.1:3001 --ollama-url "$OLLAMA_TARGET")
   if [ "$HAS_OUTPUT_DIR" = "0" ]; then
     EXTRA_ARGS+=(--output-dir /results)
   fi

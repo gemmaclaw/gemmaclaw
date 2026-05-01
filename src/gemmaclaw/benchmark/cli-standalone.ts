@@ -68,6 +68,10 @@ function parseArgs(argv: string[]) {
       opts.taskTimeout = args[++i]!;
     } else if (arg === "--idle-timeout" && args[i + 1]) {
       opts.idleTimeout = args[++i]!;
+    } else if (arg === "--backend" && args[i + 1]) {
+      opts.backend = args[++i]!;
+    } else if (arg === "--llama-cpp-url" && args[i + 1]) {
+      opts.llamaCppUrl = args[++i]!;
     } else if (arg === "--judge-model" && args[i + 1]) {
       opts.judgeModel = args[++i]!;
     } else if (arg === "--file" && args[i + 1]) {
@@ -171,9 +175,12 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   const hardware = detectHardware();
 
   // Build config
+  const backend = ((opts.backend as string) ?? "ollama") as "ollama" | "llama-cpp";
   const config: AgentBenchmarkConfig = {
     gatewayUrl: (opts.gatewayUrl as string) ?? "http://localhost:3001",
+    backend,
     ollamaUrl: (opts.ollamaUrl as string) ?? "http://127.0.0.1:11434",
+    llamaCppUrl: (opts.llamaCppUrl as string) ?? "http://127.0.0.1:8080",
     model: (opts.model as string) ?? "gemma3:4b",
     quant: opts.quant as string | undefined,
     thinkingLevel: opts.thinking as string | undefined,
@@ -181,7 +188,6 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
     idleTimeoutSeconds: opts.idleTimeout ? Number.parseInt(String(opts.idleTimeout), 10) : 30,
     filter: (opts.task as string) ?? (opts.filter as string) ?? undefined,
     mock: Boolean(opts.mock),
-    judgeModel: opts.judgeModel as string | undefined,
     contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
   };
 
@@ -210,18 +216,18 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
 
   // Print summary
   console.log("\n========================================");
-  console.log("  Results Summary");
+  console.log("  Run Summary");
   console.log("========================================\n");
-  console.log(
-    `Score:      ${result.summary.totalScore}/${result.summary.maxScore} (${result.summary.percentage}%)`,
-  );
-  console.log(
-    `Pass rate:  ${result.summary.passRate}% (${result.summary.passedCount}/${result.summary.passedCount + result.summary.failedCount})`,
-  );
+  console.log(`Tasks:      ${result.summary.totalTasks}`);
+  console.log(`Completed:  ${result.summary.completedCount}`);
+  console.log(`Errors:     ${result.summary.errorCount}`);
+  console.log(`Timeouts:   ${result.summary.timeoutCount}`);
   console.log(
     `Tool calls: ${result.summary.totalToolCalls} total (${result.summary.avgToolCallsPerTask} avg/task)`,
   );
   console.log(`Total time: ${(result.summary.totalTimeMs / 1000).toFixed(1)}s`);
+  console.log("");
+  console.log("Results are ready for PR. LLM evaluation is a separate step.");
   console.log("");
 }
 

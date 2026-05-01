@@ -2,14 +2,15 @@
  * E2E Agent Benchmark Runner.
  *
  * Dispatches tasks to a running gemmaclaw gateway, captures full conversations
- * (tool calls, results, reasoning), and judges the agent loop.
+ * (tool calls, results, reasoning). Data collection only, no scoring.
+ * LLM evaluation is a separate step done after the run.
  *
  * Architecture:
  *   1. Seed mock gog state (emails, calendar, tasks, contacts)
  *   2. For each task: send message to gateway, poll session JSONL for completion
  *   3. Extract full conversation transcript (including tool calls)
- *   4. LLM judge scores the entire agent interaction
- *   5. Save results with rich metadata
+ *   4. Save results with rich metadata (ready for PR)
+ *   5. LLM judge evaluation added as a separate file later
  *
  * Configuration:
  *   - gatewayUrl: defaults to http://localhost:3001 (local gemmaclaw)
@@ -20,18 +21,24 @@
 import { execSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import type { HardwareInfo } from "../provision/hardware.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
-import { parseJudgeResponse, type TaskScore } from "./scorer.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
+
+export type AgentBackendType = "ollama" | "llama-cpp";
 
 export type AgentBenchmarkConfig = {
   /** URL of the gemmaclaw gateway. */
   gatewayUrl: string;
-  /** URL of the Ollama backend for model inference. */
+  /** Backend type for model inference. */
+  backend: AgentBackendType;
+  /** URL of the Ollama backend. */
   ollamaUrl: string;
+  /** URL of the llama.cpp server (OpenAI-compatible). */
+  llamaCppUrl: string;
   /** Model identifier (e.g. gemma4:31b, gemma4:26b). */
   model: string;
   /** Quantization level if applicable (e.g. Q4_K_M, Q8_0, FP16). */
@@ -50,8 +57,6 @@ export type AgentBenchmarkConfig = {
   filter?: string;
   /** Run in mock mode (no real model, deterministic responses). */
   mock?: boolean;
-  /** Model for LLM judge evaluation. Defaults to same model. */
-  judgeModel?: string;
   /** Ollama context length. */
   contextLength?: number;
 };
@@ -71,8 +76,6 @@ export type AgentTaskResult = {
   task: AgentBenchmarkTask;
   /** Full conversation transcript including tool calls. */
   conversation: ConversationTurn[];
-  /** LLM judge score. */
-  score: TaskScore;
   /** Wall clock time for this task. */
   elapsedMs: number;
   /** Tokens per second (generation speed). */
@@ -123,14 +126,11 @@ export type AgentBenchmarkResult = {
   config: AgentBenchmarkConfig;
   tasks: AgentTaskResult[];
   summary: {
-    totalScore: number;
-    maxScore: number;
-    percentage: number;
+    totalTasks: number;
+    completedCount: number;
+    errorCount: number;
+    timeoutCount: number;
     totalTimeMs: number;
-    avgTokensPerSecond?: number;
-    passedCount: number;
-    failedCount: number;
-    passRate: number;
     totalToolCalls: number;
     avgToolCallsPerTask: number;
   };
@@ -241,14 +241,52 @@ export async function collectMetadata(
   };
 }
 
-/** Seed mock gog state before a benchmark run. */
-export function seedMockGog(seedScript?: string): void {
+/** Seed mock gog state before a benchmark run.
+ * If gemmaclawHome is set, seeds inside that directory's gogcli state.
+ * Otherwise seeds in the default ~/.config/gogcli/state/.
+ */
+export function seedMockGog(seedScript?: string, stateDir?: string): void {
   // Find repo root from cwd (pnpm sets cwd to repo root)
   const script = seedScript ?? path.resolve(process.cwd(), "scripts/benchmark/seed-mock-gog.py");
   if (!fs.existsSync(script)) {
     throw new Error(`Mock gog seed script not found: ${script}`);
   }
-  execSync(`python3 ${script}`, { stdio: "inherit" });
+  const env: Record<string, string> = { ...process.env } as Record<string, string>;
+  if (stateDir) {
+    env.GEMMACLAW_MOCK_GOG_STATE_DIR = stateDir;
+  }
+  execSync(`python3 ${script}`, { stdio: "inherit", env });
+}
+
+/**
+ * Create an isolated gemmaclaw home directory for benchmark runs.
+ * Uses the existing Docker sandbox infrastructure so agent tool calls
+ * (gog, file writes) are sandboxed but the gateway runs on the host.
+ */
+export function createBenchmarkHome(config: AgentBenchmarkConfig): string {
+  const homeDir = config.gemmaclawHome ?? path.join(os.tmpdir(), `gemmaclaw-bench-${Date.now()}`);
+  fs.mkdirSync(path.join(homeDir, "agents/main/sessions"), { recursive: true });
+  fs.mkdirSync(path.join(homeDir, "workspace/memory"), { recursive: true });
+
+  // Write config with sandbox enabled
+  const benchConfig = {
+    provider: config.backend === "llama-cpp" ? "llama-cpp" : "ollama",
+    model: config.model,
+    ollamaUrl: config.ollamaUrl,
+    llamaCppUrl: config.llamaCppUrl,
+    sandbox: { mode: "docker" },
+    tools: { exec: { host: "gateway" } },
+    security: "full",
+    ask: "off",
+  };
+  fs.writeFileSync(path.join(homeDir, "openclaw.json"), JSON.stringify(benchConfig, null, 2));
+
+  // Seed mock gog state into the benchmark home's gogcli state
+  const gogStateDir = path.join(homeDir, ".config/gogcli/state");
+  fs.mkdirSync(gogStateDir, { recursive: true });
+  seedMockGog(config.seedScript, gogStateDir);
+
+  return homeDir;
 }
 
 /** Check if gateway is healthy. */
@@ -460,24 +498,32 @@ export function saveResults(result: AgentBenchmarkResult, outputDir: string): vo
     fs.writeFileSync(path.join(transcriptsDir, `${tr.task.id}.txt`), transcript);
   }
 
-  // Per-task evaluation files
+  // Per-task evaluation stubs (placeholders for LLM judge results added later)
   for (const tr of result.tasks) {
-    fs.writeFileSync(
-      path.join(evalDir, `${tr.task.id}.json`),
-      JSON.stringify(
-        {
-          taskId: tr.task.id,
-          taskName: tr.task.name,
-          score: tr.score,
-          toolCallCount: tr.toolCallCount,
-          toolsUsed: tr.toolsUsed,
-          completionStatus: tr.completionStatus,
-          elapsedMs: tr.elapsedMs,
-        },
-        null,
-        2,
-      ),
-    );
+    const evalFile = path.join(evalDir, `${tr.task.id}.json`);
+    // Only write stub if no evaluation exists yet (don't overwrite existing judge results)
+    if (!fs.existsSync(evalFile)) {
+      fs.writeFileSync(
+        evalFile,
+        JSON.stringify(
+          {
+            taskId: tr.task.id,
+            taskName: tr.task.name,
+            gradingCriteria: tr.task.grading.criteria,
+            maxScore: tr.task.grading.maxScore,
+            toolCallCount: tr.toolCallCount,
+            toolsUsed: tr.toolsUsed,
+            completionStatus: tr.completionStatus,
+            elapsedMs: tr.elapsedMs,
+            conversationTurns: tr.conversation.length,
+            transcriptFile: `transcripts/${tr.task.id}.txt`,
+            llmJudge: null,
+          },
+          null,
+          2,
+        ),
+      );
+    }
   }
 
   // RESULTS.md (human-readable)
@@ -497,35 +543,51 @@ function formatRunDirName(result: AgentBenchmarkResult): string {
 
 function generateResultsMarkdown(result: AgentBenchmarkResult): string {
   const { metadata, summary, tasks } = result;
+  const vramGb = metadata.hardware.gpu.vramBytes
+    ? Math.round(metadata.hardware.gpu.vramBytes / 1024 ** 3)
+    : "?";
   const lines: string[] = [
-    `# Benchmark Results: ${metadata.model}${metadata.quant ? ` (${metadata.quant})` : ""}`,
+    `# Benchmark Run: ${metadata.model}${metadata.quant ? ` (${metadata.quant})` : ""}`,
     "",
     `**Date:** ${metadata.startedAt}`,
-    `**Hardware:** ${metadata.hardware.gpu.name ?? "unknown GPU"} (${metadata.hardware.gpu.vramBytes ? Math.round(metadata.hardware.gpu.vramBytes / 1024 ** 3) : "?"}GB VRAM)`,
+    `**Hardware:** ${metadata.hardware.gpu.name ?? "unknown GPU"} (${vramGb}GB VRAM), ${metadata.hardware.cpu.model}, ${Math.round(metadata.hardware.ram.totalBytes / 1024 ** 3)}GB RAM`,
+    `**Backend:** ${result.config.backend}`,
     `**Thinking:** ${metadata.thinkingLevel ?? "default"}`,
     `**Context:** ${metadata.contextLength ?? "default"}`,
+    `**Git SHA:** ${metadata.gitSha ?? "unknown"}`,
     "",
-    "## Summary",
+    "## Run Summary",
     "",
     `| Metric | Value |`,
     `|--------|-------|`,
-    `| Score | ${summary.totalScore}/${summary.maxScore} (${summary.percentage}%) |`,
-    `| Pass rate | ${summary.passRate}% (${summary.passedCount}/${summary.passedCount + summary.failedCount}) |`,
+    `| Tasks | ${summary.totalTasks} |`,
+    `| Completed | ${summary.completedCount} |`,
+    `| Errors | ${summary.errorCount} |`,
+    `| Timeouts | ${summary.timeoutCount} |`,
     `| Total time | ${(summary.totalTimeMs / 1000).toFixed(1)}s |`,
-    `| Tool calls | ${summary.totalToolCalls} (avg ${summary.avgToolCallsPerTask.toFixed(1)}/task) |`,
+    `| Tool calls | ${summary.totalToolCalls} (avg ${summary.avgToolCallsPerTask}/task) |`,
     "",
     "## Per-Task Results",
     "",
-    `| Task | Score | Tools | Time | Status |`,
-    `|------|-------|-------|------|--------|`,
+    "| Task | Category | Difficulty | Tools | Time | Status |",
+    "|------|----------|------------|-------|------|--------|",
   ];
 
   for (const tr of tasks) {
-    const scoreStr = `${tr.score.score}/${tr.score.maxScore}`;
     const timeStr = `${(tr.elapsedMs / 1000).toFixed(1)}s`;
-    const icon = tr.score.passed ? "PASS" : "FAIL";
-    lines.push(`| ${tr.task.name} | ${scoreStr} | ${tr.toolCallCount} | ${timeStr} | ${icon} |`);
+    lines.push(
+      `| ${tr.task.name} | ${tr.task.category} | ${tr.task.difficulty} | ${tr.toolCallCount} | ${timeStr} | ${tr.completionStatus} |`,
+    );
   }
+
+  lines.push("");
+  lines.push("## Evaluation");
+  lines.push("");
+  lines.push("LLM judge evaluation results are in the `evaluations/` directory.");
+  lines.push(
+    "Each task has a `.json` file with grading criteria and (when evaluated) judge scores.",
+  );
+  lines.push("Full conversation transcripts are in `transcripts/`.");
 
   return lines.join("\n") + "\n";
 }
@@ -548,14 +610,18 @@ export async function runAgentBenchmark(
   log("Seeding mock gog state...");
   seedMockGog(config.seedScript);
 
-  // Check gateway health
-  log(`Checking gateway at ${config.gatewayUrl}...`);
-  const healthy = await checkGateway(config.gatewayUrl);
-  if (!healthy) {
-    throw new Error(
-      `Gateway not responding at ${config.gatewayUrl}. ` +
-        `Start gemmaclaw first: gemmaclaw gateway start`,
-    );
+  // In mock mode, skip gateway check (no real agent needed)
+  if (!config.mock) {
+    log(`Checking gateway at ${config.gatewayUrl}...`);
+    const healthy = await checkGateway(config.gatewayUrl);
+    if (!healthy) {
+      throw new Error(
+        `Gateway not responding at ${config.gatewayUrl}. ` +
+          `Start gemmaclaw first: gemmaclaw gateway start`,
+      );
+    }
+  } else {
+    log("Mock mode: skipping gateway health check");
   }
 
   // Filter tasks if requested
@@ -581,100 +647,43 @@ export async function runAgentBenchmark(
     // Re-seed mock gog state before each task (clean slate)
     seedMockGog(config.seedScript);
 
-    // Dispatch and collect conversation
-    const { conversation, elapsedMs, completionStatus, error } = await dispatchTask(
-      task,
-      config,
-      sessionId,
-      log,
-    );
+    let conversation: ConversationTurn[];
+    let elapsedMs: number;
+    let completionStatus: "completed" | "timeout" | "error";
+    let error: string | undefined;
+
+    if (config.mock) {
+      // Mock mode: simulate a successful agent run without dispatching
+      conversation = [
+        { role: "user", content: task.prompt },
+        { role: "assistant", content: `[Mock] Processing task: ${task.name}` },
+        { role: "tool_call", content: "{}", toolName: "gog", toolArgs: {} },
+        { role: "tool_result", content: "[Mock] Tool result" },
+        { role: "assistant", content: `[Mock] Task completed: ${task.name}` },
+      ];
+      elapsedMs = 50;
+      completionStatus = "completed";
+    } else {
+      // Real mode: dispatch to gateway and collect conversation
+      const result = await dispatchTask(task, config, sessionId, log);
+      conversation = result.conversation;
+      elapsedMs = result.elapsedMs;
+      completionStatus = result.completionStatus;
+      error = result.error;
+    }
 
     // Extract tool call stats
     const toolCalls = conversation.filter((t) => t.role === "tool_call");
     const toolCallCount = toolCalls.length;
     const toolsUsed = [...new Set(toolCalls.map((t) => t.toolName).filter(Boolean))] as string[];
 
-    // Judge the conversation
-    let score: TaskScore;
-    if (config.mock) {
-      score = {
-        taskId: task.id,
-        score: completionStatus === "completed" ? task.grading.maxScore : 0,
-        maxScore: task.grading.maxScore,
-        percentage: completionStatus === "completed" ? 100 : 0,
-        method: "deterministic" as const,
-        details: "Mock mode: auto-pass on completion",
-        passed: completionStatus === "completed",
-      };
-    } else if (error || completionStatus === "error") {
-      score = {
-        taskId: task.id,
-        score: 0,
-        maxScore: task.grading.maxScore,
-        percentage: 0,
-        method: "deterministic" as const,
-        details: `Error: ${error}`,
-        passed: false,
-      };
-    } else {
-      // Build conversation text for the judge
-      const conversationText = conversation
-        .map((t) => {
-          if (t.role === "tool_call") {
-            return `[Tool Call: ${t.toolName}] ${t.content}`;
-          }
-          if (t.role === "tool_result") {
-            return `[Tool Result] ${t.content}`;
-          }
-          return `[${t.role}] ${t.content}`;
-        })
-        .join("\n\n");
-
-      const judgePrompt = buildAgentJudgePrompt(task, conversationText);
-      try {
-        const judgeResp = await httpPost(
-          `${config.ollamaUrl}/api/chat`,
-          JSON.stringify({
-            model: config.judgeModel ?? config.model,
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You are a strict but fair evaluator of AI agent performance. Score based on the criteria provided.",
-              },
-              { role: "user", content: judgePrompt },
-            ],
-            stream: false,
-            keep_alive: "6h",
-          }),
-          600_000,
-        );
-        const judgeData = JSON.parse(judgeResp);
-        const judgeContent = judgeData.message?.content ?? "";
-        score = parseJudgeResponse(judgeContent, task.grading.maxScore);
-        score.taskId = task.id;
-      } catch {
-        score = {
-          taskId: task.id,
-          score: 0,
-          maxScore: task.grading.maxScore,
-          percentage: 0,
-          method: "deterministic" as const,
-          details: "LLM judge evaluation failed",
-          passed: false,
-        };
-      }
-    }
-
-    const statusIcon = score.passed ? "PASS" : "FAIL";
     log(
-      `  ${statusIcon} ${score.score}/${score.maxScore} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s | ${completionStatus}`,
+      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${error ? ` | ${error}` : ""}`,
     );
 
     results.push({
       task,
       conversation,
-      score,
       elapsedMs,
       toolCallCount,
       toolsUsed,
@@ -686,11 +695,10 @@ export async function runAgentBenchmark(
   const totalTimeMs = Date.now() - startTime;
   metadata.finishedAt = new Date().toISOString();
 
-  const totalScore = results.reduce((s, r) => s + r.score.score, 0);
-  const maxScore = results.reduce((s, r) => s + r.score.maxScore, 0);
-  const passedCount = results.filter((r) => r.score.passed).length;
-  const failedCount = results.filter((r) => !r.score.passed).length;
-  const totalTasks = passedCount + failedCount;
+  const totalTasks = results.length;
+  const completedCount = results.filter((r) => r.completionStatus === "completed").length;
+  const errorCount = results.filter((r) => r.completionStatus === "error").length;
+  const timeoutCount = results.filter((r) => r.completionStatus === "timeout").length;
   const totalToolCalls = results.reduce((s, r) => s + r.toolCallCount, 0);
 
   return {
@@ -698,35 +706,13 @@ export async function runAgentBenchmark(
     config,
     tasks: results,
     summary: {
-      totalScore: Math.round(totalScore * 10) / 10,
-      maxScore,
-      percentage: maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0,
+      totalTasks,
+      completedCount,
+      errorCount,
+      timeoutCount,
       totalTimeMs,
-      passedCount,
-      failedCount,
-      passRate: totalTasks > 0 ? Math.round((passedCount / totalTasks) * 1000) / 10 : 0,
       totalToolCalls,
       avgToolCallsPerTask: totalTasks > 0 ? Math.round((totalToolCalls / totalTasks) * 10) / 10 : 0,
     },
   };
-}
-
-function buildAgentJudgePrompt(task: AgentBenchmarkTask, conversationText: string): string {
-  const criteria = task.grading.criteria.map((c, i) => `${i + 1}. ${c}`).join("\n");
-  return [
-    `You are evaluating an AI agent's performance on a task.`,
-    ``,
-    `TASK: ${task.name}`,
-    `PROMPT: ${task.prompt}`,
-    ``,
-    `GRADING CRITERIA (${task.grading.maxScore} points total):`,
-    criteria,
-    ``,
-    `FULL AGENT CONVERSATION (including tool calls and results):`,
-    conversationText,
-    ``,
-    `Score the agent's performance. For each criterion, state whether it was met.`,
-    `Then give a final SCORE: X/${task.grading.maxScore}`,
-    `And REASONING: one paragraph explaining the score.`,
-  ].join("\n");
 }
