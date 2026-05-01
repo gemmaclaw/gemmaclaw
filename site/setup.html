@@ -958,23 +958,50 @@ gemmaclaw config validate
 gemmaclaw configure</code></pre></div>
       <p>Named profiles (<code>--profile mytest</code>) isolate all state under <code>~/.openclaw-mytest/</code>, useful for testing or running multiple instances.</p>
 
-      <h3>Vertex AI (Cloud)</h3>
-      <p>Run Gemma models on Google Cloud Vertex AI instead of locally. Requires a GCP project with Vertex AI API enabled and the gcloud CLI.</p>
-      <div class="code-block"><pre><code># Install gcloud CLI (if not already installed)
-# https://cloud.google.com/sdk/docs/install
+      <h3>Gemini API (Cloud, simplest)</h3>
+      <p>The fastest way to get started without local hardware. Use Google's hosted Gemini API with an API key from <a href="https://aistudio.google.com/apikey" class="inline">AI Studio</a>.</p>
+      <div class="code-block"><pre><code># Option 1: Pass the API key directly
+gemmaclaw onboard --auth-choice gemini-api-key --gemini-api-key YOUR_API_KEY
 
-# Authenticate
+# Option 2: Set as environment variable
+export GEMINI_API_KEY=YOUR_API_KEY
+gemmaclaw onboard --auth-choice gemini-api-key
+
+# Option 3: Interactive setup (will prompt for key)
+gemmaclaw onboard</code></pre></div>
+      <p>Available Gemma models via Gemini API: gemma-3-1b-it, gemma-3-4b-it, gemma-3-12b-it, gemma-3-27b-it. No local GPU required.</p>
+
+      <h3>Vertex AI (Cloud, enterprise)</h3>
+      <p>For enterprise or GCP-integrated deployments. Run Gemma models on Google Cloud Vertex AI with gcloud authentication or a service account.</p>
+      <div class="code-block"><pre><code># Prerequisites
+# 1. Install gcloud CLI: https://cloud.google.com/sdk/docs/install
+# 2. Enable Vertex AI API in your GCP project
+
+# Authenticate with gcloud (user account)
 gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
 
 # Set up gemmaclaw with Vertex AI
 gemmaclaw setup --vertex
 
-# Or non-interactive with all flags
-gemmaclaw setup --vertex --vertex-project my-project --vertex-region us-central1 --vertex-model gemma-3-27b-it</code></pre></div>
-      <p>The setup verifies your gcloud credentials, tests Vertex AI connectivity, and configures the provider. Access tokens from gcloud expire hourly. Run <code>gemmaclaw setup --vertex</code> again to refresh.</p>
-      <p>For Docker mode, mount your gcloud credentials:</p>
-      <div class="code-block"><pre><code>docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex</code></pre></div>
+# Non-interactive with all flags
+gemmaclaw setup --vertex \
+  --vertex-project my-project \
+  --vertex-region us-central1 \
+  --vertex-model gemma-3-27b-it
+
+# With service account (set env var, then run setup)
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
+      <p>The setup verifies credentials, tests Vertex AI connectivity, and configures the provider. Supports user accounts (gcloud CLI) and service accounts (JSON key file).</p>
+      <p>For Docker mode, mount your credentials:</p>
+      <div class="code-block"><pre><code># User account (gcloud)
+docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex
+
+# Service account
+docker run -v /path/to/key.json:/key.json -e GOOGLE_APPLICATION_CREDENTIALS=/key.json \
+  gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
+      <p>Access tokens from gcloud expire hourly. Run <code>gemmaclaw setup --vertex</code> again to refresh. Service accounts with <code>GOOGLE_APPLICATION_CREDENTIALS</code> auto-refresh.</p>
 
       <h3>Troubleshooting</h3>
       <ul class="setup-list">
