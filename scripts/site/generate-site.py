@@ -831,6 +831,7 @@ NAV_ITEMS = [
     ("Setup", "setup.html", False),
     ("Self-Hosting", "self-hosting.html", False),
     ("Benchmarks", "benchmarks.html", False),
+    ("Run Benchmarks", "benchmarking.html", False),
     ("Community", "community.html", False),
     ("Goals", "goals.html", False),
     ("GitHub", "https://github.com/gemmaclaw/gemmaclaw", True),
@@ -1476,6 +1477,127 @@ def generate_goals_page():
     return page_template("Goals & Roadmap", body, active_page="goals.html")
 
 
+def generate_benchmarking_page():
+    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Run Benchmarks</div>
+    <section>
+      <h2>Running Gemmaclaw Benchmarks</h2>
+      <p>Gemmaclaw includes a built-in E2E agentic benchmark harness. It spins up a gemmaclaw instance inside Docker with mock tools (email, calendar, tasks, contacts), dispatches 22 complex agent tasks, captures full conversations including tool calls, and scores them with an LLM judge.</p>
+      <p>Benchmarks run in isolated Docker containers. They do not touch your production gemmaclaw installation.</p>
+
+      <h3>Quick Start</h3>
+      <div class="code-block"><pre><code># Build the benchmark Docker image (first time only)
+docker build -f Dockerfile.benchmark -t gemmaclaw-benchmark .
+
+# Run all 22 agentic tasks with gemma3:4b (fastest, good for smoke testing)
+docker run --rm -v ./benchmark-results:/results gemmaclaw-benchmark agent --model gemma3:4b
+
+# Run with a specific Gemma 4 model and quantization
+docker run --rm -v ./benchmark-results:/results gemmaclaw-benchmark agent \\
+  --model gemma4:31b --quant Q4_K_M --thinking high
+
+# Run a single task (useful for debugging or rerunning failures)
+docker run --rm -v ./benchmark-results:/results gemmaclaw-benchmark agent --task email_triage
+
+# Mock mode: test the harness without a real model (instant, deterministic)
+docker run --rm -v ./benchmark-results:/results gemmaclaw-benchmark agent --mock</code></pre></div>
+
+      <h3>Without Docker (Development)</h3>
+      <div class="code-block"><pre><code># List all available benchmark tasks
+pnpm benchmark agent list
+
+# Run all tasks locally (requires gemmaclaw gateway running)
+pnpm benchmark agent --model gemma4:31b
+
+# Run a single task
+pnpm benchmark agent --task phishing_detect
+
+# Mock smoke test
+pnpm benchmark agent --mock --task memory_log</code></pre></div>
+
+      <h3>Configuration Options</h3>
+      <div class="table-wrap"><table>
+        <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+        <tr><td><code>--model &lt;name&gt;</code></td><td>gemma3:4b</td><td>Ollama model to test</td></tr>
+        <tr><td><code>--quant &lt;level&gt;</code></td><td>(auto-detected)</td><td>Quantization level to record (Q4_K_M, Q8_0, FP16)</td></tr>
+        <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking/reasoning level (off, low, medium, high)</td></tr>
+        <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name substring)</td></tr>
+        <tr><td><code>--task &lt;id&gt;</code></td><td>(all tasks)</td><td>Run a single task by exact id</td></tr>
+        <tr><td><code>--gateway-url &lt;url&gt;</code></td><td>http://localhost:3001</td><td>Gemmaclaw gateway URL (auto in Docker)</td></tr>
+        <tr><td><code>--ollama-url &lt;url&gt;</code></td><td>http://127.0.0.1:11434</td><td>Ollama API URL</td></tr>
+        <tr><td><code>--task-timeout &lt;sec&gt;</code></td><td>600</td><td>Max seconds per task (0 = unlimited)</td></tr>
+        <tr><td><code>--idle-timeout &lt;sec&gt;</code></td><td>30</td><td>Idle seconds before task is considered done</td></tr>
+        <tr><td><code>--judge-model &lt;name&gt;</code></td><td>(same as test model)</td><td>Model for LLM judge evaluation</td></tr>
+        <tr><td><code>--context-length &lt;n&gt;</code></td><td>(model default)</td><td>Ollama context window size</td></tr>
+        <tr><td><code>--output-dir &lt;dir&gt;</code></td><td>benchmark-results</td><td>Output directory for results</td></tr>
+        <tr><td><code>--mock</code></td><td>off</td><td>Mock mode: no real model, deterministic pass/fail</td></tr>
+      </table></div>
+
+      <h3>The 22 Agent Tasks</h3>
+      <p>Tasks evaluate Gemma models as AI agents with real tool use. Each task sends a natural language request, the agent calls tools (email, calendar, file, task management), and the full conversation is judged.</p>
+
+      <div class="table-wrap"><table>
+        <tr><th>Difficulty</th><th>Tasks</th><th>Points</th><th>Categories</th></tr>
+        <tr><td>Medium</td><td>5</td><td>53</td><td>Email, calendar, task management, memory</td></tr>
+        <tr><td>Hard</td><td>5</td><td>110</td><td>Email triage, multi-meeting scheduling, client logistics, event coordination</td></tr>
+        <tr><td>Very Hard</td><td>12</td><td>335</td><td>Phishing detection, error recovery, data reconciliation, multi-person coordination, financial synthesis, context chaining</td></tr>
+        <tr><td><strong>Total</strong></td><td><strong>22</strong></td><td><strong>498</strong></td><td></td></tr>
+      </table></div>
+
+      <h3>How It Works</h3>
+      <ol class="setup-steps">
+        <li><strong>Seed mock tools:</strong> The harness creates a realistic workspace with emails, calendar events, contacts, and tasks. Professional/workplace themed (no fictional characters).</li>
+        <li><strong>Start gateway:</strong> In Docker mode, a fresh gemmaclaw gateway starts inside the container with the model under test.</li>
+        <li><strong>Dispatch tasks:</strong> Each task is sent to the agent as a natural language prompt. The agent reads emails, checks calendars, creates tasks, sends emails, all using mock tools.</li>
+        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, reasoning step, and follow-up action.</li>
+        <li><strong>Reset between tasks:</strong> Mock tool state is re-seeded before each task for a clean environment.</li>
+        <li><strong>LLM judge:</strong> An LLM evaluates the full conversation against task-specific criteria (did it call the right tools? catch the phishing email? resolve the calendar conflict?).</li>
+        <li><strong>Save results:</strong> Rich metadata (hardware, model, quant, git SHA, Ollama model info) plus per-task transcripts and evaluation logs.</li>
+      </ol>
+
+      <h3>Results Directory Structure</h3>
+      <div class="code-block"><pre><code>benchmark-results/
+  runs/
+    gemma4-31b__Q4_K_M__2026-05-01T13-00-00/
+      metadata.json          # Hardware, model, quant, config, git SHA
+      results.json           # Per-task scores, full conversations, tool calls
+      transcripts/           # Raw conversation per task
+        email_triage.txt
+        phishing_detect.txt
+        ...
+      RESULTS.md             # Human-readable summary
+  evaluations/
+    gemma4-31b__Q4_K_M__2026-05-01T13-00-00/
+      email_triage.json      # Judge prompt, response, score breakdown
+      phishing_detect.json
+      ...</code></pre></div>
+
+      <h3>Metadata Captured</h3>
+      <p>Every run records comprehensive metadata for reproducibility:</p>
+      <ul class="setup-list">
+        <li><strong>Hardware:</strong> GPU name, VRAM, CPU model, core count, total RAM</li>
+        <li><strong>Model:</strong> Ollama model name, parameter count, quantization level, format (GGUF)</li>
+        <li><strong>Config:</strong> Thinking level, context length, gateway/Ollama URLs</li>
+        <li><strong>Environment:</strong> Git SHA, Node.js version, OS/platform, timestamps</li>
+      </ul>
+
+      <h3>Submitting Results</h3>
+      <p>To contribute your benchmark results to the community leaderboard:</p>
+      <ol class="setup-steps">
+        <li><strong>Run the benchmark</strong> on your hardware with the model you want to test</li>
+        <li><strong>Check the results</strong> in <code>benchmark-results/runs/</code></li>
+        <li><strong>Open a PR</strong> adding your results directory to the gemmaclaw repo</li>
+        <li>The site will automatically include your results on the next deploy</li>
+      </ol>
+
+      <h3>Prompt-Response Mode (Legacy)</h3>
+      <p>The original prompt-response benchmark mode is still available. It sends isolated prompts to Ollama and scores text output (no agent loop, no tool calling).</p>
+      <div class="code-block"><pre><code># Legacy prompt-response mode
+pnpm benchmark --local --model gemma4:31b
+pnpm benchmark --mock  # Deterministic scoring only</code></pre></div>
+    </section>"""
+    return page_template("Run Benchmarks", body, active_page="benchmarking.html")
+
+
 def generate_site():
     results = load_benchmark_results()
     best = best_results(results)
@@ -1494,6 +1616,7 @@ def generate_site():
         "setup.html": generate_setup_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
         "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html),
+        "benchmarking.html": generate_benchmarking_page(),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
         "goals.html": generate_goals_page(),
     }
