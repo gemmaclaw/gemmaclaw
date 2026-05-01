@@ -1252,6 +1252,24 @@ gemmaclaw config validate
 gemmaclaw configure</code></pre></div>
       <p>Named profiles (<code>--profile mytest</code>) isolate all state under <code>~/.openclaw-mytest/</code>, useful for testing or running multiple instances.</p>
 
+      <h3>Vertex AI (Cloud)</h3>
+      <p>Run Gemma models on Google Cloud Vertex AI instead of locally. Requires a GCP project with Vertex AI API enabled and the gcloud CLI.</p>
+      <div class="code-block"><pre><code># Install gcloud CLI (if not already installed)
+# https://cloud.google.com/sdk/docs/install
+
+# Authenticate
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+
+# Set up gemmaclaw with Vertex AI
+gemmaclaw setup --vertex
+
+# Or non-interactive with all flags
+gemmaclaw setup --vertex --vertex-project my-project --vertex-region us-central1 --vertex-model gemma-3-27b-it</code></pre></div>
+      <p>The setup verifies your gcloud credentials, tests Vertex AI connectivity, and configures the provider. Access tokens from gcloud expire hourly. Run <code>gemmaclaw setup --vertex</code> again to refresh.</p>
+      <p>For Docker mode, mount your gcloud credentials:</p>
+      <div class="code-block"><pre><code>docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex</code></pre></div>
+
       <h3>Troubleshooting</h3>
       <ul class="setup-list">
         <li><strong>Ollama download fails:</strong> check network. Binary comes from GitHub releases.</li>

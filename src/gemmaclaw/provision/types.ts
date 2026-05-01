@@ -1,8 +1,13 @@
 import path from "node:path";
 
-export type BackendId = "ollama" | "llama-cpp" | "gemma-cpp";
+export type BackendId = "ollama" | "llama-cpp" | "gemma-cpp" | "vertex";
 
-export const ALL_BACKENDS: readonly BackendId[] = ["ollama", "llama-cpp", "gemma-cpp"] as const;
+export const ALL_BACKENDS: readonly BackendId[] = [
+  "ollama",
+  "llama-cpp",
+  "gemma-cpp",
+  "vertex",
+] as const;
 
 export type ProvisionProgress = (message: string) => void;
 

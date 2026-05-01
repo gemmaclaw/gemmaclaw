@@ -5,13 +5,18 @@ import type { BackendId } from "./types.js";
 import { ALL_BACKENDS } from "./types.js";
 
 describe("createRuntimeManager", () => {
-  it("creates a manager for each known backend", () => {
-    for (const backend of ALL_BACKENDS) {
+  it("creates a manager for each local backend", () => {
+    const localBackends = ALL_BACKENDS.filter((b) => b !== "vertex");
+    for (const backend of localBackends) {
       const manager = createRuntimeManager(backend);
       expect(manager.id).toBe(backend);
       expect(typeof manager.displayName).toBe("string");
       expect(typeof manager.defaultPort).toBe("number");
     }
+  });
+
+  it("throws for vertex backend (cloud, no local manager)", () => {
+    expect(() => createRuntimeManager("vertex")).toThrow(/Vertex AI/);
   });
 
   it("throws for unknown backend", () => {

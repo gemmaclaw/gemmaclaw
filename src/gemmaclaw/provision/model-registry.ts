@@ -65,6 +65,12 @@ export const DEFAULT_MODELS: Record<BackendId, ModelArtifact> = {
     // The exact URL depends on HF auth. Model download is handled by the manager.
     sizeBytes: 5_000_000_000,
   },
+  vertex: {
+    id: "gemma-3-27b-it",
+    displayName: "Gemma 3 27B IT (Vertex AI)",
+    backend: "vertex",
+    sizeBytes: 0,
+  },
 };
 
 // -----------------------------------------------------------------------
