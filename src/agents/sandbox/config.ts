@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { SandboxSshSettings } from "../../config/types.sandbox.js";
 import { normalizeSecretInputString } from "../../config/types.secrets.js";
@@ -96,7 +98,16 @@ export function resolveSandboxDockerConfig(params: {
     ? { ...globalDocker?.ulimits, ...agentDocker.ulimits }
     : globalDocker?.ulimits;
 
-  const binds = [...(globalDocker?.binds ?? []), ...(agentDocker?.binds ?? [])];
+  // Default shared directory: ~/.gemmaclaw/shared on host maps to /shared in container.
+  // This lets users drop files in for the agent and retrieve output files.
+  const sharedDir = path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
+  try {
+    fs.mkdirSync(sharedDir, { recursive: true });
+  } catch {
+    /* best effort */
+  }
+  const defaultSharedBind = `${sharedDir}:/shared`;
+  const binds = [defaultSharedBind, ...(globalDocker?.binds ?? []), ...(agentDocker?.binds ?? [])];
 
   return {
     image: agentDocker?.image ?? globalDocker?.image ?? DEFAULT_SANDBOX_IMAGE,
