@@ -8,6 +8,10 @@ const EXTENSION_PATH_RE = /^extensions\/[^/]+(?:\/|$)/u;
 const CORE_PATH_RE = /^(?:src\/|ui\/|packages\/)/u;
 const TOOLING_PATH_RE =
   /^(?:scripts\/|test\/vitest\/|\.github\/|git-hooks\/|Dockerfile(?:\..+)?$|\.dockerignore$|vitest(?:\..+)?\.config\.ts$|tsconfig.*\.json$|\.gitignore$|\.oxlint.*|\.oxfmt.*)/u;
+// Generated site assets and benchmark result artifacts: published HTML/JSON output with no
+// runtime, test, or production code surface. Treated as data so changes don't trigger the
+// fail-safe full test sweep (the source generators in scripts/ + src/ already run normally).
+const SITE_DATA_PATH_RE = /^(?:site\/|benchmark-results\/)/u;
 const ROOT_GLOBAL_PATH_RE =
   /^(?:package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsdown\.config\.ts$|vitest\.config\.ts$)/u;
 const TEST_PATH_RE =
@@ -157,6 +161,12 @@ export function detectChangedLanes(changedPaths) {
     if (TOOLING_PATH_RE.test(changedPath)) {
       lanes.tooling = true;
       reasons.push(`${changedPath}: tooling surface`);
+      continue;
+    }
+
+    if (SITE_DATA_PATH_RE.test(changedPath)) {
+      lanes.docs = true;
+      reasons.push(`${changedPath}: generated site/benchmark data`);
       continue;
     }
 

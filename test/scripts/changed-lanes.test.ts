@@ -344,4 +344,31 @@ describe("scripts/changed-lanes", () => {
     expect(plan.runChangedTestsBroad).toBe(false);
     expect(plan.runFullTests).toBe(false);
   });
+
+  it("routes generated site/ assets to docs lane instead of all lanes", () => {
+    const result = detectChangedLanes(["site/benchmarks.html", "site/data/foo.json"]);
+    const plan = createChangedCheckPlan(result);
+
+    expect(result.lanes).toMatchObject({
+      docs: true,
+      all: false,
+    });
+    expect(plan.runFullTests).toBe(false);
+    expect(plan.runChangedTestsBroad).toBe(false);
+  });
+
+  it("routes benchmark-results/ artifacts to docs lane instead of all lanes", () => {
+    const result = detectChangedLanes([
+      "benchmark-results/gemma3-4b__ollama__2026-05-01T01-17-21/results.json",
+      "benchmark-results/gemma3-4b__ollama__2026-05-01T01-17-21/index.html",
+    ]);
+    const plan = createChangedCheckPlan(result);
+
+    expect(result.lanes).toMatchObject({
+      docs: true,
+      all: false,
+    });
+    expect(plan.runFullTests).toBe(false);
+    expect(plan.runChangedTestsBroad).toBe(false);
+  });
 });

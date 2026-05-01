@@ -44,11 +44,17 @@ def load_benchmark_results():
 
 
 def best_results(results):
-    """Return the best result per model (highest percentage), deduped by model+backend."""
+    """Return the best result per model, preferring runs that captured model output (for the
+    conversation viewer), then highest percentage, then most recent timestamp."""
+    def has_output(r):
+        tasks = r.get("tasks", [])
+        return any(bool(t.get("output")) for t in tasks)
+    def rank(r):
+        return (1 if has_output(r) else 0, r["summary"]["percentage"], r.get("timestamp", ""))
     seen = {}
     for r in results:
         key = f"{r['model']}_{r['backend']}"
-        if key not in seen or r["summary"]["percentage"] > seen[key]["summary"]["percentage"]:
+        if key not in seen or rank(r) > rank(seen[key]):
             seen[key] = r
     return sorted(seen.values(), key=lambda x: -x["summary"]["percentage"])
 
@@ -230,22 +236,61 @@ def generate_benchmark_table_rows(results):
     return "\n".join(rows)
 
 
-def generate_task_detail_rows(tasks):
+def generate_task_detail_rows(tasks, model_id=""):
     rows = []
-    for t in tasks:
+    for idx, t in enumerate(tasks):
         pct = t.get("percentage", 0)
         pct_class = "win" if pct >= 90 else ("" if pct >= 60 else "bad")
         speed = format_speed(t.get("tokensPerSecond"))
         failure = t.get("failureMode", "none")
         if failure == "none":
             failure = ""
-        rows.append(f"""<tr>
-  <td>{t['name']}</td>
+        passed = t.get("passed", False)
+        status_icon = "&#10003;" if passed else "&#10007;"
+        status_class = "pass" if passed else "fail"
+        difficulty = t.get("difficulty", "medium")
+        method = t.get("method", "")
+        prompt_tokens = t.get("promptTokens", 0)
+        completion_tokens = t.get("completionTokens", 0)
+        description = t.get("description", "")
+        prompt_text = t.get("prompt", "")
+        output_text = t.get("output", "")
+        judge_text = t.get("details", "")
+        score_pct = t.get("percentage", 0)
+        judge_class = "judge-good" if score_pct >= 90 else ("judge-mid" if score_pct >= 60 else "judge-bad")
+
+        if not output_text:
+            output_block = '<div class="conv-empty">Model response was not captured for this run. Re-run the benchmark to capture full conversations.</div>'
+        else:
+            output_block = f'<pre class="conv-block">{html_escape(output_text)}</pre>'
+
+        if not judge_text:
+            judge_block = '<div class="conv-empty">No judge evaluation recorded.</div>'
+        else:
+            judge_block = f'<div class="conv-judge {judge_class}">{html_escape(judge_text)}</div>'
+
+        row_id = f"task-{model_id}-{idx}" if model_id else f"task-{idx}"
+
+        rows.append(f"""<tr class="task-row" data-target="{row_id}">
+  <td><span class="row-toggle">&#9656;</span> <span class="task-status {status_class}">{status_icon}</span> {t['name']}</td>
   <td><span class="cat-badge">{t.get('category', '')}</span></td>
   <td class="num {pct_class}">{t['score']}/{t['maxScore']}</td>
   <td class="num">{speed} tok/s</td>
   <td class="num">{format_time(t.get('elapsedMs'))}</td>
   <td>{failure}</td>
+</tr>
+<tr class="task-detail" id="{row_id}" style="display:none">
+  <td colspan="6">
+    <div class="conv-meta">
+      <span><strong>Difficulty:</strong> <span class="diff-badge diff-{difficulty}">{difficulty}</span></span>
+      <span><strong>Scoring:</strong> {method or 'n/a'}</span>
+      <span><strong>Tokens:</strong> {prompt_tokens} prompt &rarr; {completion_tokens} completion</span>
+    </div>
+    <p class="conv-desc">{html_escape(description)}</p>
+    <div class="conv-section"><div class="conv-label">PROMPT</div><pre class="conv-block conv-prompt">{html_escape(prompt_text)}</pre></div>
+    <div class="conv-section"><div class="conv-label">MODEL RESPONSE</div>{output_block}</div>
+    <div class="conv-section"><div class="conv-label">JUDGE EVALUATION ({t['score']}/{t['maxScore']})</div>{judge_block}</div>
+  </td>
 </tr>""")
     return "\n".join(rows)
 
@@ -256,7 +301,7 @@ def generate_model_detail_sections(results):
         model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r['backend']}".lower())
         s = r["summary"]
         hw = r.get("hardware", {})
-        tasks_html = generate_task_detail_rows(r.get("tasks", []))
+        tasks_html = generate_task_detail_rows(r.get("tasks", []), model_id=model_id)
         failure_modes = s.get("failureModes", {})
         fm_items = ", ".join(f"{k}: {v}" for k, v in failure_modes.items() if k != "none")
         if not fm_items:
@@ -1259,29 +1304,10 @@ def generate_self_hosting_page(hw_cards):
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
 def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html=""):
-    # frankclaw: show coming soon while benchmarks are being rebuilt with
-    # proper conversation viewer and test explanations
-    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
-    <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
-      <div style="border:2px dashed var(--border);border-radius:16px;background:var(--bg-elev);padding:4rem 2rem;max-width:700px;margin:0 auto">
-        <h2 style="font-size:2rem;margin-bottom:1rem">Benchmarks Coming Soon</h2>
-        <p style="color:var(--muted);font-size:1.1rem;max-width:600px;margin:0 auto 2rem">We are rebuilding the benchmark suite from the ground up with full transparency into what each test measures and how models perform.</p>
-        <div style="text-align:left;max-width:500px;margin:0 auto">
-          <div style="padding:0.5rem 0;color:var(--fg-soft)">All Gemma 4 models tested on RTX 3090</div>
-          <div style="padding:0.5rem 0;color:var(--fg-soft)">Full conversation viewer: see prompt, response, and judge scoring</div>
-          <div style="padding:0.5rem 0;color:var(--fg-soft)">Clear test explanations: what each test measures and why</div>
-          <div style="padding:0.5rem 0;color:var(--fg-soft)">Models grouped by size class with hardware requirements</div>
-          <div style="padding:0.5rem 0;color:var(--fg-soft)">Speed benchmarks alongside quality scores</div>
-        </div>
-      </div>
-    </section>"""
-    return page_template("Benchmarks", body, active_page="benchmarks.html")
-
-    # Original benchmark page (disabled while rebuilding):
-    body_original = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmark Results</div>
+    body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
     <section id="benchmarks">
       <h2>Benchmark Results by Size Class</h2>
-      <p>All models tested on the same 15-task suite covering instruction following, reasoning, data extraction, safety, and coding. Models are grouped by size class with recommended hardware for each tier.</p>
+      <p>All models are tested on the same 15-task suite covering instruction following, reasoning, data extraction, safety, and coding. Models are grouped by size class with hardware requirements per tier. Click any model to expand its task breakdown, then click any task row to see the full prompt, the model's response, and the LLM judge's evaluation.</p>
       {size_class_html}
       <div id="model-details">{model_details}</div>
     </section>
@@ -1289,9 +1315,14 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
       <h2>What We Test</h2>
       <p>Each benchmark run evaluates the model on 15 tasks across 5 categories. Here is what each task measures and an example prompt.</p>
       {task_explanations_html}
+    </section>
+    <section id="methodology">
+      <h2>Methodology</h2>
+      <p>Each task is scored either deterministically (exact-match or rule-based) or by an LLM judge that grades against a per-task rubric (max score reflects rubric weight, typically 5 for easy, 10 for medium, 15 for hard). A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second of completion output, recorded per task and aggregated as median over the run. Total time covers the full 15-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. All runs are deterministic at temperature 0 unless a task explicitly requires creative generation.</p>
     </section>"""
     scripts = """
     document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {
+      if (row.classList.contains('task-row') || row.classList.contains('task-detail')) return;
       row.style.cursor = 'pointer';
       row.addEventListener('click', function() {
         const model = this.querySelector('td strong')?.textContent || '';
@@ -1307,6 +1338,20 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
       });
     });
     document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+
+    document.querySelectorAll('tr.task-row').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        const target = document.getElementById(this.getAttribute('data-target'));
+        if (!target) return;
+        const isOpen = target.style.display !== 'none';
+        target.style.display = isOpen ? 'none' : 'table-row';
+        const toggle = this.querySelector('.row-toggle');
+        if (toggle) toggle.innerHTML = isOpen ? '&#9656;' : '&#9662;';
+        this.classList.toggle('open', !isOpen);
+      });
+    });
 """
     return page_template("Benchmark Results", body, active_page="benchmarks.html", extra_scripts=scripts)
 
@@ -1792,6 +1837,58 @@ CSS = """
     .detail-meta {
       display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
       margin-bottom: 1rem; font-size: 0.88rem; color: var(--muted);
+    }
+
+    /* Conversation viewer (expandable task rows) */
+    tr.task-row { transition: background-color 0.12s; }
+    tr.task-row:hover { background: var(--bg-elev-2); }
+    tr.task-row.open { background: var(--bg-elev-2); }
+    tr.task-row .row-toggle {
+      display: inline-block; width: 1rem; color: var(--muted);
+      font-size: 0.7rem; transition: transform 0.15s;
+    }
+    .task-status { display: inline-block; width: 1rem; font-weight: 700; }
+    .task-status.pass { color: var(--good); }
+    .task-status.fail { color: #d14545; }
+
+    tr.task-detail > td { padding: 1.25rem 1.5rem; background: var(--bg); }
+    .conv-meta {
+      display: flex; flex-wrap: wrap; gap: 1.5rem;
+      padding-bottom: 0.75rem; margin-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem; color: var(--muted);
+    }
+    .conv-meta strong { color: var(--fg-soft); font-weight: 600; }
+    .conv-desc {
+      font-style: italic; color: var(--fg-soft);
+      margin: 0 0 1rem 0; font-size: 0.95rem;
+    }
+    .conv-section { margin: 0.75rem 0; }
+    .conv-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 0.3rem;
+    }
+    .conv-block {
+      background: var(--bg-elev); border-left: 3px solid var(--border);
+      padding: 0.85rem 1rem; margin: 0; border-radius: 4px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.82rem; color: var(--fg);
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 24rem; overflow-y: auto;
+    }
+    .conv-prompt { border-left-color: var(--accent); }
+    .conv-block + .conv-block { margin-top: 0.4rem; }
+    .conv-judge {
+      background: var(--bg-elev); padding: 0.85rem 1rem;
+      border-left: 3px solid #d4a017; border-radius: 4px;
+      font-size: 0.9rem; color: var(--fg-soft); line-height: 1.5;
+    }
+    .conv-judge.judge-good { border-left-color: var(--good); }
+    .conv-judge.judge-mid { border-left-color: #d4a017; }
+    .conv-judge.judge-bad { border-left-color: #d14545; }
+    .conv-empty {
+      color: var(--muted); font-style: italic; font-size: 0.88rem;
+      padding: 0.5rem 0;
     }
 
     /* Phase cards */
