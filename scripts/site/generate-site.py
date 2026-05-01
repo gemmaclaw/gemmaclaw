@@ -1304,6 +1304,28 @@ def generate_self_hosting_page(hw_cards):
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
 def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html=""):
+    # COMING SOON: Do NOT remove this block until Frank explicitly approves
+    # the new benchmark results. The old results had wrong GPU detection and
+    # incomplete test explanations. PR #69 added this, PR #71 removed it.
+    # Frank directive: keep coming soon until proper benchmarks are ready.
+    _BENCHMARKS_COMING_SOON = True  # Set to False when new benchmarks are approved
+    if _BENCHMARKS_COMING_SOON:
+        body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
+        <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
+          <div style="border:2px dashed var(--border);border-radius:16px;background:var(--bg-elev);padding:4rem 2rem;max-width:700px;margin:0 auto">
+            <h2 style="font-size:2rem;margin-bottom:1rem">Benchmarks Coming Soon</h2>
+            <p style="color:var(--muted);font-size:1.1rem;max-width:600px;margin:0 auto 2rem">We are rebuilding the benchmark suite from the ground up with full transparency into what each test measures and how models perform.</p>
+            <div style="text-align:left;max-width:500px;margin:0 auto">
+              <div style="padding:0.5rem 0;color:var(--fg-soft)">All Gemma 4 models tested on RTX 3090</div>
+              <div style="padding:0.5rem 0;color:var(--fg-soft)">Full conversation viewer: see prompt, response, and judge scoring</div>
+              <div style="padding:0.5rem 0;color:var(--fg-soft)">Clear test explanations: what each test measures and why</div>
+              <div style="padding:0.5rem 0;color:var(--fg-soft)">Models grouped by size class with hardware requirements</div>
+              <div style="padding:0.5rem 0;color:var(--fg-soft)">Speed benchmarks alongside quality scores</div>
+            </div>
+          </div>
+        </section>"""
+        return page_template("Benchmarks", body, active_page="benchmarks.html")
+
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
     <section id="benchmarks">
       <h2>Benchmark Results by Size Class</h2>
