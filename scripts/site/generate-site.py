@@ -904,43 +904,127 @@ def generate_setup_page():
     body = """<div class="breadcrumb"><a href="index.html">Home</a> / Setup Guide</div>
     <section id="setup">
       <h2>Setup Guide</h2>
-      <p>Gemmaclaw detects your hardware, picks the best Gemma model and backend, provisions everything, and starts a local assistant. No manual model shopping.</p>
-      <h3>Prerequisites</h3>
+      <p>Get a Gemma-powered AI agent running in minutes. Three paths depending on your setup: cloud API (fastest), Google Cloud Vertex AI (enterprise), or local hardware (private, no data leaves your machine).</p>
+
+      <h3>Contents</h3>
       <ul class="setup-list">
-        <li>Node.js 22+</li>
-        <li>Docker (recommended, for sandboxed tool execution)</li>
-        <li>For gemma.cpp: cmake, g++ (or clang++), git, HuggingFace token</li>
+        <li><a href="#install" class="inline">Install Gemmaclaw</a></li>
+        <li><a href="#path-gemini" class="inline">Path 1: Gemini API</a> (fastest, no local hardware)</li>
+        <li><a href="#path-vertex" class="inline">Path 2: Vertex AI</a> (enterprise, GCP integration)</li>
+        <li><a href="#path-local" class="inline">Path 3: Local</a> (private, auto-detects your GPU)</li>
+        <li><a href="#after-setup" class="inline">After Setup</a> (create agents, chat, message)</li>
+        <li><a href="#cli-reference" class="inline">CLI Reference</a></li>
+        <li><a href="#troubleshooting" class="inline">Troubleshooting</a></li>
       </ul>
-      <p>No pre-installed Ollama, llama.cpp, or gemma.cpp required. Gemmaclaw manages everything.</p>
-      <h3>Quick Start</h3>
+
+      <h3 id="install">Install Gemmaclaw</h3>
       <div class="code-block"><pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
 cd gemmaclaw
 corepack enable &amp;&amp; pnpm install
 pnpm build
-npm install -g .
+npm install -g .</code></pre></div>
+      <p>Requires Node.js 22+. Docker is recommended for sandboxed tool execution but not required.</p>
 
-# Auto-detect hardware + provision backend
+      <h3 id="path-gemini">Path 1: Gemini API (Cloud, fastest)</h3>
+      <p>Use Google's hosted Gemini API. No local GPU needed, no model downloads. Get an API key from <a href="https://aistudio.google.com/apikey" class="inline">Google AI Studio</a> (free tier available).</p>
+
+      <div class="code-block"><pre><code># Set your API key, then run setup
+export GEMINI_API_KEY=YOUR_KEY
 gemmaclaw setup
 
-# Create a named agent instance
+# Or run setup interactively (will prompt you to choose a provider and enter your key)
+gemmaclaw setup --wizard</code></pre></div>
+
+      <p>Available models: gemma-3-1b-it, gemma-3-4b-it, gemma-3-12b-it, gemma-3-27b-it. The setup wizard recommends the best model for your use case.</p>
+
+      <h3 id="path-vertex">Path 2: Vertex AI (Cloud, enterprise)</h3>
+      <p>For GCP-integrated deployments. Uses your gcloud credentials or a service account. Requires a GCP project with the Vertex AI API enabled.</p>
+
+      <div class="code-block"><pre><code># Prerequisites
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+
+# Interactive setup (prompts for project, region, model)
+gemmaclaw setup --vertex
+
+# Non-interactive with flags
+gemmaclaw setup --vertex \\
+  --vertex-project my-gcp-project \\
+  --vertex-region us-central1 \\
+  --vertex-model gemma-3-27b-it
+
+# With a service account key
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
+
+      <p>For Docker, mount your gcloud credentials:</p>
+      <div class="code-block"><pre><code>docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex</code></pre></div>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--vertex</code></td><td>Enable Vertex AI setup (required)</td></tr>
+          <tr><td><code>--vertex-project &lt;id&gt;</code></td><td>GCP project ID (auto-detected from gcloud if not set)</td></tr>
+          <tr><td><code>--vertex-region &lt;region&gt;</code></td><td>GCP region (default: us-central1)</td></tr>
+          <tr><td><code>--vertex-model &lt;model&gt;</code></td><td>Gemma model (e.g. gemma-3-27b-it)</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="path-local">Path 3: Local (Private, auto-detect hardware)</h3>
+      <p>Run Gemma entirely on your machine. No data leaves your network. Gemmaclaw detects your GPU and RAM, picks the best model, downloads and provisions everything automatically.</p>
+
+      <div class="code-block"><pre><code># Auto-detect everything (recommended)
+gemmaclaw setup
+
+# Advanced: choose backend and model manually
+gemmaclaw setup --advanced
+
+# CI/scripted: non-interactive with defaults
+gemmaclaw setup --non-interactive --accept-risk --no-container</code></pre></div>
+
+      <p><strong>What happens:</strong></p>
+      <ol class="setup-steps">
+        <li><strong>Hardware detection:</strong> probes GPU (NVIDIA CUDA, Apple Metal), CPU, and RAM</li>
+        <li><strong>Tier classification:</strong> maps your hardware to the best Gemma 4 model</li>
+        <li><strong>Provisioning:</strong> installs Ollama (or llama.cpp), pulls the model, runs smoke test</li>
+        <li><strong>Configuration:</strong> writes config with the selected provider and model</li>
+        <li><strong>Verification:</strong> confirms the model responds correctly</li>
+      </ol>
+
+      <p><strong>Supported backends:</strong></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Backend</th><th>Best for</th><th>GPU</th></tr></thead>
+        <tbody>
+          <tr><td>Ollama</td><td>Most users. Managed model server, easy model switching.</td><td>NVIDIA, Apple Silicon</td></tr>
+          <tr><td>llama.cpp</td><td>Advanced users. Raw GGUF, lower overhead, custom quants.</td><td>NVIDIA, CPU-only</td></tr>
+          <tr><td>gemma.cpp</td><td>Gemma 2/3 on CPU. Requires cmake + build tools.</td><td>CPU-only</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--advanced</code></td><td>Interactive wizard for manual backend/model/port selection</td></tr>
+          <tr><td><code>--no-container</code></td><td>Run gateway directly on the host (skip Docker sandbox)</td></tr>
+          <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
+          <tr><td><code>--accept-risk</code></td><td>Required with <code>--non-interactive</code></td></tr>
+          <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="after-setup">After Setup</h3>
+      <div class="code-block"><pre><code># Create a named agent instance
 gemmaclaw create work
 
-# Open chat UI (picks agent interactively if multiple)
+# Open chat UI in your browser
 gemmaclaw chat
 
-# One-shot message
-gemmaclaw message --agent work "hello"</code></pre></div>
-      <h3>What Happens</h3>
-      <ol class="setup-steps">
-        <li><strong>Hardware detection:</strong> probes GPU (vendor, VRAM, Metal), CPU (arch, cores), and RAM</li>
-        <li><strong>Tier classification:</strong> slots your machine into a hardware tier</li>
-        <li><strong>Profile selection:</strong> maps tier to a tested Gemma 4 model, avoiding known issues</li>
-        <li><strong>Provisioning:</strong> downloads Ollama, pulls the model, runs smoke test</li>
-        <li><strong>Configuration:</strong> writes gateway config with local Ollama provider</li>
-        <li><strong>Sandboxing:</strong> when Docker is available, tool execution is containerized</li>
-        <li><strong>Verification:</strong> smoke test confirms the model responds</li>
-      </ol>
-      <h3>CLI Reference</h3>
+# One-shot message from the command line
+gemmaclaw message --agent work "summarize today's news"
+
+# Terminal UI (for SSH sessions)
+gemmaclaw tui</code></pre></div>
+      <h3 id="cli-reference">CLI Reference</h3>
       <p>Global options available on all commands:</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Option</th><th>Description</th></tr></thead>
@@ -1252,52 +1336,7 @@ gemmaclaw config validate
 gemmaclaw configure</code></pre></div>
       <p>Named profiles (<code>--profile mytest</code>) isolate all state under <code>~/.openclaw-mytest/</code>, useful for testing or running multiple instances.</p>
 
-      <h3>Gemini API (Cloud, simplest)</h3>
-      <p>The fastest way to get started without local hardware. Use Google's hosted Gemini API with an API key from <a href="https://aistudio.google.com/apikey" class="inline">AI Studio</a>.</p>
-      <div class="code-block"><pre><code># Option 1: Pass the API key directly
-gemmaclaw onboard --auth-choice gemini-api-key --gemini-api-key YOUR_API_KEY
-
-# Option 2: Set as environment variable
-export GEMINI_API_KEY=YOUR_API_KEY
-gemmaclaw onboard --auth-choice gemini-api-key
-
-# Option 3: Interactive setup (will prompt for key)
-gemmaclaw onboard</code></pre></div>
-      <p>Available Gemma models via Gemini API: gemma-3-1b-it, gemma-3-4b-it, gemma-3-12b-it, gemma-3-27b-it. No local GPU required.</p>
-
-      <h3>Vertex AI (Cloud, enterprise)</h3>
-      <p>For enterprise or GCP-integrated deployments. Run Gemma models on Google Cloud Vertex AI with gcloud authentication or a service account.</p>
-      <div class="code-block"><pre><code># Prerequisites
-# 1. Install gcloud CLI: https://cloud.google.com/sdk/docs/install
-# 2. Enable Vertex AI API in your GCP project
-
-# Authenticate with gcloud (user account)
-gcloud auth application-default login
-gcloud config set project YOUR_PROJECT_ID
-
-# Set up gemmaclaw with Vertex AI
-gemmaclaw setup --vertex
-
-# Non-interactive with all flags
-gemmaclaw setup --vertex \\
-  --vertex-project my-project \\
-  --vertex-region us-central1 \\
-  --vertex-model gemma-3-27b-it
-
-# With service account (set env var, then run setup)
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
-gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
-      <p>The setup verifies credentials, tests Vertex AI connectivity, and configures the provider. Supports user accounts (gcloud CLI) and service accounts (JSON key file).</p>
-      <p>For Docker mode, mount your credentials:</p>
-      <div class="code-block"><pre><code># User account (gcloud)
-docker run -v ~/.config/gcloud:/root/.config/gcloud gemmaclaw setup --vertex
-
-# Service account
-docker run -v /path/to/key.json:/key.json -e GOOGLE_APPLICATION_CREDENTIALS=/key.json \\
-  gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
-      <p>Access tokens from gcloud expire hourly. Run <code>gemmaclaw setup --vertex</code> again to refresh. Service accounts with <code>GOOGLE_APPLICATION_CREDENTIALS</code> auto-refresh.</p>
-
-      <h3>Troubleshooting</h3>
+      <h3 id="troubleshooting">Troubleshooting</h3>
       <ul class="setup-list">
         <li><strong>Ollama download fails:</strong> check network. Binary comes from GitHub releases.</li>
         <li><strong>llama.cpp server won't start:</strong> verify model at <code>~/.gemmaclaw/models/llama-cpp/</code>. Re-run <code>gemmaclaw provision --backend llama-cpp</code>.</li>
