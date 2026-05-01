@@ -389,26 +389,47 @@ export async function dispatchTask(
     fs.mkdirSync(path.join(ocDir, "agents/main/agent"), { recursive: true });
     fs.mkdirSync(path.join(ocDir, "workspace/memory"), { recursive: true });
 
-    // Minimal valid gemmaclaw config with model configured
-    const providerPrefix = config.backend === "llama-cpp" ? "llama-cpp" : "ollama";
-    const benchConfigData = {
+    // Minimal valid gemmaclaw config with model configured.
+    // For llama.cpp: use the openai provider pointed at llama-server's OpenAI-compatible API.
+    // For ollama: use the ollama provider directly.
+    const isLlamaCpp = config.backend === "llama-cpp";
+    const providerPrefix = isLlamaCpp ? "openai" : "ollama";
+    const benchConfigData: Record<string, unknown> = {
       agents: {
         defaults: {
           model: `${providerPrefix}/${config.model}`,
         },
       },
     };
+    // For llama.cpp, configure the openai provider to point at llama-server
+    if (isLlamaCpp) {
+      benchConfigData.models = {
+        providers: {
+          openai: {
+            baseUrl: config.llamaCppUrl + "/v1",
+            models: [
+              {
+                id: config.model,
+                name: config.model,
+                api: "openai-completions",
+              },
+            ],
+          },
+        },
+      };
+    }
     fs.writeFileSync(path.join(ocDir, "openclaw.json"), JSON.stringify(benchConfigData, null, 2));
 
-    // Ollama doesn't need real auth but gemmaclaw requires an auth profile entry
+    // Auth profile: ollama needs a dummy key, openai (llama.cpp) needs a dummy key too
+    const authProvider = isLlamaCpp ? "openai" : "ollama";
     fs.writeFileSync(
       path.join(ocDir, "agents/main/agent/auth-profiles.json"),
       JSON.stringify({
         version: 1,
         profiles: {
-          "ollama:default": {
+          [`${authProvider}:default`]: {
             type: "token",
-            provider: "ollama",
+            provider: authProvider,
             token: "benchmark-dummy-key",
           },
         },
@@ -735,7 +756,7 @@ export async function runAgentBenchmark(
       log(`  ${config.backend} is available`);
     } catch (err) {
       throw new Error(
-        `${config.backend} not responding at ${backendUrl}. ` + `Start ${config.backend} first.`,
+        `${config.backend} not responding at ${backendUrl}. Start ${config.backend} first.`,
         { cause: err },
       );
     }
