@@ -283,9 +283,15 @@ export async function dispatchTask(
     config.taskTimeoutSeconds > 0 ? config.taskTimeoutSeconds * 1000 : Number.MAX_SAFE_INTEGER;
   const idleMs = config.idleTimeoutSeconds * 1000;
 
-  // Send message to gateway via CLI
+  // Send message to gateway via CLI.
+  // Resolve gemmaclaw binary: prefer GEMMACLAW_BIN env, then check common locations.
+  const gemmaclawBin =
+    process.env.GEMMACLAW_BIN ??
+    (fs.existsSync("/app/gemmaclaw.mjs") ? "node /app/gemmaclaw.mjs" : "gemmaclaw");
+  const binParts = gemmaclawBin.split(" ");
+
   const args = [
-    "gemmaclaw",
+    ...binParts,
     "agent",
     "--local",
     "--session-id",
