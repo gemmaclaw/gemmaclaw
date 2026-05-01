@@ -243,9 +243,8 @@ export async function collectMetadata(
 
 /** Seed mock gog state before a benchmark run. */
 export function seedMockGog(seedScript?: string): void {
-  const script =
-    seedScript ??
-    path.resolve(import.meta.dirname ?? ".", "../../../../scripts/benchmark/seed-mock-gog.py");
+  // Find repo root from cwd (pnpm sets cwd to repo root)
+  const script = seedScript ?? path.resolve(process.cwd(), "scripts/benchmark/seed-mock-gog.py");
   if (!fs.existsSync(script)) {
     throw new Error(`Mock gog seed script not found: ${script}`);
   }
