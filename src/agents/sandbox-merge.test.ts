@@ -50,7 +50,9 @@ describe("sandbox config merges", () => {
           },
         },
         assert: (resolved: ReturnType<typeof resolveSandboxDockerConfig>) => {
+          const sharedBind = `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/shared`;
           expect(resolved.binds).toEqual([
+            sharedBind,
             "/var/run/docker.sock:/var/run/docker.sock",
             "/home/user/source:/source:rw",
           ]);
@@ -64,7 +66,8 @@ describe("sandbox config merges", () => {
           agentDocker: {},
         },
         assert: (resolved: ReturnType<typeof resolveSandboxDockerConfig>) => {
-          expect(resolved.binds).toBeUndefined();
+          const sharedBind = `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/shared`;
+          expect(resolved.binds).toEqual([sharedBind]);
         },
       },
       {
@@ -79,7 +82,8 @@ describe("sandbox config merges", () => {
           },
         },
         assert: (resolved: ReturnType<typeof resolveSandboxDockerConfig>) => {
-          expect(resolved.binds).toEqual(["/var/run/docker.sock:/var/run/docker.sock"]);
+          const sharedBind = `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/shared`;
+          expect(resolved.binds).toEqual([sharedBind, "/var/run/docker.sock:/var/run/docker.sock"]);
         },
       },
       {

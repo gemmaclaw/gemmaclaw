@@ -328,6 +328,15 @@ export async function setupGemmaCommand(
 
       if (enableSandbox) {
         runtime.log(`  Sandbox: Docker (tools run in isolated containers)`);
+        // Create shared directory for host-container file exchange
+        const sharedDir = path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
+        try {
+          const { mkdirSync } = await import("node:fs");
+          mkdirSync(sharedDir, { recursive: true });
+          runtime.log(`  Shared: ${sharedDir} (mounted at /shared in containers)`);
+        } catch {
+          runtime.log(`  Shared: could not create ${sharedDir}`);
+        }
       } else {
         runtime.log(`  Sandbox: off (tools run on host)`);
       }
