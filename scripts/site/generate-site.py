@@ -928,15 +928,12 @@ npm install -g .</code></pre></div>
       <h3 id="path-gemini">Path 1: Gemini API (Cloud, fastest)</h3>
       <p>Use Google's hosted Gemini API. No local GPU needed, no model downloads. Get an API key from <a href="https://aistudio.google.com/apikey" class="inline">Google AI Studio</a> (free tier available).</p>
 
-      <div class="code-block"><pre><code># Interactive (will prompt for your API key)
+      <div class="code-block"><pre><code># Set your API key, then run setup
+export GEMINI_API_KEY=YOUR_KEY
 gemmaclaw setup
 
-# Or pass the key directly
-gemmaclaw setup --auth-choice gemini-api-key --gemini-api-key YOUR_KEY
-
-# Or set as environment variable
-export GEMINI_API_KEY=YOUR_KEY
-gemmaclaw setup</code></pre></div>
+# Or run setup interactively (will prompt you to choose a provider and enter your key)
+gemmaclaw setup --wizard</code></pre></div>
 
       <p>Available models: gemma-3-1b-it, gemma-3-4b-it, gemma-3-12b-it, gemma-3-27b-it. The setup wizard recommends the best model for your use case.</p>
 
