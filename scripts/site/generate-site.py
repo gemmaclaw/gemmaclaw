@@ -831,6 +831,7 @@ NAV_ITEMS = [
     ("Setup", "setup.html", False),
     ("Self-Hosting", "self-hosting.html", False),
     ("Benchmarks", "benchmarks.html", False),
+    ("Run Benchmarks", "benchmarking.html", False),
     ("Community", "community.html", False),
     ("Goals", "goals.html", False),
     ("GitHub", "https://github.com/gemmaclaw/gemmaclaw", True),
@@ -1476,6 +1477,132 @@ def generate_goals_page():
     return page_template("Goals & Roadmap", body, active_page="goals.html")
 
 
+def generate_benchmarking_page():
+    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Run Benchmarks</div>
+    <section>
+      <h2>Running Gemmaclaw Benchmarks</h2>
+      <p>Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as AI agents with real tool use. The harness dispatches 22 complex agent tasks, captures full conversations including tool calls, and saves structured results ready for PR submission.</p>
+      <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). The model and backend are auto-detected from your hardware, or you can specify them explicitly.</p>
+
+      <h3>Quick Start</h3>
+      <div class="code-block"><pre><code># 1. Set up gemmaclaw (auto-detects hardware, installs backend, pulls model)
+gemmaclaw setup
+
+# 2. List all benchmark tasks
+pnpm benchmark agent list
+
+# 3. Run all 22 agentic tasks (model auto-selected from your hardware)
+pnpm benchmark agent
+
+# 4. Run with a specific model
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
+
+# 5. Run a single task (useful for debugging or rerunning failures)
+pnpm benchmark agent --task email_triage
+
+# 6. Mock mode: test the harness without a real model (instant)
+pnpm benchmark agent --mock</code></pre></div>
+
+      <h3>Backends</h3>
+      <p>The benchmark supports two inference backends:</p>
+      <div class="cli-cmd-card">
+        <h4>Ollama (default)</h4>
+        <p>Managed model server. Supports all Gemma 4 models including multimodal. Installed automatically by <code>gemmaclaw setup</code>.</p>
+        <div class="code-block"><pre><code>pnpm benchmark agent --model gemma4:e4b
+pnpm benchmark agent --model gemma4:31b --ollama-url http://192.168.1.50:11434</code></pre></div>
+      </div>
+      <div class="cli-cmd-card">
+        <h4>llama.cpp</h4>
+        <p>OpenAI-compatible API via llama-server. Lower overhead, useful for CPU-only systems and custom quantizations.</p>
+        <div class="code-block"><pre><code># Start llama-server (requires a GGUF model file)
+llama-server -m /path/to/model.gguf --port 8080 --n-gpu-layers 99
+
+# Run benchmark against it
+pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http://127.0.0.1:8080</code></pre></div>
+      </div>
+
+      <h3>Configuration Options</h3>
+      <div class="table-wrap"><table>
+        <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+        <tr><td><code>--model &lt;name&gt;</code></td><td>(auto from hardware)</td><td>Model to test (e.g. gemma4:e4b, gemma4:31b)</td></tr>
+        <tr><td><code>--backend &lt;type&gt;</code></td><td>ollama</td><td>Backend: ollama or llama-cpp</td></tr>
+        <tr><td><code>--quant &lt;level&gt;</code></td><td>(auto-detected)</td><td>Quantization to record (Q4_K_M, Q8_0, FP16)</td></tr>
+        <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking level (off, low, medium, high)</td></tr>
+        <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name)</td></tr>
+        <tr><td><code>--task &lt;id&gt;</code></td><td>(all tasks)</td><td>Run a single task by exact id</td></tr>
+        <tr><td><code>--ollama-url &lt;url&gt;</code></td><td>http://127.0.0.1:11434</td><td>Ollama API URL</td></tr>
+        <tr><td><code>--llama-cpp-url &lt;url&gt;</code></td><td>http://127.0.0.1:8080</td><td>llama.cpp server URL</td></tr>
+        <tr><td><code>--task-timeout &lt;sec&gt;</code></td><td>600</td><td>Max seconds per task (0 = unlimited)</td></tr>
+        <tr><td><code>--idle-timeout &lt;sec&gt;</code></td><td>30</td><td>Idle seconds before task considered done</td></tr>
+        <tr><td><code>--context-length &lt;n&gt;</code></td><td>(model default)</td><td>Context window size</td></tr>
+        <tr><td><code>--output-dir &lt;dir&gt;</code></td><td>benchmark-results</td><td>Output directory</td></tr>
+        <tr><td><code>--mock</code></td><td>off</td><td>Mock mode: no model, instant pass</td></tr>
+      </table></div>
+
+      <h3>The 22 Agent Tasks</h3>
+      <p>Tasks evaluate Gemma models as AI agents. Each task sends a natural language request, the agent decides which tools to call, interprets results, and takes follow-up actions. The full conversation is captured for review.</p>
+
+      <div class="table-wrap"><table>
+        <tr><th>Difficulty</th><th>Tasks</th><th>Points</th><th>Categories</th></tr>
+        <tr><td>Medium</td><td>5</td><td>53</td><td>Email, calendar, task management, memory</td></tr>
+        <tr><td>Hard</td><td>5</td><td>110</td><td>Email triage, multi-meeting scheduling, client logistics, event coordination</td></tr>
+        <tr><td>Very Hard</td><td>12</td><td>335</td><td>Phishing detection, error recovery, data reconciliation, multi-person coordination, financial synthesis, context chaining</td></tr>
+        <tr><td><strong>Total</strong></td><td><strong>22</strong></td><td><strong>498</strong></td><td></td></tr>
+      </table></div>
+
+      <h3>How It Works</h3>
+      <ol class="setup-steps">
+        <li><strong>Hardware detection:</strong> The harness uses the same model catalog as <code>gemmaclaw setup</code> to auto-select the best model for your hardware. Override with <code>--model</code> if desired.</li>
+        <li><strong>Seed mock tools:</strong> Before each task, a realistic workspace is created with emails, calendar events, contacts, and tasks. Professional/workplace themed.</li>
+        <li><strong>Isolated environment:</strong> Each task runs in a fresh gemmaclaw home directory. No state leaks between tasks.</li>
+        <li><strong>Dispatch task:</strong> The task prompt is sent via <code>gemmaclaw agent --local</code>. The agent reads emails, checks calendars, creates tasks, sends emails using mock tools.</li>
+        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, reasoning step, and follow-up action.</li>
+        <li><strong>Save results:</strong> Rich metadata (hardware, model, quant, git SHA, Ollama model info) plus per-task transcripts and evaluation stubs.</li>
+        <li><strong>Evaluation (separate step):</strong> Results are reviewed against grading criteria. Scores are added to the evaluation files and published to the site.</li>
+      </ol>
+
+      <h3>Results Directory</h3>
+      <div class="code-block"><pre><code>benchmark-results/
+  runs/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
+    metadata.json        # Hardware, model, quant, config, git SHA
+    results.json         # Per-task conversations, tool calls, stats
+    transcripts/         # Human-readable per-task transcripts
+    RESULTS.md           # Markdown summary
+  evaluations/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
+    &lt;task-id&gt;.json       # Grading criteria + evaluation scores</code></pre></div>
+
+      <h3>Metadata Captured</h3>
+      <ul class="setup-list">
+        <li><strong>Hardware:</strong> GPU name, VRAM, CPU model, core count, total RAM</li>
+        <li><strong>Model:</strong> Name, parameter count, quantization level, format (from Ollama API)</li>
+        <li><strong>Config:</strong> Backend type, thinking level, context length, URLs</li>
+        <li><strong>Environment:</strong> Git SHA, Node.js version, OS/platform, timestamps</li>
+      </ul>
+
+      <h3>Submitting Results</h3>
+      <ol class="setup-steps">
+        <li><strong>Run the benchmark</strong> on your hardware</li>
+        <li><strong>Check the results</strong> in <code>benchmark-results/runs/</code></li>
+        <li><strong>Open a PR</strong> adding your results directory to the gemmaclaw repo</li>
+        <li>Results will be reviewed, evaluated, and published to the site</li>
+      </ol>
+
+      <h3>Smoke Test</h3>
+      <p>After making changes to the benchmark harness, run the smoke test to verify everything works:</p>
+      <div class="code-block"><pre><code># Mock only (instant, no model needed)
+bash scripts/benchmark/smoke-test.sh
+
+# Full test: mock + Ollama + llama.cpp
+bash scripts/benchmark/smoke-test.sh --real</code></pre></div>
+
+      <h3>Prompt-Response Mode (Legacy)</h3>
+      <p>The original prompt-response benchmark is still available. It sends isolated prompts to the backend and checks text output (no agent loop, no tool calling).</p>
+      <div class="code-block"><pre><code>pnpm benchmark --local --model gemma4:31b
+pnpm benchmark --mock</code></pre></div>
+    </section>"""
+    return page_template("Run Benchmarks", body, active_page="benchmarking.html")
+
+
 def generate_site():
     results = load_benchmark_results()
     best = best_results(results)
@@ -1494,6 +1621,7 @@ def generate_site():
         "setup.html": generate_setup_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
         "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html),
+        "benchmarking.html": generate_benchmarking_page(),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
         "goals.html": generate_goals_page(),
     }
