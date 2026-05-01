@@ -27,6 +27,8 @@ export type VertexConfig = {
   accessToken?: string;
   /** Path to ADC credentials file. */
   adcPath?: string;
+  /** Path to service account JSON key file. */
+  serviceAccountKeyPath?: string;
 };
 
 export type VertexSetupResult = {
@@ -166,15 +168,25 @@ export async function interactiveVertexSetup(opts?: {
 }): Promise<VertexSetupResult> {
   const log = console.log;
 
-  // 1. Check gcloud
-  log("\nChecking gcloud CLI...");
-  if (!isGcloudInstalled()) {
-    return {
-      ok: false,
-      error: "gcloud CLI not found. Install it: https://cloud.google.com/sdk/docs/install",
-    };
+  // 1. Check auth method: service account key OR gcloud CLI
+  const saKeyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const useServiceAccount = saKeyPath && fs.existsSync(saKeyPath);
+
+  if (useServiceAccount) {
+    log(`\nUsing service account key: ${saKeyPath}`);
+  } else {
+    log("\nChecking gcloud CLI...");
+    if (!isGcloudInstalled()) {
+      return {
+        ok: false,
+        error:
+          "gcloud CLI not found and no GOOGLE_APPLICATION_CREDENTIALS set.\n" +
+          "Either: install gcloud (https://cloud.google.com/sdk/docs/install)\n" +
+          "Or: set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json",
+      };
+    }
+    log("  gcloud found");
   }
-  log("  gcloud found");
 
   // 2. Get/verify project
   let project = opts?.project ?? getGcloudProject();
@@ -197,12 +209,37 @@ export async function interactiveVertexSetup(opts?: {
 
   // 4. Get access token
   log("Getting access token...");
-  const accessToken = getGcloudAccessToken();
-  if (!accessToken) {
-    return {
-      ok: false,
-      error: "Failed to get access token. Run: gcloud auth application-default login",
-    };
+  let accessToken: string | null = null;
+
+  if (useServiceAccount) {
+    // Service accounts: use gcloud with the key file, or exchange JWT manually
+    try {
+      accessToken =
+        execSync(
+          `gcloud auth print-access-token --impersonate-service-account=$(python3 -c "import json; print(json.load(open('${saKeyPath}'))['client_email'])")`,
+          { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 15_000 },
+        ).trim() || null;
+    } catch {
+      // Fallback: try plain gcloud which might already be authed with the SA
+      accessToken = getGcloudAccessToken();
+    }
+    if (!accessToken) {
+      return {
+        ok: false,
+        error:
+          "Failed to get access token from service account. " +
+          "Ensure gcloud is installed and run: gcloud auth activate-service-account --key-file=" +
+          saKeyPath,
+      };
+    }
+  } else {
+    accessToken = getGcloudAccessToken();
+    if (!accessToken) {
+      return {
+        ok: false,
+        error: "Failed to get access token. Run: gcloud auth application-default login",
+      };
+    }
   }
   log("  Access token obtained");
 
