@@ -1251,10 +1251,10 @@ def generate_self_hosting_page(hw_cards):
     scripts = """
     const searchInput = document.getElementById('hw-search');
     const hwCards = document.querySelectorAll('#hw-cards .hw-card');
-    if (searchInput) {{ searchInput.addEventListener('input', function() {{
+    if (searchInput) { searchInput.addEventListener('input', function() {
       const q = this.value.toLowerCase().trim();
-      hwCards.forEach(card => {{ card.style.display = (!q || (card.getAttribute('data-search') || '').includes(q)) ? '' : 'none'; }});
-    }}); }}
+      hwCards.forEach(card => { card.style.display = (!q || (card.getAttribute('data-search') || '').includes(q)) ? '' : 'none'; });
+    }); }
 """
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
@@ -1291,21 +1291,21 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
       {task_explanations_html}
     </section>"""
     scripts = """
-    document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {{
+    document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {
       row.style.cursor = 'pointer';
-      row.addEventListener('click', function() {{
+      row.addEventListener('click', function() {
         const model = this.querySelector('td strong')?.textContent || '';
         const backend = this.querySelectorAll('td')[1]?.textContent || '';
         const id = (model + '-' + backend).toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const detail = document.getElementById('detail-' + id);
-        if (detail) {{
+        if (detail) {
           const isVisible = detail.style.display !== 'none';
           document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
           detail.style.display = isVisible ? 'none' : 'block';
-          if (!isVisible) detail.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-        }}
-      }});
-    }});
+          if (!isVisible) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
     document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
 """
     return page_template("Benchmark Results", body, active_page="benchmarks.html", extra_scripts=scripts)
@@ -1331,32 +1331,32 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     const searchInput = document.getElementById('community-search');
     const crCards = document.querySelectorAll('#community-cards .cr-card');
     let activeCat = 'all';
-    function applyFilters() {{
+    function applyFilters() {
       const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
-      crCards.forEach(card => {{
+      crCards.forEach(card => {
         const text = card.getAttribute('data-search') || '';
         const cats = card.getAttribute('data-cats') || '';
         card.style.display = ((!q || text.includes(q)) && (activeCat === 'all' || cats.split(' ').includes(activeCat))) ? '' : 'none';
-      }});
+      });
       const container = document.getElementById('community-cards');
-      if (container) {{
+      if (container) {
         const visible = container.querySelectorAll('.cr-card:not([style*="display: none"])');
         let noResults = container.querySelector('.no-results');
-        if (visible.length === 0) {{
-          if (!noResults) {{ noResults = document.createElement('p'); noResults.className = 'no-results'; noResults.textContent = 'No reports match your filters.'; container.appendChild(noResults); }}
+        if (visible.length === 0) {
+          if (!noResults) { noResults = document.createElement('p'); noResults.className = 'no-results'; noResults.textContent = 'No reports match your filters.'; container.appendChild(noResults); }
           noResults.style.display = '';
-        }} else if (noResults) {{ noResults.style.display = 'none'; }}
-      }}
-    }}
-    if (searchInput) {{ searchInput.addEventListener('input', applyFilters); }}
-    document.querySelectorAll('.cat-filter-btn').forEach(btn => {{
-      btn.addEventListener('click', function() {{
+        } else if (noResults) { noResults.style.display = 'none'; }
+      }
+    }
+    if (searchInput) { searchInput.addEventListener('input', applyFilters); }
+    document.querySelectorAll('.cat-filter-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
         document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         activeCat = this.getAttribute('data-cat');
         applyFilters();
-      }});
-    }});
+      });
+    });
 """ if community_count else ""
     return page_template("Community", body, active_page="community.html", extra_scripts=scripts)
 
