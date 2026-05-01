@@ -27,7 +27,12 @@ import process from "node:process";
 import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/benchmark-gemma.js";
 import { defaultRuntime } from "../../runtime.js";
 import { detectHardware } from "../provision/hardware.js";
-import { runAgentBenchmark, saveResults, type AgentBenchmarkConfig } from "./agent-runner.js";
+import {
+  autoSelectModel,
+  runAgentBenchmark,
+  saveResults,
+  type AgentBenchmarkConfig,
+} from "./agent-runner.js";
 import { AGENT_BENCHMARK_TASKS } from "./agent-tasks.js";
 
 function parseArgs(argv: string[]) {
@@ -174,14 +179,17 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
 
   const hardware = detectHardware();
 
-  // Build config
-  const backend = ((opts.backend as string) ?? "ollama") as "ollama" | "llama-cpp";
+  // Auto-select model and backend if not specified
+  const autoSelected = autoSelectModel(hardware);
+  const backend = ((opts.backend as string) ?? autoSelected.backend) as "ollama" | "llama-cpp";
+  const model = (opts.model as string) ?? autoSelected.model;
+
   const config: AgentBenchmarkConfig = {
     gatewayUrl: (opts.gatewayUrl as string) ?? "http://localhost:3001",
     backend,
     ollamaUrl: (opts.ollamaUrl as string) ?? "http://127.0.0.1:11434",
     llamaCppUrl: (opts.llamaCppUrl as string) ?? "http://127.0.0.1:8080",
-    model: (opts.model as string) ?? "gemma3:4b",
+    model,
     quant: opts.quant as string | undefined,
     thinkingLevel: opts.thinking as string | undefined,
     taskTimeoutSeconds: opts.taskTimeout ? Number.parseInt(String(opts.taskTimeout), 10) : 600,

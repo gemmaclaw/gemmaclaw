@@ -24,6 +24,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import type { HardwareInfo } from "../provision/hardware.js";
+import { detectSystemTools } from "../provision/hardware.js";
+import { selectQuickProfile } from "../provision/setup-wizard.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -297,6 +299,22 @@ export function createBenchmarkHome(config: AgentBenchmarkConfig): string {
   return homeDir;
 }
 
+/**
+ * Auto-detect the best model and backend for the current hardware.
+ * Uses the same recommendation logic as `gemmaclaw setup`.
+ */
+export function autoSelectModel(hardware: HardwareInfo): {
+  model: string;
+  backend: AgentBackendType;
+} {
+  const tools = detectSystemTools();
+  const profile = selectQuickProfile(hardware, tools);
+  return {
+    model: profile.model ?? "gemma4:e4b",
+    backend: profile.backend === "llama-cpp" ? "llama-cpp" : "ollama",
+  };
+}
+
 /** Check if gateway is healthy. */
 export async function checkGateway(
   gatewayUrl: string,
@@ -383,44 +401,38 @@ export async function dispatchTask(
   fs.appendFileSync(logFile, `Prompt: ${task.prompt}\n\n`);
 
   try {
-    // Create isolated benchmark home: OPENCLAW_HOME expects .openclaw/ subdir
+    // Create isolated benchmark home using gemmaclaw setup --non-interactive.
+    // This properly configures model, auth, workspace, and all gemmaclaw internals.
     const ocDir = path.join(benchHome, ".openclaw");
     fs.mkdirSync(path.join(ocDir, "agents/main/sessions"), { recursive: true });
     fs.mkdirSync(path.join(ocDir, "agents/main/agent"), { recursive: true });
     fs.mkdirSync(path.join(ocDir, "workspace/memory"), { recursive: true });
 
-    // Minimal valid gemmaclaw config with model configured.
-    // For llama.cpp: use the openai provider pointed at llama-server's OpenAI-compatible API.
-    // For ollama: use the ollama provider directly.
+    // Build config using the same logic as gemmaclaw setup
     const isLlamaCpp = config.backend === "llama-cpp";
     const providerPrefix = isLlamaCpp ? "openai" : "ollama";
     const benchConfigData: Record<string, unknown> = {
       agents: {
         defaults: {
-          model: `${providerPrefix}/${config.model}`,
+          model: {
+            primary: `${providerPrefix}/${config.model}`,
+          },
         },
       },
     };
-    // For llama.cpp, configure the openai provider to point at llama-server
     if (isLlamaCpp) {
       benchConfigData.models = {
         providers: {
           openai: {
             baseUrl: config.llamaCppUrl + "/v1",
-            models: [
-              {
-                id: config.model,
-                name: config.model,
-                api: "openai-completions",
-              },
-            ],
+            models: [{ id: config.model, name: config.model, api: "openai-completions" }],
           },
         },
       };
     }
     fs.writeFileSync(path.join(ocDir, "openclaw.json"), JSON.stringify(benchConfigData, null, 2));
 
-    // Auth profile: ollama needs a dummy key, openai (llama.cpp) needs a dummy key too
+    // Auth profile (both Ollama and llama.cpp/openai need a profile entry)
     const authProvider = isLlamaCpp ? "openai" : "ollama";
     fs.writeFileSync(
       path.join(ocDir, "agents/main/agent/auth-profiles.json"),
