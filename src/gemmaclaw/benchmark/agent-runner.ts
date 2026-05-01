@@ -138,6 +138,14 @@ export type AgentBenchmarkResult = {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+function which(cmd: string): string | null {
+  try {
+    return execSync(`which ${cmd}`, { encoding: "utf-8" }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function httpGet(url: string, timeoutMs = 10_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
@@ -290,11 +298,31 @@ export function createBenchmarkHome(config: AgentBenchmarkConfig): string {
 }
 
 /** Check if gateway is healthy. */
-export async function checkGateway(gatewayUrl: string): Promise<boolean> {
+export async function checkGateway(
+  gatewayUrl: string,
+  log?: (msg: string) => void,
+): Promise<boolean> {
   try {
     const resp = await httpGet(`${gatewayUrl}/healthz`, 5_000);
-    return resp.includes("ok");
-  } catch {
+    // Try JSON parse first, fall back to checking HTTP 200 response
+    try {
+      const data = JSON.parse(resp);
+      const healthy = data.ok === true || data.status === "live" || data.status === "ok";
+      if (log) {
+        log(`  Gateway healthy: ${healthy} (${JSON.stringify(data).slice(0, 80)})`);
+      }
+      return healthy;
+    } catch {
+      // Non-JSON response, any 200 response means healthy
+      if (log) {
+        log(`  Gateway responded (non-JSON): ${resp.slice(0, 80)}`);
+      }
+      return true;
+    }
+  } catch (e) {
+    if (log) {
+      log(`  Gateway unreachable: ${e instanceof Error ? e.message : String(e)}`);
+    }
     return false;
   }
 }
@@ -321,15 +349,18 @@ export async function dispatchTask(
     config.taskTimeoutSeconds > 0 ? config.taskTimeoutSeconds * 1000 : Number.MAX_SAFE_INTEGER;
   const idleMs = config.idleTimeoutSeconds * 1000;
 
-  // Send message to gateway via CLI.
-  // Resolve gemmaclaw binary: prefer GEMMACLAW_BIN env, then check common locations.
+  // Create isolated benchmark home for this task
+  const benchHome = path.join(os.tmpdir(), `gemmaclaw-bench-${sessionId}`);
+
+  // Dispatch via gemmaclaw CLI
   const gemmaclawBin =
     process.env.GEMMACLAW_BIN ??
-    (fs.existsSync("/app/gemmaclaw.mjs") ? "node /app/gemmaclaw.mjs" : "gemmaclaw");
-  const binParts = gemmaclawBin.split(" ");
+    (fs.existsSync("/app/gemmaclaw.mjs")
+      ? "node /app/gemmaclaw.mjs"
+      : (which("gemmaclaw") ?? "gemmaclaw"));
 
   const args = [
-    ...binParts,
+    gemmaclawBin,
     "agent",
     "--local",
     "--session-id",
@@ -341,45 +372,117 @@ export async function dispatchTask(
     args.push("--thinking", config.thinkingLevel);
   }
 
+  log(`  Dispatching: ${args[0]} agent --local --session-id ${sessionId}`);
+
+  // Write dispatch command to log file for debugging
+  const logDir = path.join(process.cwd(), "benchmark-results", ".logs");
+  fs.mkdirSync(logDir, { recursive: true });
+  const logFile = path.join(logDir, `${sessionId}.log`);
+  fs.writeFileSync(logFile, `[${new Date().toISOString()}] Dispatching task: ${task.id}\n`);
+  fs.appendFileSync(logFile, `Command: ${args.join(" ")}\n`);
+  fs.appendFileSync(logFile, `Prompt: ${task.prompt}\n\n`);
+
   try {
+    // Create isolated benchmark home: OPENCLAW_HOME expects .openclaw/ subdir
+    const ocDir = path.join(benchHome, ".openclaw");
+    fs.mkdirSync(path.join(ocDir, "agents/main/sessions"), { recursive: true });
+    fs.mkdirSync(path.join(ocDir, "agents/main/agent"), { recursive: true });
+    fs.mkdirSync(path.join(ocDir, "workspace/memory"), { recursive: true });
+
+    // Minimal valid gemmaclaw config with model configured
+    const providerPrefix = config.backend === "llama-cpp" ? "llama-cpp" : "ollama";
+    const benchConfigData = {
+      agents: {
+        defaults: {
+          model: `${providerPrefix}/${config.model}`,
+        },
+      },
+    };
+    fs.writeFileSync(path.join(ocDir, "openclaw.json"), JSON.stringify(benchConfigData, null, 2));
+
+    // Ollama doesn't need real auth but gemmaclaw requires an auth profile entry
+    fs.writeFileSync(
+      path.join(ocDir, "agents/main/agent/auth-profiles.json"),
+      JSON.stringify({
+        version: 1,
+        profiles: {
+          "ollama:default": {
+            type: "token",
+            provider: "ollama",
+            token: "benchmark-dummy-key",
+          },
+        },
+      }),
+    );
+
+    // Copy mock gog state into the isolated home
+    const gogStateDir = path.join(benchHome, ".config/gogcli/state");
+    fs.mkdirSync(gogStateDir, { recursive: true });
+    const defaultGogState = path.join(process.env.HOME ?? "/root", ".config/gogcli/state");
+    if (fs.existsSync(defaultGogState)) {
+      for (const file of fs.readdirSync(defaultGogState)) {
+        fs.copyFileSync(path.join(defaultGogState, file), path.join(gogStateDir, file));
+      }
+    }
+
     const child = spawn(args[0], args.slice(1), {
       env: {
         ...process.env,
-        ...(config.gemmaclawHome ? { OPENCLAW_HOME: config.gemmaclawHome } : {}),
+        OPENCLAW_HOME: benchHome,
+        XDG_CONFIG_HOME: benchHome,
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // Wait for the CLI to finish sending the message
+    // Capture stdout and stderr for debugging
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
+    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
+
     await new Promise<void>((resolve, reject) => {
       child.on("close", (code) => {
+        const stdout = Buffer.concat(stdoutChunks).toString().trim();
+        const stderr = Buffer.concat(stderrChunks).toString().trim();
+        fs.appendFileSync(logFile, `[${new Date().toISOString()}] CLI exited with code ${code}\n`);
+        if (stdout) {
+          fs.appendFileSync(logFile, `STDOUT:\n${stdout}\n\n`);
+        }
+        if (stderr) {
+          fs.appendFileSync(logFile, `STDERR:\n${stderr}\n\n`);
+        }
+
         if (code === 0) {
+          log(`  CLI completed successfully`);
           resolve();
         } else {
-          reject(new Error(`gemmaclaw agent exited with code ${code}`));
+          reject(new Error(`CLI exited ${code}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`));
         }
       });
       child.on("error", reject);
     });
   } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${errMsg}\n`);
     return {
       conversation: [],
       elapsedMs: Date.now() - startMs,
       completionStatus: "error",
-      error: e instanceof Error ? e.message : String(e),
+      error: errMsg,
     };
   }
 
-  // Poll session JSONL for completion
-  const sessionsDir = config.gemmaclawHome
-    ? path.join(config.gemmaclawHome, "agents/main/sessions")
-    : path.join(process.env.HOME ?? "/root", ".openclaw/agents/main/sessions");
-
+  // Read session JSONL. With --local, the CLI blocks until done so the JSONL
+  // is complete when we reach here. We still poll briefly in case of async writes.
+  const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
   const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
 
   let lastLineCount = 0;
   let lastChangeMs = Date.now();
   const conversation: ConversationTurn[] = [];
+
+  // Give the filesystem a moment to flush
+  await new Promise((r) => setTimeout(r, 500));
 
   while (true) {
     const elapsed = Date.now() - startMs;
@@ -404,8 +507,18 @@ export async function dispatchTask(
               const role = msg.role;
               const content = msg.content;
 
-              if (role === "user" && typeof content === "string") {
-                conversation.push({ role: "user", content, timestamp: entry.timestamp });
+              if (role === "user") {
+                if (typeof content === "string") {
+                  conversation.push({ role: "user", content, timestamp: entry.timestamp });
+                } else if (Array.isArray(content)) {
+                  const text = content
+                    .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
+                    .map((b: { text: string }) => b.text)
+                    .join("\n");
+                  if (text) {
+                    conversation.push({ role: "user", content: text, timestamp: entry.timestamp });
+                  }
+                }
               } else if (role === "assistant") {
                 if (typeof content === "string") {
                   conversation.push({ role: "assistant", content, timestamp: entry.timestamp });
@@ -611,17 +724,23 @@ export async function runAgentBenchmark(
   seedMockGog(config.seedScript);
 
   // In mock mode, skip gateway check (no real agent needed)
+  // The benchmark uses `gemmaclaw agent --local` which runs an embedded agent
+  // without needing a gateway. Only check Ollama availability.
   if (!config.mock) {
-    log(`Checking gateway at ${config.gatewayUrl}...`);
-    const healthy = await checkGateway(config.gatewayUrl);
-    if (!healthy) {
+    const backendUrl = config.backend === "llama-cpp" ? config.llamaCppUrl : config.ollamaUrl;
+    log(`Checking ${config.backend} at ${backendUrl}...`);
+    try {
+      const endpoint = config.backend === "llama-cpp" ? "/health" : "/api/tags";
+      await httpGet(`${backendUrl}${endpoint}`, 5_000);
+      log(`  ${config.backend} is available`);
+    } catch (err) {
       throw new Error(
-        `Gateway not responding at ${config.gatewayUrl}. ` +
-          `Start gemmaclaw first: gemmaclaw gateway start`,
+        `${config.backend} not responding at ${backendUrl}. ` + `Start ${config.backend} first.`,
+        { cause: err },
       );
     }
   } else {
-    log("Mock mode: skipping gateway health check");
+    log("Mock mode: skipping backend health check");
   }
 
   // Filter tasks if requested
