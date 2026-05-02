@@ -513,6 +513,17 @@ export async function dispatchTask(
           },
         },
       };
+    } else {
+      // Register the Ollama model explicitly so non-catalog models (custom
+      // quant tags like gemma4-31b-q6k) are resolved by the provider plugin.
+      benchConfigData.models = {
+        providers: {
+          ollama: {
+            baseUrl: config.ollamaUrl,
+            models: [{ id: config.model, name: config.model }],
+          },
+        },
+      };
     }
     fs.writeFileSync(path.join(ocDir, "openclaw.json"), JSON.stringify(benchConfigData, null, 2));
 
@@ -557,6 +568,9 @@ export async function dispatchTask(
       ...process.env,
       OPENCLAW_HOME: benchHome,
       XDG_CONFIG_HOME: benchHome,
+      // The Ollama extension requires OLLAMA_API_KEY to register as a provider.
+      // Any value works for local Ollama; this ensures non-catalog models resolve.
+      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY ?? "ollama-local",
       PATH: `${fakeGogDir}:${process.env.PATH ?? ""}`,
       GEMMACLAW_FAKE_GOG_STATE_DIR: gogStateDir,
       GEMMACLAW_FAKE_GOG_WRITES_DIR: fakeGogWritesDir,
