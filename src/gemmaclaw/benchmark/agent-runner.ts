@@ -346,6 +346,90 @@ export async function checkGateway(
 }
 
 /**
+ * Parse a single session JSONL entry into zero or more ConversationTurn entries.
+ *
+ * Handles both Anthropic-style block types (tool_use / tool_result) and OpenClaw
+ * camelCase variants (toolCall / toolResult), plus top-level role=toolResult
+ * messages emitted by OpenClaw sessions. Skips unrecognized entry types.
+ */
+export function parseSessionEntry(entry: unknown): ConversationTurn[] {
+  const turns: ConversationTurn[] = [];
+  if (!entry || typeof entry !== "object") {
+    return turns;
+  }
+  const e = entry as { message?: unknown; timestamp?: string };
+  const msg = (e.message ?? entry) as { role?: string; content?: unknown };
+  const role = msg?.role;
+  const content = msg?.content;
+  const ts = e.timestamp;
+
+  const blockText = (b: { content?: unknown }): string => {
+    if (typeof b.content === "string") {
+      return b.content;
+    }
+    if (Array.isArray(b.content)) {
+      return b.content.map((c: { text?: string }) => c.text ?? "").join("\n");
+    }
+    return JSON.stringify(b.content);
+  };
+
+  if (role === "user") {
+    if (typeof content === "string") {
+      turns.push({ role: "user", content, timestamp: ts });
+    } else if (Array.isArray(content)) {
+      const text = content
+        .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
+        .map((b: { text: string }) => b.text)
+        .join("\n");
+      if (text) {
+        turns.push({ role: "user", content: text, timestamp: ts });
+      }
+    }
+  } else if (role === "assistant") {
+    if (typeof content === "string") {
+      turns.push({ role: "assistant", content, timestamp: ts });
+    } else if (Array.isArray(content)) {
+      for (const block of content as Array<{
+        type?: string;
+        text?: string;
+        name?: string;
+        input?: unknown;
+        arguments?: unknown;
+        content?: unknown;
+      }>) {
+        if (block.type === "text" && block.text) {
+          turns.push({ role: "assistant", content: block.text, timestamp: ts });
+        } else if (block.type === "tool_use" || block.type === "toolCall") {
+          const toolArgs = (block.input ?? block.arguments ?? {}) as Record<string, unknown>;
+          turns.push({
+            role: "tool_call",
+            content: JSON.stringify(toolArgs),
+            toolName: block.name,
+            toolArgs,
+            timestamp: ts,
+          });
+        } else if (block.type === "tool_result" || block.type === "toolResult") {
+          turns.push({ role: "tool_result", content: blockText(block), timestamp: ts });
+        }
+      }
+    }
+  } else if (role === "toolResult" || role === "tool_result") {
+    if (typeof content === "string") {
+      turns.push({ role: "tool_result", content, timestamp: ts });
+    } else if (Array.isArray(content)) {
+      const text = content
+        .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
+        .map((b: { text: string }) => b.text)
+        .join("\n");
+      if (text) {
+        turns.push({ role: "tool_result", content: text, timestamp: ts });
+      }
+    }
+  }
+  return turns;
+}
+
+/**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
  * Uses `gemmaclaw agent --local` to send the message, then polls the session
@@ -523,56 +607,8 @@ export async function dispatchTask(
           for (const line of lines) {
             try {
               const entry = JSON.parse(line);
-              const msg = entry.message ?? entry;
-              const role = msg.role;
-              const content = msg.content;
-              if (role === "user") {
-                if (typeof content === "string") {
-                  conversation.push({ role: "user", content, timestamp: entry.timestamp });
-                } else if (Array.isArray(content)) {
-                  const text = content
-                    .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
-                    .map((b: { text: string }) => b.text)
-                    .join("\n");
-                  if (text) {
-                    conversation.push({ role: "user", content: text, timestamp: entry.timestamp });
-                  }
-                }
-              } else if (role === "assistant") {
-                if (typeof content === "string") {
-                  conversation.push({ role: "assistant", content, timestamp: entry.timestamp });
-                } else if (Array.isArray(content)) {
-                  for (const block of content) {
-                    if (block.type === "text" && block.text) {
-                      conversation.push({
-                        role: "assistant",
-                        content: block.text,
-                        timestamp: entry.timestamp,
-                      });
-                    } else if (block.type === "tool_use") {
-                      conversation.push({
-                        role: "tool_call",
-                        content: JSON.stringify(block.input ?? {}),
-                        toolName: block.name,
-                        toolArgs: block.input,
-                        timestamp: entry.timestamp,
-                      });
-                    } else if (block.type === "tool_result") {
-                      const text =
-                        typeof block.content === "string"
-                          ? block.content
-                          : Array.isArray(block.content)
-                            ? block.content.map((c: { text?: string }) => c.text ?? "").join("\n")
-                            : JSON.stringify(block.content);
-                      conversation.push({
-                        role: "tool_result",
-                        content: text,
-                        timestamp: entry.timestamp,
-                      });
-                    }
-                  }
-                }
-              }
+              const turns = parseSessionEntry(entry);
+              conversation.push(...turns);
             } catch {
               // Skip unparseable lines
             }
