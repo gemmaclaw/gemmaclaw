@@ -960,6 +960,7 @@ def generate_setup_page():
       <h3>Contents</h3>
       <ul class="setup-list">
         <li><a href="#install" class="inline">Install Gemmaclaw</a></li>
+        <li><a href="#wizard" class="inline">The Onboarding Wizard</a> (what each prompt means)</li>
         <li><a href="#path-local" class="inline">Path 1: Local</a> (private, auto-detects your GPU)</li>
         <li><a href="#path-gemini" class="inline">Path 2: Gemini API</a> (cloud, no local hardware needed)</li>
         <li><a href="#path-vertex" class="inline">Path 3: Vertex AI</a> (enterprise, GCP integration)</li>
@@ -976,6 +977,69 @@ pnpm build
 npm install -g .</code></pre></div>
       <p>Requires Node.js 22+. Docker is recommended for sandboxed tool execution but not required.</p>
       <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
+
+      <h3 id="wizard">The Onboarding Wizard</h3>
+      <p>Running <code>gemmaclaw setup</code> kicks off a six-question wizard. Press Enter at any prompt to keep the bracketed default. Every question is also exposed as a CLI flag so you can script the whole flow.</p>
+
+      <ol class="setup-steps">
+        <li><strong>Agent name</strong> &mdash; the identity for this assistant. Each agent has its own workspace and memory under <code>~/.openclaw/agents/&lt;name&gt;/</code>. Use <code>main</code> if you only run one. Flag: <code>--agent-name &lt;name&gt;</code>.</li>
+        <li><strong>Run environment</strong> &mdash; do tools (shell, files, browser) execute inside a Docker sandbox or directly on your host? Container is the safer default; host is faster but the agent can read and modify your real files. Flag: <code>--no-container</code>.</li>
+        <li><strong>Backend / provider</strong> &mdash; Local Gemma on this machine, the hosted Gemini API, or Google Cloud Vertex AI. Flag: <code>--setup-mode local|gemini|vertex</code>.</li>
+        <li><strong>Model</strong> &mdash; for Local you can pick auto (recommended) or a specific Gemma size. Gemini and Vertex offer their own catalogs. Flag: <code>--model &lt;id&gt;</code>.</li>
+        <li><strong>Thinking level</strong> &mdash; how much chain-of-thought reasoning the agent does before answering. <code>off</code> is fastest, <code>medium</code> is the sweet spot, <code>high</code> is best for hard problems. Flag: <code>--thinking off|low|medium|high</code>.</li>
+        <li><strong>Starter persona (bootstrap profile)</strong> &mdash; what AGENTS.md / TOOLS.md content the wizard drops into the workspace. <code>general</code> is a friendly default, <code>coding</code> tunes the assistant for code tasks, <code>minimal</code> leaves the workspace empty. Flag: <code>--bootstrap general|coding|minimal</code>.</li>
+      </ol>
+
+      <p><strong>Example transcript</strong> (Local + Docker + auto + medium + general):</p>
+      <div class="code-block"><pre><code>$ gemmaclaw setup
+Welcome to Gemmaclaw. We'll set up an AI agent in five quick questions.
+
+1. Agent name
+   Agent name [main]: &lt;Enter&gt;
+
+2. Where should the agent run its tools (shell, files, browser)?
+   Choose [1/2, default=1]: &lt;Enter&gt;
+
+3. Where should the model run?
+   Choose [1/2/3, default=1]: &lt;Enter&gt;
+
+4. Which model?
+   Choose [1-5, default=1]: &lt;Enter&gt;
+
+5. How much should the agent think before answering?
+   Choose [1-4, default=3 (medium)]: &lt;Enter&gt;
+
+6. What should the agent's starter persona look like?
+   Choose [1-3, default=1 (general)]: &lt;Enter&gt;
+
+Your setup:
+  Agent name:  main
+  Run mode:    Container (Docker sandbox for tools)
+  Backend:     Local (this machine)
+  Model:       auto
+  Thinking:    medium
+  Persona:     General assistant (recommended)
+
+Setup complete. Try it now:
+  gemmaclaw chat --agent main</code></pre></div>
+
+      <p><strong>Where things get written:</strong></p>
+      <ul class="setup-list">
+        <li>Per-agent state: <code>~/.openclaw/agents/&lt;name&gt;/</code> (manifest, sessions, auth profile)</li>
+        <li>Workspace bootstrap files: <code>~/.openclaw/workspace/AGENTS.md</code> for the <code>main</code> agent, or <code>~/.openclaw/workspaces/&lt;name&gt;/AGENTS.md</code> for everyone else (the bootstrap profile drops AGENTS.md and, for the coding profile, TOOLS.md)</li>
+        <li>Global config: <code>~/.openclaw/openclaw.json</code> (model defaults, thinking level, sandbox toggle)</li>
+      </ul>
+
+      <p><strong>Non-interactive / CI:</strong> combine <code>--non-interactive</code> with the per-question flags to script the whole wizard without prompts. Add <code>--dry-run</code> to skip backend provisioning, gateway start, and smoke tests &mdash; useful for CI smoke tests of the wizard itself. Example:</p>
+      <div class="code-block"><pre><code>gemmaclaw setup \
+  --non-interactive \
+  --setup-mode local \
+  --agent-name dev-agent \
+  --no-container \
+  --thinking high \
+  --bootstrap coding \
+  --dry-run</code></pre></div>
+      <p>The Docker E2E job under <code>test/e2e/Dockerfile.onboard-gemma</code> exercises every major path this way and is wired into CI as a required pass via <code>.github/workflows/onboard-gemma-e2e.yml</code>.</p>
 
       <h3 id="path-local">Path 1: Local (Private, auto-detect hardware)</h3>
       <p>Run Gemma entirely on your machine. No data leaves your network. Gemmaclaw detects your GPU and RAM, picks the best model, downloads and provisions everything automatically.</p>
@@ -1016,6 +1080,12 @@ gemmaclaw setup --non-interactive --accept-risk --no-container</code></pre></div
           <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
           <tr><td><code>--accept-risk</code></td><td>Required with <code>--non-interactive</code></td></tr>
           <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory</td></tr>
+          <tr><td><code>--agent-name &lt;name&gt;</code></td><td>Pick the agent identity created by setup (default: <code>main</code>)</td></tr>
+          <tr><td><code>--setup-mode local|gemini|vertex</code></td><td>Skip the backend prompt</td></tr>
+          <tr><td><code>--model &lt;id&gt;</code></td><td>Pre-pick a model (e.g. <code>gemma3:4b</code>, <code>google/gemini-2.5-pro</code>)</td></tr>
+          <tr><td><code>--thinking off|low|medium|high</code></td><td>Pre-pick reasoning depth</td></tr>
+          <tr><td><code>--bootstrap general|coding|minimal</code></td><td>Pre-pick the starter persona</td></tr>
+          <tr><td><code>--dry-run</code></td><td>Run wizard + write config but skip provisioning &amp; gateway start (CI / e2e)</td></tr>
         </tbody>
       </table></div>
 

@@ -1,0 +1,54 @@
+name: Onboard Gemma E2E
+
+# Required pass: exercises the `gemmaclaw setup` interactive + non-interactive
+# wizard inside Docker against every major backend in dry-run mode (no model
+# downloads, no real cloud auth, no gateway start). This is the contract test
+# for the beginner-oriented onboarding flow.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onboard-gemma-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  onboard-gemma-e2e:
+    name: Onboard Gemma E2E (Docker)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    env:
+      DOCKER_BUILD_SUMMARY: "false"
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Build onboarding e2e image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./test/e2e/Dockerfile.onboard-gemma
+          tags: gemmaclaw-onboard-gemma-e2e:local
+          load: true
+          push: false
+          provenance: false
+
+      - name: Run onboarding wizard cases
+        env:
+          OPENCLAW_ONBOARD_GEMMA_E2E_IMAGE: gemmaclaw-onboard-gemma-e2e:local
+          OPENCLAW_ONBOARD_GEMMA_SKIP_BUILD: "1"
+        run: bash scripts/e2e/onboard-gemma-docker.sh
