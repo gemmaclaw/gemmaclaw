@@ -44,6 +44,15 @@ export function registerSetupCommand(program: Command) {
     .option("--mode <mode>", "Onboard mode: local|remote")
     .option("--remote-url <url>", "Remote Gateway WebSocket URL")
     .option("--remote-token <token>", "Remote Gateway token (optional)")
+    .option("--agent-name <name>", "Name of the agent to create (default: main)")
+    .option(
+      "--setup-mode <mode>",
+      "Setup backend mode: local|gemini|vertex (default prompts interactively)",
+    )
+    .option("--model <id>", "Model id (e.g. gemma3:4b, google/gemini-2.5-flash)")
+    .option("--thinking <level>", "Thinking level: off|low|medium|high (default: medium)")
+    .option("--bootstrap <profile>", "Bootstrap profile: general|coding|minimal (default: general)")
+    .option("--dry-run", "Run wizard + write config without provisioning the backend", false)
     .action(async (opts, command) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         // gemmaclaw: route to Gemma setup wizard by default.
@@ -56,7 +65,17 @@ export function registerSetupCommand(program: Command) {
           "remoteUrl",
           "remoteToken",
         ]);
-        if (opts.workspaceOnly || opts.wizard || hasWorkspaceOnlyFlags) {
+        // Any explicit gemma onboarding flag overrides the workspace-only
+        // routing so users can mix `--non-interactive` with `--setup-mode` etc.
+        const hasGemmaSetupFlags = hasExplicitOptions(command, [
+          "setupMode",
+          "agentName",
+          "thinking",
+          "bootstrap",
+          "dryRun",
+          "model",
+        ]);
+        if (!hasGemmaSetupFlags && (opts.workspaceOnly || opts.wizard || hasWorkspaceOnlyFlags)) {
           if (opts.wizard || hasWorkspaceOnlyFlags) {
             await setupWizardCommand(
               {
@@ -135,8 +154,36 @@ export function registerSetupCommand(program: Command) {
 
         // Default: Gemma setup wizard.
         const { setupGemmaCommand } = await import("../../commands/setup-gemma.js");
+        const setupModeRaw = opts.setupMode as string | undefined;
+        const setupMode =
+          setupModeRaw === "local" || setupModeRaw === "gemini" || setupModeRaw === "vertex"
+            ? setupModeRaw
+            : undefined;
+        const thinkingRaw = opts.thinking as string | undefined;
+        const thinking =
+          thinkingRaw === "off" ||
+          thinkingRaw === "low" ||
+          thinkingRaw === "medium" ||
+          thinkingRaw === "high"
+            ? thinkingRaw
+            : undefined;
+        const bootstrapRaw = opts.bootstrap as string | undefined;
+        const bootstrap =
+          bootstrapRaw === "general" || bootstrapRaw === "coding" || bootstrapRaw === "minimal"
+            ? bootstrapRaw
+            : undefined;
         await setupGemmaCommand(
-          { advanced: Boolean(opts.advanced), noContainer: opts.container === false },
+          {
+            advanced: Boolean(opts.advanced),
+            noContainer: opts.container === false,
+            nonInteractive: Boolean(opts.nonInteractive),
+            dryRun: Boolean(opts.dryRun),
+            agentName: opts.agentName as string | undefined,
+            setupMode,
+            model: opts.model as string | undefined,
+            thinking,
+            bootstrap,
+          },
           defaultRuntime,
         );
       });
