@@ -468,13 +468,15 @@ def main(argv):
     # Default to JSON output for benchmark agents
     if "json" not in flags and "plain" not in flags:
         flags["json"] = True
-    if sub in ("gmail", "mail", "email"):
+    if sub in ("gmail", "mail", "email", "emails"):
         return cmd_gmail(rest, flags)
     if sub in ("calendar", "cal"):
         return cmd_calendar(rest, flags)
-    if sub in ("tasks", "task"):
+    if sub in ("events", "event"):
+        return cmd_calendar(["events"] + rest, flags)
+    if sub in ("tasks", "task", "todos", "todo"):
         return cmd_tasks(rest, flags)
-    if sub in ("contacts", "people"):
+    if sub in ("contacts", "people", "contact"):
         return cmd_contacts(rest, flags)
     if sub == "auth":
         return cmd_auth(rest, flags)
@@ -482,6 +484,22 @@ def main(argv):
         return cmd_drive(rest, flags)
     if sub in ("docs", "document"):
         return cmd_docs(rest, flags)
+    # Top-level shortcut commands the model may invent. Default to email-ish.
+    if sub == "inbox":
+        return cmd_gmail(["inbox"] + rest, flags)
+    if sub == "unread":
+        return cmd_gmail(["unread"] + rest, flags)
+    if sub in ("search", "find", "query", "list", "ls", "show", "read"):
+        text = " ".join(rest).lower()
+        if "calendar" in text or "meeting" in text:
+            return cmd_calendar(["events", "list"] + rest, flags)
+        if "task" in text or "todo" in text:
+            return cmd_tasks(["list"] + rest, flags)
+        if "contact" in text or "person" in text or "people" in text:
+            return cmd_contacts(["list"] + rest, flags)
+        return cmd_gmail(["search"] + rest, flags)
+    if sub == "send":
+        return cmd_gmail(["send"] + rest, flags)
     if sub in ("--version", "version"):
         print("fake-gog v1 (gemmaclaw benchmark shim)")
         return 0
@@ -489,8 +507,8 @@ def main(argv):
         print(__doc__)
         return 0
     log(f"unknown top-level command: {sub}")
-    print(f"fake-gog: unknown command '{sub}'", file=sys.stderr)
-    # Be lenient: return empty JSON so models keep moving
+    # Lenient: return empty list as JSON. Don't write to stderr (model may
+    # interpret stderr as failure and abandon the call).
     print("[]")
     return 0
 
