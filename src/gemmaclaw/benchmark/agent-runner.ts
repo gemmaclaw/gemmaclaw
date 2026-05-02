@@ -467,71 +467,58 @@ export async function dispatchTask(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // Capture stdout and stderr for debugging
+    // Capture stdout and stderr for debugging. Also use them as heartbeat
+    // signals so a model emitting tokens (even if not writing JSONL yet) is
+    // not killed by the idle watchdog.
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
-    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
-    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
-
-    await new Promise<void>((resolve, reject) => {
-      child.on("close", (code) => {
-        const stdout = Buffer.concat(stdoutChunks).toString().trim();
-        const stderr = Buffer.concat(stderrChunks).toString().trim();
-        fs.appendFileSync(logFile, `[${new Date().toISOString()}] CLI exited with code ${code}\n`);
-        if (stdout) {
-          fs.appendFileSync(logFile, `STDOUT:\n${stdout}\n\n`);
-        }
-        if (stderr) {
-          fs.appendFileSync(logFile, `STDERR:\n${stderr}\n\n`);
-        }
-
-        if (code === 0) {
-          log(`  CLI completed successfully`);
-          resolve();
-        } else {
-          reject(new Error(`CLI exited ${code}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`));
-        }
-      });
-      child.on("error", reject);
+    let lastIoMs = Date.now();
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdoutChunks.push(chunk);
+      lastIoMs = Date.now();
     });
-  } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${errMsg}\n`);
-    return {
-      conversation: [],
-      elapsedMs: Date.now() - startMs,
-      completionStatus: "error",
-      error: errMsg,
-    };
-  }
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderrChunks.push(chunk);
+      lastIoMs = Date.now();
+    });
 
-  // Read session JSONL. With --local, the CLI blocks until done so the JSONL
-  // is complete when we reach here. We still poll briefly in case of async writes.
-  const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
-  const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+    // Track child lifecycle without blocking: we need to poll JSONL
+    // concurrently and kill the child on hard-timeout / idle-stuck.
+    let childExitCode: number | null = null;
+    let childError: Error | null = null;
+    child.on("close", (code: number | null) => {
+      childExitCode = code ?? -1;
+      const stdout = Buffer.concat(stdoutChunks).toString().trim();
+      const stderr = Buffer.concat(stderrChunks).toString().trim();
+      fs.appendFileSync(logFile, `[${new Date().toISOString()}] CLI exited with code ${code}\n`);
+      if (stdout) {
+        fs.appendFileSync(logFile, `STDOUT:\n${stdout}\n\n`);
+      }
+      if (stderr) {
+        fs.appendFileSync(logFile, `STDERR:\n${stderr}\n\n`);
+      }
+    });
+    child.on("error", (e: Error) => {
+      childError = e;
+    });
 
-  let lastLineCount = 0;
-  let lastChangeMs = Date.now();
-  const conversation: ConversationTurn[] = [];
+    const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
+    const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
 
-  // Give the filesystem a moment to flush
-  await new Promise((r) => setTimeout(r, 500));
+    let lastLineCount = 0;
+    let lastChangeMs = Date.now();
+    const conversation: ConversationTurn[] = [];
 
-  while (true) {
-    const elapsed = Date.now() - startMs;
-    if (elapsed > timeoutMs) {
-      return { conversation, elapsedMs: elapsed, completionStatus: "timeout" };
-    }
-
-    // Read JSONL and check for new lines
-    if (fs.existsSync(jsonlPath)) {
+    const parseJsonl = () => {
+      if (!fs.existsSync(jsonlPath)) {
+        return;
+      }
       try {
         const lines = fs.readFileSync(jsonlPath, "utf-8").split("\n").filter(Boolean);
         if (lines.length > lastLineCount) {
           lastLineCount = lines.length;
           lastChangeMs = Date.now();
-
-          // Parse conversation from JSONL
+          lastIoMs = Date.now();
           conversation.length = 0;
           for (const line of lines) {
             try {
@@ -539,7 +526,6 @@ export async function dispatchTask(
               const msg = entry.message ?? entry;
               const role = msg.role;
               const content = msg.content;
-
               if (role === "user") {
                 if (typeof content === "string") {
                   conversation.push({ role: "user", content, timestamp: entry.timestamp });
@@ -592,24 +578,134 @@ export async function dispatchTask(
             }
           }
         }
-
-        // Check for idle completion: no new lines for idleTimeoutSeconds
-        const idleDuration = Date.now() - lastChangeMs;
-        if (lastLineCount > 0 && idleDuration > idleMs) {
-          // Check if we have at least one assistant response
-          const hasAssistant = conversation.some((t) => t.role === "assistant");
-          if (hasAssistant) {
-            log(`  Task completed (idle ${Math.round(idleDuration / 1000)}s)`);
-            return { conversation, elapsedMs: Date.now() - startMs, completionStatus: "completed" };
-          }
-        }
       } catch {
         // File might be mid-write
       }
-    }
+    };
 
-    // Poll every 2 seconds
-    await new Promise((r) => setTimeout(r, 2000));
+    const killChild = async (reason: string): Promise<void> => {
+      if (childExitCode !== null) {
+        return;
+      }
+      log(`  Killing child: ${reason}`);
+      fs.appendFileSync(logFile, `[${new Date().toISOString()}] Killing child: ${reason}\n`);
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+      const killWaitStart = Date.now();
+      // childExitCode is mutated by the 'close' handler (closure). The loop
+      // re-reads it each iteration and the await yields the event loop so the
+      // handler can fire.
+      // eslint-disable-next-line no-unmodified-loop-condition
+      while (childExitCode === null && Date.now() - killWaitStart < 5000) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (childExitCode === null) {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+        const k2 = Date.now();
+        // eslint-disable-next-line no-unmodified-loop-condition
+        while (childExitCode === null && Date.now() - k2 < 3000) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+    };
+
+    // Idle threshold while child is still running: tolerate model thinking
+    // (idle JSONL during long generation) by extending the idle threshold.
+    // Only declare task done via idle once we have an assistant response.
+    const stuckThresholdMs = Math.max(idleMs * 4, 120_000);
+
+    // Polling loop concurrent with child execution
+    while (true) {
+      const elapsed = Date.now() - startMs;
+
+      parseJsonl();
+
+      // Hard task timeout
+      if (elapsed > timeoutMs) {
+        await killChild(
+          `hard task-timeout ${Math.round(elapsed / 1000)}s > ${Math.round(timeoutMs / 1000)}s`,
+        );
+        return {
+          conversation,
+          elapsedMs: Date.now() - startMs,
+          completionStatus: "timeout",
+          error: `task-timeout (${Math.round(timeoutMs / 1000)}s)`,
+        };
+      }
+
+      // Child exited naturally
+      if (childExitCode !== null || childError !== null) {
+        // Give filesystem a moment to flush in case JSONL just got written
+        await new Promise((r) => setTimeout(r, 500));
+        parseJsonl();
+        if (childError) {
+          const errMsg = (childError as Error).message;
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: errMsg,
+          };
+        }
+        if (childExitCode !== 0) {
+          const stderr = Buffer.concat(stderrChunks).toString().trim();
+          const stdout = Buffer.concat(stdoutChunks).toString().trim();
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: `CLI exited ${childExitCode}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`,
+          };
+        }
+        log(`  CLI completed successfully`);
+        return {
+          conversation,
+          elapsedMs: Date.now() - startMs,
+          completionStatus: "completed",
+        };
+      }
+
+      // Idle detection: kill if JSONL AND stdio both quiet for stuckThreshold
+      const idleSinceWrite = Date.now() - lastChangeMs;
+      const idleSinceIo = Date.now() - lastIoMs;
+      const realIdle = Math.min(idleSinceWrite, idleSinceIo);
+      if (lastLineCount > 0 && realIdle > stuckThresholdMs) {
+        const hasAssistant = conversation.some((t) => t.role === "assistant");
+        if (hasAssistant) {
+          await killChild(`task done via idle (${Math.round(realIdle / 1000)}s no JSONL/stdio)`);
+          log(`  Task completed (idle ${Math.round(realIdle / 1000)}s)`);
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "completed",
+          };
+        }
+        // No assistant response yet, but stuck. Use 1.5x threshold to be safe.
+        if (realIdle > stuckThresholdMs * 1.5) {
+          await killChild(`stuck without assistant turn (${Math.round(realIdle / 1000)}s idle)`);
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "timeout",
+            error: `idle-stuck-no-progress`,
+          };
+        }
+      }
+
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${errMsg}\n`);
+    return {
+      conversation: [],
+      elapsedMs: Date.now() - startMs,
+      completionStatus: "error",
+      error: errMsg,
+    };
   }
 }
 
