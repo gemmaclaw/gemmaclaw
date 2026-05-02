@@ -879,8 +879,57 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
 </html>"""
 
 
+# Inline line-icon SVGs for the homepage capability cards.
+# Rendered with currentColor so they pick up the site accent. Sized via .page-card-icon CSS.
+# Replaces emoji code points (some in supplementary planes) that rendered as tofu boxes on
+# minimal Linux/headless Chromium without color-emoji fonts.
+_CARD_ICON_SVG_ATTRS = (
+    'viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+)
+_CARD_ICONS = {
+    "setup": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
+        '<circle cx="12" cy="12" r="3"/>'
+        '</svg>'
+    ),
+    "self-hosting": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>'
+        '<rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>'
+        '<line x1="6" y1="6" x2="6.01" y2="6"/>'
+        '<line x1="6" y1="18" x2="6.01" y2="18"/>'
+        '</svg>'
+    ),
+    "benchmarks": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M3 3v18h18"/>'
+        '<path d="M8 17v-3"/>'
+        '<path d="M13 17V9"/>'
+        '<path d="M18 17V5"/>'
+        '</svg>'
+    ),
+    "community": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>'
+        '<circle cx="9" cy="7" r="4"/>'
+        '<path d="M22 21v-2a4 4 0 0 0-3-3.87"/>'
+        '<path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+        '</svg>'
+    ),
+    "goals": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<circle cx="12" cy="12" r="6"/>'
+        '<circle cx="12" cy="12" r="2"/>'
+        '</svg>'
+    ),
+}
+
+
 def generate_index_page():
-    body = """<!-- Hero -->
+    body = f"""<!-- Hero -->
     <div class="hero">
       <h1><span>Gemmaclaw</span></h1>
       <p class="tagline">One command to a working Gemma assistant, regardless of what hardware you have. Auto-detect, provision, and benchmark.</p>
@@ -891,11 +940,11 @@ def generate_index_page():
       </div>
     </div>
     <div class="page-cards">
-      <a href="setup.html" class="page-card"><div class="page-card-icon">&#9881;</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
-      <a href="self-hosting.html" class="page-card"><div class="page-card-icon">&#9729;</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
-      <a href="benchmarks.html" class="page-card"><div class="page-card-icon">&#9889;</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
-      <a href="community.html" class="page-card"><div class="page-card-icon">&#128101;</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
-      <a href="goals.html" class="page-card"><div class="page-card-icon">&#127919;</div><h3>Goals & Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
+      <a href="setup.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["setup"]}</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
+      <a href="self-hosting.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["self-hosting"]}</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
+      <a href="benchmarks.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["benchmarks"]}</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
+      <a href="community.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["community"]}</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
+      <a href="goals.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["goals"]}</div><h3>Goals &amp; Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
     </div>"""
     return page_template("", body)
 
@@ -2252,7 +2301,8 @@ CSS = """
     .page-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
     .page-card { display: block; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--fg); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
     .page-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(66,133,244,0.1); }
-    .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; color: var(--accent); line-height: 1; }
+    .page-card-icon svg { width: 1.75rem; height: 1.75rem; display: block; }
     .page-card h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--fg); }
     .page-card p { font-size: 0.9rem; color: var(--fg-soft); margin: 0; line-height: 1.5; }
     .field-notes-section { margin-bottom: 2rem; }
