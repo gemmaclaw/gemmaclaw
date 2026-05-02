@@ -705,6 +705,9 @@ def generate_community_cards(posts):
         # Flair badge
         flair_html = f'<span class="cr-flair">{flair}</span>' if flair else ""
 
+        # Avoid whitespace-only lines in generated HTML when a post has no captured comments.
+        comment_block = f"  {comment_html}\n" if comment_html else ""
+
         # Category badges
         cat_badges = ""
         for cat in post["categories"]:
@@ -725,8 +728,7 @@ def generate_community_cards(posts):
     </div>
   </div>
   <p class="cr-summary">{summary}</p>
-  {comment_html}
-  <a href="{reddit_url}" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+{comment_block}  <a href="{reddit_url}" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>""")
 
     return filter_bar + '\n<div id="community-cards">' + "\n".join(cards) + '</div>'
