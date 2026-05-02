@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSessionEntry } from "./agent-runner.js";
+import { extractTrajectoryError, parseSessionEntry } from "./agent-runner.js";
 
 describe("parseSessionEntry", () => {
   it("parses Anthropic-style assistant tool_use blocks", () => {
@@ -121,5 +121,35 @@ describe("parseSessionEntry", () => {
     const calls = turns.filter((t) => t.role === "tool_call");
     expect(calls).toHaveLength(3);
     expect(calls.map((c) => c.toolName)).toEqual(["session_status", "web_search", "write"]);
+  });
+});
+
+describe("extractTrajectoryError", () => {
+  it("extracts promptError from failed session.ended entries", () => {
+    expect(
+      extractTrajectoryError({
+        type: "session.ended",
+        data: {
+          status: "error",
+          promptError: "LLM idle timeout (120s): no response from model",
+        },
+      }),
+    ).toBe("LLM idle timeout (120s): no response from model");
+  });
+
+  it("detects terminal trajectory timeout flags", () => {
+    expect(
+      extractTrajectoryError({
+        type: "trace.artifacts",
+        data: { finalStatus: "completed", timedOut: true },
+      }),
+    ).toBe("OpenClaw session timed out");
+  });
+
+  it("ignores successful trajectory entries", () => {
+    expect(
+      extractTrajectoryError({ type: "session.ended", data: { status: "completed" } }),
+    ).toBeUndefined();
+    expect(extractTrajectoryError({ type: "model.started", data: {} })).toBeUndefined();
   });
 });

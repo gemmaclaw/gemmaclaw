@@ -429,6 +429,76 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
   return turns;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Extract a terminal OpenClaw trajectory error from a .trajectory.jsonl entry.
+ *
+ * The one-shot `gemmaclaw agent --local --json` command can exit 0 even when
+ * the embedded runner records `session.ended { status: "error" }` (for example
+ * an LLM idle timeout before the first token). The benchmark must treat those
+ * runs as failed/timeout instead of accepting an empty transcript.
+ */
+export function extractTrajectoryError(entry: unknown): string | undefined {
+  if (!isRecord(entry)) {
+    return undefined;
+  }
+  const type = typeof entry.type === "string" ? entry.type : "";
+  if (type !== "session.ended" && type !== "trace.artifacts" && type !== "model.completed") {
+    return undefined;
+  }
+  const data = isRecord(entry.data) ? entry.data : {};
+  const status = typeof data.status === "string" ? data.status : undefined;
+  const finalStatus = typeof data.finalStatus === "string" ? data.finalStatus : undefined;
+  const promptError = typeof data.promptError === "string" ? data.promptError.trim() : "";
+  const error = typeof data.error === "string" ? data.error.trim() : "";
+  const aborted = data.aborted === true;
+  const timedOut = data.timedOut === true || data.idleTimedOut === true;
+
+  if (promptError) {
+    return promptError;
+  }
+  if (error) {
+    return error;
+  }
+  if (status === "error" || finalStatus === "error") {
+    return "OpenClaw session ended with status=error";
+  }
+  if (timedOut) {
+    return "OpenClaw session timed out";
+  }
+  if (aborted) {
+    return "OpenClaw session aborted";
+  }
+  return undefined;
+}
+
+function readTrajectoryError(trajectoryPath: string): string | undefined {
+  if (!fs.existsSync(trajectoryPath)) {
+    return undefined;
+  }
+  let lastError: string | undefined;
+  try {
+    const lines = fs.readFileSync(trajectoryPath, "utf-8").split("\n").filter(Boolean);
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line) as unknown;
+        const error = extractTrajectoryError(entry);
+        if (error) {
+          lastError = error;
+        }
+      } catch {
+        // Ignore mid-write / malformed trajectory lines.
+      }
+    }
+  } catch {
+    return undefined;
+  }
+  return lastError;
+}
+
 /**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
@@ -473,6 +543,12 @@ export async function dispatchTask(
   if (config.thinkingLevel) {
     args.push("--thinking", config.thinkingLevel);
   }
+  if (config.taskTimeoutSeconds > 0) {
+    // Keep the embedded OpenClaw command timeout aligned with the benchmark's
+    // hard per-task timeout. Without this, large local Ollama models can hit
+    // the CLI/runtime default before the benchmark watchdog fires.
+    args.push("--timeout", String(config.taskTimeoutSeconds));
+  }
 
   log(`  Dispatching: ${args[0]} agent --local --session-id ${sessionId}`);
 
@@ -495,9 +571,25 @@ export async function dispatchTask(
     // Build config using the same logic as gemmaclaw setup
     const isLlamaCpp = config.backend === "llama-cpp";
     const providerPrefix = isLlamaCpp ? "openai" : "ollama";
+    const benchmarkModelConfig: Record<string, unknown> = {
+      id: config.model,
+      name: config.model,
+    };
+    if (typeof config.contextLength === "number" && Number.isFinite(config.contextLength)) {
+      benchmarkModelConfig.contextWindow = config.contextLength;
+      benchmarkModelConfig.maxTokens = config.contextLength;
+    }
+
+    const llmIdleTimeoutSeconds = config.taskTimeoutSeconds > 0 ? config.taskTimeoutSeconds : 0;
     const benchConfigData: Record<string, unknown> = {
       agents: {
         defaults: {
+          llm: {
+            // Large local models on RTX 3090 may take >120s to first token.
+            // The benchmark hard timeout is the authoritative limit, so do not
+            // let the embedded runner's default LLM idle watchdog abort early.
+            idleTimeoutSeconds: llmIdleTimeoutSeconds,
+          },
           model: {
             primary: `${providerPrefix}/${config.model}`,
           },
@@ -509,7 +601,7 @@ export async function dispatchTask(
         providers: {
           openai: {
             baseUrl: config.llamaCppUrl + "/v1",
-            models: [{ id: config.model, name: config.model, api: "openai-completions" }],
+            models: [{ ...benchmarkModelConfig, api: "openai-completions" }],
           },
         },
       };
@@ -520,7 +612,7 @@ export async function dispatchTask(
         providers: {
           ollama: {
             baseUrl: config.ollamaUrl,
-            models: [{ id: config.model, name: config.model }],
+            models: [benchmarkModelConfig],
           },
         },
       };
@@ -620,6 +712,7 @@ export async function dispatchTask(
 
     const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
     const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+    const trajectoryPath = path.join(sessionsDir, `${sessionId}.trajectory.jsonl`);
 
     let lastLineCount = 0;
     let lastChangeMs = Date.now();
@@ -684,6 +777,13 @@ export async function dispatchTask(
     // (idle JSONL during long generation) by extending the idle threshold.
     // Only declare task done via idle once we have an assistant response.
     const stuckThresholdMs = Math.max(idleMs * 4, 120_000);
+    // Large local models can legitimately spend several minutes before their
+    // first assistant turn. Let the hard task timeout, not the benchmark idle
+    // watchdog, be the authoritative limit before first token/turn.
+    const noAssistantStuckThresholdMs =
+      config.taskTimeoutSeconds > 0
+        ? Math.max(stuckThresholdMs * 1.5, timeoutMs)
+        : stuckThresholdMs * 1.5;
 
     // Polling loop concurrent with child execution
     while (true) {
@@ -728,6 +828,23 @@ export async function dispatchTask(
             error: `CLI exited ${childExitCode}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`,
           };
         }
+        const trajectoryError = readTrajectoryError(trajectoryPath);
+        if (trajectoryError) {
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: /timeout|timed out/i.test(trajectoryError) ? "timeout" : "error",
+            error: `OpenClaw session error: ${trajectoryError.slice(0, 300)}`,
+          };
+        }
+        if (conversation.length === 0) {
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: "empty conversation transcript (no session JSONL turns parsed)",
+          };
+        }
         log(`  CLI completed successfully`);
         return {
           conversation,
@@ -751,8 +868,9 @@ export async function dispatchTask(
             completionStatus: "completed",
           };
         }
-        // No assistant response yet, but stuck. Use 1.5x threshold to be safe.
-        if (realIdle > stuckThresholdMs * 1.5) {
+        // No assistant response yet. Large local Ollama runs may be generating
+        // silently, so only fail here after the extended no-assistant threshold.
+        if (realIdle > noAssistantStuckThresholdMs) {
           await killChild(`stuck without assistant turn (${Math.round(realIdle / 1000)}s idle)`);
           return {
             conversation,
