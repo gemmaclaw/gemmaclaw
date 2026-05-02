@@ -538,16 +538,34 @@ export async function dispatchTask(
     const defaultGogState = path.join(process.env.HOME ?? "/root", ".config/gogcli/state");
     if (fs.existsSync(defaultGogState)) {
       for (const file of fs.readdirSync(defaultGogState)) {
-        fs.copyFileSync(path.join(defaultGogState, file), path.join(gogStateDir, file));
+        const src = path.join(defaultGogState, file);
+        // Skip subdirectories (e.g. _writes) and anything not a regular file.
+        const st = fs.statSync(src);
+        if (!st.isFile()) {
+          continue;
+        }
+        fs.copyFileSync(src, path.join(gogStateDir, file));
       }
     }
 
+    // Prepend fake-gog shim to PATH so child agents reach mock fixtures, never
+    // Frank's real Google account. The shim reads from gogStateDir and writes
+    // intended mutations to a side-channel JSONL instead of calling APIs.
+    const fakeGogDir = path.resolve(process.cwd(), "scripts/benchmark/fake-gog");
+    const fakeGogWritesDir = path.join(benchHome, ".gog-writes");
+    const childEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      OPENCLAW_HOME: benchHome,
+      XDG_CONFIG_HOME: benchHome,
+      PATH: `${fakeGogDir}:${process.env.PATH ?? ""}`,
+      GEMMACLAW_FAKE_GOG_STATE_DIR: gogStateDir,
+      GEMMACLAW_FAKE_GOG_WRITES_DIR: fakeGogWritesDir,
+      GEMMACLAW_FAKE_GOG_LOG: path.join(benchHome, "fake-gog.log"),
+      // Refuse real-Google access even if the shim is bypassed somehow.
+      GOG_ACCESS_TOKEN: "gemmaclaw-bench-no-real-google",
+    };
     const child = spawn(args[0], args.slice(1), {
-      env: {
-        ...process.env,
-        OPENCLAW_HOME: benchHome,
-        XDG_CONFIG_HOME: benchHome,
-      },
+      env: childEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
 

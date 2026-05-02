@@ -1,0 +1,425 @@
+#!/usr/bin/env python3
+"""Fake gog binary for gemmaclaw benchmarks.
+
+Replaces the real gog CLI during benchmarks so Gmail/Calendar/Tasks calls
+return mock fixture data instead of hitting Frank's real Google account.
+
+Reads fixtures from $GEMMACLAW_FAKE_GOG_STATE_DIR (default: $HOME/.config/gogcli/state).
+Logs every invocation to $GEMMACLAW_FAKE_GOG_LOG (default: /tmp/fake-gog.log).
+
+Implements the subset of gog commands used by benchmark tasks:
+- gmail messages search / get / send / modify
+- calendar events list / add / get / patch / delete
+- tasks lists list, tasks list, tasks add, tasks done
+- contacts/people list/search
+- auth list / status
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+STATE_DIR = Path(
+    os.environ.get(
+        "GEMMACLAW_FAKE_GOG_STATE_DIR",
+        os.path.expanduser("~/.config/gogcli/state"),
+    )
+)
+LOG_FILE = os.environ.get("GEMMACLAW_FAKE_GOG_LOG", "/tmp/fake-gog.log")
+WRITES_DIR = Path(
+    os.environ.get(
+        "GEMMACLAW_FAKE_GOG_WRITES_DIR",
+        str(STATE_DIR / "_writes"),
+    )
+)
+
+
+def log(msg: str) -> None:
+    try:
+        with open(LOG_FILE, "a") as f:
+            f.write(f"[{datetime.now().isoformat()}] pid={os.getpid()} {msg}\n")
+    except Exception:
+        pass
+
+
+def load_json(name: str, default):
+    p = STATE_DIR / name
+    if not p.exists():
+        return default
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except Exception as e:
+        log(f"load_json({name}) error: {e}")
+        return default
+
+
+def append_write(kind: str, payload: dict) -> None:
+    WRITES_DIR.mkdir(parents=True, exist_ok=True)
+    p = WRITES_DIR / f"{kind}.jsonl"
+    with open(p, "a") as f:
+        f.write(json.dumps({"ts": datetime.now().isoformat(), **payload}) + "\n")
+
+
+def parse_args(argv):
+    """Crude flag parser. Returns (positional, flags_dict)."""
+    pos = []
+    flags = {}
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a.startswith("--"):
+            if "=" in a:
+                k, v = a[2:].split("=", 1)
+                flags[k] = v
+            else:
+                k = a[2:]
+                if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                    flags[k] = argv[i + 1]
+                    i += 1
+                else:
+                    flags[k] = True
+        elif a.startswith("-") and len(a) > 1:
+            short = a[1:]
+            short_map = {"j": "json", "p": "plain", "n": "dry-run", "y": "force", "v": "verbose", "h": "help"}
+            if short in short_map:
+                flags[short_map[short]] = True
+            elif i + 1 < len(argv):
+                flags[short] = argv[i + 1]
+                i += 1
+        else:
+            pos.append(a)
+        i += 1
+    return pos, flags
+
+
+def emit(obj, flags):
+    """Output result. JSON by default for benchmark agents."""
+    json_mode = flags.get("json", True) or flags.get("j") or flags.get("plain") is not True
+    if flags.get("plain") or flags.get("p"):
+        # Minimal TSV-like output. Lists print one item per line.
+        if isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, dict):
+                    print("\t".join(str(item.get(k, "")) for k in ("id", "subject", "summary", "title", "from", "name", "email")))
+                else:
+                    print(str(item))
+        elif isinstance(obj, dict):
+            for k, v in obj.items():
+                print(f"{k}\t{v}")
+        else:
+            print(obj)
+    else:
+        # Default: JSON
+        if isinstance(obj, list):
+            print(json.dumps(obj, indent=2))
+        else:
+            print(json.dumps(obj, indent=2))
+
+
+def cmd_gmail(argv, flags):
+    pos, _ = parse_args(argv)
+    sub = pos[0] if pos else ""
+    if sub in ("messages", "message", "msg", "msgs", "mail", "email"):
+        return cmd_gmail_messages(pos[1:], flags)
+    elif sub == "labels":
+        emit([{"id": "INBOX", "name": "INBOX"}, {"id": "UNREAD", "name": "UNREAD"}, {"id": "SENT", "name": "SENT"}], flags)
+        return 0
+    log(f"gmail unknown subcmd: {sub}")
+    print(json.dumps([]))
+    return 0
+
+
+def cmd_gmail_messages(argv, flags):
+    pos, _ = parse_args(argv)
+    op = pos[0] if pos else "search"
+    emails = load_json("emails.json", [])
+    if op in ("search", "find", "query", "ls", "list"):
+        query = " ".join(pos[1:]).lower() if len(pos) > 1 else ""
+        # Crude filter: match query terms against subject/body/from/labels
+        results = []
+        for e in emails:
+            if not query or any(t in e.get("subject", "").lower() + e.get("body", "").lower() + e.get("from", "").lower() + " ".join(e.get("labels", [])).lower() for t in query.split() if t):
+                results.append({
+                    "id": e["id"],
+                    "threadId": e.get("threadId", e["id"]),
+                    "from": e.get("from"),
+                    "fromName": e.get("fromName"),
+                    "to": e.get("to"),
+                    "subject": e.get("subject"),
+                    "snippet": (e.get("body", "")[:120]).replace("\n", " "),
+                    "date": e.get("date"),
+                    "labels": e.get("labels", []),
+                })
+        emit(results, flags)
+        return 0
+    if op == "get":
+        msg_id = pos[1] if len(pos) > 1 else flags.get("id", "")
+        for e in emails:
+            if e["id"] == msg_id or e.get("threadId") == msg_id:
+                emit(e, flags)
+                return 0
+        # Not found - return empty object rather than error
+        emit({}, flags)
+        return 3
+    if op == "send":
+        # Mock send - log to writes, never hit real API
+        payload = {
+            "to": flags.get("to"),
+            "subject": flags.get("subject"),
+            "body": flags.get("body") or flags.get("body-html") or flags.get("body-text"),
+            "in_reply_to": flags.get("in-reply-to"),
+            "from": flags.get("from") or flags.get("account") or "alex@acme-corp.dev",
+        }
+        append_write("gmail_send", payload)
+        result = {"id": f"sent_{uuid.uuid4().hex[:8]}", "status": "sent", **payload}
+        emit(result, flags)
+        return 0
+    if op in ("modify", "label", "trash", "untrash", "archive", "delete"):
+        msg_id = pos[1] if len(pos) > 1 else flags.get("id", "")
+        append_write("gmail_modify", {"id": msg_id, "op": op, "flags": dict(flags)})
+        emit({"id": msg_id, "status": "modified"}, flags)
+        return 0
+    log(f"gmail messages unknown op: {op}")
+    emit([], flags)
+    return 0
+
+
+def cmd_calendar(argv, flags):
+    pos, _ = parse_args(argv)
+    sub = pos[0] if pos else ""
+    if sub in ("events", "event"):
+        return cmd_calendar_events(pos[1:], flags)
+    if sub == "calendars":
+        emit([{"id": "primary", "summary": "Alex (alex@acme-corp.dev)", "primary": True}], flags)
+        return 0
+    if sub == "freebusy":
+        emit({"calendars": {"primary": {"busy": []}}}, flags)
+        return 0
+    log(f"calendar unknown subcmd: {sub}")
+    emit([], flags)
+    return 0
+
+
+def cmd_calendar_events(argv, flags):
+    pos, _ = parse_args(argv)
+    op = pos[0] if pos else "list"
+    events = load_json("calendar.json", [])
+    # Append any locally-created events from prior invocations
+    writes = WRITES_DIR / "calendar_add.jsonl"
+    if writes.exists():
+        try:
+            with open(writes) as f:
+                for line in f:
+                    rec = json.loads(line)
+                    if rec.get("event"):
+                        events.append(rec["event"])
+        except Exception:
+            pass
+    if op in ("list", "ls"):
+        emit(events, flags)
+        return 0
+    if op == "get":
+        eid = pos[1] if len(pos) > 1 else flags.get("id", "")
+        for e in events:
+            if e.get("id") == eid:
+                emit(e, flags)
+                return 0
+        emit({}, flags)
+        return 3
+    if op in ("add", "create", "insert"):
+        evt = {
+            "id": f"evt_{uuid.uuid4().hex[:10]}",
+            "summary": flags.get("summary") or flags.get("title") or " ".join(pos[1:]),
+            "title": flags.get("summary") or flags.get("title") or " ".join(pos[1:]),
+            "start": flags.get("start") or flags.get("from"),
+            "end": flags.get("end") or flags.get("to"),
+            "location": flags.get("location"),
+            "description": flags.get("description") or flags.get("desc"),
+            "attendees": (flags.get("attendees", "") or flags.get("attendee", "") or "").split(",") if flags.get("attendees") or flags.get("attendee") else [],
+        }
+        append_write("calendar_add", {"event": evt, "raw_flags": dict(flags)})
+        emit(evt, flags)
+        return 0
+    if op in ("patch", "update", "delete", "remove"):
+        eid = pos[1] if len(pos) > 1 else flags.get("id", "")
+        append_write("calendar_modify", {"id": eid, "op": op, "flags": dict(flags)})
+        emit({"id": eid, "status": "ok"}, flags)
+        return 0
+    log(f"calendar events unknown op: {op}")
+    emit([], flags)
+    return 0
+
+
+def cmd_tasks(argv, flags):
+    pos, _ = parse_args(argv)
+    op = pos[0] if pos else ""
+    if op == "lists":
+        sub = pos[1] if len(pos) > 1 else "list"
+        if sub in ("list", "ls"):
+            emit(load_json("tasklists.json", [{"id": "default", "title": "My Tasks"}, {"id": "scheduled", "title": "Scheduled"}]), flags)
+            return 0
+        if sub in ("add", "create"):
+            tl = {"id": flags.get("id") or f"tl_{uuid.uuid4().hex[:6]}", "title": flags.get("title") or " ".join(pos[2:])}
+            append_write("tasks_lists_add", {"tasklist": tl})
+            emit(tl, flags)
+            return 0
+    tasks = load_json("tasks.json", [])
+    writes = WRITES_DIR / "tasks_add.jsonl"
+    if writes.exists():
+        try:
+            with open(writes) as f:
+                for line in f:
+                    rec = json.loads(line)
+                    if rec.get("task"):
+                        tasks.append(rec["task"])
+        except Exception:
+            pass
+    if op in ("list", "ls"):
+        # Optional: pos[1] is tasklist id
+        emit(tasks, flags)
+        return 0
+    if op == "get":
+        tid = pos[1] if len(pos) > 1 else flags.get("id", "")
+        for t in tasks:
+            if t.get("id") == tid:
+                emit(t, flags)
+                return 0
+        emit({}, flags)
+        return 3
+    if op in ("add", "create", "insert"):
+        title = flags.get("title") or " ".join(pos[1:])
+        task = {
+            "id": f"task_{uuid.uuid4().hex[:8]}",
+            "title": title,
+            "notes": flags.get("notes") or flags.get("note"),
+            "due": flags.get("due"),
+            "status": "needsAction",
+            "tasklist": flags.get("tasklist") or flags.get("list") or "default",
+        }
+        append_write("tasks_add", {"task": task, "raw_flags": dict(flags)})
+        emit(task, flags)
+        return 0
+    if op in ("done", "complete", "update", "patch", "delete", "remove"):
+        tid = pos[1] if len(pos) > 1 else flags.get("id", "")
+        append_write("tasks_modify", {"id": tid, "op": op, "flags": dict(flags)})
+        emit({"id": tid, "status": "ok"}, flags)
+        return 0
+    log(f"tasks unknown op: {op}")
+    emit([], flags)
+    return 0
+
+
+def cmd_contacts(argv, flags):
+    pos, _ = parse_args(argv)
+    op = pos[0] if pos else "list"
+    contacts = load_json("contacts.json", [])
+    if op in ("list", "ls", "search", "find", "query"):
+        q = " ".join(pos[1:]).lower() if len(pos) > 1 else ""
+        if q:
+            contacts = [c for c in contacts if q in c.get("name", "").lower() or q in c.get("email", "").lower()]
+        emit(contacts, flags)
+        return 0
+    if op == "get":
+        name = pos[1] if len(pos) > 1 else flags.get("name", "")
+        for c in contacts:
+            if name.lower() in c.get("name", "").lower() or name.lower() == c.get("email", "").lower():
+                emit(c, flags)
+                return 0
+        emit({}, flags)
+        return 3
+    log(f"contacts unknown op: {op}")
+    emit(contacts, flags)
+    return 0
+
+
+def cmd_auth(argv, flags):
+    pos, _ = parse_args(argv)
+    op = pos[0] if pos else "list"
+    auth = load_json("auth.json", {"accounts": []})
+    if op in ("list", "ls", "status", "show", "accounts"):
+        emit(auth, flags)
+        return 0
+    emit(auth, flags)
+    return 0
+
+
+def cmd_drive(argv, flags):
+    # Read-only stub. Drive isn't seeded for benchmark; return empty.
+    emit([], flags)
+    return 0
+
+
+def cmd_docs(argv, flags):
+    pos, _ = parse_args(argv)
+    op = pos[0] if pos else ""
+    if op in ("create", "new"):
+        doc = {"id": f"doc_{uuid.uuid4().hex[:10]}", "title": flags.get("title") or " ".join(pos[1:]) or "Untitled"}
+        append_write("docs_create", {"doc": doc})
+        emit(doc, flags)
+        return 0
+    emit({}, flags)
+    return 0
+
+
+def main(argv):
+    log(f"argv: {argv}")
+    if len(argv) < 2:
+        print("fake-gog: no command", file=sys.stderr)
+        return 2
+    # Global flag harvest (--account, -a, etc.) plus subcommand
+    sub = None
+    sub_idx = 1
+    # First non-flag positional after gog binary path is the top-level command.
+    while sub_idx < len(argv):
+        if not argv[sub_idx].startswith("-"):
+            sub = argv[sub_idx]
+            break
+        # Skip flag value if --flag VAL form
+        if "=" not in argv[sub_idx] and sub_idx + 1 < len(argv) and not argv[sub_idx + 1].startswith("-"):
+            sub_idx += 1
+        sub_idx += 1
+    rest = argv[sub_idx + 1:] if sub else []
+    _, flags = parse_args(argv[1:])
+    # Default to JSON output for benchmark agents
+    if "json" not in flags and "plain" not in flags:
+        flags["json"] = True
+    if sub in ("gmail", "mail", "email"):
+        return cmd_gmail(rest, flags)
+    if sub in ("calendar", "cal"):
+        return cmd_calendar(rest, flags)
+    if sub in ("tasks", "task"):
+        return cmd_tasks(rest, flags)
+    if sub in ("contacts", "people"):
+        return cmd_contacts(rest, flags)
+    if sub == "auth":
+        return cmd_auth(rest, flags)
+    if sub == "drive":
+        return cmd_drive(rest, flags)
+    if sub in ("docs", "document"):
+        return cmd_docs(rest, flags)
+    if sub in ("--version", "version"):
+        print("fake-gog v1 (gemmaclaw benchmark shim)")
+        return 0
+    if sub in ("--help", "help", "-h", None):
+        print(__doc__)
+        return 0
+    log(f"unknown top-level command: {sub}")
+    print(f"fake-gog: unknown command '{sub}'", file=sys.stderr)
+    # Be lenient: return empty JSON so models keep moving
+    print("[]")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except Exception as e:
+        log(f"fatal: {e}")
+        print(f"fake-gog error: {e}", file=sys.stderr)
+        sys.exit(1)
