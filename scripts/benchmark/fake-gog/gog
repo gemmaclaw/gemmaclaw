@@ -125,14 +125,94 @@ def emit(obj, flags):
 def cmd_gmail(argv, flags):
     pos, _ = parse_args(argv)
     sub = pos[0] if pos else ""
+    # Map common variations to messages search.
     if sub in ("messages", "message", "msg", "msgs", "mail", "email"):
         return cmd_gmail_messages(pos[1:], flags)
-    elif sub == "labels":
+    if sub in ("search", "find", "query", "list", "ls"):
+        return cmd_gmail_messages(["search"] + pos[1:], flags)
+    if sub == "inbox":
+        rest = pos[1:]
+        if rest and rest[0] in ("list", "ls", "show", "search"):
+            rest = rest[1:]
+        return cmd_gmail_messages(["search", "in:inbox"] + rest, flags)
+    if sub in ("unread",):
+        return cmd_gmail_messages(["search", "is:unread", "in:inbox"] + pos[1:], flags)
+    if sub in ("get", "show", "read", "view"):
+        return cmd_gmail_messages(["get"] + pos[1:], flags)
+    if sub in ("send", "compose", "reply"):
+        return cmd_gmail_messages(["send"] + pos[1:], flags)
+    if sub in ("modify", "label", "trash", "untrash", "archive", "delete"):
+        return cmd_gmail_messages([sub] + pos[1:], flags)
+    if sub == "labels":
         emit([{"id": "INBOX", "name": "INBOX"}, {"id": "UNREAD", "name": "UNREAD"}, {"id": "SENT", "name": "SENT"}], flags)
         return 0
-    log(f"gmail unknown subcmd: {sub}")
-    print(json.dumps([]))
-    return 0
+    if sub == "drafts":
+        return cmd_gmail_messages(["send"] + pos[1:], flags)
+    log(f"gmail unknown subcmd: {sub} - falling back to inbox listing")
+    return cmd_gmail_messages(["search", "in:inbox"], flags)
+
+
+def _email_matches_query(e, query):
+    """Return True if email matches Gmail-style query.
+    Operators: in:LABEL, is:unread/read/starred, from:X, to:X, subject:X,
+    has:attachment, newer_than:Nd, label:X. Bare tokens fall back to substring
+    match against subject + body + from + fromName + labels.
+    """
+    if not query or not query.strip():
+        return True
+    subject = e.get("subject", "").lower()
+    body = e.get("body", "").lower()
+    from_addr = e.get("from", "").lower()
+    from_name = e.get("fromName", "").lower()
+    to_addr = e.get("to", "").lower()
+    labels = [l.lower() for l in e.get("labels", [])]
+    haystack = subject + " " + body + " " + from_addr + " " + from_name + " " + " ".join(labels)
+    tokens = query.split()
+    for tok in tokens:
+        tok_l = tok.lower().strip('"').strip("'")
+        if not tok_l:
+            continue
+        if ":" in tok_l:
+            op, val = tok_l.split(":", 1)
+            val = val.strip().strip('"').strip("'")
+            if op == "in" or op == "label":
+                if val not in labels:
+                    return False
+            elif op == "is":
+                if val == "unread" and "unread" not in labels:
+                    return False
+                if val == "read" and "unread" in labels:
+                    return False
+                if val == "starred" and "starred" not in labels:
+                    return False
+                if val == "important" and "important" not in labels:
+                    # Treat important as non-fatal: don't filter (let everything pass)
+                    continue
+            elif op == "from":
+                if val not in from_addr and val not in from_name:
+                    return False
+            elif op == "to":
+                if val not in to_addr:
+                    return False
+            elif op == "subject":
+                if val not in subject:
+                    return False
+            elif op == "has":
+                if val == "attachment":
+                    # No fixtures have attachments
+                    return False
+            elif op in ("newer_than", "older_than", "after", "before"):
+                # Don't filter by date
+                continue
+            else:
+                # Unknown op - treat as substring search
+                if tok_l not in haystack:
+                    return False
+        else:
+            # Bare token - substring match against everything
+            if tok_l not in haystack:
+                return False
+    return True
 
 
 def cmd_gmail_messages(argv, flags):
@@ -140,11 +220,10 @@ def cmd_gmail_messages(argv, flags):
     op = pos[0] if pos else "search"
     emails = load_json("emails.json", [])
     if op in ("search", "find", "query", "ls", "list"):
-        query = " ".join(pos[1:]).lower() if len(pos) > 1 else ""
-        # Crude filter: match query terms against subject/body/from/labels
+        query = " ".join(pos[1:]) if len(pos) > 1 else ""
         results = []
         for e in emails:
-            if not query or any(t in e.get("subject", "").lower() + e.get("body", "").lower() + e.get("from", "").lower() + " ".join(e.get("labels", [])).lower() for t in query.split() if t):
+            if _email_matches_query(e, query):
                 results.append({
                     "id": e["id"],
                     "threadId": e.get("threadId", e["id"]),
