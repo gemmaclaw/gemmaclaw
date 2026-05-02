@@ -1,8 +1,10 @@
 ## Field Notes — 2026-05-02
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
-Curated from the latest 22 Gemma-mentioning posts (8 net-new since 2026-05-01) and their top comment threads.
+Curated from the latest 25 Gemma-mentioning posts (11 net-new since 2026-05-01) and their top comment threads.
 Confidence is **medium** unless noted, since this is community signal rather than a controlled benchmark.
+
+_Morning re-check, 2026-05-02 08:30 EDT:_ a follow-up sweep against the past 24 hours of r/LocalLLaMA confirmed three additional posts worth recording. A first-hand AMD Radeon 9060 XT 16GB report (eGPU on a 7840HS mini-PC) lands the 24B A4B IQ4_NL variant at 25.9 tok/s with KV cache at q8_0 and a small 256-token target. More importantly, two independent posts within fourteen hours documented an emerging "zombie loops" failure mode on both Gemma 4 and Qwen 3.6 with quantized KV cache during thinking mode. The convergent expert reading is that q4_0 KV quantization accumulates drift across hundreds of internal reasoning tokens until the model falls into a repetition attractor. This pattern is now strong enough to call out as a known limit (see below).
 
 ### Headline this week
 
@@ -13,6 +15,7 @@ Gemma 4's gamedev moment went viral. A Pacman clone challenge on MacBook Pro M5 
 - **RTX 5xxx (Blackwell consumer):** Gemma 4 26B MoE now has an official [nvidia/Gemma-4-26B-A4B-NVFP4](https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4) quant at 18.8GB. On a 5090 with 80% VRAM allocation, users report ~50K context. Benchmarks are near-lossless: GPQA Diamond 79.9% vs 80.3% baseline, AIME 2025 actually improved to 90.0% from 88.95%. Community speculation is that NVFP4 acts as regularization on MoE routing (prevents over-commitment to dominant expert pathways). For 31B Dense, NVFP4 GGUF with llama.cpp [PR #22196](https://github.com/ggml-org/llama.cpp/pull/22196) remains the path. ([source](https://reddit.com/r/LocalLLaMA/comments/1t0i18e))
 - **Mid-to-high single GPU (24+ GB VRAM, non-Blackwell):** Gemma 4 31B Dense at Q5_K_M or Q6_K remains the strongest single-card choice for general work, writing, and visual understanding. New this week: the DFlash variant ([gemma-4-31B-it-DFlash](https://huggingface.co/z-lab/gemma-4-31B-it-DFlash)) has been released but still needs [llama.cpp PR #22105](https://github.com/ggml-org/llama.cpp/pull/22105) to merge before practical use. ggerganov is reportedly planning a speculative-architecture refactor first. ([source](https://reddit.com/r/LocalLLaMA/comments/1t0s4qv))
 - **Constrained GPU (8-16 GB VRAM):** Detailed speed benchmarks from an RTX 4070S 12GB user (DDR5 6000MHz, iGPU display offload) show Gemma 4 26B MoE and 31B Dense both runnable with substantial CPU offload. The 12GB club is real: careful config tuning (CUDA 13.1, display offload to iGPU, cache reuse settings) gets 40 t/s on 35B Q6 with system RAM spill. Keep Gemma 4 for prose and Qwen 3.6 for code in this tier. ([source](https://reddit.com/r/LocalLLaMA/comments/1szziv0))
+- **AMD consumer GPU (Radeon 9060 XT 16GB, eGPU):** A first-hand report on a 7840HS mini-PC paired with an external Radeon 9060 XT lands the Gemma 4 24B A4B IQ4_NL variant at 25.9 tok/s via llama-server, with KV cache at q8_0 and a small 256-token batch target. The user notes the configuration is usable for OpenCode codebase Q&A. Reply chain confirms 16GB is tight at 128K context and forces partial CPU offload, so for steady-state work expect lower numbers when context fills. ([source](https://reddit.com/r/LocalLLaMA/comments/1t0kxdw))
 - **CPU-only / Pi / Apple Silicon at the low end:** Gemma 4 E4B remains the practical workhorse. No new findings this cycle; previous guidance stands.
 - **Apple Silicon (32-64 GB unified):** The viral Pacman test ran Gemma 4 31B at 27 tok/s on M5 Max 64GB, confirming strong Apple Silicon inference. MLX has still not pulled ahead of GGUF for Gemma 4. ([source](https://reddit.com/r/LocalLLaMA/comments/1t0epei))
 - **Professional GPUs (RTX 6000 Pro, 96GB):** Community strongly recommends sglang or vLLM over llama.cpp for these cards due to MTP support and better large-context handling. Users running llama.cpp on RTX 6000 Pro are "seriously gimping that card." ([source](https://reddit.com/r/LocalLLaMA/comments/1t19iil))
@@ -35,6 +38,7 @@ Gemma 4's gamedev moment went viral. A Pacman clone challenge on MacBook Pro M5 
 - **Professional GPUs need sglang/vLLM, not llama.cpp.** Users with RTX 6000 Pro (96GB) cards report significantly faster inference with sglang or vLLM due to MTP (Multi-Token Prediction) support and better large-context handling. llama.cpp leaves substantial performance on the table for these cards. This likely applies to the RTX Pro 6000 (sm_120) and DGX Spark (sm_121) as well. ([source](https://reddit.com/r/LocalLLaMA/comments/1t19iil))
 - **Structured output stays unreliable below 7B.** Still valid from last week. Validate paths, classify actions, and check outputs in code for sub-7B models.
 - **Safety filters on E2B.** Still too aggressive for emergency/medical prompts. No equivalent Gemma 4 uncensored release has surfaced.
+- **Zombie loops on quantized KV cache during thinking mode.** Two independent posts within fourteen hours documented Gemma 4 and Qwen 3.6 both falling into terminal repetition loops while in thinking mode: one user on dual RTX 5060 Ti 16GB was running Qwen 3.6 35B-A3B Q4_K_M with `-ctv q4_0 -ctk q4_0` and saw the model emit endless `/` characters during thinking, then reproduced the same failure on Gemma 4. A second poster confirmed the same pattern on Qwen 3.6-35B-A3B and Gemma 4-26B-A4B at Q3 and Q4 quants. The convergent expert reading from u/lit1337 (replied on both threads): q4_0 KV cache accumulates rounding drift across the hundreds of internal tokens that thinking mode generates, eventually pushing the model into a repetition attractor it cannot escape. Workarounds reported in the threads: drop reasoning budget to 0 (kills the loop but disables thinking), raise KV cache precision to q8_0 or fp16, ensure context is not overflowing and the host tool compacts before the limit, and check that you are on CUDA toolkit 13.1 rather than 13.2 since 13.2 has its own confirmed regression with these models. Treat quantized KV cache as a real risk for any thinking-mode workload until upstream stabilizes. ([source 1](https://reddit.com/r/LocalLLaMA/comments/1t08f2g), [source 2](https://reddit.com/r/LocalLLaMA/comments/1t0pejd))
 
 ### Open questions
 
@@ -47,11 +51,17 @@ Gemma 4's gamedev moment went viral. A Pacman clone challenge on MacBook Pro M5 
 
 ### Sources
 
-The 22 most relevant Gemma-mentioning posts driving this update, with the 8 newest first:
+The 25 most relevant Gemma-mentioning posts driving this update, with the 11 newest first:
 
-- [Qwen 3.6 27B vs Gemma 4 31B - making Packman game!](https://reddit.com/r/LocalLLaMA/comments/1t0epei) (May 1, 2026, 778 score)
-- [nvidia/Gemma-4-26B-A4B-NVFP4](https://reddit.com/r/LocalLLaMA/comments/1t0i18e) (May 1, 2026, 207 score)
-- [gemma-4-31B-it-DFlash has been released](https://reddit.com/r/LocalLLaMA/comments/1t0s4qv) (May 1, 2026, 93 score)
+- [Qwen 3.6 27B vs Gemma 4 31B - making Packman game!](https://reddit.com/r/LocalLLaMA/comments/1t0epei) (May 1, 2026, 862 score)
+- [nvidia/Gemma-4-26B-A4B-NVFP4](https://reddit.com/r/LocalLLaMA/comments/1t0i18e) (May 1, 2026, 213 score)
+- [Been using Qwen-3.6-27B + VSCode + RTX 6000 Pro as daily driver](https://reddit.com/r/LocalLLaMA/comments/1t19iil) (May 1, 2026, 184 score)
+- [gemma-4-31B-it-DFlash has been released](https://reddit.com/r/LocalLLaMA/comments/1t0s4qv) (May 1, 2026, 117 score)
+- [Your local LLM predictions and hopes for May 2026](https://reddit.com/r/LocalLLaMA/comments/1t14yhr) (May 1, 2026, 34 score)
+- [12GB-Club: 4070S speeds for Gemma 4 and Qwen 3.6](https://reddit.com/r/LocalLLaMA/comments/1szziv0) (Apr 30, 2026, 31 score)
+- [Using a Radeon 9060 XT 16 GB, the gemma4 24b a4b iq4 nl model achieves 25.9 t/s](https://reddit.com/r/LocalLLaMA/comments/1t0kxdw) (May 1, 2026, 5 score)
+- [Qwen 3.6 and Gemma 4 "Zombie Loops" (terminal thinking loops)](https://reddit.com/r/LocalLLaMA/comments/1t08f2g) (Apr 30, 2026, 5 score)
+- [Model stuck in some thinking zone where it keeps saying a similar thing again and again](https://reddit.com/r/LocalLLaMA/comments/1t0pejd) (May 1, 2026, 4 score)
 - [12GB-Club: 4070S speeds for Gemma 4 and Qwen 3.6](https://reddit.com/r/LocalLLaMA/comments/1szziv0) (Apr 30, 2026, 31 score)
 - [Your local LLM predictions and hopes for May 2026](https://reddit.com/r/LocalLLaMA/comments/1t14yhr) (May 1, 2026, 21 score)
 - [Been using Qwen-3.6-27B + VSCode + RTX 6000 Pro as daily driver](https://reddit.com/r/LocalLLaMA/comments/1t19iil) (May 1, 2026, 21 score)
@@ -72,6 +82,6 @@ The 22 most relevant Gemma-mentioning posts driving this update, with the 8 newe
 - [Speculative decoding with Gemma-4-31B + Gemma-4-E2B](https://reddit.com/r/LocalLLaMA/comments/1sw782p)
 - [Gemma-4-E2B's safety filters make it unusable for emergencies](https://reddit.com/r/LocalLLaMA/comments/1sr35pk)
 
-The full set of 77 community reports lives in the Community Reports section above, filterable by hardware category and search.
+The full set of 80 community reports lives in the Community Reports section above, filterable by hardware category and search.
 
-_Last updated: 2026-05-02. Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+_Last updated: 2026-05-02 (morning re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
