@@ -1,10 +1,12 @@
 ## Field Notes — 2026-05-02
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
-Curated from the latest 25 Gemma-mentioning posts (11 net-new since 2026-05-01) and their top comment threads.
+Curated from the latest Gemma-mentioning posts (13 net-new since 2026-05-01) and their top comment threads.
 Confidence is **medium** unless noted, since this is community signal rather than a controlled benchmark.
 
 _Morning re-check, 2026-05-02 08:30 EDT:_ a follow-up sweep against the past 24 hours of r/LocalLLaMA confirmed three additional posts worth recording. A first-hand AMD Radeon 9060 XT 16GB report (eGPU on a 7840HS mini-PC) lands the 24B A4B IQ4_NL variant at 25.9 tok/s with KV cache at q8_0 and a small 256-token target. More importantly, two independent posts within fourteen hours documented an emerging "zombie loops" failure mode on both Gemma 4 and Qwen 3.6 with quantized KV cache during thinking mode. The convergent expert reading is that q4_0 KV quantization accumulates drift across hundreds of internal reasoning tokens until the model falls into a repetition attractor. This pattern is now strong enough to call out as a known limit (see below).
+
+_Evening re-check, 2026-05-02 17:45 EDT:_ the post-PR #82 sweep found two new high-signal items rather than a broad hardware shift. First, a local vLLM/FP8 vision comparison reports Gemma 4 staying much more concise on messy real-world image prompts, often around 1,500 thinking tokens where Qwen 3.6 can burn 8,000+ tokens and sometimes fail to finish. The same report says Gemma 4 followed normalized 0 to 1 bounding-box JSON instructions more reliably, while Qwen 3.6 did better on the tested 2 FPS deadlift video tracking case. Second, an SGLang production report identified an FP8 KV-cache bug for models with per-layer KV scales, explicitly including Gemma 4, where radix-cache prefix hits can silently corrupt output unless the deployment uses BF16 KV cache or the upstream fix lands. This reinforces the current guidance: for long-context or thinking-mode work, treat KV-cache precision and serving backend as quality controls, not just speed knobs. ([vision source](https://reddit.com/r/LocalLLaMA/comments/1t1te8y), [SGLang source](https://reddit.com/r/LocalLLaMA/comments/1t0s1oa), [PR #24198](https://github.com/sgl-project/sglang/pull/24198))
 
 ### Headline this week
 
@@ -40,6 +42,8 @@ Gemma 4's gamedev moment went viral. A Pacman clone challenge on MacBook Pro M5 
 - **Safety filters on E2B.** Still too aggressive for emergency/medical prompts. No equivalent Gemma 4 uncensored release has surfaced.
 - **Zombie loops on quantized KV cache during thinking mode.** Two independent posts within fourteen hours documented Gemma 4 and Qwen 3.6 both falling into terminal repetition loops while in thinking mode: one user on dual RTX 5060 Ti 16GB was running Qwen 3.6 35B-A3B Q4_K_M with `-ctv q4_0 -ctk q4_0` and saw the model emit endless `/` characters during thinking, then reproduced the same failure on Gemma 4. A second poster confirmed the same pattern on Qwen 3.6-35B-A3B and Gemma 4-26B-A4B at Q3 and Q4 quants. The convergent expert reading from u/lit1337 (replied on both threads): q4_0 KV cache accumulates rounding drift across the hundreds of internal tokens that thinking mode generates, eventually pushing the model into a repetition attractor it cannot escape. Workarounds reported in the threads: drop reasoning budget to 0 (kills the loop but disables thinking), raise KV cache precision to q8_0 or fp16, ensure context is not overflowing and the host tool compacts before the limit, and check that you are on CUDA toolkit 13.1 rather than 13.2 since 13.2 has its own confirmed regression with these models. Treat quantized KV cache as a real risk for any thinking-mode workload until upstream stabilizes. ([source 1](https://reddit.com/r/LocalLLaMA/comments/1t08f2g), [source 2](https://reddit.com/r/LocalLLaMA/comments/1t0pejd))
 
+- **SGLang FP8 KV cache can silently corrupt outputs on affected versions.** A production report from AI Router Switzerland traced silent garbage output in Qwen3.6-27B-FP8 to the ragged plus paged attention split path dropping `k_scale`/`v_scale` during radix-cache prefix hits. The author explicitly says the same class can affect FP8 models such as Gemma 4 that store per-layer KV scales. Verified upstream state: [SGLang PR #24198](https://github.com/sgl-project/sglang/pull/24198) is open and approved. Until it lands in the serving build, keep Gemma 4 FP8 deployments on BF16 KV cache or apply the patch before trusting prefix-cache reuse. ([source](https://reddit.com/r/LocalLLaMA/comments/1t0s1oa))
+
 ### Open questions
 
 - **Will Google ship a Gemma 4.1 with fixed tool calling?** The community's top May prediction is a "4.1" point release that fixes the template-level tool-calling bug. If it happens, it could significantly close the gap with Qwen 3.6 on agent workloads. No official signal yet. ([source](https://reddit.com/r/LocalLLaMA/comments/1t14yhr))
@@ -51,8 +55,10 @@ Gemma 4's gamedev moment went viral. A Pacman clone challenge on MacBook Pro M5 
 
 ### Sources
 
-The 25 most relevant Gemma-mentioning posts driving this update, with the 11 newest first:
+The most relevant Gemma-mentioning posts driving this update, with the newest first:
 
+- [Qwen 3.6 wins the benchmarks, but Gemma 4 wins reality](https://reddit.com/r/LocalLLaMA/comments/1t1te8y) (May 2, 2026, 20 score)
+- [SGLang FP8 KV cache corruption and image-request memory leak PRs](https://reddit.com/r/LocalLLaMA/comments/1t0s1oa) (May 1, 2026, 2 score)
 - [Qwen 3.6 27B vs Gemma 4 31B - making Packman game!](https://reddit.com/r/LocalLLaMA/comments/1t0epei) (May 1, 2026, 862 score)
 - [nvidia/Gemma-4-26B-A4B-NVFP4](https://reddit.com/r/LocalLLaMA/comments/1t0i18e) (May 1, 2026, 213 score)
 - [Been using Qwen-3.6-27B + VSCode + RTX 6000 Pro as daily driver](https://reddit.com/r/LocalLLaMA/comments/1t19iil) (May 1, 2026, 184 score)
@@ -62,9 +68,6 @@ The 25 most relevant Gemma-mentioning posts driving this update, with the 11 new
 - [Using a Radeon 9060 XT 16 GB, the gemma4 24b a4b iq4 nl model achieves 25.9 t/s](https://reddit.com/r/LocalLLaMA/comments/1t0kxdw) (May 1, 2026, 5 score)
 - [Qwen 3.6 and Gemma 4 "Zombie Loops" (terminal thinking loops)](https://reddit.com/r/LocalLLaMA/comments/1t08f2g) (Apr 30, 2026, 5 score)
 - [Model stuck in some thinking zone where it keeps saying a similar thing again and again](https://reddit.com/r/LocalLLaMA/comments/1t0pejd) (May 1, 2026, 4 score)
-- [12GB-Club: 4070S speeds for Gemma 4 and Qwen 3.6](https://reddit.com/r/LocalLLaMA/comments/1szziv0) (Apr 30, 2026, 31 score)
-- [Your local LLM predictions and hopes for May 2026](https://reddit.com/r/LocalLLaMA/comments/1t14yhr) (May 1, 2026, 21 score)
-- [Been using Qwen-3.6-27B + VSCode + RTX 6000 Pro as daily driver](https://reddit.com/r/LocalLLaMA/comments/1t19iil) (May 1, 2026, 21 score)
 - [Open Models - April 2026 retrospective](https://reddit.com/r/LocalLLaMA/comments/1t06y43) (Apr 30, 2026, 518 score)
 - [Qwen3.6-27B on dual RTX 5060 Ti 16GB with vLLM](https://reddit.com/r/LocalLLaMA/comments/1sysyz2) (Apr 29, 2026)
 - [Are Qwen 3.6 27B and 35B making other ~30B models obsolete?](https://reddit.com/r/LocalLLaMA/comments/1t00d2m) (Apr 30, 2026, 139 score)
@@ -82,6 +85,6 @@ The 25 most relevant Gemma-mentioning posts driving this update, with the 11 new
 - [Speculative decoding with Gemma-4-31B + Gemma-4-E2B](https://reddit.com/r/LocalLLaMA/comments/1sw782p)
 - [Gemma-4-E2B's safety filters make it unusable for emergencies](https://reddit.com/r/LocalLLaMA/comments/1sr35pk)
 
-The full set of 80 community reports lives in the Community Reports section above, filterable by hardware category and search.
+The full set of 82 community reports lives in the Community Reports section above, filterable by hardware category and search.
 
-_Last updated: 2026-05-02 (morning re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+_Last updated: 2026-05-02 (evening re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
