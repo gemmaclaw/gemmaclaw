@@ -586,6 +586,23 @@ export async function dispatchTask(
       childError = e;
     });
 
+    const waitForChildExit = (timeoutMs: number): Promise<boolean> =>
+      new Promise((resolve) => {
+        if (childExitCode !== null) {
+          resolve(true);
+          return;
+        }
+        const onClose = () => {
+          clearTimeout(timer);
+          resolve(true);
+        };
+        const timer = setTimeout(() => {
+          child.off("close", onClose);
+          resolve(false);
+        }, timeoutMs);
+        child.once("close", onClose);
+      });
+
     const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
     const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
 
@@ -628,23 +645,12 @@ export async function dispatchTask(
       try {
         child.kill("SIGTERM");
       } catch {}
-      const killWaitStart = Date.now();
-      // childExitCode is mutated by the 'close' handler (closure). The loop
-      // re-reads it each iteration and the await yields the event loop so the
-      // handler can fire.
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (childExitCode === null && Date.now() - killWaitStart < 5000) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
+      await waitForChildExit(5000);
       if (childExitCode === null) {
         try {
           child.kill("SIGKILL");
         } catch {}
-        const k2 = Date.now();
-        // eslint-disable-next-line no-unmodified-loop-condition
-        while (childExitCode === null && Date.now() - k2 < 3000) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
+        await waitForChildExit(3000);
       }
     };
 
