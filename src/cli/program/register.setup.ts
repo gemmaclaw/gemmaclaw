@@ -18,7 +18,7 @@ export function registerSetupCommand(program: Command) {
     )
     .option(
       "--workspace <dir>",
-      "Agent workspace directory (default: ~/.openclaw/workspace; stored as agents.defaults.workspace)",
+      "Agent workspace directory (default: ~/.gemmaclaw; stored as agents.defaults.workspace)",
     )
     .option(
       "--advanced",
@@ -120,8 +120,9 @@ export function registerSetupCommand(program: Command) {
 
           // Write auth profile with gcloud access token
           if (result.config.accessToken) {
-            const homeDir = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
-            const authPath = path.join(homeDir, ".openclaw/agents/main/agent/auth-profiles.json");
+            const { resolveStateDir } = await import("../../config/paths.js");
+            const stateDir = resolveStateDir(process.env);
+            const authPath = path.join(stateDir, "agents/main/agent/auth-profiles.json");
             let existing: Record<string, unknown> = { version: 1, profiles: {} };
             try {
               existing = JSON.parse(fs.readFileSync(authPath, "utf-8"));
