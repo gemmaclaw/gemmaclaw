@@ -829,6 +829,9 @@ def load_field_notes():
 
 # --- Multi-page layout ---
 
+SITE_URL = "https://gemmaclaw.github.io/gemmaclaw/"
+SOCIAL_IMAGE_URL = SITE_URL + "assets/gemmaclaw-github-social.png"
+
 NAV_ITEMS = [
     ("Setup", "setup.html", False),
     ("Self-Hosting", "self-hosting.html", False),
@@ -856,6 +859,19 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{page_title}</title>
   <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32x32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="assets/favicon-16x16.png" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Gemmaclaw">
+  <meta property="og:title" content="{page_title}">
+  <meta property="og:description" content="Out-of-the-box best Gemma setup for your hardware.">
+  <meta property="og:image" content="{SOCIAL_IMAGE_URL}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{page_title}">
+  <meta name="twitter:description" content="Out-of-the-box best Gemma setup for your hardware.">
+  <meta name="twitter:image" content="{SOCIAL_IMAGE_URL}">
   <style>
 {CSS}
   </style>
@@ -863,7 +879,7 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
 <body>
   <nav class="topnav">
     <div class="nav-inner">
-      <a href="index.html" class="logo">Gemmaclaw</a>
+      <a href="index.html" class="logo"><img src="assets/gemmaclaw-logo.svg" alt="" width="28" height="28"> <span>Gemmaclaw</span></a>
       <div class="nav-links">
         {nav_html}
       </div>
@@ -1883,7 +1899,9 @@ CSS = """
     .logo {
       font-size: 1.1rem; font-weight: 700; color: var(--accent);
       text-decoration: none; flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 0.45rem;
     }
+    .logo img { width: 28px; height: 28px; display: block; }
     .nav-links {
       display: flex; gap: 1.5rem;
       overflow-x: auto; -webkit-overflow-scrolling: touch;

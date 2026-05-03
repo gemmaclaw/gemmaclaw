@@ -105,14 +105,35 @@ for page in "${!SECTION_CHECKS[@]}"; do
   fi
 done
 
-# All pages must have shared nav
+# All pages must have shared nav and brand metadata
 echo ""
-echo "--- Navigation checks ---"
+echo "--- Navigation and brand checks ---"
 for page in $REQUIRED_PAGES; do
   if grep -q 'class="topnav"' "$SITE_DIR/$page"; then
     echo "PASS: Navigation present in $page"
   else
     echo "FAIL: Navigation missing from $page"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  if grep -q 'assets/gemmaclaw-logo.svg' "$SITE_DIR/$page"; then
+    echo "PASS: Logo mark present in $page"
+  else
+    echo "FAIL: Logo mark missing from $page"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  if grep -q 'rel="icon" href="assets/favicon.svg"' "$SITE_DIR/$page"; then
+    echo "PASS: SVG favicon present in $page"
+  else
+    echo "FAIL: SVG favicon missing from $page"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  if grep -q 'property="og:image" content="https://gemmaclaw.github.io/gemmaclaw/assets/gemmaclaw-github-social.png"' "$SITE_DIR/$page"; then
+    echo "PASS: Open Graph image present in $page"
+  else
+    echo "FAIL: Open Graph image missing from $page"
     FAILURES=$((FAILURES + 1))
   fi
 done
