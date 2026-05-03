@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="site/assets/gemmaclaw-logo.svg" alt="Gemmaclaw lobster diamond logo" width="128" height="128">
+</p>
+
 # Gemmaclaw
 
 Gemmaclaw makes it easy to run the best Gemma configuration for your hardware, out of the box. You tell it what you have (GPU, CPU, RAM), and it picks the right model, quantization, and backend so you can get a working Gemma-based assistant without tuning anything yourself. CPU-only setups are first-class, not an afterthought.

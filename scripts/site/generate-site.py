@@ -17,8 +17,24 @@ RESULTS_DIR = REPO_DIR / "benchmark-results"
 SITE_DIR = REPO_DIR / "site"
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
-# Workspace knowledge directory for Reddit post files (set via env or default)
-WORKSPACE_DIR = Path(os.environ.get("WORKSPACE", str(REPO_DIR.parent.parent)))
+# Workspace knowledge directory for Reddit post files (set via env or default).
+# Gemmaclaw site work often happens from temporary git worktrees under /tmp; in
+# that layout REPO_DIR.parent.parent is not the OpenClaw workspace. Fall back to
+# Frank's standard workspace when available so a plain local generator run does
+# not accidentally drop the committed community-report cards.
+def resolve_workspace_dir():
+    env_workspace = os.environ.get("WORKSPACE")
+    if env_workspace:
+        return Path(env_workspace)
+
+    candidates = [REPO_DIR.parent.parent, Path.home() / ".openclaw" / "workspace"]
+    for candidate in candidates:
+        if (candidate / "knowledge" / "reddit" / "localllama" / "posts").exists():
+            return candidate
+    return candidates[0]
+
+
+WORKSPACE_DIR = resolve_workspace_dir()
 POSTS_DIR = WORKSPACE_DIR / "knowledge" / "reddit" / "localllama" / "posts"
 
 
@@ -829,6 +845,9 @@ def load_field_notes():
 
 # --- Multi-page layout ---
 
+SITE_URL = "https://gemmaclaw.github.io/gemmaclaw/"
+SOCIAL_IMAGE_URL = SITE_URL + "assets/gemmaclaw-github-social.png"
+
 NAV_ITEMS = [
     ("Setup", "setup.html", False),
     ("Self-Hosting", "self-hosting.html", False),
@@ -856,6 +875,20 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{page_title}</title>
   <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="alternate icon" href="favicon.ico">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Gemmaclaw">
+  <meta property="og:title" content="{page_title}">
+  <meta property="og:description" content="Out-of-the-box best Gemma setup for your hardware.">
+  <meta property="og:image" content="{SOCIAL_IMAGE_URL}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{page_title}">
+  <meta name="twitter:description" content="Out-of-the-box best Gemma setup for your hardware.">
+  <meta name="twitter:image" content="{SOCIAL_IMAGE_URL}">
   <style>
 {CSS}
   </style>
@@ -863,7 +896,7 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
 <body>
   <nav class="topnav">
     <div class="nav-inner">
-      <a href="index.html" class="logo">Gemmaclaw</a>
+      <a href="index.html" class="logo"><img src="assets/gemmaclaw-logo.svg" alt="" width="28" height="28"> <span>Gemmaclaw</span></a>
       <div class="nav-links">
         {nav_html}
       </div>
@@ -1883,7 +1916,9 @@ CSS = """
     .logo {
       font-size: 1.1rem; font-weight: 700; color: var(--accent);
       text-decoration: none; flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 0.45rem;
     }
+    .logo img { width: 28px; height: 28px; display: block; }
     .nav-links {
       display: flex; gap: 1.5rem;
       overflow-x: auto; -webkit-overflow-scrolling: touch;
