@@ -123,10 +123,24 @@ for page in $REQUIRED_PAGES; do
     FAILURES=$((FAILURES + 1))
   fi
 
-  if grep -q 'rel="icon" href="assets/favicon.svg"' "$SITE_DIR/$page"; then
+  if grep -q 'rel="icon" href="favicon.svg"' "$SITE_DIR/$page"; then
     echo "PASS: SVG favicon present in $page"
   else
     echo "FAIL: SVG favicon missing from $page"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  if grep -q 'rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"' "$SITE_DIR/$page"; then
+    echo "PASS: Apple touch icon present in $page"
+  else
+    echo "FAIL: Apple touch icon missing from $page"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  if grep -q 'rel="alternate icon" href="favicon.ico"' "$SITE_DIR/$page"; then
+    echo "PASS: ICO fallback present in $page"
+  else
+    echo "FAIL: ICO fallback missing from $page"
     FAILURES=$((FAILURES + 1))
   fi
 
