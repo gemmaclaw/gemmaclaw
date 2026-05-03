@@ -346,6 +346,90 @@ export async function checkGateway(
 }
 
 /**
+ * Parse a single session JSONL entry into zero or more ConversationTurn entries.
+ *
+ * Handles both Anthropic-style block types (tool_use / tool_result) and OpenClaw
+ * camelCase variants (toolCall / toolResult), plus top-level role=toolResult
+ * messages emitted by OpenClaw sessions. Skips unrecognized entry types.
+ */
+export function parseSessionEntry(entry: unknown): ConversationTurn[] {
+  const turns: ConversationTurn[] = [];
+  if (!entry || typeof entry !== "object") {
+    return turns;
+  }
+  const e = entry as { message?: unknown; timestamp?: string };
+  const msg = (e.message ?? entry) as { role?: string; content?: unknown };
+  const role = msg?.role;
+  const content = msg?.content;
+  const ts = e.timestamp;
+
+  const blockText = (b: { content?: unknown }): string => {
+    if (typeof b.content === "string") {
+      return b.content;
+    }
+    if (Array.isArray(b.content)) {
+      return b.content.map((c: { text?: string }) => c.text ?? "").join("\n");
+    }
+    return JSON.stringify(b.content);
+  };
+
+  if (role === "user") {
+    if (typeof content === "string") {
+      turns.push({ role: "user", content, timestamp: ts });
+    } else if (Array.isArray(content)) {
+      const text = content
+        .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
+        .map((b: { text: string }) => b.text)
+        .join("\n");
+      if (text) {
+        turns.push({ role: "user", content: text, timestamp: ts });
+      }
+    }
+  } else if (role === "assistant") {
+    if (typeof content === "string") {
+      turns.push({ role: "assistant", content, timestamp: ts });
+    } else if (Array.isArray(content)) {
+      for (const block of content as Array<{
+        type?: string;
+        text?: string;
+        name?: string;
+        input?: unknown;
+        arguments?: unknown;
+        content?: unknown;
+      }>) {
+        if (block.type === "text" && block.text) {
+          turns.push({ role: "assistant", content: block.text, timestamp: ts });
+        } else if (block.type === "tool_use" || block.type === "toolCall") {
+          const toolArgs = (block.input ?? block.arguments ?? {}) as Record<string, unknown>;
+          turns.push({
+            role: "tool_call",
+            content: JSON.stringify(toolArgs),
+            toolName: block.name,
+            toolArgs,
+            timestamp: ts,
+          });
+        } else if (block.type === "tool_result" || block.type === "toolResult") {
+          turns.push({ role: "tool_result", content: blockText(block), timestamp: ts });
+        }
+      }
+    }
+  } else if (role === "toolResult" || role === "tool_result") {
+    if (typeof content === "string") {
+      turns.push({ role: "tool_result", content, timestamp: ts });
+    } else if (Array.isArray(content)) {
+      const text = content
+        .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
+        .map((b: { text: string }) => b.text)
+        .join("\n");
+      if (text) {
+        turns.push({ role: "tool_result", content: text, timestamp: ts });
+      }
+    }
+  }
+  return turns;
+}
+
+/**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
  * Uses `gemmaclaw agent --local` to send the message, then polls the session
@@ -467,33 +551,194 @@ export async function dispatchTask(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // Capture stdout and stderr for debugging
+    // Capture stdout and stderr for debugging. Also use them as heartbeat
+    // signals so a model emitting tokens (even if not writing JSONL yet) is
+    // not killed by the idle watchdog.
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
-    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
-    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
-
-    await new Promise<void>((resolve, reject) => {
-      child.on("close", (code) => {
-        const stdout = Buffer.concat(stdoutChunks).toString().trim();
-        const stderr = Buffer.concat(stderrChunks).toString().trim();
-        fs.appendFileSync(logFile, `[${new Date().toISOString()}] CLI exited with code ${code}\n`);
-        if (stdout) {
-          fs.appendFileSync(logFile, `STDOUT:\n${stdout}\n\n`);
-        }
-        if (stderr) {
-          fs.appendFileSync(logFile, `STDERR:\n${stderr}\n\n`);
-        }
-
-        if (code === 0) {
-          log(`  CLI completed successfully`);
-          resolve();
-        } else {
-          reject(new Error(`CLI exited ${code}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`));
-        }
-      });
-      child.on("error", reject);
+    let lastIoMs = Date.now();
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdoutChunks.push(chunk);
+      lastIoMs = Date.now();
     });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderrChunks.push(chunk);
+      lastIoMs = Date.now();
+    });
+
+    // Track child lifecycle without blocking: we need to poll JSONL
+    // concurrently and kill the child on hard-timeout / idle-stuck.
+    let childExitCode: number | null = null;
+    let childError: Error | null = null;
+    child.on("close", (code: number | null) => {
+      childExitCode = code ?? -1;
+      const stdout = Buffer.concat(stdoutChunks).toString().trim();
+      const stderr = Buffer.concat(stderrChunks).toString().trim();
+      fs.appendFileSync(logFile, `[${new Date().toISOString()}] CLI exited with code ${code}\n`);
+      if (stdout) {
+        fs.appendFileSync(logFile, `STDOUT:\n${stdout}\n\n`);
+      }
+      if (stderr) {
+        fs.appendFileSync(logFile, `STDERR:\n${stderr}\n\n`);
+      }
+    });
+    child.on("error", (e: Error) => {
+      childError = e;
+    });
+
+    const waitForChildExit = (timeoutMs: number): Promise<boolean> =>
+      new Promise((resolve) => {
+        if (childExitCode !== null) {
+          resolve(true);
+          return;
+        }
+        const onClose = () => {
+          clearTimeout(timer);
+          resolve(true);
+        };
+        const timer = setTimeout(() => {
+          child.off("close", onClose);
+          resolve(false);
+        }, timeoutMs);
+        child.once("close", onClose);
+      });
+
+    const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
+    const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+
+    let lastLineCount = 0;
+    let lastChangeMs = Date.now();
+    const conversation: ConversationTurn[] = [];
+
+    const parseJsonl = () => {
+      if (!fs.existsSync(jsonlPath)) {
+        return;
+      }
+      try {
+        const lines = fs.readFileSync(jsonlPath, "utf-8").split("\n").filter(Boolean);
+        if (lines.length > lastLineCount) {
+          lastLineCount = lines.length;
+          lastChangeMs = Date.now();
+          lastIoMs = Date.now();
+          conversation.length = 0;
+          for (const line of lines) {
+            try {
+              const entry = JSON.parse(line);
+              const turns = parseSessionEntry(entry);
+              conversation.push(...turns);
+            } catch {
+              // Skip unparseable lines
+            }
+          }
+        }
+      } catch {
+        // File might be mid-write
+      }
+    };
+
+    const killChild = async (reason: string): Promise<void> => {
+      if (childExitCode !== null) {
+        return;
+      }
+      log(`  Killing child: ${reason}`);
+      fs.appendFileSync(logFile, `[${new Date().toISOString()}] Killing child: ${reason}\n`);
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+      await waitForChildExit(5000);
+      if (childExitCode === null) {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+        await waitForChildExit(3000);
+      }
+    };
+
+    // Idle threshold while child is still running: tolerate model thinking
+    // (idle JSONL during long generation) by extending the idle threshold.
+    // Only declare task done via idle once we have an assistant response.
+    const stuckThresholdMs = Math.max(idleMs * 4, 120_000);
+
+    // Polling loop concurrent with child execution
+    while (true) {
+      const elapsed = Date.now() - startMs;
+
+      parseJsonl();
+
+      // Hard task timeout
+      if (elapsed > timeoutMs) {
+        await killChild(
+          `hard task-timeout ${Math.round(elapsed / 1000)}s > ${Math.round(timeoutMs / 1000)}s`,
+        );
+        return {
+          conversation,
+          elapsedMs: Date.now() - startMs,
+          completionStatus: "timeout",
+          error: `task-timeout (${Math.round(timeoutMs / 1000)}s)`,
+        };
+      }
+
+      // Child exited naturally
+      if (childExitCode !== null || childError !== null) {
+        // Give filesystem a moment to flush in case JSONL just got written
+        await new Promise((r) => setTimeout(r, 500));
+        parseJsonl();
+        if (childError) {
+          const errMsg = (childError as Error).message;
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: errMsg,
+          };
+        }
+        if (childExitCode !== 0) {
+          const stderr = Buffer.concat(stderrChunks).toString().trim();
+          const stdout = Buffer.concat(stdoutChunks).toString().trim();
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: `CLI exited ${childExitCode}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`,
+          };
+        }
+        log(`  CLI completed successfully`);
+        return {
+          conversation,
+          elapsedMs: Date.now() - startMs,
+          completionStatus: "completed",
+        };
+      }
+
+      // Idle detection: kill if JSONL AND stdio both quiet for stuckThreshold
+      const idleSinceWrite = Date.now() - lastChangeMs;
+      const idleSinceIo = Date.now() - lastIoMs;
+      const realIdle = Math.min(idleSinceWrite, idleSinceIo);
+      if (lastLineCount > 0 && realIdle > stuckThresholdMs) {
+        const hasAssistant = conversation.some((t) => t.role === "assistant");
+        if (hasAssistant) {
+          await killChild(`task done via idle (${Math.round(realIdle / 1000)}s no JSONL/stdio)`);
+          log(`  Task completed (idle ${Math.round(realIdle / 1000)}s)`);
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "completed",
+          };
+        }
+        // No assistant response yet, but stuck. Use 1.5x threshold to be safe.
+        if (realIdle > stuckThresholdMs * 1.5) {
+          await killChild(`stuck without assistant turn (${Math.round(realIdle / 1000)}s idle)`);
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "timeout",
+            error: `idle-stuck-no-progress`,
+          };
+        }
+      }
+
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
     fs.appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${errMsg}\n`);
@@ -503,113 +748,6 @@ export async function dispatchTask(
       completionStatus: "error",
       error: errMsg,
     };
-  }
-
-  // Read session JSONL. With --local, the CLI blocks until done so the JSONL
-  // is complete when we reach here. We still poll briefly in case of async writes.
-  const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
-  const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
-
-  let lastLineCount = 0;
-  let lastChangeMs = Date.now();
-  const conversation: ConversationTurn[] = [];
-
-  // Give the filesystem a moment to flush
-  await new Promise((r) => setTimeout(r, 500));
-
-  while (true) {
-    const elapsed = Date.now() - startMs;
-    if (elapsed > timeoutMs) {
-      return { conversation, elapsedMs: elapsed, completionStatus: "timeout" };
-    }
-
-    // Read JSONL and check for new lines
-    if (fs.existsSync(jsonlPath)) {
-      try {
-        const lines = fs.readFileSync(jsonlPath, "utf-8").split("\n").filter(Boolean);
-        if (lines.length > lastLineCount) {
-          lastLineCount = lines.length;
-          lastChangeMs = Date.now();
-
-          // Parse conversation from JSONL
-          conversation.length = 0;
-          for (const line of lines) {
-            try {
-              const entry = JSON.parse(line);
-              const msg = entry.message ?? entry;
-              const role = msg.role;
-              const content = msg.content;
-
-              if (role === "user") {
-                if (typeof content === "string") {
-                  conversation.push({ role: "user", content, timestamp: entry.timestamp });
-                } else if (Array.isArray(content)) {
-                  const text = content
-                    .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
-                    .map((b: { text: string }) => b.text)
-                    .join("\n");
-                  if (text) {
-                    conversation.push({ role: "user", content: text, timestamp: entry.timestamp });
-                  }
-                }
-              } else if (role === "assistant") {
-                if (typeof content === "string") {
-                  conversation.push({ role: "assistant", content, timestamp: entry.timestamp });
-                } else if (Array.isArray(content)) {
-                  for (const block of content) {
-                    if (block.type === "text" && block.text) {
-                      conversation.push({
-                        role: "assistant",
-                        content: block.text,
-                        timestamp: entry.timestamp,
-                      });
-                    } else if (block.type === "tool_use") {
-                      conversation.push({
-                        role: "tool_call",
-                        content: JSON.stringify(block.input ?? {}),
-                        toolName: block.name,
-                        toolArgs: block.input,
-                        timestamp: entry.timestamp,
-                      });
-                    } else if (block.type === "tool_result") {
-                      const text =
-                        typeof block.content === "string"
-                          ? block.content
-                          : Array.isArray(block.content)
-                            ? block.content.map((c: { text?: string }) => c.text ?? "").join("\n")
-                            : JSON.stringify(block.content);
-                      conversation.push({
-                        role: "tool_result",
-                        content: text,
-                        timestamp: entry.timestamp,
-                      });
-                    }
-                  }
-                }
-              }
-            } catch {
-              // Skip unparseable lines
-            }
-          }
-        }
-
-        // Check for idle completion: no new lines for idleTimeoutSeconds
-        const idleDuration = Date.now() - lastChangeMs;
-        if (lastLineCount > 0 && idleDuration > idleMs) {
-          // Check if we have at least one assistant response
-          const hasAssistant = conversation.some((t) => t.role === "assistant");
-          if (hasAssistant) {
-            log(`  Task completed (idle ${Math.round(idleDuration / 1000)}s)`);
-            return { conversation, elapsedMs: Date.now() - startMs, completionStatus: "completed" };
-          }
-        }
-      } catch {
-        // File might be mid-write
-      }
-    }
-
-    // Poll every 2 seconds
-    await new Promise((r) => setTimeout(r, 2000));
   }
 }
 
@@ -868,3 +1006,4 @@ export async function runAgentBenchmark(
     },
   };
 }
+// benchmark harness v2
