@@ -168,7 +168,7 @@ export function resolveAgentWorkspaceDir(
     return stripNullBytes(path.join(resolveUserPath(fallback, env), id));
   }
   const stateDir = resolveStateDir(env);
-  return stripNullBytes(path.join(stateDir, `workspace-${id}`));
+  return stripNullBytes(path.join(stateDir, "workspaces", id));
 }
 
 export function resolveAgentDir(

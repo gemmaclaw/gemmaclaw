@@ -167,11 +167,16 @@ function openShell(containerName: string, backendId: string): void {
     stdio: "inherit",
   });
 
-  if (result.status !== 0) {
+  // Fall back to /bin/sh only when bash is unavailable in the container.
+  // Exit codes 126 (not executable) and 127 (not found) are standard POSIX signals for an
+  // unavailable command; a spawn error (e.g. ENOENT) means the runtime itself couldn't find
+  // bash. Any other exit code is the user's interactive bash exit and must be preserved as-is.
+  const bashUnavailable = result.error != null || result.status === 126 || result.status === 127;
+  if (bashUnavailable) {
     const fallback = spawnSync(runtime, ["exec", "-it", containerName, "/bin/sh"], {
       stdio: "inherit",
     });
-    if (fallback.status !== 0 && fallback.status !== null) {
+    if (fallback.status !== null && fallback.status !== 0) {
       process.exitCode = fallback.status;
     }
     return;
