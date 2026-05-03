@@ -2,7 +2,8 @@ import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveAgentDir, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
+import { resolveAgentDir } from "../agents/agent-scope.js";
+import { resolveStateDir } from "../config/paths.js";
 import type { OpenClawConfig } from "../config/types.js";
 import type {
   OnboardingBackend,
@@ -221,7 +222,11 @@ function persistThinkingDefault(thinking: OnboardingThinking): "off" | "low" | "
 function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
   const existingEntries = listAgentEntries(draft);
   const agentId = normalizeAgentId(choices.agentName);
-  const workspaceDir = resolveAgentWorkspaceDir(draft, agentId);
+  const stateDir = resolveStateDir(process.env);
+  const workspaceDir =
+    choices.agentName === "main"
+      ? path.join(stateDir, "workspace")
+      : path.join(stateDir, "workspaces", choices.agentName);
   const agentDir = resolveAgentDir(draft, agentId);
   const nextConfig = applyAgentConfig(draft, {
     agentId,
@@ -613,7 +618,13 @@ async function writeVertexAuthProfile(agentName: string, accessToken: string): P
   const fs = await import("node:fs");
   const { resolveStateDir } = await import("../config/paths.js");
   const stateDir = resolveStateDir(process.env);
-  const authPath = path.join(stateDir, "agents", normalizeAgentId(agentName), "agent", "auth-profiles.json");
+  const authPath = path.join(
+    stateDir,
+    "agents",
+    normalizeAgentId(agentName),
+    "agent",
+    "auth-profiles.json",
+  );
   let auth: Record<string, unknown> = { version: 1, profiles: {} };
   try {
     auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
@@ -675,6 +686,7 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
   const fs = await import("node:fs");
   const { loadConfig } = await import("../config/config.js");
   const { applyBootstrapProfile } = await import("../gemmaclaw/provision/bootstrap-profiles.js");
+  const { resolveStateDir } = await import("../config/paths.js");
   const cfg = loadConfig();
   const agentId = normalizeAgentId(choices.agentName);
   const agentDir = resolveAgentDir(cfg, agentId);
@@ -702,9 +714,14 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
   );
 
   // Drop the bootstrap profile's starter files (AGENTS.md, optional TOOLS.md)
-  // into the same workspace recorded in the canonical agent config. Never
-  // overwrite user edits — `applyBootstrapProfile` skips existing files by default.
-  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  // into the workspace under the Gemmaclaw home. "main" uses the canonical
+  // ~/.gemmaclaw/workspace; named agents get ~/.gemmaclaw/workspaces/<name>.
+  // Never overwrite user edits — `applyBootstrapProfile` skips existing files.
+  const stateDir = resolveStateDir(process.env);
+  const workspaceDir =
+    choices.agentName === "main"
+      ? path.join(stateDir, "workspace")
+      : path.join(stateDir, "workspaces", choices.agentName);
   applyBootstrapProfile(choices.bootstrap, workspaceDir);
 }
 
