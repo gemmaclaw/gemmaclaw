@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # In-container Gemmaclaw onboarding wizard test cases.
 #
-# Each case sets up an isolated $HOME / OPENCLAW_HOME, drives the
-# `gemmaclaw setup` CLI either via piped answers (interactive) or via the
-# new flag set (non-interactive), and asserts:
+# Each case sets up an isolated $HOME, drives the `gemmaclaw setup` CLI either
+# via piped answers (interactive) or via the new flag set (non-interactive),
+# and asserts:
 #   1. setup exits 0
 #   2. expected prompts appear in the transcript
-#   3. ~/.openclaw/agents/<name>/agent/onboarding.json was written with the
+#   3. ~/.gemmaclaw/agents/<name>/agent/onboarding.json was written with the
 #      right choice values
-#   4. ~/.openclaw/openclaw.json5 (or the resolved config path) records the
+#   4. ~/.gemmaclaw/openclaw.json5 (or the resolved config path) records the
 #      thinking level / model
 #
 # All cases run with OPENCLAW_SETUP_DRY_RUN=1 so we never download models or
@@ -31,9 +31,14 @@ reset_home() {
   local label="$1"
   local home_dir="/tmp/onboard-gemma-${label}"
   rm -rf "$home_dir"
-  mkdir -p "$home_dir/.openclaw"
+  mkdir -p "$home_dir/.gemmaclaw"
   export HOME="$home_dir"
+  # Keep OPENCLAW_HOME for any residual OpenClaw internals that look for it,
+  # but gemmaclaw now derives its state dir from HOME via OPENCLAW_STATE_DIR.
   export OPENCLAW_HOME="$home_dir"
+  # Clear OPENCLAW_STATE_DIR so gemmaclaw.mjs's default bridge kicks in and
+  # sets it to $HOME/.gemmaclaw on each fresh case.
+  unset OPENCLAW_STATE_DIR 2>/dev/null || true
 }
 
 assert_file_contains() {
@@ -67,14 +72,14 @@ assert_json_eq() {
   fi
 }
 
-# Read the resolved config path from $OPENCLAW_HOME. Gemmaclaw writes either
-# openclaw.json or openclaw.json5; pick whichever exists.
+# Read the resolved config path from the Gemmaclaw home. Gemmaclaw writes either
+# openclaw.json or openclaw.json5 under ~/.gemmaclaw.
 config_path() {
   for candidate in \
-    "$OPENCLAW_HOME/.openclaw/openclaw.json5" \
-    "$OPENCLAW_HOME/.openclaw/openclaw.json" \
-    "$OPENCLAW_HOME/.openclaw/config.json5" \
-    "$OPENCLAW_HOME/.openclaw/config.json"; do
+    "$HOME/.gemmaclaw/openclaw.json5" \
+    "$HOME/.gemmaclaw/openclaw.json" \
+    "$HOME/.gemmaclaw/config.json5" \
+    "$HOME/.gemmaclaw/config.json"; do
     if [ -f "$candidate" ]; then
       echo "$candidate"
       return 0
@@ -121,7 +126,7 @@ case_local_interactive() {
     return
   fi
 
-  local manifest="$OPENCLAW_HOME/.openclaw/agents/main/agent/onboarding.json"
+  local manifest="$HOME/.gemmaclaw/agents/main/agent/onboarding.json"
   if [ ! -f "$manifest" ]; then
     case_fail "local-interactive: missing $manifest"
     return
@@ -170,7 +175,7 @@ case_local_non_interactive() {
     return
   fi
 
-  local manifest="$OPENCLAW_HOME/.openclaw/agents/dev-agent/agent/onboarding.json"
+  local manifest="$HOME/.gemmaclaw/agents/dev-agent/agent/onboarding.json"
   if [ ! -f "$manifest" ]; then
     case_fail "local-non-interactive: missing $manifest"
     return
@@ -184,7 +189,7 @@ case_local_non_interactive() {
   fi
 
   # Coding profile drops AGENTS.md + TOOLS.md into the agent's workspace.
-  local ws="$OPENCLAW_HOME/.openclaw/workspaces/dev-agent"
+  local ws="$HOME/.gemmaclaw/workspaces/dev-agent"
   if [ ! -f "$ws/AGENTS.md" ] || [ ! -f "$ws/TOOLS.md" ]; then
     case_fail "local-non-interactive: coding bootstrap files missing under $ws"
     ls -la "$ws" || true
@@ -226,7 +231,7 @@ case_gemini_non_interactive() {
     return
   fi
 
-  local manifest="$OPENCLAW_HOME/.openclaw/agents/cloudy/agent/onboarding.json"
+  local manifest="$HOME/.gemmaclaw/agents/cloudy/agent/onboarding.json"
   if [ ! -f "$manifest" ]; then
     case_fail "gemini-non-interactive: missing $manifest"
     return
@@ -274,7 +279,7 @@ case_vertex_non_interactive() {
     return
   fi
 
-  local manifest="$OPENCLAW_HOME/.openclaw/agents/corp/agent/onboarding.json"
+  local manifest="$HOME/.gemmaclaw/agents/corp/agent/onboarding.json"
   if [ ! -f "$manifest" ]; then
     case_fail "vertex-non-interactive: missing $manifest"
     return
@@ -286,7 +291,7 @@ case_vertex_non_interactive() {
   fi
 
   # General profile drops AGENTS.md into the agent's workspace.
-  local ws="$OPENCLAW_HOME/.openclaw/workspaces/corp"
+  local ws="$HOME/.gemmaclaw/workspaces/corp"
   if [ ! -f "$ws/AGENTS.md" ]; then
     case_fail "vertex-non-interactive: general bootstrap AGENTS.md missing under $ws"
     return
@@ -320,7 +325,7 @@ case_no_container_legacy_flag() {
     return
   fi
 
-  local manifest="$OPENCLAW_HOME/.openclaw/agents/main/agent/onboarding.json"
+  local manifest="$HOME/.gemmaclaw/agents/main/agent/onboarding.json"
   if [ ! -f "$manifest" ]; then
     case_fail "no-container-legacy: missing $manifest"
     return
@@ -332,7 +337,7 @@ case_no_container_legacy_flag() {
 
   # The "main" agent uses the canonical workspace path (not the per-agent
   # workspaces/ directory used for non-default names).
-  if [ ! -f "$OPENCLAW_HOME/.openclaw/workspace/AGENTS.md" ]; then
+  if [ ! -f "$HOME/.gemmaclaw/workspace/AGENTS.md" ]; then
     case_fail "no-container-legacy: main-agent AGENTS.md missing in canonical workspace"
     return
   fi
