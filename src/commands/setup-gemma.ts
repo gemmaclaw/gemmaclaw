@@ -592,8 +592,9 @@ async function setupVertexBackend(
 
 async function writeGeminiAuthProfile(agentName: string, apiKey: string): Promise<void> {
   const fs = await import("node:fs");
-  const homeDir = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
-  const agentDir = path.join(homeDir, ".openclaw", "agents", normalizeAgentId(agentName), "agent");
+  const { resolveStateDir } = await import("../config/paths.js");
+  const stateDir = resolveStateDir(process.env);
+  const agentDir = path.join(stateDir, "agents", normalizeAgentId(agentName), "agent");
   const authPath = path.join(agentDir, "auth-profiles.json");
   let auth: Record<string, unknown> = { version: 1, profiles: {} };
   try {
@@ -610,15 +611,9 @@ async function writeGeminiAuthProfile(agentName: string, apiKey: string): Promis
 
 async function writeVertexAuthProfile(agentName: string, accessToken: string): Promise<void> {
   const fs = await import("node:fs");
-  const homeDir = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
-  const authPath = path.join(
-    homeDir,
-    ".openclaw",
-    "agents",
-    normalizeAgentId(agentName),
-    "agent",
-    "auth-profiles.json",
-  );
+  const { resolveStateDir } = await import("../config/paths.js");
+  const stateDir = resolveStateDir(process.env);
+  const authPath = path.join(stateDir, "agents", normalizeAgentId(agentName), "agent", "auth-profiles.json");
   let auth: Record<string, unknown> = { version: 1, profiles: {} };
   try {
     auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
@@ -676,7 +671,7 @@ async function applySharedAgentDefaults(
   await applyAgentNameAndBootstrap(choices);
 }
 
-async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Promise<void> {
+export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Promise<void> {
   const fs = await import("node:fs");
   const { loadConfig } = await import("../config/config.js");
   const { applyBootstrapProfile } = await import("../gemmaclaw/provision/bootstrap-profiles.js");
