@@ -72,7 +72,33 @@ function formatSummary(summary: AgentSummary) {
     }
   }
 
-  if (summary.shellAvailable === true) {
+  if (summary.containerShell) {
+    if (summary.containerShell.eligible) {
+      lines.push(
+        `  Tools: Docker/container sandbox (${summary.containerShell.backend}; mode: ${summary.containerShell.mode})`,
+      );
+    } else if (summary.containerShell.mode === "off") {
+      lines.push("  Tools: host/direct mode (no container sandbox)");
+    } else {
+      lines.push(
+        `  Tools: non-container sandbox (${summary.containerShell.backend}; mode: ${summary.containerShell.mode})`,
+      );
+    }
+
+    if (summary.containerShell.available) {
+      const running = summary.containerShell.containers
+        .filter((container) => container.running)
+        .map((container) => container.name)
+        .join(", ");
+      lines.push(
+        `  Container shell: available${running ? ` — ${running}` : ""} (gemmaclaw ssh ${summary.id})`,
+      );
+    } else {
+      lines.push(
+        `  Container shell: unavailable — ${summary.containerShell.reason ?? summary.shellUnavailableReason ?? "not container-backed"}`,
+      );
+    }
+  } else if (summary.shellAvailable === true) {
     lines.push(`  Container shell: available (gemmaclaw ssh ${summary.id})`);
   } else if (summary.shellAvailable === false) {
     lines.push(
@@ -139,21 +165,25 @@ export async function agentsListCommand(
 
     const sshInfo = sshInfoMap.get(normalizeAgentId(summary.id));
     if (sshInfo) {
-      if (!sshInfo.containerBacked) {
-        summary.shellAvailable = false;
-        summary.shellUnavailableReason = sshInfo.unavailableReason;
-      } else {
-        const hasRunning = sshInfo.containers.some((c) => c.running);
-        if (hasRunning) {
-          summary.shellAvailable = true;
-        } else if (sshInfo.containers.length === 0) {
-          summary.shellAvailable = false;
-          summary.shellUnavailableReason = "no container registered — start a session first";
-        } else {
-          summary.shellAvailable = false;
-          summary.shellUnavailableReason = "container stopped — start a session first";
-        }
-      }
+      summary.shellAvailable = sshInfo.shellAvailable;
+      summary.shellUnavailableReason = sshInfo.shellAvailable
+        ? undefined
+        : (sshInfo.shellUnavailableReason ?? sshInfo.unavailableReason);
+      summary.containerShell = {
+        eligible: sshInfo.containerBacked,
+        available: sshInfo.shellAvailable,
+        mode: sshInfo.sandboxMode,
+        backend: sshInfo.sandboxBackend,
+        reason: sshInfo.shellAvailable
+          ? undefined
+          : (sshInfo.shellUnavailableReason ?? sshInfo.unavailableReason),
+        containers: sshInfo.containers.map((container) => ({
+          name: container.containerName,
+          backend: container.backendId,
+          exists: container.exists,
+          running: container.running,
+        })),
+      };
     }
   }
 

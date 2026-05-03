@@ -34,6 +34,20 @@ export type AgentSummary = {
   shellAvailable?: boolean;
   /** Human-readable reason when shellAvailable is false. */
   shellUnavailableReason?: string;
+  /** Machine-readable container/sandbox status for CLI/UI shell access. */
+  containerShell?: {
+    eligible: boolean;
+    available: boolean;
+    mode: string;
+    backend: string;
+    reason?: string;
+    containers: Array<{
+      name: string;
+      backend: string;
+      exists: boolean;
+      running: boolean;
+    }>;
+  };
 };
 
 type AgentEntry = NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number];

@@ -12,11 +12,16 @@ type ContainerRuntime = "docker" | "podman";
 
 export type AgentContainerInfo = {
   agentId: string;
+  sandboxMode: string;
+  sandboxBackend: string;
   containerBacked: boolean;
   unavailableReason?: string;
+  shellAvailable: boolean;
+  shellUnavailableReason?: string;
   containers: ReadonlyArray<{
     containerName: string;
     backendId: string;
+    exists: boolean;
     running: boolean;
   }>;
 };
@@ -26,22 +31,44 @@ export type AgentsSshOptions = {
   nonInteractive?: boolean;
 };
 
-function detectContainerRuntime(): ContainerRuntime | null {
-  for (const rt of ["podman", "docker"] as ContainerRuntime[]) {
-    const result = spawnSync(rt, ["--version"], { encoding: "utf8", timeout: 5000 });
-    if (result.status === 0) {
-      return rt;
-    }
+function resolveContainerRuntimeCommand(backendId: string | undefined): ContainerRuntime | null {
+  const normalized = (backendId ?? "docker").trim().toLowerCase();
+  if (normalized === "docker" || normalized === "podman") {
+    return normalized;
   }
   return null;
 }
 
-function isContainerRunning(runtime: ContainerRuntime, containerName: string): boolean {
+function isContainerRuntimeAvailable(runtime: ContainerRuntime): boolean {
+  const result = spawnSync(runtime, ["--version"], { encoding: "utf8", timeout: 5000 });
+  return result.status === 0;
+}
+
+function inspectContainerState(runtime: ContainerRuntime, containerName: string) {
   const result = spawnSync(runtime, ["inspect", "--format", "{{.State.Running}}", containerName], {
     encoding: "utf8",
     timeout: 5000,
   });
-  return result.status === 0 && result.stdout.trim() === "true";
+  if (result.status !== 0) {
+    return { exists: false, running: false };
+  }
+  return { exists: true, running: result.stdout.trim() === "true" };
+}
+
+function summarizeShellUnavailableReason(info: AgentContainerInfo): string | undefined {
+  if (!info.containerBacked) {
+    return info.unavailableReason ?? "not container-backed";
+  }
+  if (info.containers.length === 0) {
+    return "no container registered — start a session first";
+  }
+  if (!info.containers.some((c) => c.exists)) {
+    return "container missing — start a session first";
+  }
+  if (!info.containers.some((c) => c.running)) {
+    return "container stopped — start a session first";
+  }
+  return undefined;
 }
 
 async function resolveAgentContainerInfo(
@@ -54,17 +81,26 @@ async function resolveAgentContainerInfo(
   if (sandboxCfg.mode === "off") {
     return {
       agentId: normalized,
+      sandboxMode: sandboxCfg.mode,
+      sandboxBackend: sandboxCfg.backend,
       containerBacked: false,
       unavailableReason: "sandbox mode is off (not container-backed)",
+      shellAvailable: false,
+      shellUnavailableReason: "sandbox mode is off (not container-backed)",
       containers: [],
     };
   }
 
   if (sandboxCfg.backend !== "docker") {
+    const reason = `sandbox backend is "${sandboxCfg.backend}", not docker`;
     return {
       agentId: normalized,
+      sandboxMode: sandboxCfg.mode,
+      sandboxBackend: sandboxCfg.backend,
       containerBacked: false,
-      unavailableReason: `sandbox backend is "${sandboxCfg.backend}", not docker`,
+      unavailableReason: reason,
+      shellAvailable: false,
+      shellUnavailableReason: reason,
       containers: [],
     };
   }
@@ -75,26 +111,56 @@ async function resolveAgentContainerInfo(
     return resolvedId !== undefined && normalizeAgentId(resolvedId) === normalized;
   });
 
-  const containerRuntime = detectContainerRuntime();
-  const containers = agentContainers.map((entry) => ({
-    containerName: entry.containerName,
-    backendId: entry.backendId ?? "docker",
-    running: containerRuntime ? isContainerRunning(containerRuntime, entry.containerName) : false,
-  }));
+  const runtimeAvailability = new Map<string, boolean>();
+  const containers = agentContainers.map((entry) => {
+    const backendId = entry.backendId ?? "docker";
+    const runtime = resolveContainerRuntimeCommand(backendId);
+    if (!runtime) {
+      return {
+        containerName: entry.containerName,
+        backendId,
+        exists: false,
+        running: false,
+      };
+    }
+    let available = runtimeAvailability.get(runtime);
+    if (available === undefined) {
+      available = isContainerRuntimeAvailable(runtime);
+      runtimeAvailability.set(runtime, available);
+    }
+    const state = available
+      ? inspectContainerState(runtime, entry.containerName)
+      : { exists: false, running: false };
+    return {
+      containerName: entry.containerName,
+      backendId,
+      exists: state.exists,
+      running: state.running,
+    };
+  });
 
-  return {
+  const info: AgentContainerInfo = {
     agentId: normalized,
+    sandboxMode: sandboxCfg.mode,
+    sandboxBackend: sandboxCfg.backend,
     containerBacked: true,
+    shellAvailable: containers.some((container) => container.running),
     containers,
   };
+
+  if (!info.shellAvailable) {
+    info.shellUnavailableReason = summarizeShellUnavailableReason(info);
+  }
+  return info;
 }
 
-function openShell(containerName: string): void {
-  const runtime = detectContainerRuntime();
+function openShell(containerName: string, backendId: string): void {
+  const runtime = resolveContainerRuntimeCommand(backendId);
   if (!runtime) {
-    throw new Error(
-      "No container runtime found. Install Docker or Podman to use container shell access.",
-    );
+    throw new Error(`Unsupported container runtime "${backendId}" for shell access.`);
+  }
+  if (!isContainerRuntimeAvailable(runtime)) {
+    throw new Error(`Container runtime "${runtime}" was not found in PATH.`);
   }
 
   const result = spawnSync(runtime, ["exec", "-it", containerName, "/bin/bash"], {
@@ -117,20 +183,38 @@ function openShell(containerName: string): void {
 }
 
 function getContainerUnavailableReason(info: AgentContainerInfo): string | null {
-  if (!info.containerBacked) {
-    return info.unavailableReason ?? "not container-backed";
+  return info.shellAvailable ? null : (info.shellUnavailableReason ?? "not container-backed");
+}
+
+type AgentSshCandidate = { info: AgentContainerInfo; displayName: string; name?: string };
+
+function candidateMatchesInput(candidate: AgentSshCandidate, input: string): boolean {
+  const normalized = normalizeAgentId(input);
+  return (
+    normalizeAgentId(candidate.info.agentId) === normalized ||
+    (candidate.name ? normalizeAgentId(candidate.name) === normalized : false)
+  );
+}
+
+function formatNonInteractiveNoAgentError(candidates: AgentSshCandidate[]): string {
+  const lines = ["No agent specified. Usage: gemmaclaw ssh <agent>"];
+  const eligible = candidates.filter(
+    (candidate) => getContainerUnavailableReason(candidate.info) === null,
+  );
+  if (eligible.length > 0) {
+    lines.push("Eligible container-backed agents with running containers:");
+    for (const candidate of eligible) {
+      lines.push(`  - ${candidate.info.agentId} (gemmaclaw ssh ${candidate.info.agentId})`);
+    }
+  } else {
+    lines.push("No configured agents currently have a running container shell.");
   }
-  if (info.containers.length === 0) {
-    return "no container registered — start a session first";
-  }
-  if (!info.containers.some((c) => c.running)) {
-    return "container stopped — start a session first";
-  }
-  return null;
+  lines.push("Run 'gemmaclaw list' to inspect configured agents and container status.");
+  return lines.join("\n");
 }
 
 async function promptAgentSelection(
-  candidates: Array<{ info: AgentContainerInfo; displayName: string }>,
+  candidates: AgentSshCandidate[],
 ): Promise<AgentContainerInfo | null> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
@@ -162,9 +246,7 @@ async function promptAgentSelection(
           resolve(candidate.info);
           return;
         }
-        const found = candidates.find(
-          (c) => normalizeAgentId(c.info.agentId) === normalizeAgentId(trimmed),
-        );
+        const found = candidates.find((c) => candidateMatchesInput(c, trimmed));
         if (found) {
           const reason = getContainerUnavailableReason(found.info);
           if (reason !== null) {
@@ -196,18 +278,20 @@ export async function agentsSshCommand(
 
   if (opts.agent) {
     const agentId = normalizeAgentId(opts.agent);
-    const summaries = buildAgentSummaries(cfg, { includeImplicitDefault: true });
-    const exists = summaries.some((s) => normalizeAgentId(s.id) === agentId);
-    if (!exists) {
+    const summaries = buildAgentSummaries(cfg, { includeImplicitDefault: false });
+    const exactMatch = summaries.find((s) => normalizeAgentId(s.id) === agentId);
+    const nameMatch = summaries.find((s) => s.name && normalizeAgentId(s.name) === agentId);
+    const summary = exactMatch ?? nameMatch;
+    if (!summary) {
       runtime.error(
-        `Agent "${opts.agent}" is not registered. Run 'gemmaclaw list' to see configured agents.`,
+        `Agent "${opts.agent}" is not registered. Run 'gemmaclaw list' to see configured agents and container status.`,
       );
       process.exitCode = 1;
       return;
     }
-    targetInfo = await resolveAgentContainerInfo(agentId, cfg);
+    targetInfo = await resolveAgentContainerInfo(summary.id, cfg);
   } else {
-    const summaries = buildAgentSummaries(cfg, { includeImplicitDefault: true });
+    const summaries = buildAgentSummaries(cfg, { includeImplicitDefault: false });
 
     if (summaries.length === 0) {
       runtime.error(
@@ -217,22 +301,20 @@ export async function agentsSshCommand(
       return;
     }
 
-    const isTTY = process.stdin.isTTY && process.stdout.isTTY;
-    if (!isTTY || opts.nonInteractive) {
-      runtime.error(
-        "No agent specified. Usage: gemmaclaw ssh <agent>\n" +
-          "Run 'gemmaclaw list' to see configured agents.",
-      );
-      process.exitCode = 1;
-      return;
-    }
-
     const candidates = await Promise.all(
       summaries.map(async (s) => ({
         info: await resolveAgentContainerInfo(s.id, cfg),
         displayName: s.name && s.name !== s.id ? `${s.id} (${s.name})` : s.id,
+        name: s.name,
       })),
     );
+
+    const isTTY = process.stdin.isTTY && process.stdout.isTTY;
+    if (!isTTY || opts.nonInteractive) {
+      runtime.error(formatNonInteractiveNoAgentError(candidates));
+      process.exitCode = 1;
+      return;
+    }
 
     const selected = await promptAgentSelection(candidates);
     if (!selected) {
@@ -247,6 +329,7 @@ export async function agentsSshCommand(
     runtime.error(
       `Agent "${targetInfo.agentId}" does not have a container-backed sandbox.\n` +
         `Reason: ${targetInfo.unavailableReason ?? "not container-backed"}\n\n` +
+        `Run 'gemmaclaw list' to inspect configured agents and container status. ` +
         `To enable container mode, run 'gemmaclaw setup' and choose the Docker sandbox option.`,
     );
     process.exitCode = 1;
@@ -259,12 +342,12 @@ export async function agentsSshCommand(
     if (targetInfo.containers.length === 0) {
       runtime.error(
         `No containers found for agent "${targetInfo.agentId}".\n` +
-          `Start a session first so the sandbox container is created, then re-run this command.`,
+          `Start/chat/run this agent first so the sandbox container is created, then re-run this command. Run 'gemmaclaw list' to inspect container status.`,
       );
     } else {
       runtime.error(
         `Container for agent "${targetInfo.agentId}" is not running.\n` +
-          `Start a session for this agent first, then re-run this command.`,
+          `Start/chat/run this agent first, then re-run this command. Run 'gemmaclaw list' to inspect container status.`,
       );
     }
     process.exitCode = 1;
@@ -278,7 +361,7 @@ export async function agentsSshCommand(
   runtime.log(
     `Note: this opens a container shell via '${container.backendId} exec', not a network SSH connection.`,
   );
-  openShell(container.containerName);
+  openShell(container.containerName, container.backendId);
 }
 
 export async function resolveAgentsSshInfo(

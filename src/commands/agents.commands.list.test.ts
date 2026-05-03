@@ -50,6 +50,19 @@ const baseSummary = {
   bindings: 0,
 };
 
+function sshInfo(overrides = {}) {
+  return {
+    agentId: "main",
+    sandboxMode: "all",
+    sandboxBackend: "docker",
+    containerBacked: true,
+    shellAvailable: false,
+    shellUnavailableReason: "no container registered — start a session first",
+    containers: [],
+    ...overrides,
+  };
+}
+
 describe("agentsListCommand shell availability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,11 +77,11 @@ describe("agentsListCommand shell availability", () => {
       new Map([
         [
           "main",
-          {
-            agentId: "main",
-            containerBacked: true,
-            containers: [{ containerName: "c1", backendId: "docker", running: true }],
-          },
+          sshInfo({
+            shellAvailable: true,
+            shellUnavailableReason: undefined,
+            containers: [{ containerName: "c1", backendId: "docker", exists: true, running: true }],
+          }),
         ],
       ]),
     );
@@ -78,8 +91,18 @@ describe("agentsListCommand shell availability", () => {
       capturedSummaries.push(...(data as unknown[]));
     });
     await agentsListCommand({ json: true }, mocks.runtime as never);
-    expect(capturedSummaries[0]).toMatchObject({ shellAvailable: true });
-    expect(capturedSummaries[0]).not.toHaveProperty("shellUnavailableReason");
+    expect(capturedSummaries[0]).toMatchObject({
+      shellAvailable: true,
+      containerShell: {
+        eligible: true,
+        available: true,
+        backend: "docker",
+        containers: [{ name: "c1", backend: "docker", exists: true, running: true }],
+      },
+    });
+    expect(
+      (capturedSummaries[0] as { shellUnavailableReason?: string }).shellUnavailableReason,
+    ).toBeUndefined();
   });
 
   it("sets shellAvailable=false with 'no container registered' reason when no registry entries", async () => {
@@ -87,11 +110,9 @@ describe("agentsListCommand shell availability", () => {
       new Map([
         [
           "main",
-          {
-            agentId: "main",
-            containerBacked: true,
+          sshInfo({
             containers: [],
-          },
+          }),
         ],
       ]),
     );
@@ -104,6 +125,11 @@ describe("agentsListCommand shell availability", () => {
     expect(capturedSummaries[0]).toMatchObject({
       shellAvailable: false,
       shellUnavailableReason: expect.stringContaining("no container registered"),
+      containerShell: {
+        eligible: true,
+        available: false,
+        reason: expect.stringContaining("no container registered"),
+      },
     });
   });
 
@@ -112,11 +138,12 @@ describe("agentsListCommand shell availability", () => {
       new Map([
         [
           "main",
-          {
-            agentId: "main",
-            containerBacked: true,
-            containers: [{ containerName: "c1", backendId: "docker", running: false }],
-          },
+          sshInfo({
+            shellUnavailableReason: "container stopped — start a session first",
+            containers: [
+              { containerName: "c1", backendId: "docker", exists: true, running: false },
+            ],
+          }),
         ],
       ]),
     );
@@ -129,6 +156,11 @@ describe("agentsListCommand shell availability", () => {
     expect(capturedSummaries[0]).toMatchObject({
       shellAvailable: false,
       shellUnavailableReason: expect.stringContaining("container stopped"),
+      containerShell: {
+        eligible: true,
+        available: false,
+        reason: expect.stringContaining("container stopped"),
+      },
     });
   });
 
@@ -137,12 +169,13 @@ describe("agentsListCommand shell availability", () => {
       new Map([
         [
           "main",
-          {
-            agentId: "main",
+          sshInfo({
+            sandboxMode: "off",
             containerBacked: false,
             unavailableReason: "sandbox mode is off (not container-backed)",
+            shellUnavailableReason: "sandbox mode is off (not container-backed)",
             containers: [],
-          },
+          }),
         ],
       ]),
     );
@@ -155,6 +188,12 @@ describe("agentsListCommand shell availability", () => {
     expect(capturedSummaries[0]).toMatchObject({
       shellAvailable: false,
       shellUnavailableReason: expect.stringContaining("sandbox mode is off"),
+      containerShell: {
+        eligible: false,
+        available: false,
+        mode: "off",
+        reason: expect.stringContaining("sandbox mode is off"),
+      },
     });
   });
 });
