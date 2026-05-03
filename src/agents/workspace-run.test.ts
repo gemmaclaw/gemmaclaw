@@ -99,7 +99,7 @@ describe("resolveRunWorkspaceDir", () => {
 
     expect(result.agentId).toBe("research");
     expect(result.agentIdSource).toBe("explicit");
-    expect(result.workspaceDir).toBe(path.resolve("/tmp/openclaw-state", "workspace-research"));
+    expect(result.workspaceDir).toBe(path.resolve("/tmp/openclaw-state", "workspaces", "research"));
   });
 
   it("throws for malformed agent session keys even when config has a default agent", () => {
