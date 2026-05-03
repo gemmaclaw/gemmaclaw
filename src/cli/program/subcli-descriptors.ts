@@ -63,16 +63,7 @@ const subCliCommandCatalog = defineCommandDescriptorCatalog([
     description: "Manage sandbox containers for agent isolation",
     hasSubcommands: true,
   },
-  {
-    name: "tui",
-    description: "Open a terminal UI connected to the Gateway",
-    hasSubcommands: false,
-  },
-  {
-    name: "terminal",
-    description: "Open a local terminal UI (alias for tui --local)",
-    hasSubcommands: false,
-  },
+
   {
     name: "chat",
     description: "Open a browser-based chat UI for your Gemma assistant",

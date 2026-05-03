@@ -334,6 +334,9 @@ describe("formatNextSteps", () => {
     const text = lines.join("\n");
     expect(text).toContain("http://127.0.0.1:8765/");
     expect(text).toContain("--agent tester");
+    expect(text).toContain("gemmaclaw tui tester");
+    expect(text).toContain("Host-local agents open the terminal TUI directly.");
+    expect(text).toContain("~/.gemmaclaw/workspaces/tester/AGENTS.md");
     expect(text).toContain("setup --advanced");
   });
 
@@ -349,6 +352,8 @@ describe("formatNextSteps", () => {
     const text = lines.join("\n");
     expect(text).not.toContain("Open the chat UI");
     expect(text).toContain("--agent x");
+    expect(text).toContain("gemmaclaw tui x");
+    expect(text).toContain("persistent per-agent 127.0.0.1 port");
   });
 });
 

@@ -5,7 +5,6 @@ import {
   ensureConfigReady,
   installBaseProgramMocks,
   installSmokeProgramMocks,
-  runTui,
   runtime,
   setupCommand,
   setupWizardCommand,
@@ -13,6 +12,11 @@ import {
 
 installBaseProgramMocks();
 installSmokeProgramMocks();
+
+const launchTuiAgent = vi.fn();
+vi.mock("../commands/agents.commands.tui.js", () => ({
+  launchTuiAgent,
+}));
 
 vi.mock("./config-cli.js", () => ({
   registerConfigCli: (program: {
@@ -38,7 +42,7 @@ describe("cli program (smoke)", () => {
   beforeEach(() => {
     program = createProgram();
     vi.clearAllMocks();
-    runTui.mockResolvedValue(undefined);
+    launchTuiAgent.mockResolvedValue(undefined);
     ensureConfigReady.mockResolvedValue(undefined);
   });
 
@@ -48,15 +52,14 @@ describe("cli program (smoke)", () => {
     expect(names).toContain("status");
   });
 
-  it("runs tui with explicit timeout override", async () => {
-    await runProgram(["tui", "--timeout-ms", "45000"]);
-    expect(runTui).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 45000 }));
+  it("runs tui with a named agent", async () => {
+    await runProgram(["tui", "myagent"]);
+    expect(launchTuiAgent).toHaveBeenCalledWith(expect.objectContaining({ agentArg: "myagent" }));
   });
 
-  it("warns and ignores invalid tui timeout override", async () => {
-    await runProgram(["tui", "--timeout-ms", "nope"]);
-    expect(runtime.error).toHaveBeenCalledWith('warning: invalid --timeout-ms "nope"; ignoring');
-    expect(runTui).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: undefined }));
+  it("runs tui without agent arg (picker)", async () => {
+    await runProgram(["tui"]);
+    expect(launchTuiAgent).toHaveBeenCalledWith(expect.objectContaining({ agentArg: undefined }));
   });
 
   it("runs setup wizard when wizard flags are present", async () => {

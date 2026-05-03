@@ -1015,7 +1015,7 @@ npm install -g .</code></pre></div>
       <p>Running <code>gemmaclaw setup</code> kicks off a six-question wizard. Press Enter at any prompt to keep the bracketed default. Every question is also exposed as a CLI flag so you can script the whole flow.</p>
 
       <ol class="setup-steps">
-        <li><strong>Agent name</strong> &mdash; the identity for this assistant. Each agent has its own workspace and memory under <code>~/.openclaw/agents/&lt;name&gt;/</code>. Use <code>main</code> if you only run one. Flag: <code>--agent-name &lt;name&gt;</code>.</li>
+        <li><strong>Agent name</strong> &mdash; the identity for this assistant. Each agent has its own workspace and memory under <code>~/.gemmaclaw/agents/&lt;name&gt;/</code>. Use <code>main</code> if you only run one. Flag: <code>--agent-name &lt;name&gt;</code>.</li>
         <li><strong>Run environment</strong> &mdash; do tools (shell, files, browser) execute inside a Docker sandbox or directly on your host? Container is the safer default; host is faster but the agent can read and modify your real files. Flag: <code>--no-container</code>.</li>
         <li><strong>Backend / provider</strong> &mdash; Local Gemma on this machine, the hosted Gemini API, or Google Cloud Vertex AI. Flag: <code>--setup-mode local|gemini|vertex</code>.</li>
         <li><strong>Model</strong> &mdash; for Local you can pick auto (recommended) or a specific Gemma size. Gemini and Vertex offer their own catalogs. Flag: <code>--model &lt;id&gt;</code>.</li>
@@ -1058,9 +1058,9 @@ Setup complete. Try it now:
 
       <p><strong>Where things get written:</strong></p>
       <ul class="setup-list">
-        <li>Per-agent state: <code>~/.openclaw/agents/&lt;name&gt;/</code> (manifest, sessions, auth profile)</li>
-        <li>Workspace bootstrap files: <code>~/.openclaw/workspace/AGENTS.md</code> for the <code>main</code> agent, or <code>~/.openclaw/workspaces/&lt;name&gt;/AGENTS.md</code> for everyone else (the bootstrap profile drops AGENTS.md and, for the coding profile, TOOLS.md)</li>
-        <li>Global config: <code>~/.openclaw/openclaw.json</code> (model defaults, thinking level, sandbox toggle)</li>
+        <li>Per-agent state: <code>~/.gemmaclaw/agents/&lt;name&gt;/</code> (manifest, sessions, auth profile)</li>
+        <li>Workspace bootstrap files: <code>~/.gemmaclaw/workspace/AGENTS.md</code> for the <code>main</code> agent, or <code>~/.gemmaclaw/workspaces/&lt;name&gt;/AGENTS.md</code> for everyone else (the bootstrap profile drops AGENTS.md and, for the coding profile, TOOLS.md)</li>
+        <li>Global config: <code>~/.gemmaclaw/openclaw.json</code> (model defaults, thinking level, sandbox toggle)</li>
       </ul>
 
       <p><strong>Non-interactive / CI:</strong> combine <code>--non-interactive</code> with the per-question flags to script the whole wizard without prompts. Add <code>--dry-run</code> to skip backend provisioning, gateway start, and smoke tests &mdash; useful for CI smoke tests of the wizard itself. Example:</p>
@@ -1171,21 +1171,27 @@ gemmaclaw setup --vertex --vertex-project my-project</code></pre></div>
       <div class="code-block"><pre><code># Create a named agent instance
 gemmaclaw create work
 
-# Open chat UI in your browser
+# Open local TUI/chat for the "work" agent
+gemmaclaw tui work
+
+# Pick an agent interactively (TTY only)
+gemmaclaw tui
+
+# Docker-backed agents open browser chat on a persistent 127.0.0.1 port
+gemmaclaw tui play --no-open
+
+# Open browser chat UI directly
 gemmaclaw chat
 
 # One-shot message from the command line
-gemmaclaw message --agent work "summarize today's news"
-
-# Terminal UI (for SSH sessions)
-gemmaclaw tui</code></pre></div>
+gemmaclaw message --agent work "summarize today's news"</code></pre></div>
       <h3 id="cli-reference">CLI Reference</h3>
       <p>Global options available on all commands:</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Option</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>--profile &lt;name&gt;</code></td><td>Use a named profile (isolates state under <code>~/.openclaw-&lt;name&gt;</code>)</td></tr>
-          <tr><td><code>--dev</code></td><td>Dev profile: isolate state under <code>~/.openclaw-dev</code>, use port 19001</td></tr>
+          <tr><td><code>--profile &lt;name&gt;</code></td><td>Use a named profile (isolates state under <code>~/.gemmaclaw-&lt;name&gt;</code>)</td></tr>
+          <tr><td><code>--dev</code></td><td>Dev profile: isolate state under <code>~/.gemmaclaw-dev</code>, use port 19001</td></tr>
           <tr><td><code>--log-level &lt;level&gt;</code></td><td>Log level: silent, fatal, error, warn, info, debug, trace</td></tr>
           <tr><td><code>--no-color</code></td><td>Disable ANSI colors</td></tr>
           <tr><td><code>-V, --version</code></td><td>Print version and commit hash</td></tr>
@@ -1203,7 +1209,7 @@ gemmaclaw tui</code></pre></div>
             <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
             <tr><td><code>--accept-risk</code></td><td>Required with <code>--non-interactive</code>; acknowledges local agent system-access risk</td></tr>
             <tr><td><code>--wizard</code></td><td>Run interactive workspace config onboarding</td></tr>
-            <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory (default: <code>~/.openclaw/workspace</code>)</td></tr>
+            <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory (default: <code>~/.gemmaclaw/workspace</code>)</td></tr>
             <tr><td><code>--workspace-only</code></td><td>Only initialize workspace config, skip Gemma provisioning</td></tr>
           </tbody>
         </table></div>
@@ -1234,7 +1240,7 @@ gemmaclaw setup --non-interactive --accept-risk --no-container</code></pre></div
 gemmaclaw create work
 
 # Non-interactive with model
-gemmaclaw create dev --model ollama/gemma3:4b --workspace ~/.openclaw/workspace/dev
+gemmaclaw create dev --model ollama/gemma3:4b --workspace ~/.gemmaclaw/workspace/dev
 
 # Scripted/CI
 gemmaclaw create play --non-interactive</code></pre></div>
@@ -1318,20 +1324,32 @@ gemmaclaw message --agent dev --text "hi" --json</code></pre></div>
       </div>
 
       <div class="cli-cmd-card">
-        <h4 id="cmd-tui"><code>gemmaclaw tui</code></h4>
-        <p>Terminal-based chat UI. Useful for SSH sessions or when you prefer the terminal.</p>
+        <h4 id="cmd-tui"><code>gemmaclaw tui [agent]</code></h4>
+        <p>Open a local TUI/chat for a named Gemmaclaw agent. Host-local agents open the terminal TUI directly. Docker-backed agents start or reuse browser chat on <code>127.0.0.1</code> using a persistent, collision-safe per-agent port recorded under <code>~/.gemmaclaw/state/tui-ports.json</code>.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Option</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>--message &lt;text&gt;</code></td><td>Send an initial message after connecting</td></tr>
-            <tr><td><code>--session &lt;key&gt;</code></td><td>Session key (default: "main")</td></tr>
-            <tr><td><code>--local</code></td><td>Run against the local embedded agent runtime</td></tr>
-            <tr><td><code>--url &lt;url&gt;</code></td><td>Gateway WebSocket URL (for remote gateways)</td></tr>
+            <tr><td><code>[agent]</code></td><td>Agent name (positional, or use <code>--agent</code>)</td></tr>
+            <tr><td><code>--agent &lt;id&gt;</code></td><td>Agent id (alias for the positional argument)</td></tr>
+            <tr><td><code>--port &lt;port&gt;</code></td><td>Host port override for container-backed agents</td></tr>
+            <tr><td><code>--no-open</code></td><td>Print URL but do not open browser (container agents)</td></tr>
           </tbody>
         </table></div>
-        <div class="code-block"><pre><code>gemmaclaw tui
-gemmaclaw tui --message "summarize my last meeting"
-gemmaclaw tui --url ws://192.168.1.50:3001</code></pre></div>
+        <div class="code-block"><pre><code># Direct named launch
+gemmaclaw tui work
+
+# Interactive agent picker (requires a TTY)
+gemmaclaw tui
+
+# Container-backed local access: print/open the per-agent localhost URL
+gemmaclaw tui play --no-open
+
+# Override the container-backed localhost port after cleanup
+gemmaclaw tui play --port 9150
+
+# Separate agents keep separate persisted ports
+gemmaclaw tui work
+gemmaclaw tui play</code></pre></div>
       </div>
 
       <div class="cli-cmd-card">
@@ -1507,12 +1525,12 @@ gemmaclaw provision --backend gemma-cpp</code></pre></div>
       </table></div>
 
       <h3>Configuration</h3>
-      <p>Config lives at <code>~/.openclaw/openclaw.json</code>. Edit directly or use the CLI:</p>
+      <p>Config lives at <code>~/.gemmaclaw/openclaw.json</code>. Edit directly or use the CLI:</p>
       <div class="code-block"><pre><code>gemmaclaw config get gateway.port
 gemmaclaw config set gateway.port 3001
 gemmaclaw config validate
 gemmaclaw configure</code></pre></div>
-      <p>Named profiles (<code>--profile mytest</code>) isolate all state under <code>~/.openclaw-mytest/</code>, useful for testing or running multiple instances.</p>
+      <p>Named profiles (<code>--profile mytest</code>) isolate all state under <code>~/.gemmaclaw-mytest/</code>, useful for testing or running multiple instances.</p>
 
       <h3 id="troubleshooting">Troubleshooting</h3>
       <ul class="setup-list">

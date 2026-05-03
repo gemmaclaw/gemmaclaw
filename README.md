@@ -19,11 +19,15 @@ npm install -g .
 
 gemmaclaw setup           # auto-detect hardware, provision Gemma backend
 gemmaclaw create work     # create a named agent instance
-gemmaclaw chat            # open chat UI (picks agent interactively)
+gemmaclaw tui work        # open local TUI/chat for the "work" agent
+gemmaclaw tui             # pick an agent interactively (TTY only)
+gemmaclaw chat            # open browser chat UI (picks agent interactively)
 gemmaclaw message --agent work "summarize this repo"   # one-shot message
 gemmaclaw list            # list agents with container shell availability
 gemmaclaw ssh work        # open a shell inside the 'work' agent's container
 ```
+
+`gemmaclaw tui <agent>` targets exactly that named agent. Host-local agents open the terminal TUI directly. Docker-backed agents start or reuse browser chat on `127.0.0.1` with a persistent, collision-safe per-agent port recorded in `~/.gemmaclaw/state/tui-ports.json`, so `work` and `play` can run side by side.
 
 ## Documentation
 
