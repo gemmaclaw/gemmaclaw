@@ -519,11 +519,19 @@ export function formatNextSteps(choices: OnboardingChoices, gatewayUrl?: string)
     `  - Send a one-shot message:  gemmaclaw message --agent ${choices.agentName} "Hello"`,
   );
   lines.push(`  - Open an interactive chat: gemmaclaw chat --agent ${choices.agentName}`);
+  lines.push(`  - Open local TUI/chat:      gemmaclaw tui ${choices.agentName}`);
+  lines.push(
+    choices.useContainer
+      ? "    (Docker-backed agents use a persistent per-agent 127.0.0.1 port.)"
+      : "    (Host-local agents open the terminal TUI directly.)",
+  );
   lines.push("  - Re-run setup any time:    gemmaclaw setup");
   lines.push("");
   lines.push("Change later:");
   lines.push("  - Switch backend / model:   gemmaclaw setup --advanced");
-  lines.push("  - Edit persona files:       see ~/.gemmaclaw/workspace/AGENTS.md");
+  lines.push(
+    `  - Edit persona files:       see ~/.gemmaclaw/workspaces/${choices.agentName}/AGENTS.md`,
+  );
   lines.push(`  - Tweak thinking level:     edit agents.defaults.thinkingDefault in config`);
   return lines;
 }

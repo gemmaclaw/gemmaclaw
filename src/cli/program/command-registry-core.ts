@@ -140,6 +140,11 @@ const coreEntrySpecs: readonly CommandGroupDescriptorSpec<
         loadModule: () => import("./register.benchmark.js"),
         exportName: "registerBenchmarkCommand",
       },
+      {
+        commandNames: ["tui"],
+        loadModule: () => import("./register.tui.js"),
+        exportName: "registerTuiCommand",
+      },
     ]),
   ),
 ];

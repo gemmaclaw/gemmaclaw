@@ -115,6 +115,11 @@ const coreCliCommandCatalog = defineCommandDescriptorCatalog([
     description: "Run the benchmark suite against your local Gemma model",
     hasSubcommands: false,
   },
+  {
+    name: "tui",
+    description: "Open a local terminal UI for a named Gemmaclaw agent",
+    hasSubcommands: false,
+  },
 ] as const satisfies ReadonlyArray<CoreCliCommandDescriptor>);
 
 export const CORE_CLI_COMMAND_DESCRIPTORS = coreCliCommandCatalog.descriptors;
