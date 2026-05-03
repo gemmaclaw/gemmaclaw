@@ -262,6 +262,13 @@ export function lookupContextTokens(
   return lookupCachedContextTokens(modelId);
 }
 
+function lookupContextTokensForResolve(modelId: string | undefined, allowAsyncLoad?: boolean) {
+  if (allowAsyncLoad === false) {
+    return lookupCachedContextTokens(modelId);
+  }
+  return lookupContextTokens(modelId, { allowAsyncLoad });
+}
+
 if (shouldEagerWarmContextWindowCache()) {
   // Keep startup warmth for the real CLI, but avoid import-time side effects
   // when this module is pulled in through library/plugin-sdk surfaces.
@@ -473,9 +480,9 @@ export function resolveContextTokensForModel(params: {
   // construct "google/gemini-2.5-pro" as the qualified key which accidentally
   // matches OpenRouter's raw discovery entry — the bare lookup is correct there.
   if (params.provider && ref && !ref.model.includes("/")) {
-    const qualifiedResult = lookupContextTokens(
+    const qualifiedResult = lookupContextTokensForResolve(
       `${normalizeProviderId(ref.provider)}/${ref.model}`,
-      { allowAsyncLoad: params.allowAsyncLoad },
+      params.allowAsyncLoad,
     );
     if (qualifiedResult !== undefined) {
       return qualifiedResult;
@@ -484,9 +491,7 @@ export function resolveContextTokensForModel(params: {
 
   // Bare key fallback.  For model-only calls with slash-containing IDs
   // (e.g. "google/gemini-2.5-pro") this IS the raw discovery cache key.
-  const bareResult = lookupContextTokens(params.model, {
-    allowAsyncLoad: params.allowAsyncLoad,
-  });
+  const bareResult = lookupContextTokensForResolve(params.model, params.allowAsyncLoad);
   if (bareResult !== undefined) {
     return bareResult;
   }
@@ -495,9 +500,9 @@ export function resolveContextTokensForModel(params: {
   // provider/model pairs (e.g. model="google-gemini-cli/gemini-3.1-pro")
   // still find discovery entries stored under that qualified ID.
   if (!params.provider && ref && !ref.model.includes("/")) {
-    const qualifiedResult = lookupContextTokens(
+    const qualifiedResult = lookupContextTokensForResolve(
       `${normalizeProviderId(ref.provider)}/${ref.model}`,
-      { allowAsyncLoad: params.allowAsyncLoad },
+      params.allowAsyncLoad,
     );
     if (qualifiedResult !== undefined) {
       return qualifiedResult;

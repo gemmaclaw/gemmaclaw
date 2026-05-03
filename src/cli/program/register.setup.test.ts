@@ -114,4 +114,62 @@ describe("registerSetupCommand", () => {
     expect(runtime.error).toHaveBeenCalledWith("Error: setup failed");
     expect(runtime.exit).toHaveBeenCalledWith(1);
   });
+
+  it("forwards onboarding flags to the Gemma setup command", async () => {
+    await runCli([
+      "setup",
+      "--agent-name",
+      "ci-bot",
+      "--setup-mode",
+      "gemini",
+      "--model",
+      "google/gemini-2.5-pro",
+      "--thinking",
+      "high",
+      "--bootstrap",
+      "coding",
+      "--dry-run",
+    ]);
+
+    expect(setupGemmaCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "ci-bot",
+        setupMode: "gemini",
+        model: "google/gemini-2.5-pro",
+        thinking: "high",
+        bootstrap: "coding",
+        dryRun: true,
+      }),
+      runtime,
+    );
+    expect(setupWizardCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("routes to Gemma setup when --non-interactive is combined with onboarding flags", async () => {
+    await runCli(["setup", "--non-interactive", "--setup-mode", "local", "--bootstrap", "minimal"]);
+
+    expect(setupGemmaCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nonInteractive: true,
+        setupMode: "local",
+        bootstrap: "minimal",
+      }),
+      runtime,
+    );
+    // Workspace wizard must not be invoked when gemma flags are present.
+    expect(setupWizardCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores invalid enum values for --thinking / --bootstrap / --setup-mode", async () => {
+    await runCli(["setup", "--setup-mode", "bogus", "--thinking", "ultra", "--bootstrap", "weird"]);
+
+    expect(setupGemmaCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        setupMode: undefined,
+        thinking: undefined,
+        bootstrap: undefined,
+      }),
+      runtime,
+    );
+  });
 });

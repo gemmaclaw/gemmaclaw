@@ -705,6 +705,9 @@ def generate_community_cards(posts):
         # Flair badge
         flair_html = f'<span class="cr-flair">{flair}</span>' if flair else ""
 
+        # Avoid whitespace-only lines in generated HTML when a post has no captured comments.
+        comment_block = f"  {comment_html}\n" if comment_html else ""
+
         # Category badges
         cat_badges = ""
         for cat in post["categories"]:
@@ -725,8 +728,7 @@ def generate_community_cards(posts):
     </div>
   </div>
   <p class="cr-summary">{summary}</p>
-  {comment_html}
-  <a href="{reddit_url}" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+{comment_block}  <a href="{reddit_url}" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>""")
 
     return filter_bar + '\n<div id="community-cards">' + "\n".join(cards) + '</div>'
@@ -879,8 +881,57 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
 </html>"""
 
 
+# Inline line-icon SVGs for the homepage capability cards.
+# Rendered with currentColor so they pick up the site accent. Sized via .page-card-icon CSS.
+# Replaces emoji code points (some in supplementary planes) that rendered as tofu boxes on
+# minimal Linux/headless Chromium without color-emoji fonts.
+_CARD_ICON_SVG_ATTRS = (
+    'viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+)
+_CARD_ICONS = {
+    "setup": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
+        '<circle cx="12" cy="12" r="3"/>'
+        '</svg>'
+    ),
+    "self-hosting": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>'
+        '<rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>'
+        '<line x1="6" y1="6" x2="6.01" y2="6"/>'
+        '<line x1="6" y1="18" x2="6.01" y2="18"/>'
+        '</svg>'
+    ),
+    "benchmarks": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M3 3v18h18"/>'
+        '<path d="M8 17v-3"/>'
+        '<path d="M13 17V9"/>'
+        '<path d="M18 17V5"/>'
+        '</svg>'
+    ),
+    "community": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>'
+        '<circle cx="9" cy="7" r="4"/>'
+        '<path d="M22 21v-2a4 4 0 0 0-3-3.87"/>'
+        '<path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+        '</svg>'
+    ),
+    "goals": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<circle cx="12" cy="12" r="6"/>'
+        '<circle cx="12" cy="12" r="2"/>'
+        '</svg>'
+    ),
+}
+
+
 def generate_index_page():
-    body = """<!-- Hero -->
+    body = f"""<!-- Hero -->
     <div class="hero">
       <h1><span>Gemmaclaw</span></h1>
       <p class="tagline">One command to a working Gemma assistant, regardless of what hardware you have. Auto-detect, provision, and benchmark.</p>
@@ -891,11 +942,11 @@ def generate_index_page():
       </div>
     </div>
     <div class="page-cards">
-      <a href="setup.html" class="page-card"><div class="page-card-icon">&#9881;</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
-      <a href="self-hosting.html" class="page-card"><div class="page-card-icon">&#9729;</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
-      <a href="benchmarks.html" class="page-card"><div class="page-card-icon">&#9889;</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
-      <a href="community.html" class="page-card"><div class="page-card-icon">&#128101;</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
-      <a href="goals.html" class="page-card"><div class="page-card-icon">&#127919;</div><h3>Goals & Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
+      <a href="setup.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["setup"]}</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
+      <a href="self-hosting.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["self-hosting"]}</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
+      <a href="benchmarks.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["benchmarks"]}</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
+      <a href="community.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["community"]}</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
+      <a href="goals.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["goals"]}</div><h3>Goals &amp; Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
     </div>"""
     return page_template("", body)
 
@@ -909,6 +960,7 @@ def generate_setup_page():
       <h3>Contents</h3>
       <ul class="setup-list">
         <li><a href="#install" class="inline">Install Gemmaclaw</a></li>
+        <li><a href="#wizard" class="inline">The Onboarding Wizard</a> (what each prompt means)</li>
         <li><a href="#path-local" class="inline">Path 1: Local</a> (private, auto-detects your GPU)</li>
         <li><a href="#path-gemini" class="inline">Path 2: Gemini API</a> (cloud, no local hardware needed)</li>
         <li><a href="#path-vertex" class="inline">Path 3: Vertex AI</a> (enterprise, GCP integration)</li>
@@ -925,6 +977,69 @@ pnpm build
 npm install -g .</code></pre></div>
       <p>Requires Node.js 22+. Docker is recommended for sandboxed tool execution but not required.</p>
       <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
+
+      <h3 id="wizard">The Onboarding Wizard</h3>
+      <p>Running <code>gemmaclaw setup</code> kicks off a six-question wizard. Press Enter at any prompt to keep the bracketed default. Every question is also exposed as a CLI flag so you can script the whole flow.</p>
+
+      <ol class="setup-steps">
+        <li><strong>Agent name</strong> &mdash; the identity for this assistant. Each agent has its own workspace and memory under <code>~/.openclaw/agents/&lt;name&gt;/</code>. Use <code>main</code> if you only run one. Flag: <code>--agent-name &lt;name&gt;</code>.</li>
+        <li><strong>Run environment</strong> &mdash; do tools (shell, files, browser) execute inside a Docker sandbox or directly on your host? Container is the safer default; host is faster but the agent can read and modify your real files. Flag: <code>--no-container</code>.</li>
+        <li><strong>Backend / provider</strong> &mdash; Local Gemma on this machine, the hosted Gemini API, or Google Cloud Vertex AI. Flag: <code>--setup-mode local|gemini|vertex</code>.</li>
+        <li><strong>Model</strong> &mdash; for Local you can pick auto (recommended) or a specific Gemma size. Gemini and Vertex offer their own catalogs. Flag: <code>--model &lt;id&gt;</code>.</li>
+        <li><strong>Thinking level</strong> &mdash; how much chain-of-thought reasoning the agent does before answering. <code>off</code> is fastest, <code>medium</code> is the sweet spot, <code>high</code> is best for hard problems. Flag: <code>--thinking off|low|medium|high</code>.</li>
+        <li><strong>Starter persona (bootstrap profile)</strong> &mdash; what AGENTS.md / TOOLS.md content the wizard drops into the workspace. <code>general</code> is a friendly default, <code>coding</code> tunes the assistant for code tasks, <code>minimal</code> leaves the workspace empty. Flag: <code>--bootstrap general|coding|minimal</code>.</li>
+      </ol>
+
+      <p><strong>Example transcript</strong> (Local + Docker + auto + medium + general):</p>
+      <div class="code-block"><pre><code>$ gemmaclaw setup
+Welcome to Gemmaclaw. We'll set up an AI agent in five quick questions.
+
+1. Agent name
+   Agent name [main]: &lt;Enter&gt;
+
+2. Where should the agent run its tools (shell, files, browser)?
+   Choose [1/2, default=1]: &lt;Enter&gt;
+
+3. Where should the model run?
+   Choose [1/2/3, default=1]: &lt;Enter&gt;
+
+4. Which model?
+   Choose [1-5, default=1]: &lt;Enter&gt;
+
+5. How much should the agent think before answering?
+   Choose [1-4, default=3 (medium)]: &lt;Enter&gt;
+
+6. What should the agent's starter persona look like?
+   Choose [1-3, default=1 (general)]: &lt;Enter&gt;
+
+Your setup:
+  Agent name:  main
+  Run mode:    Container (Docker sandbox for tools)
+  Backend:     Local (this machine)
+  Model:       auto
+  Thinking:    medium
+  Persona:     General assistant (recommended)
+
+Setup complete. Try it now:
+  gemmaclaw chat --agent main</code></pre></div>
+
+      <p><strong>Where things get written:</strong></p>
+      <ul class="setup-list">
+        <li>Per-agent state: <code>~/.openclaw/agents/&lt;name&gt;/</code> (manifest, sessions, auth profile)</li>
+        <li>Workspace bootstrap files: <code>~/.openclaw/workspace/AGENTS.md</code> for the <code>main</code> agent, or <code>~/.openclaw/workspaces/&lt;name&gt;/AGENTS.md</code> for everyone else (the bootstrap profile drops AGENTS.md and, for the coding profile, TOOLS.md)</li>
+        <li>Global config: <code>~/.openclaw/openclaw.json</code> (model defaults, thinking level, sandbox toggle)</li>
+      </ul>
+
+      <p><strong>Non-interactive / CI:</strong> combine <code>--non-interactive</code> with the per-question flags to script the whole wizard without prompts. Add <code>--dry-run</code> to skip backend provisioning, gateway start, and smoke tests &mdash; useful for CI smoke tests of the wizard itself. Example:</p>
+      <div class="code-block"><pre><code>gemmaclaw setup \
+  --non-interactive \
+  --setup-mode local \
+  --agent-name dev-agent \
+  --no-container \
+  --thinking high \
+  --bootstrap coding \
+  --dry-run</code></pre></div>
+      <p>The Docker E2E job under <code>test/e2e/Dockerfile.onboard-gemma</code> exercises every major path this way and is wired into CI as a required pass via <code>.github/workflows/onboard-gemma-e2e.yml</code>.</p>
 
       <h3 id="path-local">Path 1: Local (Private, auto-detect hardware)</h3>
       <p>Run Gemma entirely on your machine. No data leaves your network. Gemmaclaw detects your GPU and RAM, picks the best model, downloads and provisions everything automatically.</p>
@@ -965,6 +1080,12 @@ gemmaclaw setup --non-interactive --accept-risk --no-container</code></pre></div
           <tr><td><code>--non-interactive</code></td><td>Run without prompts (uses safe defaults)</td></tr>
           <tr><td><code>--accept-risk</code></td><td>Required with <code>--non-interactive</code></td></tr>
           <tr><td><code>--workspace &lt;dir&gt;</code></td><td>Agent workspace directory</td></tr>
+          <tr><td><code>--agent-name &lt;name&gt;</code></td><td>Pick the agent identity created by setup (default: <code>main</code>)</td></tr>
+          <tr><td><code>--setup-mode local|gemini|vertex</code></td><td>Skip the backend prompt</td></tr>
+          <tr><td><code>--model &lt;id&gt;</code></td><td>Pre-pick a model (e.g. <code>gemma3:4b</code>, <code>google/gemini-2.5-pro</code>)</td></tr>
+          <tr><td><code>--thinking off|low|medium|high</code></td><td>Pre-pick reasoning depth</td></tr>
+          <tr><td><code>--bootstrap general|coding|minimal</code></td><td>Pre-pick the starter persona</td></tr>
+          <tr><td><code>--dry-run</code></td><td>Run wizard + write config but skip provisioning &amp; gateway start (CI / e2e)</td></tr>
         </tbody>
       </table></div>
 
@@ -2252,7 +2373,8 @@ CSS = """
     .page-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
     .page-card { display: block; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--fg); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
     .page-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(66,133,244,0.1); }
-    .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; color: var(--accent); line-height: 1; }
+    .page-card-icon svg { width: 1.75rem; height: 1.75rem; display: block; }
     .page-card h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--fg); }
     .page-card p { font-size: 0.9rem; color: var(--fg-soft); margin: 0; line-height: 1.5; }
     .field-notes-section { margin-bottom: 2rem; }
