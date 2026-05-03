@@ -141,42 +141,62 @@ function isDockerRunning(): boolean {
   }
 }
 
-async function ensureDockerReadyOrFallback(
+/** Injectable probe for Docker availability. Override in tests to avoid spawning Docker. */
+export interface DockerProbe {
+  isInstalled(): boolean;
+  isRunning(): boolean;
+}
+
+const DOCKER_PROBE: DockerProbe = { isInstalled: isDockerInstalled, isRunning: isDockerRunning };
+
+/**
+ * Assert that Docker is available for container mode. Hard-fails with a clear
+ * actionable error when Docker is missing or not running. Never silently falls
+ * back to host execution — the user explicitly chose container mode.
+ *
+ * In interactive mode, if Docker is installed but not running, the user gets
+ * one prompt to start it before setup aborts. In non-interactive mode (prompt
+ * is null), the function exits immediately on any Docker failure.
+ *
+ * Note: this check is skipped entirely when dryRun is true, since dry-run is
+ * meant to validate wizard flow and config without touching live services.
+ */
+export async function assertDockerForContainerMode(
   runtime: RuntimeEnv,
+  probe: DockerProbe,
   prompt: ((q: string) => Promise<string>) | null,
-): Promise<boolean> {
-  if (!isDockerInstalled()) {
-    runtime.log("");
-    runtime.log("Docker is not installed, falling back to direct/host execution.");
-    runtime.log("Install Docker later if you want sandboxing:");
-    runtime.log("  macOS:   brew install --cask docker   (then open Docker.app)");
-    runtime.log("  Linux:   curl -fsSL https://get.docker.com | sh");
-    runtime.log("  Windows: https://docs.docker.com/desktop/install/windows-install/");
-    return false;
+): Promise<void> {
+  const installUrl = "https://docs.docker.com/get-docker/";
+
+  if (!probe.isInstalled()) {
+    runtime.error("");
+    runtime.error("Container mode requires Docker, but Docker is not installed on this machine.");
+    runtime.error(`Install Docker from ${installUrl} and rerun setup,`);
+    runtime.error("or choose local mode (option 2 in the setup wizard, or --no-container).");
+    runtime.exit(1);
+    return;
   }
 
-  if (!isDockerRunning()) {
-    runtime.log("");
-    runtime.log("Docker is installed but the daemon is not running. Start it:");
-    runtime.log("  macOS:   Open Docker Desktop (or: open -a Docker)");
-    runtime.log("  Linux:   sudo systemctl start docker");
-    if (!prompt) {
-      runtime.log("Continuing without Docker sandbox.");
-      return false;
-    }
-    const answer = await prompt(
-      "Press Enter once Docker is running (or type 'skip' to run without it): ",
-    );
-    if (answer.trim().toLowerCase() === "skip") {
-      return false;
-    }
-    if (!isDockerRunning()) {
-      runtime.log("Docker daemon is still not running. Continuing without sandbox.");
-      return false;
-    }
-  }
+  if (!probe.isRunning()) {
+    runtime.error("");
+    runtime.error("Container mode requires Docker, but the Docker daemon is not running.");
+    runtime.error("Start Docker and try again:");
+    runtime.error("  macOS:   Open Docker Desktop (or: open -a Docker)");
+    runtime.error("  Linux:   sudo systemctl start docker");
 
-  return true;
+    if (prompt) {
+      const answer = await prompt("Press Enter once Docker is running (or Ctrl+C to cancel): ");
+      if (!answer.trim() && probe.isRunning()) {
+        return;
+      }
+    }
+
+    runtime.error("");
+    runtime.error(`Install or start Docker from ${installUrl} and rerun setup,`);
+    runtime.error("or choose local mode (--no-container).");
+    runtime.exit(1);
+    return;
+  }
 }
 
 /**
@@ -260,25 +280,33 @@ export async function setupGemmaCommand(
   }
   runtime.log("");
 
-  // If the user picked container mode, verify Docker is actually available
-  // and gracefully fall back to host execution otherwise.
-  let useDocker = choices.useContainer;
-  if (choices.useContainer && !dryRun) {
-    const interactivePrompt = opts.nonInteractive
-      ? null
-      : async (q: string) => {
-          const rl = (await import("node:readline/promises")).default.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-          });
-          try {
-            return await rl.question(q);
-          } finally {
-            rl.close();
-          }
-        };
-    useDocker = await ensureDockerReadyOrFallback(runtime, interactivePrompt);
+  // If the user picked container mode, verify Docker is actually available.
+  // Hard-fail with an actionable error if Docker is missing or not running —
+  // the user explicitly chose container mode, so silently downgrading to host
+  // execution would contradict their intent.
+  // Dry-run skips this check so wizard flow and config writes can be tested
+  // without a running Docker daemon.
+  if (choices.useContainer) {
+    if (dryRun) {
+      runtime.log("[dry-run] Skipping Docker availability check for container mode.");
+    } else {
+      const interactivePrompt = opts.nonInteractive
+        ? null
+        : async (q: string) => {
+            const rl = (await import("node:readline/promises")).default.createInterface({
+              input: process.stdin,
+              output: process.stdout,
+            });
+            try {
+              return await rl.question(q);
+            } finally {
+              rl.close();
+            }
+          };
+      await assertDockerForContainerMode(runtime, DOCKER_PROBE, interactivePrompt);
+    }
   }
+  const useDocker = choices.useContainer;
 
   if (choices.backend === "gemini") {
     await setupGeminiBackend(runtime, choices, { dryRun });
