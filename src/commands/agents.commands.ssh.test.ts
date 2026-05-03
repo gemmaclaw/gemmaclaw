@@ -210,4 +210,62 @@ describe("resolveAgentsSshInfo", () => {
     expect(result.get("main")?.containerBacked).toBe(true);
     expect(result.get("work")?.containerBacked).toBe(false);
   });
+
+  it("marks container running=true when docker inspect returns true", async () => {
+    mocks.resolveSandboxConfigForAgentMock.mockReturnValue({ mode: "all", backend: "docker" });
+    mocks.readRegistryMock.mockResolvedValue({
+      entries: [
+        {
+          containerName: "openclaw-sbx-main-abc",
+          sessionKey: "agent:main",
+          backendId: "docker",
+          createdAtMs: 0,
+          lastUsedAtMs: 0,
+          image: "test",
+        },
+      ],
+    });
+    mocks.spawnSyncMock.mockImplementation((cmd: string, args: string[]) => {
+      if (args.includes("--version")) {
+        return { status: 0, stdout: "docker 24", stderr: "" };
+      }
+      if (args.includes("inspect")) {
+        return { status: 0, stdout: "true\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+    const result = await resolveAgentsSshInfo(["main"], baseCfg);
+    const info = result.get("main");
+    expect(info?.containerBacked).toBe(true);
+    expect(info?.containers[0].running).toBe(true);
+  });
+
+  it("marks container running=false when docker inspect returns false", async () => {
+    mocks.resolveSandboxConfigForAgentMock.mockReturnValue({ mode: "all", backend: "docker" });
+    mocks.readRegistryMock.mockResolvedValue({
+      entries: [
+        {
+          containerName: "openclaw-sbx-main-abc",
+          sessionKey: "agent:main",
+          backendId: "docker",
+          createdAtMs: 0,
+          lastUsedAtMs: 0,
+          image: "test",
+        },
+      ],
+    });
+    mocks.spawnSyncMock.mockImplementation((cmd: string, args: string[]) => {
+      if (args.includes("--version")) {
+        return { status: 0, stdout: "docker 24", stderr: "" };
+      }
+      if (args.includes("inspect")) {
+        return { status: 0, stdout: "false\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+    const result = await resolveAgentsSshInfo(["main"], baseCfg);
+    const info = result.get("main");
+    expect(info?.containerBacked).toBe(true);
+    expect(info?.containers[0].running).toBe(false);
+  });
 });

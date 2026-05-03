@@ -139,9 +139,20 @@ export async function agentsListCommand(
 
     const sshInfo = sshInfoMap.get(normalizeAgentId(summary.id));
     if (sshInfo) {
-      summary.shellAvailable = sshInfo.containerBacked;
       if (!sshInfo.containerBacked) {
+        summary.shellAvailable = false;
         summary.shellUnavailableReason = sshInfo.unavailableReason;
+      } else {
+        const hasRunning = sshInfo.containers.some((c) => c.running);
+        if (hasRunning) {
+          summary.shellAvailable = true;
+        } else if (sshInfo.containers.length === 0) {
+          summary.shellAvailable = false;
+          summary.shellUnavailableReason = "no container registered — start a session first";
+        } else {
+          summary.shellAvailable = false;
+          summary.shellUnavailableReason = "container stopped — start a session first";
+        }
       }
     }
   }

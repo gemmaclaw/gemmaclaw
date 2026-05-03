@@ -116,6 +116,19 @@ function openShell(containerName: string): void {
   }
 }
 
+function getContainerUnavailableReason(info: AgentContainerInfo): string | null {
+  if (!info.containerBacked) {
+    return info.unavailableReason ?? "not container-backed";
+  }
+  if (info.containers.length === 0) {
+    return "no container registered — start a session first";
+  }
+  if (!info.containers.some((c) => c.running)) {
+    return "container stopped — start a session first";
+  }
+  return null;
+}
+
 async function promptAgentSelection(
   candidates: Array<{ info: AgentContainerInfo; displayName: string }>,
 ): Promise<AgentContainerInfo | null> {
@@ -125,14 +138,11 @@ async function promptAgentSelection(
     console.log("\nRegistered agents:");
     candidates.forEach((c, i) => {
       const idx = String(i + 1).padStart(2);
-      if (c.info.containerBacked) {
-        const running = c.info.containers.some((cn) => cn.running);
-        const status = running ? "running" : "container stopped";
-        console.log(`  ${idx}. ${c.displayName} [${status}]`);
+      const reason = getContainerUnavailableReason(c.info);
+      if (reason === null) {
+        console.log(`  ${idx}. ${c.displayName} [container running]`);
       } else {
-        console.log(
-          `  ${idx}. ${c.displayName} [unavailable: ${c.info.unavailableReason ?? "not container-backed"}]`,
-        );
+        console.log(`  ${idx}. ${c.displayName} [unavailable: ${reason}]`);
       }
     });
     console.log("");
@@ -142,13 +152,30 @@ async function promptAgentSelection(
         const trimmed = answer.trim();
         const num = Number.parseInt(trimmed, 10);
         if (!Number.isNaN(num) && num >= 1 && num <= candidates.length) {
-          resolve(candidates[num - 1].info);
+          const candidate = candidates[num - 1];
+          const reason = getContainerUnavailableReason(candidate.info);
+          if (reason !== null) {
+            console.error(`  Agent "${candidate.info.agentId}" is unavailable: ${reason}`);
+            resolve(null);
+            return;
+          }
+          resolve(candidate.info);
           return;
         }
         const found = candidates.find(
           (c) => normalizeAgentId(c.info.agentId) === normalizeAgentId(trimmed),
         );
-        resolve(found?.info ?? null);
+        if (found) {
+          const reason = getContainerUnavailableReason(found.info);
+          if (reason !== null) {
+            console.error(`  Agent "${found.info.agentId}" is unavailable: ${reason}`);
+            resolve(null);
+            return;
+          }
+          resolve(found.info);
+          return;
+        }
+        resolve(null);
       });
     });
   } finally {
