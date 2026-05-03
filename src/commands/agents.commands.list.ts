@@ -7,6 +7,7 @@ import { defaultRuntime } from "../runtime.js";
 import { shortenHomePath } from "../utils.js";
 import { describeBinding } from "./agents.bindings.js";
 import { requireValidConfig } from "./agents.command-shared.js";
+import { resolveAgentsSshInfo } from "./agents.commands.ssh.js";
 import type { AgentSummary } from "./agents.config.js";
 import { buildAgentSummaries } from "./agents.config.js";
 import {
@@ -70,6 +71,41 @@ function formatSummary(summary: AgentSummary) {
       lines.push(`    - ${binding}`);
     }
   }
+
+  if (summary.containerShell) {
+    if (summary.containerShell.eligible) {
+      lines.push(
+        `  Tools: Docker/container sandbox (${summary.containerShell.backend}; mode: ${summary.containerShell.mode})`,
+      );
+    } else if (summary.containerShell.mode === "off") {
+      lines.push("  Tools: host/direct mode (no container sandbox)");
+    } else {
+      lines.push(
+        `  Tools: non-container sandbox (${summary.containerShell.backend}; mode: ${summary.containerShell.mode})`,
+      );
+    }
+
+    if (summary.containerShell.available) {
+      const running = summary.containerShell.containers
+        .filter((container) => container.running)
+        .map((container) => container.name)
+        .join(", ");
+      lines.push(
+        `  Container shell: available${running ? ` — ${running}` : ""} (gemmaclaw ssh ${summary.id})`,
+      );
+    } else {
+      lines.push(
+        `  Container shell: unavailable — ${summary.containerShell.reason ?? summary.shellUnavailableReason ?? "not container-backed"}`,
+      );
+    }
+  } else if (summary.shellAvailable === true) {
+    lines.push(`  Container shell: available (gemmaclaw ssh ${summary.id})`);
+  } else if (summary.shellAvailable === false) {
+    lines.push(
+      `  Container shell: unavailable — ${summary.shellUnavailableReason ?? "not container-backed"}`,
+    );
+  }
+
   return lines.join("\n");
 }
 
@@ -103,6 +139,10 @@ export async function agentsListCommand(
   }
 
   const providerStatus = await buildProviderStatusIndex(cfg);
+  const sshInfoMap = await resolveAgentsSshInfo(
+    summaries.map((s) => s.id),
+    cfg,
+  );
 
   for (const summary of summaries) {
     const bindings = bindingMap.get(summary.id) ?? [];
@@ -121,6 +161,29 @@ export async function agentsListCommand(
     });
     if (providerLines.length > 0) {
       summary.providers = providerLines;
+    }
+
+    const sshInfo = sshInfoMap.get(normalizeAgentId(summary.id));
+    if (sshInfo) {
+      summary.shellAvailable = sshInfo.shellAvailable;
+      summary.shellUnavailableReason = sshInfo.shellAvailable
+        ? undefined
+        : (sshInfo.shellUnavailableReason ?? sshInfo.unavailableReason);
+      summary.containerShell = {
+        eligible: sshInfo.containerBacked,
+        available: sshInfo.shellAvailable,
+        mode: sshInfo.sandboxMode,
+        backend: sshInfo.sandboxBackend,
+        reason: sshInfo.shellAvailable
+          ? undefined
+          : (sshInfo.shellUnavailableReason ?? sshInfo.unavailableReason),
+        containers: sshInfo.containers.map((container) => ({
+          name: container.containerName,
+          backend: container.backendId,
+          exists: container.exists,
+          running: container.running,
+        })),
+      };
     }
   }
 

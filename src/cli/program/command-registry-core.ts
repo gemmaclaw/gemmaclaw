@@ -126,6 +126,11 @@ const coreEntrySpecs: readonly CommandGroupDescriptorSpec<
         exportName: "registerStatusHealthSessionsCommands",
       },
       {
+        commandNames: ["ssh"],
+        loadModule: () => import("./register.ssh.js"),
+        exportName: "registerSshCommand",
+      },
+      {
         commandNames: ["provision"],
         loadModule: () => import("./register.provision.js"),
         exportName: "registerProvisionCommand",

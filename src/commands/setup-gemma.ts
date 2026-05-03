@@ -2,14 +2,18 @@ import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveAgentDir, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
+import type { OpenClawConfig } from "../config/types.js";
 import type {
   OnboardingBackend,
   OnboardingBootstrap,
   OnboardingChoices,
   OnboardingThinking,
 } from "../gemmaclaw/provision/onboarding-wizard.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
+import { applyAgentConfig, listAgentEntries } from "./agents.config.js";
 
 export type SetupGemmaCommandOpts = {
   advanced?: boolean;
@@ -212,6 +216,27 @@ function resolveLocalOllamaModel(modelChoice: string, fallback?: string): string
 
 function persistThinkingDefault(thinking: OnboardingThinking): "off" | "low" | "medium" | "high" {
   return thinking;
+}
+
+function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
+  const existingEntries = listAgentEntries(draft);
+  const agentId = normalizeAgentId(choices.agentName);
+  const workspaceDir = resolveAgentWorkspaceDir(draft, agentId);
+  const agentDir = resolveAgentDir(draft, agentId);
+  const nextConfig = applyAgentConfig(draft, {
+    agentId,
+    name: choices.agentName.trim() || agentId,
+    workspace: workspaceDir,
+    agentDir,
+  });
+
+  draft.agents = nextConfig.agents;
+  if (existingEntries.length === 0) {
+    draft.agents = {
+      ...draft.agents,
+      list: (draft.agents?.list ?? []).filter((entry) => normalizeAgentId(entry?.id) === agentId),
+    };
+  }
 }
 
 export async function setupGemmaCommand(
@@ -422,6 +447,7 @@ export async function setupGemmaCommand(
           draft.agents.defaults ??= {};
           draft.agents.defaults.model = `ollama/${ollamaModel}`;
           draft.agents.defaults.thinkingDefault = persistThinkingDefault(choices.thinkingLevel);
+          applySetupAgentConfig(draft, choices);
 
           draft.tools ??= {};
           draft.tools.exec ??= {};
@@ -567,7 +593,7 @@ async function setupVertexBackend(
 async function writeGeminiAuthProfile(agentName: string, apiKey: string): Promise<void> {
   const fs = await import("node:fs");
   const homeDir = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
-  const agentDir = path.join(homeDir, ".openclaw", "agents", agentName, "agent");
+  const agentDir = path.join(homeDir, ".openclaw", "agents", normalizeAgentId(agentName), "agent");
   const authPath = path.join(agentDir, "auth-profiles.json");
   let auth: Record<string, unknown> = { version: 1, profiles: {} };
   try {
@@ -589,7 +615,7 @@ async function writeVertexAuthProfile(agentName: string, accessToken: string): P
     homeDir,
     ".openclaw",
     "agents",
-    agentName,
+    normalizeAgentId(agentName),
     "agent",
     "auth-profiles.json",
   );
@@ -644,6 +670,7 @@ async function applySharedAgentDefaults(
           workspaceAccess: "rw",
         };
       }
+      applySetupAgentConfig(draft, choices);
     },
   });
   await applyAgentNameAndBootstrap(choices);
@@ -651,10 +678,13 @@ async function applySharedAgentDefaults(
 
 async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Promise<void> {
   const fs = await import("node:fs");
+  const { loadConfig } = await import("../config/config.js");
   const { applyBootstrapProfile } = await import("../gemmaclaw/provision/bootstrap-profiles.js");
-  const homeDir = process.env.OPENCLAW_HOME ?? process.env.HOME ?? "/root";
-  const agentRoot = path.join(homeDir, ".openclaw", "agents", choices.agentName);
-  fs.mkdirSync(path.join(agentRoot, "agent"), { recursive: true });
+  const cfg = loadConfig();
+  const agentId = normalizeAgentId(choices.agentName);
+  const agentDir = resolveAgentDir(cfg, agentId);
+  const agentRoot = path.dirname(agentDir);
+  fs.mkdirSync(agentDir, { recursive: true });
   fs.mkdirSync(path.join(agentRoot, "sessions"), { recursive: true });
   // Stamp a tiny manifest so we can verify which bootstrap profile was chosen
   // without relying on parsing the larger config file.
@@ -677,14 +707,9 @@ async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Promise<v
   );
 
   // Drop the bootstrap profile's starter files (AGENTS.md, optional TOOLS.md)
-  // into the workspace. We use the workspace dir from the existing default
-  // (~/.openclaw/workspace for the "main" agent; per-agent under
-  // ~/.openclaw/workspaces/<name> for everyone else) and never overwrite
-  // user edits — `applyBootstrapProfile` skips existing files by default.
-  const workspaceDir =
-    choices.agentName === "main"
-      ? path.join(homeDir, ".openclaw", "workspace")
-      : path.join(homeDir, ".openclaw", "workspaces", choices.agentName);
+  // into the same workspace recorded in the canonical agent config. Never
+  // overwrite user edits — `applyBootstrapProfile` skips existing files by default.
+  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
   applyBootstrapProfile(choices.bootstrap, workspaceDir);
 }
 
