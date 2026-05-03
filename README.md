@@ -21,6 +21,8 @@ gemmaclaw setup           # auto-detect hardware, provision Gemma backend
 gemmaclaw create work     # create a named agent instance
 gemmaclaw chat            # open chat UI (picks agent interactively)
 gemmaclaw message --agent work "summarize this repo"   # one-shot message
+gemmaclaw list            # list agents with container shell availability
+gemmaclaw ssh work        # open a shell inside the 'work' agent's container
 ```
 
 ## Documentation

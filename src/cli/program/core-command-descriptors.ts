@@ -101,6 +101,11 @@ const coreCliCommandCatalog = defineCommandDescriptorCatalog([
     hasSubcommands: true,
   },
   {
+    name: "ssh",
+    description: "Open an interactive shell inside a container-backed agent's sandbox",
+    hasSubcommands: false,
+  },
+  {
     name: "provision",
     description: "Install and start a local Gemma backend (Ollama, llama.cpp, or gemma.cpp)",
     hasSubcommands: false,

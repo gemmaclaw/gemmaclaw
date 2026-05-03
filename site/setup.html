@@ -874,16 +874,39 @@ gemmaclaw create play --non-interactive</code></pre></div>
 
       <div class="cli-cmd-card">
         <h4 id="cmd-list"><code>gemmaclaw list</code></h4>
-        <p>List all configured Gemmaclaw instances. Alias for <code>gemmaclaw agents list</code>.</p>
+        <p>List all configured Gemmaclaw instances. Alias for <code>gemmaclaw agents list</code>. Shows container shell availability for each agent.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Option</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>--json</code></td><td>Output JSON instead of text</td></tr>
+            <tr><td><code>--json</code></td><td>Output JSON with <code>shellAvailable</code> and <code>shellUnavailableReason</code> fields</td></tr>
             <tr><td><code>--bindings</code></td><td>Include routing bindings</td></tr>
           </tbody>
         </table></div>
         <div class="code-block"><pre><code>gemmaclaw list
 gemmaclaw list --json</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-ssh"><code>gemmaclaw ssh</code></h4>
+        <p>Open an interactive shell inside a container-backed agent's sandbox. With no argument in a TTY, presents an interactive picker. Non-container agents appear in the picker but cannot be selected, with a clear reason. This opens a container shell via <code>docker exec</code> or <code>podman exec</code>, not a network SSH connection.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[agent]</code></td><td>Agent name/id (optional; prompts interactively if omitted in a TTY)</td></tr>
+            <tr><td><code>--non-interactive</code></td><td>Fail with usage text if no agent is specified (useful for scripts)</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code># Interactive picker (TTY required)
+gemmaclaw ssh
+
+# Direct shell into named agent
+gemmaclaw ssh main
+
+# Script-safe: fail immediately if no agent given
+gemmaclaw ssh work --non-interactive
+
+# Check which agents support container shell
+gemmaclaw list --json | jq '.[] | {id, shellAvailable, shellUnavailableReason}'</code></pre></div>
       </div>
 
       <div class="cli-cmd-card">

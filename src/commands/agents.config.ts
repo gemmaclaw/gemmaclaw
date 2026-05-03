@@ -30,6 +30,10 @@ export type AgentSummary = {
   routes?: string[];
   providers?: string[];
   isDefault: boolean;
+  /** Whether this agent has a container-backed sandbox that supports shell access. */
+  shellAvailable?: boolean;
+  /** Human-readable reason when shellAvailable is false. */
+  shellUnavailableReason?: string;
 };
 
 type AgentEntry = NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number];

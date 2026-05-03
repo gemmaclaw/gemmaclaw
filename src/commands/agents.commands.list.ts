@@ -7,6 +7,7 @@ import { defaultRuntime } from "../runtime.js";
 import { shortenHomePath } from "../utils.js";
 import { describeBinding } from "./agents.bindings.js";
 import { requireValidConfig } from "./agents.command-shared.js";
+import { resolveAgentsSshInfo } from "./agents.commands.ssh.js";
 import type { AgentSummary } from "./agents.config.js";
 import { buildAgentSummaries } from "./agents.config.js";
 import {
@@ -70,6 +71,15 @@ function formatSummary(summary: AgentSummary) {
       lines.push(`    - ${binding}`);
     }
   }
+
+  if (summary.shellAvailable === true) {
+    lines.push(`  Container shell: available (gemmaclaw ssh ${summary.id})`);
+  } else if (summary.shellAvailable === false) {
+    lines.push(
+      `  Container shell: unavailable — ${summary.shellUnavailableReason ?? "not container-backed"}`,
+    );
+  }
+
   return lines.join("\n");
 }
 
@@ -103,6 +113,10 @@ export async function agentsListCommand(
   }
 
   const providerStatus = await buildProviderStatusIndex(cfg);
+  const sshInfoMap = await resolveAgentsSshInfo(
+    summaries.map((s) => s.id),
+    cfg,
+  );
 
   for (const summary of summaries) {
     const bindings = bindingMap.get(summary.id) ?? [];
@@ -121,6 +135,14 @@ export async function agentsListCommand(
     });
     if (providerLines.length > 0) {
       summary.providers = providerLines;
+    }
+
+    const sshInfo = sshInfoMap.get(normalizeAgentId(summary.id));
+    if (sshInfo) {
+      summary.shellAvailable = sshInfo.containerBacked;
+      if (!sshInfo.containerBacked) {
+        summary.shellUnavailableReason = sshInfo.unavailableReason;
+      }
     }
   }
 
