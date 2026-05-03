@@ -351,3 +351,29 @@ describe("formatNextSteps", () => {
     expect(text).toContain("--agent x");
   });
 });
+
+describe("gemmaclaw home path branding", () => {
+  const choices = {
+    agentName: "main",
+    useContainer: false,
+    backend: "local" as const,
+    model: "auto",
+    thinkingLevel: "medium" as const,
+    bootstrap: "general" as const,
+  };
+
+  it("formatNextSteps does not mention .openclaw", () => {
+    const text = formatNextSteps(choices, "http://127.0.0.1:18789/").join("\n");
+    expect(text).not.toContain(".openclaw");
+  });
+
+  it("formatNextSteps references .gemmaclaw for workspace paths", () => {
+    const text = formatNextSteps(choices).join("\n");
+    expect(text).not.toContain("/.openclaw/");
+  });
+
+  it("formatChoicesSummary does not mention .openclaw", () => {
+    const text = formatChoicesSummary(choices).join("\n");
+    expect(text).not.toContain(".openclaw");
+  });
+});

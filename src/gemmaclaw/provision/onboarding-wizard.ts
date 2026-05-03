@@ -156,7 +156,7 @@ const BOOTSTRAP_CHOICES: ReadonlyArray<{
  * Validate an agent name. Returns null when valid, or a human-readable error
  * otherwise. Allowed: letters, digits, dashes; must start with a letter; 1-31
  * characters total. Names map directly to filesystem paths under
- * `~/.openclaw/agents/<name>/`, so we want them to be safe and predictable.
+ * `~/.gemmaclaw/agents/<name>/`, so we want them to be safe and predictable.
  */
 export function validateAgentName(name: string): string | null {
   const trimmed = name.trim();
@@ -250,7 +250,7 @@ async function askAgentName(io: WizardIO, preset?: string): Promise<string> {
   }
 
   io.log("1. Agent name");
-  io.log("   Each agent has its own workspace and memory under ~/.openclaw/agents/<name>/.");
+  io.log("   Each agent has its own workspace and memory under ~/.gemmaclaw/agents/<name>/.");
   io.log('   Pick something short and meaningful. "main" is fine if you only run one.');
   io.log("");
 
@@ -523,7 +523,7 @@ export function formatNextSteps(choices: OnboardingChoices, gatewayUrl?: string)
   lines.push("");
   lines.push("Change later:");
   lines.push("  - Switch backend / model:   gemmaclaw setup --advanced");
-  lines.push("  - Edit persona files:       see ~/.openclaw/workspace/AGENTS.md");
+  lines.push("  - Edit persona files:       see ~/.gemmaclaw/workspace/AGENTS.md");
   lines.push(`  - Tweak thinking level:     edit agents.defaults.thinkingDefault in config`);
   return lines;
 }
