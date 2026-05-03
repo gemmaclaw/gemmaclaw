@@ -1642,10 +1642,13 @@ describe("memory cli", () => {
 
   it("prints conceptual promotion signals", async () => {
     await withTempWorkspace(async (workspaceDir) => {
+      // Use recent relative dates so entries pass the default maxAgeDays=30 filter.
+      const nowMsRecall1 = Date.now() - 3 * 24 * 60 * 60 * 1000;
+      const nowMsRecall2 = Date.now() - 1 * 24 * 60 * 60 * 1000;
       await recordShortTermRecalls({
         workspaceDir,
         query: "router vlan",
-        nowMs: Date.parse("2026-04-01T00:00:00.000Z"),
+        nowMs: nowMsRecall1,
         results: [
           {
             path: "memory/2026-04-01.md",
@@ -1660,7 +1663,7 @@ describe("memory cli", () => {
       await recordShortTermRecalls({
         workspaceDir,
         query: "glacier backup",
-        nowMs: Date.parse("2026-04-03T00:00:00.000Z"),
+        nowMs: nowMsRecall2,
         results: [
           {
             path: "memory/2026-04-01.md",
