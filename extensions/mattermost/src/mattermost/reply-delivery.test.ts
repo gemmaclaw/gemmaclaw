@@ -141,7 +141,7 @@ describe("deliverMattermostReplyPayload", () => {
       const core = createReplyDeliveryCore();
 
       const agentId = "agent-1";
-      const mediaUrl = `file://${path.join(stateDir, `workspace-${agentId}`, "photo.png")}`;
+      const mediaUrl = `file://${path.join(stateDir, "workspaces", agentId, "photo.png")}`;
       const cfg = {} satisfies OpenClawConfig;
 
       await deliverMattermostReplyPayload({
@@ -166,7 +166,7 @@ describe("deliverMattermostReplyPayload", () => {
           accountId: "default",
           mediaUrl,
           replyToId: "root-post",
-          mediaLocalRoots: expect.arrayContaining([path.join(stateDir, `workspace-${agentId}`)]),
+          mediaLocalRoots: expect.arrayContaining([path.join(stateDir, "workspaces", agentId)]),
         }),
       );
     } finally {

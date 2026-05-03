@@ -262,7 +262,7 @@ describe("runMessageAction plugin dispatch", () => {
 
     it("routes execution context ids into plugin handleAction", async () => {
       const stateDir = path.join("/tmp", "openclaw-plugin-dispatch-media-roots");
-      const expectedWorkspaceRoot = path.resolve(stateDir, "workspace-alpha");
+      const expectedWorkspaceRoot = path.resolve(stateDir, "workspaces", "alpha");
       vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
 
       await runMessageAction({

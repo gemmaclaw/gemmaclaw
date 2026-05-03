@@ -89,7 +89,7 @@ describe("local media roots", () => {
       name: "adds the active agent workspace without re-opening broad agent state roots",
       stateDir: path.join("/tmp", "openclaw-agent-media-roots-state"),
       getRoots: () => getAgentScopedMediaLocalRoots({}, "ops"),
-      expectedContained: ["workspace-ops", "sandboxes"],
+      expectedContained: [path.join("workspaces", "ops"), "sandboxes"],
       expectedExcluded: ["agents"],
     },
   ] as const)("$name", ({ stateDir, getRoots, expectedContained, expectedExcluded, minLength }) => {

@@ -184,6 +184,85 @@ describe("agentsSshCommand", () => {
     expect(mocks.runtime.error).not.toHaveBeenCalled();
   });
 
+  it("preserves bash exit code without sh fallback when bash exits nonzero", async () => {
+    mocks.resolveSandboxConfigForAgentMock.mockReturnValue({ mode: "all", backend: "docker" });
+    mocks.readRegistryMock.mockResolvedValue({
+      entries: [
+        {
+          containerName: "openclaw-sbx-main-abc",
+          sessionKey: "agent:main",
+          backendId: "docker",
+          createdAtMs: 0,
+          lastUsedAtMs: 0,
+          image: "test",
+        },
+      ],
+    });
+    mocks.spawnSyncMock.mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "docker" && args.includes("--version")) {
+        return { status: 0, stdout: "docker version 24.0", stderr: "" };
+      }
+      if (cmd === "docker" && args.includes("inspect")) {
+        return { status: 0, stdout: "true\n", stderr: "" };
+      }
+      if (cmd === "docker" && args[0] === "exec" && args.includes("/bin/bash")) {
+        return { status: 2, stdout: "", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    await agentsSshCommand({ agent: "main" }, mocks.runtime);
+
+    // Should NOT fall back to /bin/sh for a plain nonzero exit
+    const execCalls = mocks.spawnSyncMock.mock.calls.filter(
+      (call) => call[0] === "docker" && call[1][0] === "exec",
+    );
+    expect(execCalls).toHaveLength(1);
+    expect(execCalls[0][1]).toContain("/bin/bash");
+    expect(process.exitCode).toBe(2);
+  });
+
+  it("falls back to /bin/sh when bash exits with code 127 (not found in container)", async () => {
+    mocks.resolveSandboxConfigForAgentMock.mockReturnValue({ mode: "all", backend: "docker" });
+    mocks.readRegistryMock.mockResolvedValue({
+      entries: [
+        {
+          containerName: "openclaw-sbx-main-abc",
+          sessionKey: "agent:main",
+          backendId: "docker",
+          createdAtMs: 0,
+          lastUsedAtMs: 0,
+          image: "test",
+        },
+      ],
+    });
+    mocks.spawnSyncMock.mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "docker" && args.includes("--version")) {
+        return { status: 0, stdout: "docker version 24.0", stderr: "" };
+      }
+      if (cmd === "docker" && args.includes("inspect")) {
+        return { status: 0, stdout: "true\n", stderr: "" };
+      }
+      if (cmd === "docker" && args[0] === "exec" && args.includes("/bin/bash")) {
+        return { status: 127, stdout: "", stderr: "bash: not found" };
+      }
+      if (cmd === "docker" && args[0] === "exec" && args.includes("/bin/sh")) {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    await agentsSshCommand({ agent: "main" }, mocks.runtime);
+
+    const execCalls = mocks.spawnSyncMock.mock.calls.filter(
+      (call) => call[0] === "docker" && call[1][0] === "exec",
+    );
+    expect(execCalls).toHaveLength(2);
+    expect(execCalls[0][1]).toContain("/bin/bash");
+    expect(execCalls[1][1]).toContain("/bin/sh");
+    expect(mocks.runtime.error).not.toHaveBeenCalled();
+  });
+
   it("fails with usage text and eligible agents in non-interactive mode with no agent", async () => {
     mocks.buildAgentSummariesMock.mockReturnValue([
       { id: "main", isDefault: true, workspace: "/w", agentDir: "/a", bindings: 0 },

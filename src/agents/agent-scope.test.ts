@@ -503,7 +503,7 @@ describe("resolveAgentConfig", () => {
     expect(workspace).toBe(path.resolve("/shared-ws"));
   });
 
-  it("non-default agent without defaults.workspace falls back to stateDir", () => {
+  it("non-default agent without defaults.workspace falls back to stateDir workspaces/<id>", () => {
     const stateDir = path.join(path.sep, "tmp", "test-state");
     vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
     const cfg: OpenClawConfig = {
@@ -512,7 +512,7 @@ describe("resolveAgentConfig", () => {
       },
     };
     const workspace = resolveAgentWorkspaceDir(cfg, "main");
-    expect(workspace).toBe(path.join(stateDir, "workspace-main"));
+    expect(workspace).toBe(path.join(stateDir, "workspaces", "main"));
   });
 });
 

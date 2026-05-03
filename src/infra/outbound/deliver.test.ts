@@ -530,7 +530,7 @@ describe("deliverOutboundPayloads", () => {
       | undefined;
     expect(
       sendFormattedMediaCall?.mediaLocalRoots?.some((root) =>
-        root.endsWith(path.join(".openclaw", "workspace-work")),
+        root.endsWith(path.join(".openclaw", "workspaces", "work")),
       ),
     ).toBe(true);
     expect(sendMedia).not.toHaveBeenCalled();
