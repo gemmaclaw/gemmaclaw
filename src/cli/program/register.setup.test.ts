@@ -59,6 +59,15 @@ describe("registerSetupCommand", () => {
     expect(setupWizardCommandMock).not.toHaveBeenCalled();
   });
 
+  it("passes dryRun: false when --dry-run flag is absent (env-var override handled inside setupGemmaCommand)", async () => {
+    await runCli(["setup"]);
+
+    expect(setupGemmaCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: false }),
+      runtime,
+    );
+  });
+
   it("runs Gemma setup wizard in advanced mode with --advanced", async () => {
     await runCli(["setup", "--advanced"]);
 

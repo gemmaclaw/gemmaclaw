@@ -241,7 +241,7 @@ export async function setupGemmaCommand(
     runtime.exit(1);
   }
 
-  const dryRun = opts.dryRun ?? process.env.OPENCLAW_SETUP_DRY_RUN === "1";
+  const dryRun = opts.dryRun || process.env.OPENCLAW_SETUP_DRY_RUN === "1";
 
   // Build onboarding choices either from CLI flags (non-interactive) or from
   // the interactive wizard. The wizard accepts presets so flags partially
