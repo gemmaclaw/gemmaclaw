@@ -6,21 +6,8 @@ import {
   applyMessageDefaults,
 } from "./defaults.js";
 
-const mocks = vi.hoisted(() => ({
-  applyProviderConfigDefaultsForConfig: vi.fn(),
-}));
-
-vi.mock("./provider-policy.js", () => ({
-  applyProviderConfigDefaultsForConfig: (
-    ...args: Parameters<typeof mocks.applyProviderConfigDefaultsForConfig>
-  ) => mocks.applyProviderConfigDefaultsForConfig(...args),
-  normalizeProviderConfigForConfigDefaults: (_params: { providerConfig: unknown }) =>
-    _params.providerConfig,
-}));
-
 describe("config defaults", () => {
   beforeEach(() => {
-    mocks.applyProviderConfigDefaultsForConfig.mockReset();
     vi.stubEnv("ANTHROPIC_API_KEY", "");
     vi.stubEnv("ANTHROPIC_OAUTH_TOKEN", "");
   });
@@ -41,7 +28,6 @@ describe("config defaults", () => {
     };
 
     expect(applyContextPruningDefaults(cfg as never)).toBe(cfg);
-    expect(mocks.applyProviderConfigDefaultsForConfig).not.toHaveBeenCalled();
   });
 
   it("skips provider defaults when agent defaults have no Anthropic auth signal", () => {
@@ -52,7 +38,6 @@ describe("config defaults", () => {
     };
 
     expect(applyContextPruningDefaults(cfg as never)).toBe(cfg);
-    expect(mocks.applyProviderConfigDefaultsForConfig).not.toHaveBeenCalled();
   });
 
   it("uses anthropic provider defaults when agent defaults and auth signal exist", () => {
@@ -66,19 +51,11 @@ describe("config defaults", () => {
         defaults: {},
       },
     };
-    const nextCfg = {
-      agents: {
-        defaults: {
-          contextPruning: {
-            mode: "cache-ttl",
-          },
-        },
-      },
-    };
-    mocks.applyProviderConfigDefaultsForConfig.mockReturnValue(nextCfg);
 
-    expect(applyContextPruningDefaults(cfg as never)).toBe(nextCfg);
-    expect(mocks.applyProviderConfigDefaultsForConfig).toHaveBeenCalledTimes(1);
+    const nextCfg = applyContextPruningDefaults(cfg as never);
+
+    expect(nextCfg).not.toBe(cfg);
+    expect(nextCfg.agents?.defaults?.contextPruning?.mode).toBe("cache-ttl");
   });
 
   it("defaults ackReactionScope without deriving other message fields", () => {
