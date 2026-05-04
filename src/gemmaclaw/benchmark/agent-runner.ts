@@ -452,6 +452,17 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
   return turns;
 }
 
+export function extractAssistantResponseFromStdout(stdout: string): string | undefined {
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
+    .filter((line) => !line.startsWith("[plugins]"));
+
+  const text = lines.join("\n").trim();
+  return text.length > 0 ? text : undefined;
+}
+
 /**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
@@ -719,6 +730,16 @@ export async function dispatchTask(
           };
         }
         log(`  CLI completed successfully`);
+        if (conversation.length === 0) {
+          const stdout = Buffer.concat(stdoutChunks).toString();
+          const assistantResponse = extractAssistantResponseFromStdout(stdout);
+          if (assistantResponse) {
+            conversation.push(
+              { role: "user", content: task.prompt },
+              { role: "assistant", content: assistantResponse },
+            );
+          }
+        }
         return {
           conversation,
           elapsedMs: Date.now() - startMs,

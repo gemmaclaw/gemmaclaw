@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSessionEntry } from "./agent-runner.js";
+import { extractAssistantResponseFromStdout, parseSessionEntry } from "./agent-runner.js";
 
 describe("parseSessionEntry", () => {
   it("parses Anthropic-style assistant tool_use blocks", () => {
@@ -121,5 +121,17 @@ describe("parseSessionEntry", () => {
     const calls = turns.filter((t) => t.role === "tool_call");
     expect(calls).toHaveLength(3);
     expect(calls.map((c) => c.toolName)).toEqual(["session_status", "web_search", "write"]);
+  });
+
+  it("extracts a stdout-only assistant response after plugin startup logs", () => {
+    const stdout = [
+      "[plugins] openai installed bundled runtime deps: ws@^8.20.0",
+      "[plugins] ollama installed bundled runtime deps: @mariozechner/pi-ai@0.69.0",
+      '{"person":"Maya Chen","date":"2026-05-08"}',
+    ].join("\n");
+
+    expect(extractAssistantResponseFromStdout(stdout)).toBe(
+      '{"person":"Maya Chen","date":"2026-05-08"}',
+    );
   });
 });
