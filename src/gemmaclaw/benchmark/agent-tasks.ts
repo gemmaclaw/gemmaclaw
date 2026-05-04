@@ -100,6 +100,10 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Read Jordan's email about the office maintenance report and " +
       "create tasks for all the critical and important items.",
+    // 31B models with thinking=high make 290+ exec tool calls filling the 32K context window,
+    // causing context overflow errors. This is a read-then-act task that doesn't benefit from
+    // extended thinking — the e4b model handled it correctly with thinking=off.
+    thinkingLevelOverride: "low",
     grading: {
       type: "artifact_check",
       criteria: [
@@ -175,6 +179,10 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Go through ALL my emails and triage them. For each email, tell me: " +
       "sender, subject, urgency (high/medium/low), recommended action, and why.",
+    // 31B models with thinking=high make 430+ exec tool calls filling the 32K context window,
+    // causing context overflow errors. Email triage is a practical reasoning task that doesn't
+    // need extended thinking — completing it with thinking=low is sufficient and prevents OOM.
+    thinkingLevelOverride: "low",
     grading: {
       type: "conversation_check",
       criteria: [
