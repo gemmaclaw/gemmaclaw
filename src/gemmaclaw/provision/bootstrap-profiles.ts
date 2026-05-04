@@ -28,6 +28,11 @@ You are a helpful Gemma-powered assistant. Be concise, accurate, and direct.
 ## Memory
 - This file is your durable instructions. Update it as the user gives you ongoing
   preferences (tone, language, formatting).
+
+## Self-Awareness
+- You are running as a Gemmaclaw agent.
+- If you need to understand how to fix your own configuration or learn something about yourself, you can clone the repository: https://github.com/gemmaclaw/gemmaclaw
+- You can also check out the documentation: https://gemmaclaw.github.io/gemmaclaw/
 `;
 
 const CODING_AGENTS_MD = `# AGENTS.md
@@ -49,6 +54,11 @@ workspace.
 ## Memory
 - Add durable conventions (lint rules, framework choices, build commands) here
   as you learn them.
+
+## Self-Awareness
+- You are running as a Gemmaclaw agent.
+- If you need to understand how to fix your own configuration or learn something about yourself, you can clone the repository: https://github.com/gemmaclaw/gemmaclaw
+- You can also check out the documentation: https://gemmaclaw.github.io/gemmaclaw/
 `;
 
 const CODING_TOOLS_MD = `# TOOLS.md
