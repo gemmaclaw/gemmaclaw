@@ -10,33 +10,168 @@
 
 export type AgentGradingType = "conversation_check" | "artifact_check" | "tool_sequence_check";
 
+export type AgentTaskCategory =
+  | "email"
+  | "calendar"
+  | "task_management"
+  | "multi_step"
+  | "security"
+  | "error_recovery"
+  | "memory"
+  | "ambiguous"
+  | "data_analysis"
+  | "coordination"
+  | "structured_output"
+  | "tool_intent";
+
+export type AgentTaskDifficulty = "easy" | "medium" | "hard" | "very_hard";
+
+export type DeterministicExpectedValue = string | string[];
+
+export type AgentDeterministicGrading =
+  | {
+      type: "json_fields";
+      requiredKeys: string[];
+      expectedFields: Record<string, DeterministicExpectedValue>;
+      allowExtraKeys?: boolean;
+    }
+  | {
+      type: "tool_intent";
+      allowedActions: string[];
+      expectedAction: string;
+      expectedArguments: Record<string, DeterministicExpectedValue>;
+      allowExtraTopLevelKeys?: boolean;
+      allowExtraArgumentKeys?: boolean;
+    };
+
+export type AgentDeterministicScore = {
+  taskId: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+  method: "deterministic";
+  details: string;
+};
+
 export type AgentBenchmarkTask = {
   id: string;
   name: string;
   description: string;
-  category:
-    | "email"
-    | "calendar"
-    | "task_management"
-    | "multi_step"
-    | "security"
-    | "error_recovery"
-    | "memory"
-    | "ambiguous"
-    | "data_analysis"
-    | "coordination";
-  difficulty: "medium" | "hard" | "very_hard";
+  category: AgentTaskCategory;
+  difficulty: AgentTaskDifficulty;
   /** The prompt sent to the agent. */
   prompt: string;
   grading: {
     type: AgentGradingType;
     /** What the LLM judge checks for in the full conversation. */
     criteria: string[];
+    /** Deterministic scorer used for small schema/intent tasks. */
+    deterministic?: AgentDeterministicGrading;
     maxScore: number;
+  };
+  /** Deterministic mock response used by --mock mode when present. */
+  mock?: {
+    finalResponse: string;
   };
 };
 
 export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EASY (2 tasks, 10 points) - small on-device model smoke tests
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    id: "gemma3n_json_extract",
+    name: "Easy JSON Fact Extraction",
+    description:
+      "Tests whether a small on-device model can extract explicit facts from " +
+      "one short workplace message into a fixed JSON schema without extra text.",
+    category: "structured_output",
+    difficulty: "easy",
+    prompt:
+      "Extract the facts from this message. Return ONLY valid JSON with exactly these keys: " +
+      "person, date, time, action, priority. Use ISO date YYYY-MM-DD and 24-hour time HH:MM.\n\n" +
+      "Message: Maya Chen needs me to send the revised launch checklist on 2026-05-08 at 15:00. " +
+      "She marked it high priority.",
+    grading: {
+      type: "conversation_check",
+      criteria: [
+        "Must return valid JSON and no surrounding explanation",
+        "Must include exactly the keys person, date, time, action, priority",
+        "person must be Maya Chen",
+        "date must be 2026-05-08 and time must be 15:00",
+        "action must preserve the revised launch checklist request",
+        "priority must be high",
+      ],
+      deterministic: {
+        type: "json_fields",
+        requiredKeys: ["person", "date", "time", "action", "priority"],
+        expectedFields: {
+          person: "Maya Chen",
+          date: "2026-05-08",
+          time: "15:00",
+          action: ["send", "revised launch checklist"],
+          priority: "high",
+        },
+        allowExtraKeys: false,
+      },
+      maxScore: 5,
+    },
+    mock: {
+      finalResponse:
+        '{"person":"Maya Chen","date":"2026-05-08","time":"15:00","action":"send the revised launch checklist","priority":"high"}',
+    },
+  },
+
+  {
+    id: "gemma3n_tool_intent",
+    name: "Easy Single-Step Tool Intent",
+    description:
+      "Tests whether a small on-device model can choose one safe tool-like " +
+      "intent and produce valid arguments without performing side effects.",
+    category: "tool_intent",
+    difficulty: "easy",
+    prompt:
+      "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\n" +
+      "Allowed actions:\n" +
+      "- create_task arguments: title, due, priority\n" +
+      "- create_calendar_event arguments: title, date, time, duration_minutes\n" +
+      "- send_email arguments: to, subject, body\n\n" +
+      "Request: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. " +
+      "Mark it high priority.\n\n" +
+      'Return shape: {"action":"...","arguments":{...}}',
+    grading: {
+      type: "conversation_check",
+      criteria: [
+        "Must return valid JSON and no surrounding explanation",
+        "Must choose exactly one top-level action",
+        "Action must be create_task, not send_email or create_calendar_event",
+        "Arguments must include title, due, and priority",
+        "Title must mention sending the Q2 forecast to Priya",
+        "Due must mention Friday at 3 PM",
+        "Priority must be high",
+      ],
+      deterministic: {
+        type: "tool_intent",
+        allowedActions: ["create_task", "create_calendar_event", "send_email"],
+        expectedAction: "create_task",
+        expectedArguments: {
+          title: ["send", "q2 forecast", "priya"],
+          due: ["friday", "3"],
+          priority: "high",
+        },
+        allowExtraTopLevelKeys: false,
+        allowExtraArgumentKeys: false,
+      },
+      maxScore: 5,
+    },
+    mock: {
+      finalResponse:
+        '{"action":"create_task","arguments":{"title":"Send the Q2 forecast to Priya","due":"Friday 3 PM","priority":"high"}}',
+    },
+  },
+
   // ═══════════════════════════════════════════════════════════════════════════
   // MEDIUM (5 tasks, 53 points)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -622,6 +757,213 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     },
   },
 ];
+
+function normalizeForDeterministicMatch(value: unknown): string {
+  const text =
+    value === null || value === undefined
+      ? ""
+      : typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? String(value)
+        : JSON.stringify(value);
+  return text
+    .toLowerCase()
+    .replace(/[\s_\-:]+/g, " ")
+    .replace(/[^a-z0-9 ]+/g, "")
+    .trim();
+}
+
+function matchesExpected(actual: unknown, expected: DeterministicExpectedValue): boolean {
+  const actualNorm = normalizeForDeterministicMatch(actual);
+  if (Array.isArray(expected)) {
+    return expected.every((part) => actualNorm.includes(normalizeForDeterministicMatch(part)));
+  }
+  return actualNorm === normalizeForDeterministicMatch(expected);
+}
+
+function parseJsonObjectFromResponse(output: string): Record<string, unknown> | undefined {
+  const trimmed = output.trim();
+  const unfenced = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  try {
+    const parsed = JSON.parse(unfenced);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function scoreRatio(passedChecks: number, totalChecks: number): number {
+  return totalChecks > 0 ? passedChecks / totalChecks : 0;
+}
+
+function formatScore(
+  taskId: string,
+  maxScore: number,
+  ratio: number,
+  details: string[],
+): AgentDeterministicScore {
+  const score = Math.round(ratio * maxScore * 10) / 10;
+  return {
+    taskId,
+    score,
+    maxScore,
+    percentage: Math.round(ratio * 100),
+    passed: ratio >= 0.7,
+    method: "deterministic",
+    details: details.join("; "),
+  };
+}
+
+export function evaluateDeterministicAgentTaskOutput(
+  task: AgentBenchmarkTask,
+  output: string,
+): AgentDeterministicScore | undefined {
+  const deterministic = task.grading.deterministic;
+  if (!deterministic) {
+    return undefined;
+  }
+
+  const parsed = parseJsonObjectFromResponse(output);
+  if (!parsed) {
+    return formatScore(task.id, task.grading.maxScore, 0, ["Output was not a JSON object"]);
+  }
+
+  if (deterministic.type === "json_fields") {
+    let passedChecks = 0;
+    let totalChecks = 0;
+    const details: string[] = [];
+
+    for (const key of deterministic.requiredKeys) {
+      totalChecks++;
+      if (Object.hasOwn(parsed, key)) {
+        passedChecks++;
+      } else {
+        details.push(`missing key ${key}`);
+      }
+    }
+
+    for (const [key, expected] of Object.entries(deterministic.expectedFields)) {
+      totalChecks++;
+      if (matchesExpected(parsed[key], expected)) {
+        passedChecks++;
+      } else {
+        details.push(`field ${key} mismatch`);
+      }
+    }
+
+    if (deterministic.allowExtraKeys === false) {
+      totalChecks++;
+      const allowed = new Set(deterministic.requiredKeys);
+      const extra = Object.keys(parsed).filter((key) => !allowed.has(key));
+      if (extra.length === 0) {
+        passedChecks++;
+      } else {
+        details.push(`extra keys ${extra.join(",")}`);
+      }
+    }
+
+    if (details.length === 0) {
+      details.push("all deterministic JSON field checks passed");
+    }
+    return formatScore(
+      task.id,
+      task.grading.maxScore,
+      scoreRatio(passedChecks, totalChecks),
+      details,
+    );
+  }
+
+  let passedChecks = 0;
+  let totalChecks = 0;
+  const details: string[] = [];
+  const action = parsed.action;
+  const args = parsed.arguments;
+
+  totalChecks++;
+  if (typeof action === "string" && deterministic.allowedActions.includes(action)) {
+    passedChecks++;
+  } else {
+    details.push("action is missing or not in the allowed action list");
+  }
+
+  totalChecks++;
+  if (matchesExpected(action, deterministic.expectedAction)) {
+    passedChecks++;
+  } else {
+    details.push(`expected action ${deterministic.expectedAction}`);
+  }
+
+  totalChecks++;
+  if (args && typeof args === "object" && !Array.isArray(args)) {
+    passedChecks++;
+  } else {
+    details.push("arguments must be a JSON object");
+  }
+
+  const argObject =
+    args && typeof args === "object" && !Array.isArray(args)
+      ? (args as Record<string, unknown>)
+      : {};
+  for (const [key, expected] of Object.entries(deterministic.expectedArguments)) {
+    totalChecks++;
+    if (Object.hasOwn(argObject, key) && matchesExpected(argObject[key], expected)) {
+      passedChecks++;
+    } else {
+      details.push(`argument ${key} mismatch`);
+    }
+  }
+
+  if (deterministic.allowExtraTopLevelKeys === false) {
+    totalChecks++;
+    const extra = Object.keys(parsed).filter((key) => key !== "action" && key !== "arguments");
+    if (extra.length === 0) {
+      passedChecks++;
+    } else {
+      details.push(`extra top-level keys ${extra.join(",")}`);
+    }
+  }
+
+  if (deterministic.allowExtraArgumentKeys === false) {
+    totalChecks++;
+    const allowed = new Set(Object.keys(deterministic.expectedArguments));
+    const extra = Object.keys(argObject).filter((key) => !allowed.has(key));
+    if (extra.length === 0) {
+      passedChecks++;
+    } else {
+      details.push(`extra argument keys ${extra.join(",")}`);
+    }
+  }
+
+  if (details.length === 0) {
+    details.push("all deterministic tool-intent checks passed");
+  }
+  return formatScore(
+    task.id,
+    task.grading.maxScore,
+    scoreRatio(passedChecks, totalChecks),
+    details,
+  );
+}
+
+export function evaluateDeterministicAgentTaskConversation(
+  task: AgentBenchmarkTask,
+  conversation: Array<{ role: string; content: string }>,
+): AgentDeterministicScore | undefined {
+  const finalAssistant = [...conversation].toReversed().find((turn) => turn.role === "assistant");
+  if (!finalAssistant) {
+    return task.grading.deterministic
+      ? formatScore(task.id, task.grading.maxScore, 0, ["No assistant response found"])
+      : undefined;
+  }
+  return evaluateDeterministicAgentTaskOutput(task, finalAssistant.content);
+}
 
 // Helper for task lookup
 export function getTaskById(id: string): AgentBenchmarkTask | undefined {

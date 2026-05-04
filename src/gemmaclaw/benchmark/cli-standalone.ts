@@ -13,7 +13,7 @@
  *   pnpm benchmark sandbox --file tasks.json   # Sandbox with custom file
  *
  * Agent mode (E2E agentic benchmarks):
- *   pnpm benchmark agent                    # Run all 22 agentic tasks
+ *   pnpm benchmark agent                    # Run all 24 agentic tasks
  *   pnpm benchmark agent --model gemma4:31b # Specific model
  *   pnpm benchmark agent --filter email     # Filter by task id/name
  *   pnpm benchmark agent --mock             # Mock mode (no real model)
@@ -23,6 +23,7 @@
  *   pnpm benchmark agent --quant Q4_K_M     # Record quantization level
  */
 
+import path from "node:path";
 import process from "node:process";
 import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/benchmark-gemma.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -59,6 +60,8 @@ function parseArgs(argv: string[]) {
       opts.task = args[++i]!;
     } else if (arg === "--output-dir" && args[i + 1]) {
       opts.outputDir = args[++i]!;
+    } else if (arg === "--gemmaclaw-home" && args[i + 1]) {
+      opts.gemmaclawHome = args[++i]!;
     } else if (arg === "--context-length" && args[i + 1]) {
       opts.contextLength = args[++i]!;
     } else if (arg === "--gpu-layers" && args[i + 1]) {
@@ -105,7 +108,7 @@ function printHelp(): void {
 
 Commands:
   (default)            Run prompt-response benchmarks (original mode)
-  agent                Run E2E agentic benchmarks (22 tasks with tool calling)
+  agent                Run E2E agentic benchmarks (24 tasks with tool calling)
   agent list           List all available agent benchmark tasks
   sandbox              Run benchmark in a persistent Docker container
 
@@ -115,9 +118,10 @@ Agent Mode Options:
   --thinking <level>     Thinking/reasoning level (off, low, medium, high)
   --gateway-url <url>    Gemmaclaw gateway URL (default: http://localhost:3001)
   --ollama-url <url>     Ollama API URL (default: http://127.0.0.1:11434)
-  --filter <text>        Run only tasks matching text (id or name substring)
+  --filter <text>        Run only tasks matching text (id, name, category, difficulty)
   --task <id>            Run a single task by exact id
   --output-dir <dir>     Output directory for results (default: benchmark-results)
+  --gemmaclaw-home <dir> Isolated OpenClaw/gog state base for agent runs
   --task-timeout <sec>   Max seconds per task, 0=unlimited (default: 600)
   --idle-timeout <sec>   Seconds of idle before task considered done (default: 30)
   --judge-model <name>   Model for LLM judge (default: same as test model)
@@ -197,9 +201,11 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
     filter: (opts.task as string) ?? (opts.filter as string) ?? undefined,
     mock: Boolean(opts.mock),
     contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
+    gemmaclawHome: opts.gemmaclawHome as string | undefined,
   };
 
   const outputDir = (opts.outputDir as string) ?? "benchmark-results";
+  config.logDir = path.join(outputDir, ".logs");
 
   console.log("========================================");
   console.log("  Gemmaclaw Agent Benchmark");
