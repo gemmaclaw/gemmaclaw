@@ -572,7 +572,9 @@ export async function dispatchTask(
     const child = spawn(args[0], args.slice(1), {
       env: {
         ...process.env,
-        OPENCLAW_HOME: benchHome,
+        GEMMACLAW_HOME: ocDir,
+        OPENCLAW_STATE_DIR: ocDir,
+        OPENCLAW_HOME: ocDir,
         XDG_CONFIG_HOME: benchHome,
       },
       stdio: ["pipe", "pipe", "pipe"],
