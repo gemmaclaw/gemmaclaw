@@ -7,9 +7,9 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
-  pull-requests: write
+  pull-requests: read
 
 concurrency:
   group: gemmaclaw-npm-release-${{ github.ref }}
@@ -23,10 +23,20 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - name: Validate release-please token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_PLEASE_TOKEN" ]; then
+            echo "::error::Configure the RELEASE_PLEASE_TOKEN repository secret with contents:write and pull_requests:write. The gemmaclaw organization blocks GITHUB_TOKEN from creating release PRs."
+            exit 1
+          fi
+
       - name: Run release-please
         id: release
         uses: googleapis/release-please-action@v4
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
