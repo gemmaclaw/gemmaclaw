@@ -469,6 +469,9 @@ export async function setupGemmaCommand(
               docker: {
                 dangerouslyAllowReservedContainerTargets: true,
                 binds: [`${sharedDir}:/workspace/shared:rw`],
+                readOnlyRoot: false,
+                network: "bridge",
+                user: "0:0"
               }
             };
           }
