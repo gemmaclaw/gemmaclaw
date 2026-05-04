@@ -12,8 +12,10 @@ const hoisted = vi.hoisted(() => {
     set capturedMutatedConfig(v: OpenClawConfig) {
       capturedMutatedConfig = v;
     },
+    containerEnv: false,
     reset() {
       capturedMutatedConfig = {};
+      this.containerEnv = false;
     },
   };
 });
@@ -39,6 +41,10 @@ vi.mock("../config/config.js", () => ({
 
 vi.mock("../gemmaclaw/provision/bootstrap-profiles.js", () => ({
   applyBootstrapProfile: vi.fn(),
+}));
+
+vi.mock("../gateway/net.js", () => ({
+  isContainerEnvironment: vi.fn(() => hoisted.containerEnv),
 }));
 
 // Stub out filesystem writes so tests don't touch disk.
@@ -115,6 +121,48 @@ describe("setupGemmaCommand — agent creation", () => {
     const entry = entries.find((e) => e.id === "steve");
     expect(entry).toBeDefined();
     expect(entry?.name).toBe("Steve");
+  });
+
+  it("defaults sandbox.mode to off when setup runs inside a container", async () => {
+    hoisted.containerEnv = true;
+
+    await setupGemmaCommand(
+      {
+        nonInteractive: true,
+        dryRun: true,
+        agentName: "ContainerBot",
+        setupMode: "gemini",
+        model: "gemini-2.0-flash",
+        thinking: "off",
+      },
+      runtime,
+    );
+
+    const cfg = hoisted.capturedMutatedConfig;
+    expect(cfg.agents?.defaults?.sandbox?.mode).toBe("off");
+    expect(runtime.log).toHaveBeenCalledWith(
+      "Container environment detected; defaulting sandbox.mode=off.",
+    );
+  });
+
+  it("defaults sandbox runs to all tools available", async () => {
+    await setupGemmaCommand(
+      {
+        nonInteractive: true,
+        dryRun: true,
+        agentName: "ToolBot",
+        setupMode: "gemini",
+        model: "gemini-2.0-flash",
+        thinking: "off",
+      },
+      runtime,
+    );
+
+    const cfg = hoisted.capturedMutatedConfig;
+    expect(cfg.tools?.sandbox?.tools?.allow).toEqual([]);
+    expect(cfg.tools?.sandbox?.tools?.deny).toEqual([]);
+    expect(cfg.tools?.exec?.security).toBe("full");
+    expect(cfg.tools?.exec?.ask).toBe("off");
   });
 
   it("produces an agents.list readable by listAgentEntries (same function used by gemmaclaw list)", async () => {

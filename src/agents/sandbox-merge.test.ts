@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveDefaultSandboxBindSourceRoots,
+  resolveDefaultSandboxSharedDir,
   resolveSandboxBrowserConfig,
   resolveSandboxConfigForAgent,
   resolveSandboxDockerConfig,
@@ -14,6 +16,16 @@ describe("sandbox config merges", () => {
     expect(resolveSandboxScope({ perSession: true })).toBe("session");
     expect(resolveSandboxScope({ perSession: false })).toBe("shared");
     expect(resolveSandboxScope({ perSession: true, scope: "agent" })).toBe("agent");
+  });
+
+  it("allows the default shared root alongside workspace roots", () => {
+    const workspaceDir = "/tmp/workspaces/steve";
+    const agentWorkspaceDir = "/tmp/agents/steve/agent";
+    expect(resolveDefaultSandboxBindSourceRoots({ workspaceDir, agentWorkspaceDir })).toEqual([
+      workspaceDir,
+      agentWorkspaceDir,
+      resolveDefaultSandboxSharedDir(),
+    ]);
   });
 
   it("merges sandbox docker env and ulimits (agent wins)", () => {

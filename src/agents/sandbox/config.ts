@@ -29,6 +29,17 @@ import type {
   SandboxSshConfig,
 } from "./types.js";
 
+export function resolveDefaultSandboxSharedDir(): string {
+  return path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
+}
+
+export function resolveDefaultSandboxBindSourceRoots(params: {
+  workspaceDir: string;
+  agentWorkspaceDir: string;
+}): string[] {
+  return [params.workspaceDir, params.agentWorkspaceDir, resolveDefaultSandboxSharedDir()];
+}
+
 export const DANGEROUS_SANDBOX_DOCKER_BOOLEAN_KEYS = [
   "dangerouslyAllowReservedContainerTargets",
   "dangerouslyAllowExternalBindSources",
@@ -99,7 +110,7 @@ export function resolveSandboxDockerConfig(params: {
 
   // Default shared directory: ~/.gemmaclaw/shared on host maps to /shared in container.
   // This lets users drop files in for the agent and retrieve output files.
-  const sharedDir = path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
+  const sharedDir = resolveDefaultSandboxSharedDir();
   const defaultSharedBind = `${sharedDir}:/shared`;
   const binds = [defaultSharedBind, ...(globalDocker?.binds ?? []), ...(agentDocker?.binds ?? [])];
 

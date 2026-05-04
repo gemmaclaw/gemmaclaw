@@ -1161,7 +1161,7 @@ gemmaclaw tui</code></pre></div>
 
       <div class="cli-cmd-card">
         <h4 id="cmd-setup"><code>gemmaclaw setup</code></h4>
-        <p>Initialize local config, auto-detect hardware, provision a Gemma backend, and start the assistant. Recommended first command for new installs.</p>
+        <p>Initialize local config, auto-detect hardware, provision a Gemma backend, start the gateway, and print the agent-specific chat URL. Recommended first command for new installs.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Option</th><th>Description</th></tr></thead>
           <tbody>
@@ -1176,6 +1176,11 @@ gemmaclaw tui</code></pre></div>
         </table></div>
         <div class="code-block"><pre><code># Auto-detect everything (recommended)
 gemmaclaw setup
+# Setup starts the agent and prints a URL like:
+# http://127.0.0.1:8765/?agent=main
+# Sandbox container runs allow all Gemmaclaw tools by default and mount
+# ~/.gemmaclaw/shared at /shared. If setup itself is already running
+# inside a container, sandbox.mode defaults to off.
 
 # Manual backend/model selection
 gemmaclaw setup --advanced
@@ -1223,7 +1228,7 @@ gemmaclaw list --json</code></pre></div>
 
       <div class="cli-cmd-card">
         <h4 id="cmd-chat"><code>gemmaclaw chat</code></h4>
-        <p>Start the gateway and open the web chat UI in your default browser. When multiple agents are configured, pass <code>--agent</code> or pick one interactively.</p>
+        <p>Start or restart the gateway and open the web chat UI in your default browser. You usually do not need this immediately after <code>gemmaclaw setup</code>, because setup already starts the gateway and prints the chat URL. When multiple agents are configured, pass <code>--agent</code> or pick one interactively.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Option</th><th>Description</th></tr></thead>
           <tbody>

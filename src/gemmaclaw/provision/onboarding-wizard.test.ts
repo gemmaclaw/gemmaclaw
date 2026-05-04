@@ -332,8 +332,10 @@ describe("formatNextSteps", () => {
       "http://127.0.0.1:8765/",
     );
     const text = lines.join("\n");
+    expect(text).toContain("Chat is running here:");
     expect(text).toContain("http://127.0.0.1:8765/");
     expect(text).toContain("--agent tester");
+    expect(text).not.toContain("Start chat later");
     expect(text).toContain("setup --advanced");
   });
 
@@ -347,7 +349,8 @@ describe("formatNextSteps", () => {
       bootstrap: "minimal",
     });
     const text = lines.join("\n");
-    expect(text).not.toContain("Open the chat UI");
+    expect(text).not.toContain("Chat is running here");
+    expect(text).toContain("Start chat later:");
     expect(text).toContain("--agent x");
   });
 });

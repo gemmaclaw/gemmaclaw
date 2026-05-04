@@ -513,12 +513,13 @@ export function formatNextSteps(choices: OnboardingChoices, gatewayUrl?: string)
   const lines: string[] = [];
   lines.push("Next steps:");
   if (gatewayUrl) {
-    lines.push(`  - Open the chat UI:  ${gatewayUrl}`);
+    lines.push(`  - Chat is running here:     ${gatewayUrl}`);
+  } else {
+    lines.push(`  - Start chat later:         gemmaclaw chat --agent ${choices.agentName}`);
   }
   lines.push(
     `  - Send a one-shot message:  gemmaclaw message --agent ${choices.agentName} "Hello"`,
   );
-  lines.push(`  - Open an interactive chat: gemmaclaw chat --agent ${choices.agentName}`);
   lines.push("  - Re-run setup any time:    gemmaclaw setup");
   lines.push("");
   lines.push("Change later:");

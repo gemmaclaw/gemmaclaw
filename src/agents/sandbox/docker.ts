@@ -166,6 +166,7 @@ import { formatCliCommand } from "../../cli/command-format.js";
 import { markOpenClawExecEnv } from "../../infra/openclaw-exec-env.js";
 import { defaultRuntime } from "../../runtime.js";
 import { computeSandboxConfigHash } from "./config-hash.js";
+import { resolveDefaultSandboxBindSourceRoots } from "./config.js";
 import { DEFAULT_SANDBOX_IMAGE } from "./constants.js";
 import { readRegistry, updateRegistry } from "./registry.js";
 import { resolveSandboxAgentId, resolveSandboxScopeKey, slugifySessionKey } from "./shared.js";
@@ -485,7 +486,10 @@ async function createSandboxContainer(params: {
     scopeKey,
     configHash: params.configHash,
     includeBinds: false,
-    bindSourceRoots: [workspaceDir, params.agentWorkspaceDir],
+    bindSourceRoots: resolveDefaultSandboxBindSourceRoots({
+      workspaceDir,
+      agentWorkspaceDir: params.agentWorkspaceDir,
+    }),
   });
   args.push("--workdir", cfg.workdir);
   appendWorkspaceMountArgs({

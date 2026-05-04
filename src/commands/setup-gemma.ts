@@ -127,6 +127,43 @@ function spawnGatewayDetached(port: number): ChildProcess {
   return child;
 }
 
+function buildChatUrl(port: number, choices: OnboardingChoices): string {
+  const agentId = normalizeAgentId(choices.agentName);
+  return `http://127.0.0.1:${String(port)}/?agent=${encodeURIComponent(agentId)}`;
+}
+
+async function startGatewayAndGetChatUrl(
+  runtime: RuntimeEnv,
+  choices: OnboardingChoices,
+  port: number,
+): Promise<string | undefined> {
+  const { ensureControlUiAssetsBuilt } = await import("../infra/control-ui-assets.js");
+  runtime.log("");
+  runtime.log("Checking Control UI assets...");
+  const uiBuild = await ensureControlUiAssetsBuilt(runtime);
+  if (uiBuild.ok) {
+    runtime.log(uiBuild.built ? "Control UI built." : "Control UI assets ready.");
+  } else {
+    runtime.error(`Control UI: ${uiBuild.message}`);
+    runtime.error("The gateway will attempt to build them on first start.");
+  }
+
+  killProcessesOnPort(port);
+
+  runtime.log("");
+  runtime.log(`Starting gateway on port ${String(port)}...`);
+  spawnGatewayDetached(port);
+
+  const ready = await waitForGatewayReady(port);
+  if (!ready) {
+    runtime.error("Gateway did not become ready within 30 seconds.");
+    runtime.error("You can start it manually later with: gemmaclaw chat");
+    return undefined;
+  }
+  runtime.log("Gateway is ready.");
+  return buildChatUrl(port, choices);
+}
+
 function isDockerInstalled(): boolean {
   try {
     execSync("docker --version", { stdio: "pipe", timeout: 5_000 });
@@ -196,6 +233,32 @@ function resolveLocalOllamaModel(modelChoice: string, fallback?: string): string
 
 function persistThinkingDefault(thinking: OnboardingThinking): "off" | "low" | "medium" | "high" {
   return thinking;
+}
+
+function applySandboxOffDefault(draft: OpenClawConfig): void {
+  draft.agents ??= {};
+  draft.agents.defaults ??= {};
+  draft.agents.defaults.sandbox = {
+    mode: "off",
+    backend: "docker",
+    scope: "session",
+    workspaceAccess: "rw",
+  };
+}
+
+function applyGemmaclawToolDefaults(draft: OpenClawConfig): void {
+  draft.tools ??= {};
+  draft.tools.exec ??= {};
+  (draft.tools.exec as Record<string, unknown>).security = "full";
+  (draft.tools.exec as Record<string, unknown>).ask = "off";
+
+  const tools = draft.tools as Record<string, unknown>;
+  const sandboxTools = (tools.sandbox ?? {}) as Record<string, unknown>;
+  const sandboxToolPolicy = (sandboxTools.tools ?? {}) as Record<string, unknown>;
+  sandboxToolPolicy.allow = [];
+  sandboxToolPolicy.deny = [];
+  sandboxTools.tools = sandboxToolPolicy;
+  tools.sandbox = sandboxTools;
 }
 
 function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
@@ -278,6 +341,12 @@ export async function setupGemmaCommand(
     }
   }
 
+  const { isContainerEnvironment } = await import("../gateway/net.js");
+  const runningInsideContainer = isContainerEnvironment();
+  if (runningInsideContainer && choices.useContainer) {
+    choices = { ...choices, useContainer: false };
+  }
+
   // Echo the resolved choices so the user can see what setup is about to do.
   runtime.log("");
   for (const line of formatChoicesSummary(choices)) {
@@ -288,6 +357,10 @@ export async function setupGemmaCommand(
   // If the user picked container mode, verify Docker is actually available
   // and gracefully fall back to host execution otherwise.
   let useDocker = choices.useContainer;
+  if (runningInsideContainer) {
+    runtime.log("");
+    runtime.log("Container environment detected; defaulting sandbox.mode=off.");
+  }
   if (choices.useContainer && !dryRun) {
     const interactivePrompt = opts.nonInteractive
       ? null
@@ -307,15 +380,21 @@ export async function setupGemmaCommand(
 
   if (choices.backend === "gemini") {
     await setupGeminiBackend(runtime, choices, { dryRun });
-    await applySharedAgentDefaults(choices, useDocker);
-    await printPostSetupSummary(runtime, choices, undefined);
+    await applySharedAgentDefaults(choices, useDocker, runningInsideContainer);
+    const chatUrl = dryRun
+      ? undefined
+      : await startGatewayAndGetChatUrl(runtime, choices, DEFAULT_GATEWAY_PORT);
+    await printPostSetupSummary(runtime, choices, chatUrl);
     return;
   }
 
   if (choices.backend === "vertex") {
     await setupVertexBackend(runtime, choices, { dryRun });
-    await applySharedAgentDefaults(choices, useDocker);
-    await printPostSetupSummary(runtime, choices, undefined);
+    await applySharedAgentDefaults(choices, useDocker, runningInsideContainer);
+    const chatUrl = dryRun
+      ? undefined
+      : await startGatewayAndGetChatUrl(runtime, choices, DEFAULT_GATEWAY_PORT);
+    await printPostSetupSummary(runtime, choices, chatUrl);
     return;
   }
 
@@ -357,7 +436,7 @@ export async function setupGemmaCommand(
     runtime.log(
       `[dry-run] Would provision ${profile.backend} with model ${profile.model ?? "(auto)"} on port ${String(profile.port)}.`,
     );
-    await applySharedAgentDefaults(choices, useDocker);
+    await applySharedAgentDefaults(choices, useDocker, runningInsideContainer);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
@@ -421,10 +500,7 @@ export async function setupGemmaCommand(
           draft.agents.defaults.thinkingDefault = persistThinkingDefault(choices.thinkingLevel);
           applySetupAgentConfig(draft, choices);
 
-          draft.tools ??= {};
-          draft.tools.exec ??= {};
-          (draft.tools.exec as Record<string, unknown>).security = "full";
-          (draft.tools.exec as Record<string, unknown>).ask = "off";
+          applyGemmaclawToolDefaults(draft);
 
           if (enableSandbox) {
             draft.agents.defaults.sandbox = {
@@ -433,6 +509,8 @@ export async function setupGemmaCommand(
               scope: "session",
               workspaceAccess: "rw",
             };
+          } else if (runningInsideContainer) {
+            applySandboxOffDefault(draft);
           }
         },
       });
@@ -441,7 +519,8 @@ export async function setupGemmaCommand(
 
       if (enableSandbox) {
         runtime.log(`  Sandbox: Docker (tools run in isolated containers)`);
-        const sharedDir = path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
+        const { resolveDefaultSandboxSharedDir } = await import("../agents/sandbox/config.js");
+        const sharedDir = resolveDefaultSandboxSharedDir();
         try {
           const { mkdirSync } = await import("node:fs");
           mkdirSync(sharedDir, { recursive: true });
@@ -458,28 +537,8 @@ export async function setupGemmaCommand(
       runtime.log("");
       runtime.log("Setup complete! Your Gemma assistant is ready.");
 
-      const { ensureControlUiAssetsBuilt } = await import("../infra/control-ui-assets.js");
-      runtime.log("");
-      runtime.log("Checking Control UI assets...");
-      const uiBuild = await ensureControlUiAssetsBuilt(runtime);
-      if (uiBuild.ok) {
-        runtime.log(uiBuild.built ? "Control UI built." : "Control UI assets ready.");
-      } else {
-        runtime.error(`Control UI: ${uiBuild.message}`);
-        runtime.error("The gateway will attempt to build them on first start.");
-      }
-
-      const gwPort = DEFAULT_GATEWAY_PORT;
-      killProcessesOnPort(gwPort);
-
-      runtime.log("");
-      runtime.log(`Starting gateway on port ${String(gwPort)}...`);
-      spawnGatewayDetached(gwPort);
-
-      const ready = await waitForGatewayReady(gwPort);
-      if (!ready) {
-        runtime.error("Gateway did not become ready within 30 seconds.");
-        runtime.error("You can start it manually with: gemmaclaw chat");
+      const chatUrl = await startGatewayAndGetChatUrl(runtime, choices, DEFAULT_GATEWAY_PORT);
+      if (!chatUrl) {
         runtime.log("");
         runtime.log(
           `Backend PID: ${String(result.handle.pid)} (stop with: kill ${String(result.handle.pid)})`,
@@ -487,9 +546,6 @@ export async function setupGemmaCommand(
         await printPostSetupSummary(runtime, choices, undefined);
         return;
       }
-      runtime.log("Gateway is ready.");
-
-      const chatUrl = `http://127.0.0.1:${String(gwPort)}/`;
       await printPostSetupSummary(runtime, choices, chatUrl);
       runtime.log(
         `Backend PID: ${String(result.handle.pid)} (stop with: kill ${String(result.handle.pid)})`,
@@ -616,6 +672,7 @@ async function writeVertexAuthProfile(agentName: string, accessToken: string): P
 async function applySharedAgentDefaults(
   choices: OnboardingChoices,
   useContainer: boolean,
+  forceSandboxOff = false,
 ): Promise<void> {
   const { mutateConfigFile } = await import("../config/mutate.js");
   await mutateConfigFile({
@@ -630,6 +687,8 @@ async function applySharedAgentDefaults(
       } else if (choices.backend === "vertex") {
         defaults["model"] = `google-vertex/${choices.model}`;
       }
+      applyGemmaclawToolDefaults(draft);
+
       // Agent name, bootstrap profile, and container preference are recorded
       // in the per-agent onboarding.json manifest. They aren't part of the
       // OpenClaw config schema (which would reject unknown keys), and the
@@ -641,6 +700,8 @@ async function applySharedAgentDefaults(
           scope: "session",
           workspaceAccess: "rw",
         };
+      } else if (forceSandboxOff) {
+        applySandboxOffDefault(draft);
       }
       applySetupAgentConfig(draft, choices);
     },

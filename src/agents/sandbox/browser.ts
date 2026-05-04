@@ -18,7 +18,10 @@ import {
 } from "../../shared/string-coerce.js";
 import { BROWSER_BRIDGES } from "./browser-bridges.js";
 import { computeSandboxBrowserConfigHash } from "./config-hash.js";
-import { resolveSandboxBrowserDockerCreateConfig } from "./config.js";
+import {
+  resolveDefaultSandboxBindSourceRoots,
+  resolveSandboxBrowserDockerCreateConfig,
+} from "./config.js";
 import { DEFAULT_SANDBOX_BROWSER_IMAGE, SANDBOX_BROWSER_SECURITY_HASH_EPOCH } from "./constants.js";
 import {
   buildSandboxCreateArgs,
@@ -277,7 +280,10 @@ export async function ensureSandboxBrowser(params: {
       },
       configHash: expectedHash,
       includeBinds: false,
-      bindSourceRoots: [params.workspaceDir, params.agentWorkspaceDir],
+      bindSourceRoots: resolveDefaultSandboxBindSourceRoots({
+        workspaceDir: params.workspaceDir,
+        agentWorkspaceDir: params.agentWorkspaceDir,
+      }),
     });
     appendWorkspaceMountArgs({
       args,
