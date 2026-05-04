@@ -505,6 +505,9 @@ export async function dispatchTask(
   if (config.thinkingLevel) {
     args.push("--thinking", config.thinkingLevel);
   }
+  if (config.taskTimeoutSeconds > 0) {
+    args.push("--timeout", String(config.taskTimeoutSeconds));
+  }
 
   log(`  Dispatching: ${gemmaclawArgs.join(" ")} agent --local --session-id ${sessionId}`);
 
@@ -532,6 +535,19 @@ export async function dispatchTask(
         defaults: {
           model: {
             primary: `${providerPrefix}/${config.model}`,
+          },
+          timeoutSeconds: config.taskTimeoutSeconds > 0 ? config.taskTimeoutSeconds : undefined,
+          // Benchmark tasks should exercise the task prompt, not the first-run
+          // workspace bootstrap workflow. Keep isolated homes bootstrap-free so
+          // slow local models don't spend a full generation replying to
+          // BOOTSTRAP.md status instructions instead of the benchmark fixture.
+          skipBootstrap: true,
+          // Slow CPU-only edge runs can spend several minutes evaluating a long
+          // prompt before the first streamed token. The benchmark runner already
+          // enforces task-timeout and kills the child, so disable OpenClaw's
+          // per-LLM idle watchdog inside this isolated benchmark config.
+          llm: {
+            idleTimeoutSeconds: 0,
           },
         },
       },
