@@ -78,6 +78,9 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Schedule a project review with Sarah for next Wednesday at 10am. " +
       "It should be 2 hours long in Conference Room B.",
+    // 31B models with thinking=high generate 5400s+ of thinking tokens without producing output.
+    // Calendar creation is a simple date math + API call task that doesn't need extended thinking.
+    thinkingLevelOverride: "low",
     grading: {
       type: "tool_sequence_check",
       criteria: [
