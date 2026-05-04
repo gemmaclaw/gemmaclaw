@@ -22,7 +22,8 @@ export function registerTuiCli(program: Command) {
     .option("--history-limit <n>", "History entries to load", "200")
     .addHelpText(
       "after",
-      () => `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/tui", "docs.openclaw.ai/cli/tui")}\n`,
+      () =>
+        `\n${theme.muted("Docs:")} ${formatDocsLink("https://gemmaclaw.github.io/gemmaclaw/setup.html#cmd-tui", "gemmaclaw.github.io/gemmaclaw/setup.html#cmd-tui")}\n`,
     )
     .action(async (opts, cmd) => {
       try {
