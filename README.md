@@ -8,45 +8,20 @@ Gemmaclaw makes it easy to run the best Gemma configuration for your hardware, o
 
 Built on top of [OpenClaw](https://github.com/openclaw/openclaw). Volunteer-driven, Gemma-first.
 
-## Quick Start
+## Get Started
 
-```bash
-git clone https://github.com/gemmaclaw/gemmaclaw.git
-cd gemmaclaw
-corepack enable && pnpm install
-pnpm build
-npm install -g .
-
-gemmaclaw setup           # auto-detect hardware, provision Gemma backend
-gemmaclaw create work     # create a named agent instance
-gemmaclaw tui work        # open local TUI/chat for the "work" agent
-gemmaclaw tui             # pick an agent interactively (TTY only)
-gemmaclaw chat            # open browser chat UI (picks agent interactively)
-gemmaclaw message --agent work "summarize this repo"   # one-shot message
-gemmaclaw list            # list agents with container shell availability
-gemmaclaw ssh work        # open a shell inside the 'work' agent's container
-```
-
-`gemmaclaw tui <agent>` targets exactly that named agent. Host-local agents open the terminal TUI directly. Docker-backed agents start or reuse browser chat on `127.0.0.1` with a persistent, collision-safe per-agent port recorded in `~/.gemmaclaw/state/tui-ports.json`, so `work` and `play` can run side by side.
+Setup, install, source-build, and command usage instructions live on the Gemmaclaw documentation site so there is one source of truth. Start with the [Setup Guide](https://gemmaclaw.github.io/gemmaclaw/setup.html).
 
 ## Documentation
 
-- [Setup Guide](https://gemmaclaw.github.io/gemmaclaw/#setup) - prerequisites, installation, commands, troubleshooting
-- [Self-Hosting Guide](https://gemmaclaw.github.io/gemmaclaw/#hosting) - find the best config for your hardware
-- [Benchmark Results](https://gemmaclaw.github.io/gemmaclaw/#benchmarks) - quality scores, speed, per-task breakdown
-- [Goals and Progress](https://gemmaclaw.github.io/gemmaclaw/#goals) - roadmap and project status
+- [Setup Guide](https://gemmaclaw.github.io/gemmaclaw/setup.html) - prerequisites, installation, commands, troubleshooting
+- [Self-Hosting Guide](https://gemmaclaw.github.io/gemmaclaw/self-hosting.html) - find the best config for your hardware
+- [Benchmark Results](https://gemmaclaw.github.io/gemmaclaw/benchmarks.html) - quality scores, speed, per-task breakdown
+- [Goals and Progress](https://gemmaclaw.github.io/gemmaclaw/goals.html) - roadmap and project status
 
 ## Benchmarking
 
-Run the benchmark suite on your hardware and contribute results:
-
-```bash
-gemmaclaw benchmark           # full benchmark with LLM judge scoring
-gemmaclaw benchmark --mock    # fast deterministic scoring (CI mode)
-gemmaclaw benchmark submit    # anonymize and submit results via PR
-```
-
-See the [Benchmark Kit documentation](src/gemmaclaw/benchmark-kit/README.md) for details.
+Benchmark instructions live in the [Benchmark Kit documentation](src/gemmaclaw/benchmark-kit/README.md).
 
 ## Contributing
 

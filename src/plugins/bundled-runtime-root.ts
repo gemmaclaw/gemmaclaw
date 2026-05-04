@@ -112,6 +112,11 @@ function prepareBundledPluginRuntimeDistMirror(params: {
 }): string {
   const sourceExtensionsRoot = path.dirname(params.pluginRoot);
   const sourceDistRoot = path.dirname(sourceExtensionsRoot);
+  const sourcePackageRoot = path.dirname(sourceDistRoot);
+  mirrorPackageManifest({
+    sourcePackageRoot,
+    installRoot: params.installRoot,
+  });
   const mirrorDistRoot = path.join(params.installRoot, "dist");
   const mirrorExtensionsRoot = path.join(mirrorDistRoot, "extensions");
   fs.mkdirSync(mirrorExtensionsRoot, { recursive: true, mode: 0o755 });
@@ -135,6 +140,20 @@ function prepareBundledPluginRuntimeDistMirror(params: {
     }
   }
   return mirrorExtensionsRoot;
+}
+
+function mirrorPackageManifest(params: { sourcePackageRoot: string; installRoot: string }): void {
+  const sourcePath = path.join(params.sourcePackageRoot, "package.json");
+  const targetPath = path.join(params.installRoot, "package.json");
+  if (!fs.existsSync(sourcePath) || fs.existsSync(targetPath)) {
+    return;
+  }
+  fs.mkdirSync(params.installRoot, { recursive: true, mode: 0o755 });
+  try {
+    fs.symlinkSync(sourcePath, targetPath, "file");
+  } catch {
+    fs.copyFileSync(sourcePath, targetPath);
+  }
 }
 
 function copyBundledPluginRuntimeRoot(sourceRoot: string, targetRoot: string): void {

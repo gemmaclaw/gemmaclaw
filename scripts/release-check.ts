@@ -59,7 +59,6 @@ const requiredPathGroups = [
   ...listStaticExtensionAssetOutputs(),
   ...WORKSPACE_TEMPLATE_PACK_PATHS,
   "scripts/npm-runner.mjs",
-  "scripts/preinstall-package-manager-warning.mjs",
   "scripts/postinstall-bundled-plugins.mjs",
   "dist/plugin-sdk/compat.js",
   "dist/plugin-sdk/root-alias.cjs",
