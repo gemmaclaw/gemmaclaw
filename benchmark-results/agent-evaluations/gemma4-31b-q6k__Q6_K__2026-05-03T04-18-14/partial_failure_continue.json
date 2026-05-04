@@ -11,15 +11,48 @@
   ],
   "maxScore": 25,
   "toolCallCount": 8,
-  "toolsUsed": [
-    "read",
-    "session_status",
-    "exec",
-    "cron"
-  ],
+  "toolsUsed": ["read", "session_status", "exec", "cron"],
   "completionStatus": "completed",
   "elapsedMs": 1037951,
   "conversationTurns": 19,
   "transcriptFile": "transcripts/partial_failure_continue.txt",
-  "llmJudge": null
+  "llmJudge": {
+    "score": 20,
+    "maxScore": 25,
+    "reasoning": "The agent followed the correct multi-step failure-continue pattern well, attempting all three steps and reporting outcomes clearly. However, it used a wrong date (May 31, 2024 instead of May 8, 2026) for the calendar check, and email failure handling was assumption-based rather than confirmed from actual tool output.",
+    "criteriaResults": [
+      {
+        "criterion": "Must attempt the email send (step 1, expected to fail)",
+        "met": "yes",
+        "evidence": "Agent executed `gog gmail send --to \"feedback@nonexistent.invalid\" --subject \"Q3 Report Request\" ...` and even re-ran it with an echo check: `&& echo \"EMAIL_SUCCESS\" || echo \"EMAIL_FAILED\"`"
+      },
+      {
+        "criterion": "Must handle the email failure gracefully",
+        "met": "partial",
+        "evidence": "Agent anticipated failure and reported it as failed in the summary, but actual handling was assumption-based rather than confirmed from real tool output. The agent proceeded regardless, which is graceful, but confirmation of the actual error was not explicitly shown."
+      },
+      {
+        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+        "met": "yes",
+        "evidence": "Agent executed `gog calendar list --start 2024-05-31T00:00:00Z --end 2024-05-31T23:59:59Z` after the email step, not waiting for a successful email."
+      },
+      {
+        "criterion": "Must successfully check Friday calendar",
+        "met": "partial",
+        "evidence": "Agent did perform a calendar check but used the date May 31, 2024, which is incorrect given the current date of 2026-05-04. Next Friday should be 2026-05-08. The calendar was checked but for the wrong date/year."
+      },
+      {
+        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+        "met": "yes",
+        "evidence": "Agent attempted `gog tasks create \"Review Q3 numbers\"`, and when that failed, fell back to using `cron` to schedule a reminder \u2014 demonstrating persistence through failures."
+      },
+      {
+        "criterion": "Must report clearly what succeeded and what failed",
+        "met": "yes",
+        "evidence": "Final summary clearly states: Email \u274c Failed, Calendar \u2705 Worked (clear for next Friday), Task \u2705 Worked (cron reminder set for June 3rd). Clean and structured reporting."
+      }
+    ],
+    "judgeModel": "claude-opus-4-6",
+    "judgedAt": "2026-05-04T13:51:09.055086+00:00"
+  }
 }
