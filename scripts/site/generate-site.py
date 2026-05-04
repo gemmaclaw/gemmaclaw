@@ -14,6 +14,8 @@ from datetime import datetime
 
 REPO_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = REPO_DIR / "benchmark-results"
+AGENT_RUNS_DIR = REPO_DIR / "benchmark-results" / "agent-runs"
+AGENT_EVAL_DIR = REPO_DIR / "benchmark-results" / "agent-evaluations"
 SITE_DIR = REPO_DIR / "site"
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
@@ -41,6 +43,272 @@ def load_benchmark_results():
             except (json.JSONDecodeError, KeyError):
                 pass
     return results
+
+
+def load_agent_benchmark_results():
+    """Load agent benchmark runs and merge with LLM evaluation scores."""
+    results = []
+    if not AGENT_RUNS_DIR.exists():
+        return results
+    for run_dir in sorted(AGENT_RUNS_DIR.iterdir()):
+        rfile = run_dir / "results.json"
+        if not rfile.exists():
+            continue
+        try:
+            with open(rfile) as f:
+                data = json.load(f)
+            eval_dir = AGENT_EVAL_DIR / run_dir.name
+            total_score = 0
+            max_score = 0
+            tasks_scored = 0
+            for task_result in data.get("tasks", []):
+                task_id = task_result["task"]["id"]
+                ef = eval_dir / f"{task_id}.json"
+                if ef.exists():
+                    try:
+                        with open(ef) as f2:
+                            e = json.load(f2)
+                        if e.get("llmJudge") and e["llmJudge"].get("score") is not None:
+                            total_score += e["llmJudge"]["score"]
+                            max_score += e["llmJudge"]["maxScore"]
+                            tasks_scored += 1
+                            task_result["_eval"] = e["llmJudge"]
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+            data["_dir"] = run_dir.name
+            data["_total_score"] = total_score
+            data["_max_score"] = max_score
+            data["_tasks_scored"] = tasks_scored
+            results.append(data)
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return sorted(results, key=lambda x: -x["_total_score"])
+
+
+def generate_agent_conversation_html(conversation, task_id, run_id):
+    """Render a conversation (list of {role, content} dicts) as HTML."""
+    if not conversation:
+        return '<p style="color:var(--muted)">No conversation recorded.</p>'
+    parts = []
+    for i, msg in enumerate(conversation):
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            # Array of content blocks — flatten to string
+            texts = []
+            for b in content:
+                if isinstance(b, dict):
+                    if b.get("type") == "text":
+                        texts.append(b.get("text", ""))
+                    elif b.get("type") == "tool_use":
+                        texts.append(f'[tool: {b.get("name")}]\n{json.dumps(b.get("input", {}), indent=2)}')
+                    elif b.get("type") == "tool_result":
+                        c = b.get("content", "")
+                        if isinstance(c, list):
+                            c = "\n".join(x.get("text", "") for x in c if isinstance(x, dict))
+                        texts.append(f'[result]\n{c}')
+                    else:
+                        texts.append(str(b))
+                else:
+                    texts.append(str(b))
+            content = "\n".join(texts)
+        content = str(content)
+        safe_content = html_escape(content)
+        msg_id = f"conv-{run_id}-{task_id}-{i}"
+        if role == "user":
+            parts.append(f'<div class="conv-user"><span class="conv-label">User</span><pre class="conv-content">{safe_content}</pre></div>')
+        elif role == "assistant":
+            parts.append(f'<div class="conv-assistant"><span class="conv-label">Assistant</span><pre class="conv-content">{safe_content}</pre></div>')
+        elif role == "tool_call":
+            try:
+                parsed = json.loads(content)
+                display = json.dumps(parsed, indent=2)
+            except (json.JSONDecodeError, TypeError):
+                display = content
+            parts.append(f'<div class="conv-tool-call"><span class="conv-label">Tool Call</span><pre class="conv-content">{html_escape(display)}</pre></div>')
+        elif role == "tool_result":
+            truncated = content if len(content) <= 600 else content[:600] + "\n... (truncated)"
+            parts.append(f'<div class="conv-tool-result"><details><summary class="conv-label">Tool Result <span style="color:var(--muted);font-size:0.85em">({len(content)} chars)</span></summary><pre class="conv-content">{html_escape(truncated)}</pre></details></div>')
+        else:
+            parts.append(f'<div class="conv-other"><span class="conv-label">{html_escape(role)}</span><pre class="conv-content">{safe_content}</pre></div>')
+    return "\n".join(parts)
+
+
+def generate_agent_task_detail_html(task_result, run_id):
+    """Render a single task's full detail: conversation + judge verdict."""
+    task = task_result["task"]
+    task_id = task["id"]
+    eval_data = task_result.get("_eval")
+    conv_html = generate_agent_conversation_html(
+        task_result.get("conversation", []), task_id, run_id
+    )
+    judge_html = ""
+    if eval_data:
+        score = eval_data.get("score", "?")
+        max_s = eval_data.get("maxScore", "?")
+        reasoning = html_escape(eval_data.get("reasoning", ""))
+        pct = int(100 * score / max_s) if isinstance(max_s, int) and max_s > 0 else 0
+        pct_cls = "win" if pct >= 70 else ("" if pct >= 40 else "bad")
+        criteria_rows = ""
+        for c in eval_data.get("criteriaResults", []):
+            met = c.get("met", "")
+            met_cls = "win" if met == "yes" else ("" if met == "partial" else "bad")
+            criteria_rows += f'<tr><td>{html_escape(c.get("criterion",""))}</td><td class="{met_cls}">{html_escape(met)}</td><td style="color:var(--muted);font-size:0.9em">{html_escape(c.get("evidence",""))}</td></tr>'
+        criteria_table = f'<table class="task-criteria-table"><thead><tr><th>Criterion</th><th>Met</th><th>Evidence</th></tr></thead><tbody>{criteria_rows}</tbody></table>' if criteria_rows else ""
+        judge_html = f'''<div class="judge-verdict">
+  <div class="judge-score {pct_cls}">{score}/{max_s} <span style="font-size:0.85em;font-weight:400">({pct}%)</span></div>
+  <p class="judge-reasoning">{reasoning}</p>
+  {criteria_table}
+</div>'''
+    else:
+        judge_html = '<p style="color:var(--muted);font-size:0.9em">Not yet evaluated.</p>'
+    grading = task.get("grading", {})
+    criteria_list = "".join(f"<li>{html_escape(c)}</li>" for c in grading.get("criteria", []))
+    criteria_section = f'<ul class="task-criteria-list">{criteria_list}</ul>' if criteria_list else ""
+    elapsed = task_result.get("elapsedMs", 0)
+    elapsed_str = f"{elapsed/1000:.1f}s" if elapsed else "N/A"
+    tool_count = task_result.get("toolCallCount", 0)
+    return f'''<div class="agent-task-detail" id="agent-task-detail-{run_id}-{task_id}">
+  <div class="task-detail-header">
+    <span class="task-detail-label">{html_escape(task.get("name",""))} &mdash; {html_escape(task.get("difficulty",""))}</span>
+    <span style="color:var(--muted);font-size:0.9em">{elapsed_str} | {tool_count} tool calls</span>
+  </div>
+  <div class="task-detail-body">
+    <div class="task-detail-criteria">
+      <strong>Grading criteria:</strong>
+      {criteria_section}
+    </div>
+    <div class="task-detail-conv">
+      <strong>Conversation:</strong>
+      <div class="conv-wrapper">{conv_html}</div>
+    </div>
+    <div class="task-detail-judge">
+      <strong>LLM Judge verdict:</strong>
+      {judge_html}
+    </div>
+  </div>
+</div>'''
+
+
+def generate_agent_model_card_html(run_data):
+    """Render one model's card with per-task rows and expandable conversation viewer."""
+    run_id = run_data["_dir"]
+    meta = run_data.get("metadata", {})
+    config = run_data.get("config", {})
+    model = meta.get("model", config.get("model", "?"))
+    quant = meta.get("ollamaModelInfo", {}).get("quantizationLevel", "?")
+    gpu = meta.get("hardware", {}).get("gpu", {}).get("name", "RTX 3090")
+    thinking = config.get("thinkingLevel", meta.get("thinkingLevel", "?"))
+    total_score = run_data["_total_score"]
+    max_score = run_data["_max_score"]
+    pct = int(100 * total_score / max_score) if max_score > 0 else 0
+    pct_cls = "win" if pct >= 50 else ("" if pct >= 30 else "bad")
+    started = meta.get("startedAt", "")[:10]
+    task_rows = []
+    task_details = []
+    for task_result in run_data.get("tasks", []):
+        task = task_result["task"]
+        task_id = task["id"]
+        eval_data = task_result.get("_eval")
+        status = task_result.get("completionStatus", "?")
+        elapsed = task_result.get("elapsedMs", 0)
+        elapsed_str = f"{elapsed/1000:.1f}s" if elapsed else "N/A"
+        tool_count = task_result.get("toolCallCount", 0)
+        if eval_data:
+            s = eval_data.get("score", "?")
+            ms = eval_data.get("maxScore", "?")
+            p = int(100 * s / ms) if isinstance(ms, int) and ms > 0 else 0
+            score_str = f'{s}/{ms}'
+            score_cls = "win" if p >= 70 else ("" if p >= 40 else "bad")
+        else:
+            score_str = "—"
+            score_cls = ""
+        status_cls = "win" if status == "completed" else "bad"
+        detail_id = f"agent-task-detail-{run_id}-{task_id}"
+        task_rows.append(f'''<tr class="agent-task-row" data-detail="{detail_id}">
+          <td>{html_escape(task.get("name",""))}</td>
+          <td>{html_escape(task.get("difficulty",""))}</td>
+          <td class="{status_cls}">{html_escape(status)}</td>
+          <td class="{score_cls}">{score_str}</td>
+          <td>{elapsed_str}</td>
+          <td>{tool_count}</td>
+          <td><span class="row-toggle">&#9656;</span></td>
+        </tr>''')
+        task_details.append(generate_agent_task_detail_html(task_result, run_id))
+    rows_html = "\n".join(task_rows)
+    details_html = "\n".join(task_details)
+    card_id = f"agent-card-{run_id}"
+    return f'''<div class="agent-model-card" id="{card_id}">
+  <div class="agent-card-header" data-card="{card_id}">
+    <div class="agent-card-title">
+      <strong>{html_escape(model)}</strong>
+      <span class="agent-card-quant">{html_escape(quant)}</span>
+    </div>
+    <div class="agent-card-meta">
+      <span>{html_escape(gpu)}</span>
+      <span>thinking={html_escape(thinking)}</span>
+      <span>{started}</span>
+    </div>
+    <div class="agent-card-score {pct_cls}">{total_score}/{max_score} <span style="font-size:0.85em;font-weight:400">({pct}%)</span></div>
+    <span class="agent-card-toggle">&#9656;</span>
+  </div>
+  <div class="agent-card-body" style="display:none">
+    <table class="agent-task-table">
+      <thead><tr><th>Task</th><th>Difficulty</th><th>Status</th><th>Score</th><th>Time</th><th>Tools</th><th></th></tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+    {details_html}
+  </div>
+</div>'''
+
+
+def generate_agent_section_html(agent_results):
+    """Render the full agent benchmark section: leaderboard + model cards."""
+    if not agent_results:
+        return ""
+    leaderboard_rows = []
+    for r in agent_results:
+        meta = r.get("metadata", {})
+        config = r.get("config", {})
+        model = meta.get("model", config.get("model", "?"))
+        quant = meta.get("ollamaModelInfo", {}).get("quantizationLevel", "?")
+        gpu = meta.get("hardware", {}).get("gpu", {}).get("name", "CPU")
+        total_score = r["_total_score"]
+        max_score = r["_max_score"]
+        pct = int(100 * total_score / max_score) if max_score > 0 else 0
+        pct_cls = "win" if pct >= 50 else ("" if pct >= 30 else "bad")
+        completed = sum(1 for t in r.get("tasks", []) if t["completionStatus"] == "completed")
+        total_tasks = len(r.get("tasks", []))
+        run_time_ms = r.get("summary", {}).get("totalTimeMs", 0)
+        run_time = f"{run_time_ms/60000:.0f}m" if run_time_ms > 60000 else f"{run_time_ms/1000:.0f}s"
+        avg_tools = r.get("summary", {}).get("avgToolCallsPerTask", 0)
+        started = meta.get("startedAt", "")[:10]
+        card_id = f"agent-card-{r['_dir']}"
+        leaderboard_rows.append(f'''<tr class="agent-lb-row" data-card="{card_id}">
+          <td><strong>{html_escape(model)}</strong></td>
+          <td>{html_escape(quant)}</td>
+          <td>{html_escape(gpu)}</td>
+          <td class="{pct_cls}">{total_score}/{max_score} <span style="color:var(--muted);font-size:0.9em">({pct}%)</span></td>
+          <td>{completed}/{total_tasks}</td>
+          <td>{avg_tools:.1f}</td>
+          <td>{run_time}</td>
+          <td>{started}</td>
+        </tr>''')
+    lb_rows_html = "\n".join(leaderboard_rows)
+    model_cards_html = "\n".join(generate_agent_model_card_html(r) for r in agent_results)
+    return f'''<section id="agent-benchmarks">
+  <h2>Agentic Benchmark Results</h2>
+  <p>Each model is evaluated on 22 workplace agent tasks (498 points total) covering email, calendar, data analysis, security detection, and multi-step workflows. The agent uses real tools (gog CLI for Gmail/Calendar, exec for shell commands) against a mock workspace environment. Scores are assigned by an LLM judge (claude-opus-4-6) grading each completed conversation against per-task rubrics.</p>
+  <div class="agent-leaderboard-wrap">
+    <table class="agent-leaderboard">
+      <thead><tr><th>Model</th><th>Quant</th><th>GPU</th><th>Score / 498</th><th>Completed</th><th>Avg Tools</th><th>Runtime</th><th>Date</th></tr></thead>
+      <tbody>{lb_rows_html}</tbody>
+    </table>
+  </div>
+  <div id="agent-model-cards">
+    {model_cards_html}
+  </div>
+</section>'''
 
 
 def best_results(results):
@@ -1510,7 +1778,7 @@ def generate_self_hosting_page(hw_cards):
 """
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
-def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html=""):
+def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html="", agent_section_html=""):
     # COMING SOON: Do NOT remove this block until Frank explicitly approves
     # the new benchmark results. The old results had wrong GPU detection and
     # incomplete test explanations. PR #69 added this, PR #71 removed it.
@@ -1533,9 +1801,11 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
         </section>"""
         return page_template("Benchmarks", body, active_page="benchmarks.html")
 
+    agent_html = agent_section_html or ""
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
+    {agent_html}
     <section id="benchmarks">
-      <h2>Benchmark Results by Size Class</h2>
+      <h2>Prompt-Response Benchmark Results</h2>
       <p>All models are tested on the same 15-task suite covering instruction following, reasoning, data extraction, safety, and coding. Models are grouped by size class with hardware requirements per tier. Click any model to expand its task breakdown, then click any task row to see the full prompt, the model's response, and the LLM judge's evaluation.</p>
       {size_class_html}
       <div id="model-details">{model_details}</div>
@@ -1550,6 +1820,7 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
       <p>Each task is scored either deterministically (exact-match or rule-based) or by an LLM judge that grades against a per-task rubric (max score reflects rubric weight, typically 5 for easy, 10 for medium, 15 for hard). A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second of completion output, recorded per task and aggregated as median over the run. Total time covers the full 15-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. All runs are deterministic at temperature 0 unless a task explicitly requires creative generation.</p>
     </section>"""
     scripts = """
+    // Prompt-response benchmark table interactions
     document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {
       if (row.classList.contains('task-row') || row.classList.contains('task-detail')) return;
       row.style.cursor = 'pointer';
@@ -1581,6 +1852,55 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
         this.classList.toggle('open', !isOpen);
       });
     });
+
+    // Agent benchmark interactions: model card expand/collapse
+    document.querySelectorAll('.agent-card-header').forEach(header => {
+      header.style.cursor = 'pointer';
+      header.addEventListener('click', function() {
+        const cardId = this.getAttribute('data-card');
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        const body = card.querySelector('.agent-card-body');
+        if (!body) return;
+        const isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        const toggle = this.querySelector('.agent-card-toggle');
+        if (toggle) toggle.innerHTML = isOpen ? '&#9656;' : '&#9662;';
+        if (!isOpen) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    // Leaderboard row click scrolls to model card
+    document.querySelectorAll('.agent-lb-row').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function() {
+        const cardId = this.getAttribute('data-card');
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        const body = card.querySelector('.agent-card-body');
+        if (body) body.style.display = 'block';
+        const toggle = card.querySelector('.agent-card-toggle');
+        if (toggle) toggle.innerHTML = '&#9662;';
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    // Agent task row expand/collapse conversation
+    document.querySelectorAll('.agent-task-row').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function() {
+        const detailId = this.getAttribute('data-detail');
+        const detail = document.getElementById(detailId);
+        if (!detail) return;
+        const isOpen = detail.style.display !== 'none';
+        detail.style.display = isOpen ? 'none' : 'block';
+        const toggle = this.querySelector('.row-toggle');
+        if (toggle) toggle.innerHTML = isOpen ? '&#9656;' : '&#9662;';
+        if (!isOpen) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    // Hide all task details by default
+    document.querySelectorAll('.agent-task-detail').forEach(d => d.style.display = 'none');
 """
     return page_template("Benchmark Results", body, active_page="benchmarks.html", extra_scripts=scripts)
 
@@ -1821,12 +2141,14 @@ def generate_site():
     community_cards = generate_community_cards(community_configs)
     community_count = len(community_configs)
     field_notes_html = load_field_notes()
+    agent_results = load_agent_benchmark_results()
+    agent_section_html = generate_agent_section_html(agent_results)
     SITE_DIR.mkdir(exist_ok=True)
     pages = {
         "index.html": generate_index_page(),
         "setup.html": generate_setup_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
-        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html),
+        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html, agent_section_html),
         "benchmarking.html": generate_benchmarking_page(),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
         "goals.html": generate_goals_page(),
@@ -1839,6 +2161,7 @@ def generate_site():
     print(f"  {len(results)} benchmark results loaded")
     print(f"  {len(best)} unique model/backend combos")
     print(f"  {community_count} community hardware reports loaded")
+    print(f"  {len(agent_results)} agent benchmark runs loaded")
 
 
 CSS = """
@@ -2424,6 +2747,128 @@ CSS = """
     .diff-easy { background: #e6f4ea; color: #1a7f37; }
     .diff-medium { background: #fff3cd; color: #856404; }
     .diff-hard { background: #fce8e6; color: #c93c37; }
+
+    /* Agent benchmark leaderboard */
+    .agent-leaderboard-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    .agent-leaderboard {
+      width: 100%; border-collapse: collapse; font-size: 0.93rem;
+    }
+    .agent-leaderboard th {
+      background: var(--bg-elev-2); padding: 0.6rem 0.9rem;
+      text-align: left; font-weight: 600; color: var(--fg-soft);
+      border-bottom: 2px solid var(--border); white-space: nowrap;
+    }
+    .agent-leaderboard td {
+      padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .agent-lb-row:hover { background: var(--bg-elev); cursor: pointer; }
+
+    /* Agent model cards */
+    #agent-model-cards { margin-top: 1.5rem; }
+    .agent-model-card {
+      border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 1rem; overflow: hidden;
+    }
+    .agent-card-header {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 1.25rem; background: var(--bg-elev);
+      cursor: pointer; flex-wrap: wrap;
+    }
+    .agent-card-header:hover { background: var(--bg-elev-2); }
+    .agent-card-title { flex: 1; min-width: 200px; }
+    .agent-card-title strong { font-size: 1rem; }
+    .agent-card-quant {
+      display: inline-block; margin-left: 0.5rem;
+      background: var(--bg-elev-2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.1em 0.4em;
+      font-size: 0.8rem; color: var(--muted); font-family: monospace;
+    }
+    .agent-card-meta {
+      display: flex; gap: 1rem; font-size: 0.85rem; color: var(--muted); flex-wrap: wrap;
+    }
+    .agent-card-score {
+      font-weight: 700; font-size: 1rem; min-width: 80px; text-align: right;
+    }
+    .agent-card-toggle {
+      color: var(--muted); font-size: 0.8rem; margin-left: 0.5rem;
+    }
+    .agent-card-body { padding: 1.25rem; border-top: 1px solid var(--border); }
+
+    /* Agent task table inside model card */
+    .agent-task-table {
+      width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 1rem;
+    }
+    .agent-task-table th {
+      background: var(--bg-elev-2); padding: 0.5rem 0.75rem;
+      text-align: left; font-size: 0.83rem; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .agent-task-table td {
+      padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .agent-task-row:hover { background: var(--bg-elev); cursor: pointer; }
+
+    /* Agent task detail: conversation + judge */
+    .agent-task-detail {
+      border: 1px solid var(--border); border-radius: 8px;
+      margin: 0.75rem 0; overflow: hidden;
+    }
+    .task-detail-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.75rem 1rem; background: var(--bg-elev-2);
+      border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 0.5rem;
+    }
+    .task-detail-label { font-weight: 600; }
+    .task-detail-body { padding: 1rem; display: grid; gap: 1.25rem; }
+    .task-detail-criteria ul { margin: 0.5rem 0 0 1.2rem; color: var(--fg-soft); font-size: 0.9rem; }
+    .task-criteria-list { margin: 0.5rem 0 0 1.2rem; color: var(--fg-soft); font-size: 0.9rem; }
+
+    /* Conversation messages */
+    .conv-wrapper { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .conv-user, .conv-assistant, .conv-tool-call, .conv-tool-result, .conv-other {
+      border-radius: 6px; padding: 0.6rem 0.85rem; font-size: 0.87rem;
+    }
+    .conv-user { background: #eef4ff; border-left: 3px solid var(--accent); }
+    .conv-assistant { background: var(--bg-elev); border-left: 3px solid #2da44e; }
+    .conv-tool-call { background: #fff8e1; border-left: 3px solid #e6a817; }
+    .conv-tool-result { background: var(--bg-elev-2); border-left: 3px solid var(--border); }
+    .conv-other { background: var(--bg-elev-2); border-left: 3px solid var(--border); }
+    .conv-label {
+      display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted); margin-bottom: 0.3rem;
+    }
+    .conv-content {
+      white-space: pre-wrap; word-break: break-word; margin: 0;
+      font-family: inherit; line-height: 1.5; color: var(--fg);
+    }
+    .conv-tool-result summary.conv-label { cursor: pointer; }
+    .conv-tool-result summary.conv-label:hover { color: var(--fg-soft); }
+
+    /* LLM judge verdict */
+    .judge-verdict {
+      background: var(--bg-elev); border-radius: 8px;
+      padding: 1rem; margin-top: 0.5rem;
+    }
+    .judge-score {
+      font-size: 1.35rem; font-weight: 700; margin-bottom: 0.5rem;
+    }
+    .judge-reasoning {
+      font-size: 0.9rem; color: var(--fg-soft); line-height: 1.6; margin: 0.5rem 0;
+    }
+    .task-criteria-table {
+      width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.75rem;
+    }
+    .task-criteria-table th {
+      background: var(--bg-elev-2); padding: 0.4rem 0.6rem;
+      text-align: left; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .task-criteria-table td {
+      padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
 """
 
 

@@ -1,0 +1,152 @@
+[user] Go through ALL my emails and triage them. For each email, tell me: sender, subject, urgency (high/medium/low), recommended action, and why.
+
+[tool_call] read {"path":"~/.openclaw/workspace/code/gemmaclaw/skills/taskflow-inbox-triage/SKILL.md"}
+
+[tool_result] ---
+name: taskflow-inbox-triage
+description: Example TaskFlow authoring pattern for inbox triage. Use when messages need different treatment based on intent, with some routes notifying immediately, some waiting on outside answers, and others rolling into a later summary.
+metadata: { "openclaw": { "emoji": "📥" } }
+---
+
+# TaskFlow inbox triage
+
+This is a concrete example of how to think about TaskFlow without turning the core runtime into a DSL.
+
+## Goal
+
+Triage inbox items with one owner flow:
+
+- business → post to Slack and wait for reply
+- personal → notify the owner now
+- everything else → keep for end-of-day summary
+
+## Pattern
+
+1. Create one flow for the inbox batch.
+2. Run one detached task to classify new items.
+3. Persist the routing state in `stateJson`.
+4. Move to `waiting` only when an outside reply is required.
+5. Resume the flow when classification or human input completes.
+6. Finish when the batch has been routed.
+
+## Suggested `stateJson` shape
+
+```json
+{
+  "businessThreads": [],
+  "personalItems": [],
+  "eodSummary": []
+}
+```
+
+Suggested `waitJson` when blocked on Slack:
+
+```json
+{
+  "kind": "reply",
+  "channel": "slack",
+  "threadKey": "slack:thread-1"
+}
+```
+
+## Minimal runtime calls
+
+```ts
+const taskFlow = api.runtime.tasks.flow.fromToolContext(ctx);
+
+const created = taskFlow.createManaged({
+  controllerId: "my-plugin/inbox-triage",
+  goal: "triage inbox",
+  currentStep: "classify",
+  stateJson: {
+    businessThreads: [],
+    personalItems: [],
+    eodSummary: [],
+  },
+});
+
+const child = taskFlow.runTask({
+  flowId: created.flowId,
+  runtime: "acp",
+  childSessionKey: "agent:main:subagent:classifier",
+  task: "Classify inbox messages",
+  status: "running",
+  startedAt: Date.now(),
+  lastEventAt: Date.now(),
+});
+
+if (!child.created) {
+  throw new Error(child.reason);
+}
+
+const waiting = taskFlow.setWaiting({
+  flowId: created.flowId,
+  expectedRevision: created.revision,
+  currentStep: "await_business_reply",
+  stateJson: {
+    businessThreads: ["slack:thread-1"],
+    personalItems: [],
+    eodSummary: [],
+  },
+  waitJson: {
+    kind: "reply",
+    channel: "slack",
+    threadKey: "slack:thread-1",
+  },
+});
+
+if (!waiting.applied) {
+  throw new Error(waiting.code);
+}
+
+const resumed = taskFlow.resume({
+  flowId: waiting.flow.flowId,
+  expectedRevision: waiting.flow.revision,
+  status: "running",
+  currentStep: "route_items",
+  stateJson: waiting.flow.stateJson,
+});
+
+if (!resumed.applied) {
+  throw new Error(resumed.code);
+}
+
+taskFlow.finish({
+  flowId: resumed.flow.flowId,
+  expectedRevision: resumed.flow.revision,
+  stateJson: resumed.flow.stateJson,
+});
+```
+
+## Related example
+
+- `skills/taskflow/examples/inbox-triage.lobster`
+
+
+[assistant] I see you want a complete email triage, including sender, subject, urgency, recommended action, and justification for every message. This is a complex, multi-step process that requires dedicated flow control, much like the pattern outlined in the `taskflow-inbox-triage` skill.
+
+To handle this comprehensively, I will spawn a dedicated sub-agent. This agent will systematically go through all your emails, extract the necessary data, and then format the triage report exactly as requested.
+
+
+
+[tool_call] sessions_spawn {"label":"email-triage-agent","runtime":"subagent","task":"You are an expert Email Triage Assistant. Your task is to review ALL emails in the inbox and, for each one, output a structured analysis containing the following five fields: Sender, Subject, Urgency (High/Medium/Low), Recommended Action, and Justification. You must use the 'gog' skill to access and read the emails. Once you have processed the entire inbox, compile the results into a markdown list titled \"Email Triage Report\". Do not reply until all emails have been processed and the report is ready."}
+
+[tool_result] {
+  "status": "error",
+  "error": "gateway closed (1008): unauthorized: gateway token missing (set gateway.remote.token to match gateway.auth.token)\nGateway target: ws://127.0.0.1:3001\nSource: local loopback\nConfig: /tmp/gemmaclaw-bench-bench-email_triage-1777725761379/.openclaw/openclaw.json\nBind: loopback",
+  "childSessionKey": "agent:main:subagent:532c273e-306d-48a7-b1cb-5709e65e091d"
+}
+
+[tool_call] sessions_spawn {"label":"email-triage-agent","runtime":"subagent","task":"You are an expert Email Triage Assistant. Your task is to review ALL emails in the inbox and, for each one, output a structured analysis containing the following five fields: Sender, Subject, Urgency (High/Medium/Low), Recommended Action, and Justification. You must use the 'gog' skill to access and read the emails. Once you have processed the entire inbox, compile the results into a markdown list titled \"Email Triage Report\". Do not reply until all emails have been processed and the report is ready."}
+
+[tool_result] {
+  "status": "error",
+  "error": "gateway closed (1008): unauthorized: gateway token missing (set gateway.remote.token to match gateway.auth.token)\nGateway target: ws://127.0.0.1:3001\nSource: local loopback\nConfig: /tmp/gemmaclaw-bench-bench-email_triage-1777725761379/.openclaw/openclaw.json\nBind: loopback",
+  "childSessionKey": "agent:main:subagent:e04019a7-46e8-4ba0-b18d-89e7dcc72a21"
+}
+
+[assistant] I am running into the same "gateway closed" error, indicating a connectivity issue with the OpenClaw gateway that prevents the sub-agent from interacting with your email system via the `gog` skill.
+
+Before I can proceed with the triage, I need to address this connectivity issue. The error message suggests that the gateway token is missing or mismatched.
+
+Would you like me to try running a system check on the OpenClaw gateway to resolve the authentication issue? I can use the `gateway` tool for this.
