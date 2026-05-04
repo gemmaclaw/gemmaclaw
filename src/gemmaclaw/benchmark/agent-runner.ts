@@ -540,8 +540,9 @@ export async function dispatchTask(
     "--message",
     task.prompt,
   ];
-  if (config.thinkingLevel) {
-    args.push("--thinking", config.thinkingLevel);
+  const effectiveThinking = task.thinkingLevelOverride ?? config.thinkingLevel;
+  if (effectiveThinking) {
+    args.push("--thinking", effectiveThinking);
   }
   if (config.taskTimeoutSeconds > 0) {
     // Keep the embedded OpenClaw command timeout aligned with the benchmark's
