@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearBundledProviderPolicySurfaceCache } from "../plugins/provider-public-artifacts.js";
+import { resetBundledPluginPublicArtifactLoaderForTest } from "../plugins/public-surface-loader.js";
 import { DEFAULT_AGENT_MAX_CONCURRENT, DEFAULT_SUBAGENT_MAX_CONCURRENT } from "./agent-limits.js";
 import {
   applyAgentDefaults,
@@ -10,10 +12,16 @@ describe("config defaults", () => {
   beforeEach(() => {
     vi.stubEnv("ANTHROPIC_API_KEY", "");
     vi.stubEnv("ANTHROPIC_OAUTH_TOKEN", "");
+    vi.stubEnv("OPENCLAW_BUNDLED_PLUGINS_DIR", "");
+    vi.stubEnv("OPENCLAW_DISABLE_BUNDLED_PLUGINS", "");
+    clearBundledProviderPolicySurfaceCache();
+    resetBundledPluginPublicArtifactLoaderForTest();
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    clearBundledProviderPolicySurfaceCache();
+    resetBundledPluginPublicArtifactLoaderForTest();
   });
 
   it("skips provider defaults when agent defaults are absent", () => {
