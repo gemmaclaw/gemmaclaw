@@ -111,7 +111,7 @@ export interface ApplyBootstrapResult {
 export function applyBootstrapProfile(
   profileId: BootstrapProfileId,
   workspaceDir: string,
-  opts: { overwrite?: boolean } = {},
+  opts: { overwrite?: boolean; useContainer?: boolean } = {},
 ): ApplyBootstrapResult {
   const profile = BOOTSTRAP_PROFILES[profileId];
   fs.mkdirSync(workspaceDir, { recursive: true });
@@ -124,7 +124,17 @@ export function applyBootstrapProfile(
       continue;
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, spec.content);
+    
+    let contentToOutput = spec.content;
+    if (opts.useContainer && spec.relativePath === "AGENTS.md") {
+      contentToOutput += `
+## Docker Sandbox Environment
+- You are running inside an isolated Docker container.
+- Shared files with the host machine should be placed in \`/workspace/shared\`.
+- If you need to install system packages, you MUST use \`apt-get -o APT::Sandbox::User=root install <package>\` to bypass privilege-dropping security errors.
+`;
+    }
+    fs.writeFileSync(target, contentToOutput);
     written.push(spec.relativePath);
   }
   return { profile: profileId, workspaceDir, written, skipped };

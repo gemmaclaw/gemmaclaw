@@ -730,7 +730,7 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
     choices.agentName === "main"
       ? path.join(stateDir, "workspace")
       : path.join(stateDir, "workspaces", choices.agentName);
-  applyBootstrapProfile(choices.bootstrap, workspaceDir);
+  applyBootstrapProfile(choices.bootstrap, workspaceDir, { useContainer: choices.useContainer });
 }
 
 async function printPostSetupSummary(
