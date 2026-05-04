@@ -10,6 +10,25 @@ import { booleanFlag, parseFlagArgs, stringFlag } from "./lib/arg-utils.mjs";
 import { printTimingSummary } from "./lib/check-timing-summary.mjs";
 import { resolveChangedTestTargetPlan } from "./test-projects.test-support.mjs";
 
+const GIT_REPOSITORY_ENV_KEYS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_PREFIX",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+];
+
+export function sanitizeGitRepositoryEnv(env = process.env) {
+  const sanitized = { ...env };
+  for (const key of GIT_REPOSITORY_ENV_KEYS) {
+    delete sanitized[key];
+  }
+  return sanitized;
+}
+
 export function createChangedCheckPlan(result, options = {}) {
   const commands = [];
   const add = (name, args) => {
@@ -217,6 +236,7 @@ async function runCommand(command, timings) {
   const startedAt = performance.now();
   console.error(`\n[check:changed] ${command.name}`);
   const child = spawn(command.bin, command.args, {
+    env: sanitizeGitRepositoryEnv(process.env),
     stdio: "inherit",
     shell: process.platform === "win32",
   });

@@ -12,7 +12,9 @@ import { createTestRuntime } from "./test-runtime-config-helpers.js";
 // Shared mutable state hoisted so vi.mock factories can reference it.
 const hoisted = vi.hoisted(() => {
   let capturedMutatedConfig: OpenClawConfig = {};
+  const execFileSync = vi.fn();
   return {
+    execFileSync,
     get capturedMutatedConfig() {
       return capturedMutatedConfig;
     },
@@ -22,6 +24,14 @@ const hoisted = vi.hoisted(() => {
     reset() {
       capturedMutatedConfig = {};
     },
+  };
+});
+
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
+  return {
+    ...actual,
+    execFileSync: hoisted.execFileSync,
   };
 });
 
@@ -52,6 +62,7 @@ vi.mock("../gemmaclaw/provision/bootstrap-profiles.js", () => ({
 vi.mock("node:fs", async () => {
   const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
   const mkdirSyncStub = vi.fn();
+  const chmodSyncStub = vi.fn();
   const writeFileSyncStub = vi.fn();
   const readFileSyncStub = vi.fn().mockImplementation(() => {
     throw Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" });
@@ -61,14 +72,18 @@ vi.mock("node:fs", async () => {
     default: {
       ...actual,
       mkdirSync: mkdirSyncStub,
+      chmodSync: chmodSyncStub,
       writeFileSync: writeFileSyncStub,
       readFileSync: readFileSyncStub,
     },
     mkdirSync: mkdirSyncStub,
+    chmodSync: chmodSyncStub,
     writeFileSync: writeFileSyncStub,
     readFileSync: readFileSyncStub,
   };
 });
+
+const fsMock = await import("node:fs");
 
 function makeRuntime(): RuntimeEnv & { logs: string[]; errors: string[]; exitCodes: number[] } {
   const logs: string[] = [];
@@ -258,6 +273,7 @@ describe("setupGemmaCommand — agent creation", () => {
     runtime.log.mockReset();
     runtime.error.mockReset();
     runtime.exit.mockReset();
+    hoisted.execFileSync.mockReset();
 
     originalGeminiKey = process.env.GEMINI_API_KEY;
     process.env.GEMINI_API_KEY = FAKE_GEMINI_KEY;
@@ -357,5 +373,77 @@ describe("setupGemmaCommand — agent creation", () => {
     expect(entry?.workspace?.length).toBeGreaterThan(0);
     expect(typeof entry?.agentDir).toBe("string");
     expect(entry?.agentDir?.length).toBeGreaterThan(0);
+  });
+
+  it("writes the unrestricted Gemmaclaw Docker sandbox config for non-local setup", async () => {
+    await setupGemmaCommand(
+      {
+        nonInteractive: true,
+        dryRun: true,
+        agentName: "DockerBot",
+        setupMode: "gemini",
+        model: "gemini-2.0-flash",
+        thinking: "off",
+      },
+      runtime,
+    );
+
+    const sandbox = hoisted.capturedMutatedConfig.agents?.defaults?.sandbox as
+      | Record<string, unknown>
+      | undefined;
+    expect(sandbox).toMatchObject({
+      mode: "all",
+      backend: "docker",
+      scope: "session",
+      workspaceAccess: "rw",
+      docker: {
+        dangerouslyAllowExternalBindSources: true,
+        dangerouslyAllowReservedContainerTargets: true,
+        readOnlyRoot: false,
+        network: "bridge",
+        capDrop: [],
+        setupCommand:
+          "apt-get -o APT::Sandbox::User=root update && " +
+          "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3 && " +
+          "printf '\\numask 000\\n' >> /etc/profile && " +
+          "rm -rf /var/lib/apt/lists/*",
+        user: "0:0",
+      },
+    });
+    const docker = sandbox?.docker as Record<string, unknown> | undefined;
+    expect(docker?.binds).toEqual([
+      `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/workspace/shared:rw`,
+    ]);
+    expect(hoisted.capturedMutatedConfig.tools?.exec).toMatchObject({
+      security: "full",
+      ask: "off",
+    });
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith(
+      `${process.env.HOME ?? "/root"}/.gemmaclaw/shared`,
+      { recursive: true },
+    );
+    expect(fsMock.chmodSync).toHaveBeenCalledWith(
+      `${process.env.HOME ?? "/root"}/.gemmaclaw/shared`,
+      0o777,
+    );
+    expect(fsMock.chmodSync).toHaveBeenCalledWith(
+      `${process.env.HOME ?? "/root"}/.openclaw/workspaces/DockerBot`,
+      0o777,
+    );
+    expect(hoisted.execFileSync).toHaveBeenCalledWith(
+      "setfacl",
+      ["-d", "-m", "u::rwx,g::rwx,o::rwx", `${process.env.HOME ?? "/root"}/.gemmaclaw/shared`],
+      { stdio: "ignore" },
+    );
+    expect(hoisted.execFileSync).toHaveBeenCalledWith(
+      "setfacl",
+      [
+        "-d",
+        "-m",
+        "u::rwx,g::rwx,o::rwx",
+        `${process.env.HOME ?? "/root"}/.openclaw/workspaces/DockerBot`,
+      ],
+      { stdio: "ignore" },
+    );
   });
 });

@@ -165,6 +165,14 @@ describe("resolveOpenClawPackageRoot", () => {
       },
     },
     {
+      name: "resolves Gemmaclaw source checkout roots",
+      setup: () => {
+        const pkgRoot = fx("gemmaclaw-source");
+        setPackageRoot(pkgRoot, "gemmaclaw");
+        return { opts: { cwd: path.join(pkgRoot, "src", "cli") }, expected: pkgRoot };
+      },
+    },
+    {
       name: "falls through from a non-openclaw moduleUrl candidate to cwd",
       setup: () => {
         const wrongPkgRoot = fx("moduleurl-fallthrough", "wrong");

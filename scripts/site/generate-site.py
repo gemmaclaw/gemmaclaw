@@ -1101,19 +1101,16 @@ def generate_setup_page():
       </ul>
 
       <h3 id="install">Install Gemmaclaw</h3>
-      <p>For everyday users, install with Node.js 22+ and npm. No repo clone, pnpm, or build step is required.</p>
-      <div class="code-block"><pre><code>npm install -g gemmaclaw
-gemmaclaw setup</code></pre></div>
-      <p>Before the first npm release is available, use the contributor source build below.</p>
+      <p>Until the first npm release is published, install from source. This is the supported setup path for now.</p>
       <p>Docker is recommended for sandboxed tool execution but not required.</p>
-      <p><strong>Contributor source build:</strong> use this only if you plan to modify Gemmaclaw.</p>
       <div class="code-block"><pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
 cd gemmaclaw
 corepack enable
 pnpm install
 pnpm build
-npm install -g .  # or: npm link</code></pre></div>
-      <p>When installing from GitHub with npm, npm runs the package <code>prepare</code> step for you. Contributors use pnpm because this repository is developed as a pnpm workspace.</p>
+npm install -g .  # or: npm link
+gemmaclaw setup</code></pre></div>
+      <p>After npm publishing is enabled, this section will switch to the registry install command. Contributors use pnpm because this repository is developed as a pnpm workspace.</p>
       <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
 
       <h3 id="release-automation">Release Automation</h3>

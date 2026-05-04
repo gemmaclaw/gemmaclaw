@@ -6,6 +6,17 @@ ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 RUN_NODE_TOOL="$ROOT_DIR/scripts/pre-commit/run-node-tool.sh"
 FILTER_FILES="$ROOT_DIR/scripts/pre-commit/filter-staged-files.mjs"
 
+if [[ -f "$ROOT_DIR/package.json" ]] &&
+  grep -Eq '"name"[[:space:]]*:[[:space:]]*"(openclaw|gemmaclaw)"' "$ROOT_DIR/package.json" &&
+  [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+  # Git hooks run from a non-login shell on many systems. Source nvm for real
+  # OpenClaw/Gemmaclaw checkouts so the hook uses the repo's required Node 22
+  # runtime instead of an older system Node.
+  # shellcheck disable=SC1090
+  source "$HOME/.nvm/nvm.sh"
+  nvm use 22 >/dev/null
+fi
+
 if [[ ! -x "$RUN_NODE_TOOL" ]]; then
   echo "Missing helper: $RUN_NODE_TOOL" >&2
   exit 1

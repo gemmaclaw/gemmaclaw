@@ -178,6 +178,9 @@ export function resolveModelId(backend: OnboardingBackend, choice: string): stri
   if (!trimmed) {
     return defaultModelFor(backend);
   }
+  if (backend === "gemini" && !trimmed.includes("/")) {
+    return `google/${trimmed}`;
+  }
   return trimmed;
 }
 
@@ -622,7 +625,7 @@ export function buildNonInteractiveChoices(opts: {
     throw new Error(`Invalid agent name "${agentName}": ${nameError}`);
   }
   const backend: OnboardingBackend = opts.backend ?? "local";
-  const model = opts.model?.trim() || defaultModelFor(backend);
+  const model = resolveModelId(backend, opts.model ?? "");
   const thinkingLevel: OnboardingThinking = opts.thinkingLevel ?? "medium";
   const bootstrap: OnboardingBootstrap = opts.bootstrap ?? "general";
   const useContainer = opts.useContainer ?? true;
