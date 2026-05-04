@@ -460,11 +460,16 @@ export async function setupGemmaCommand(
           (draft.tools.exec as Record<string, unknown>).ask = "off";
 
           if (enableSandbox) {
+            const sharedDir = path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
             draft.agents.defaults.sandbox = {
               mode: "all",
               backend: "docker",
               scope: "session",
               workspaceAccess: "rw",
+              docker: {
+                dangerouslyAllowReservedContainerTargets: true,
+                binds: [`${sharedDir}:/workspace/shared:rw`],
+              }
             };
           }
         },
@@ -478,7 +483,7 @@ export async function setupGemmaCommand(
         try {
           const { mkdirSync } = await import("node:fs");
           mkdirSync(sharedDir, { recursive: true });
-          runtime.log(`  Shared: ${sharedDir} (mounted at /shared in containers)`);
+          runtime.log(`  Shared: ${sharedDir} (mounted at /workspace/shared in containers)`);
         } catch {
           runtime.log(`  Shared: could not create ${sharedDir}`);
         }
