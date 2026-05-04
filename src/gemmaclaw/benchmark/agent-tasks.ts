@@ -52,6 +52,9 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     category: "email",
     difficulty: "medium",
     prompt: "Check my email inbox and give me a summary of what needs my attention.",
+    // 31B models with thinking=high enter tool-call loops on this task (338+ calls → context
+    // overflow). Same fix as email_action_response and email_triage: use thinking=low.
+    thinkingLevelOverride: "low",
     grading: {
       type: "conversation_check",
       criteria: [
