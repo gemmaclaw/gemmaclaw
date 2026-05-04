@@ -998,15 +998,16 @@ def generate_setup_page():
         <li><a href="#path-gemini" class="inline">Path 2: Gemini API</a> (cloud, no local hardware needed)</li>
         <li><a href="#path-vertex" class="inline">Path 3: Vertex AI</a> (enterprise, GCP integration)</li>
         <li><a href="#after-setup" class="inline">After Setup</a> (create agents, chat, message)</li>
+        <li><a href="#release-automation" class="inline">Release Automation</a></li>
         <li><a href="#cli-reference" class="inline">CLI Reference</a></li>
         <li><a href="#troubleshooting" class="inline">Troubleshooting</a></li>
       </ul>
 
       <h3 id="install">Install Gemmaclaw</h3>
       <p>For everyday users, install with Node.js 22+ and npm. No repo clone, pnpm, or build step is required.</p>
-      <div class="code-block"><pre><code>npm install -g github:gemmaclaw/gemmaclaw#main
+      <div class="code-block"><pre><code>npm install -g gemmaclaw
 gemmaclaw setup</code></pre></div>
-      <p>The GitHub npm spec is the working no-pnpm path until the <code>gemmaclaw</code> package is published to npm. After publication, use <code>npm install -g gemmaclaw</code>.</p>
+      <p>Before the first npm release is available, use the contributor source build below.</p>
       <p>Docker is recommended for sandboxed tool execution but not required.</p>
       <p><strong>Contributor source build:</strong> use this only if you plan to modify Gemmaclaw.</p>
       <div class="code-block"><pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
@@ -1017,6 +1018,10 @@ pnpm build
 npm install -g .  # or: npm link</code></pre></div>
       <p>When installing from GitHub with npm, npm runs the package <code>prepare</code> step for you. Contributors use pnpm because this repository is developed as a pnpm workspace.</p>
       <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
+
+      <h3 id="release-automation">Release Automation</h3>
+      <p>Gemmaclaw releases use the <code>Gemmaclaw npm Release</code> GitHub Action. Trigger it manually to create or update the release PR. After that PR merges to <code>main</code>, the same workflow creates the GitHub release and publishes the tagged package to npm.</p>
+      <p>The workflow is powered by <code>release-please</code>. Version state lives in <code>.release-please-manifest.json</code> and release behavior lives in <code>release-please-config.json</code>. npm publishing expects GitHub Actions trusted publishing to be configured for the <code>gemmaclaw</code> package.</p>
 
       <h3 id="wizard">The Onboarding Wizard</h3>
       <p>Running <code>gemmaclaw setup</code> kicks off a six-question wizard. Press Enter at any prompt to keep the bracketed default. Every question is also exposed as a CLI flag so you can script the whole flow.</p>

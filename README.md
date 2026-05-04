@@ -14,10 +14,10 @@ Setup, install, source-build, and command usage instructions live on the Gemmacl
 
 ## Documentation
 
-- [Setup Guide](https://gemmaclaw.github.io/gemmaclaw/#setup) - prerequisites, installation, commands, troubleshooting
-- [Self-Hosting Guide](https://gemmaclaw.github.io/gemmaclaw/#hosting) - find the best config for your hardware
-- [Benchmark Results](https://gemmaclaw.github.io/gemmaclaw/#benchmarks) - quality scores, speed, per-task breakdown
-- [Goals and Progress](https://gemmaclaw.github.io/gemmaclaw/#goals) - roadmap and project status
+- [Setup Guide](https://gemmaclaw.github.io/gemmaclaw/setup.html) - prerequisites, installation, commands, troubleshooting
+- [Self-Hosting Guide](https://gemmaclaw.github.io/gemmaclaw/self-hosting.html) - find the best config for your hardware
+- [Benchmark Results](https://gemmaclaw.github.io/gemmaclaw/benchmarks.html) - quality scores, speed, per-task breakdown
+- [Goals and Progress](https://gemmaclaw.github.io/gemmaclaw/goals.html) - roadmap and project status
 
 ## Benchmarking
 
