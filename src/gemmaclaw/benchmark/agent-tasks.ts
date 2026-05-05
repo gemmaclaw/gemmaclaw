@@ -208,6 +208,7 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
       "one must come after another, and one must avoid a specific day.",
     category: "coordination",
     difficulty: "hard",
+    thinkingLevelOverride: "low",
     prompt:
       "Read Sarah's email about scheduling 3 project review meetings " +
       "and set them all up. Make sure to follow her sequencing requirements.",
@@ -234,6 +235,7 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
       "email outreach, task creation, and budget tracking across 3 client visits.",
     category: "multi_step",
     difficulty: "hard",
+    thinkingLevelOverride: "low",
     prompt:
       "Read Maya's email about next week's client visits and handle " +
       "all the logistics: calendar events, emails to clients, prep tasks, " +
@@ -261,6 +263,7 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
       "guest invitations, and budget management with specific constraints.",
     category: "coordination",
     difficulty: "hard",
+    thinkingLevelOverride: "low",
     prompt:
       "Read Lisa's email about the team building event and handle " +
       "everything: vendor emails, calendar events, team invitations, " +
