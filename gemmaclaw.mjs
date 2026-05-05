@@ -62,6 +62,14 @@ if (gemmaclawStateDir !== null) {
   childEnv.OPENCLAW_STATE_DIR = gemmaclawStateDir;
 }
 
+// Increase the Node.js heap limit for operations that process large archives
+// (e.g. backup restore on instances with large node_modules or model files).
+// Default ~2 GB is insufficient for 4+ GB backups. Only set if not already
+// configured by the caller via NODE_OPTIONS.
+if (!childEnv.NODE_OPTIONS?.includes("--max-old-space-size")) {
+  childEnv.NODE_OPTIONS = `${childEnv.NODE_OPTIONS ?? ""} --max-old-space-size=4096`.trimStart();
+}
+
 const child = spawn(process.execPath, [openclawEntrypoint, ...process.argv.slice(2)], {
   stdio: "inherit",
   env: childEnv,
