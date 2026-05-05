@@ -1,0 +1,66 @@
+name: Gemmaclaw NPM Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Force publish even if version hasn't changed
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: gemmaclaw-npm-publish
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24.x"
+  PNPM_VERSION: "10.33.0"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node environment
+        uses: ./.github/actions/setup-node-env
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          install-bun: "false"
+
+      - name: Check if version is already published
+        id: check
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+
+          if npm view "gemmaclaw@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "gemmaclaw@${PACKAGE_VERSION} is already published."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            echo "Will publish gemmaclaw@${PACKAGE_VERSION}"
+          fi
+
+      - name: Build
+        if: steps.check.outputs.already_published == 'false' || inputs.force
+        run: pnpm build
+
+      - name: Publish to npm
+        if: steps.check.outputs.already_published == 'false' || inputs.force
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm publish --access public
+          echo "Published gemmaclaw@${{ steps.check.outputs.version }}"
