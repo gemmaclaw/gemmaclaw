@@ -610,11 +610,19 @@ export async function dispatchTask(
         },
       },
     };
+    // URLs inside the container must use host.docker.internal to reach host services
+    const containerOllamaUrl = config.ollamaUrl
+      .replace("http://localhost", "http://host.docker.internal")
+      .replace("http://127.0.0.1", "http://host.docker.internal");
+    const containerLlamaCppUrl = (config.llamaCppUrl ?? "")
+      .replace("http://localhost", "http://host.docker.internal")
+      .replace("http://127.0.0.1", "http://host.docker.internal");
+
     if (isLlamaCpp) {
       benchConfigData.models = {
         providers: {
           openai: {
-            baseUrl: config.llamaCppUrl + "/v1",
+            baseUrl: containerLlamaCppUrl + "/v1",
             models: [{ ...benchmarkModelConfig, api: "openai-completions" }],
           },
         },
@@ -625,7 +633,7 @@ export async function dispatchTask(
       benchConfigData.models = {
         providers: {
           ollama: {
-            baseUrl: config.ollamaUrl,
+            baseUrl: containerOllamaUrl,
             models: [benchmarkModelConfig],
           },
         },
@@ -649,43 +657,62 @@ export async function dispatchTask(
       }),
     );
 
-    // Copy mock gog state into the isolated home
-    const gogStateDir = path.join(benchHome, ".config/gogcli/state");
-    fs.mkdirSync(gogStateDir, { recursive: true });
-    const defaultGogState = path.join(process.env.HOME ?? "/root", ".config/gogcli/state");
-    if (fs.existsSync(defaultGogState)) {
-      for (const file of fs.readdirSync(defaultGogState)) {
-        const src = path.join(defaultGogState, file);
-        // Skip subdirectories (e.g. _writes) and anything not a regular file.
-        const st = fs.statSync(src);
-        if (!st.isFile()) {
-          continue;
-        }
-        fs.copyFileSync(src, path.join(gogStateDir, file));
-      }
-    }
+    // Mock gog state is baked into the Docker image via seed-mock-gog.py.
+    // No host credentials are copied. The container has zero access to real Google.
 
-    // Prepend fake-gog shim to PATH so child agents reach mock fixtures, never
-    // Frank's real Google account. The shim reads from gogStateDir and writes
-    // intended mutations to a side-channel JSONL instead of calling APIs.
-    const fakeGogDir = path.resolve(process.cwd(), "scripts/benchmark/fake-gog");
-    const fakeGogWritesDir = path.join(benchHome, ".gog-writes");
-    const childEnv: NodeJS.ProcessEnv = {
-      ...process.env,
-      OPENCLAW_HOME: benchHome,
-      XDG_CONFIG_HOME: benchHome,
-      // The Ollama extension requires OLLAMA_API_KEY to register as a provider.
-      // Any value works for local Ollama; this ensures non-catalog models resolve.
-      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY ?? "ollama-local",
-      PATH: `${fakeGogDir}:${process.env.PATH ?? ""}`,
-      GEMMACLAW_FAKE_GOG_STATE_DIR: gogStateDir,
-      GEMMACLAW_FAKE_GOG_WRITES_DIR: fakeGogWritesDir,
-      GEMMACLAW_FAKE_GOG_LOG: path.join(benchHome, "fake-gog.log"),
-      // Refuse real-Google access even if the shim is bypassed somehow.
-      GOG_ACCESS_TOKEN: "gemmaclaw-bench-no-real-google",
-    };
-    const child = spawn(args[0], args.slice(1), {
-      env: childEnv,
+    // Run the benchmark agent INSIDE a Docker container (Frank directive May 5 2026).
+    // The container has no access to host credentials, real gog tokens, or filesystem.
+    // Only Ollama/llama.cpp on the host is accessible via network.
+    const dockerImage = process.env.GEMMACLAW_BENCH_IMAGE ?? "gemmaclaw-bench:latest";
+    const ollamaHost = config.ollamaUrl
+      .replace("http://localhost", "http://host.docker.internal")
+      .replace("http://127.0.0.1", "http://host.docker.internal");
+    const llamaCppHost =
+      config.llamaCppUrl
+        ?.replace("http://localhost", "http://host.docker.internal")
+        .replace("http://127.0.0.1", "http://host.docker.internal") ?? "";
+
+    // Write task prompt to a file so we don't hit shell arg length limits
+    const promptFile = path.join(benchHome, "task-prompt.txt");
+    fs.writeFileSync(promptFile, task.prompt);
+
+    const dockerArgs = [
+      "docker",
+      "run",
+      "--rm",
+      "--add-host",
+      "host.docker.internal:host-gateway",
+      "-v",
+      `${benchHome}:/bench-home`,
+      "-e",
+      `OPENCLAW_HOME=/bench-home/.openclaw`,
+      "-e",
+      `XDG_CONFIG_HOME=/bench-home`,
+      "-e",
+      `OLLAMA_API_KEY=ollama-local`,
+      "-e",
+      `OLLAMA_HOST=${ollamaHost}`,
+      "-e",
+      `GOG_ACCESS_TOKEN=gemmaclaw-bench-no-real-google`,
+      ...(llamaCppHost ? ["-e", `LLAMA_CPP_URL=${llamaCppHost}`] : []),
+      dockerImage,
+      "node",
+      "/app/gemmaclaw.mjs",
+      "agent",
+      "--local",
+      "--session-id",
+      sessionId,
+      "--message",
+      task.prompt,
+      ...(effectiveThinking ? ["--thinking", effectiveThinking] : []),
+      ...(config.taskTimeoutSeconds > 0 ? ["--timeout", String(config.taskTimeoutSeconds)] : []),
+    ];
+
+    log(`  Docker dispatch: ${dockerImage} agent --local --session-id ${sessionId}`);
+    fs.appendFileSync(logFile, `Docker command: ${dockerArgs.join(" ")}\n`);
+
+    const child = spawn(dockerArgs[0], dockerArgs.slice(1), {
+      env: process.env,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -1047,6 +1074,23 @@ export async function runAgentBenchmark(
 
   // Collect metadata
   const metadata = await collectMetadata(config, hardware);
+
+  // Build Docker image for isolated benchmark agent (Frank directive May 5 2026)
+  const dockerImage = process.env.GEMMACLAW_BENCH_IMAGE ?? "gemmaclaw-bench:latest";
+  if (!config.mock) {
+    log(`Ensuring Docker image '${dockerImage}' is available...`);
+    try {
+      execSync(`docker image inspect ${dockerImage} > /dev/null 2>&1`);
+      log(`  Image exists`);
+    } catch {
+      log(`  Building image from scripts/benchmark/Dockerfile.agent...`);
+      execSync(`docker build -t ${dockerImage} -f scripts/benchmark/Dockerfile.agent .`, {
+        stdio: "inherit",
+        timeout: 300_000,
+      });
+      log(`  Image built successfully`);
+    }
+  }
 
   // Seed mock gog state
   log("Seeding mock gog state...");
