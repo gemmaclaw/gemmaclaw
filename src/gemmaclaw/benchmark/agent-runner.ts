@@ -685,7 +685,7 @@ export async function dispatchTask(
       "-v",
       `${benchHome}:/bench-home`,
       "-e",
-      `OPENCLAW_HOME=/bench-home/.openclaw`,
+      `OPENCLAW_HOME=/bench-home`,
       "-e",
       `XDG_CONFIG_HOME=/bench-home`,
       "-e",
