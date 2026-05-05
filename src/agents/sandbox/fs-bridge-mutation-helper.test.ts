@@ -77,6 +77,8 @@ describe("sandbox pinned mutation helper", () => {
       await expect(
         fs.readFile(path.join(workspace, "nested", "deeper", "note.txt"), "utf8"),
       ).resolves.toBe("hello");
+      const fileMode = (await fs.stat(path.join(workspace, "nested", "deeper", "note.txt"))).mode;
+      expect(fileMode & 0o006).toBe(0o006);
     });
   });
 
