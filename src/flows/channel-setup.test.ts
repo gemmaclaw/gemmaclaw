@@ -289,6 +289,15 @@ describe("setupChannels workspace shadow exclusion", () => {
     );
 
     expect(select).toHaveBeenCalledWith(expect.objectContaining({ message: "Select a channel" }));
+    const channelSelectCall = (
+      select.mock.calls as unknown as Array<
+        [{ message?: string; options: Array<{ label: string; value: string }> }]
+      >
+    ).find(([params]) => params.message === "Select a channel");
+    expect(channelSelectCall?.[0].options[0]).toMatchObject({
+      value: "__done__",
+      label: "Skip for now (use web interface)",
+    });
     expect(collectChannelStatus).not.toHaveBeenCalled();
     expect(listTrustedChannelPluginCatalogEntries).not.toHaveBeenCalled();
     expect(listChannelSetupPlugins).not.toHaveBeenCalled();

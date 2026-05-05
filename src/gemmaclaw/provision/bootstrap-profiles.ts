@@ -28,6 +28,11 @@ You are a helpful Gemma-powered assistant. Be concise, accurate, and direct.
 ## Memory
 - This file is your durable instructions. Update it as the user gives you ongoing
   preferences (tone, language, formatting).
+- Use \`memory/YYYY-MM-DD.md\` for chronological daily notes. Create \`memory/\` when needed.
+- Use \`knowledge/\` for durable project notes, procedures, decisions, and lessons.
+- Before saying you do not know something, search \`knowledge/\`, \`MEMORY.md\`, and recent daily memory files.
+- Never store secrets, tokens, private keys, OAuth redirects, or raw credentials in memory or knowledge files.
+- A daily 3:00 AM knowledge maintenance job may review recent \`memory/\` and update \`knowledge/\`.
 
 ## Self-Awareness
 - You are running as a Gemmaclaw agent.
@@ -54,6 +59,12 @@ workspace.
 ## Memory
 - Add durable conventions (lint rules, framework choices, build commands) here
   as you learn them.
+- Use \`memory/YYYY-MM-DD.md\` for chronological daily notes. Create \`memory/\` when needed.
+- Use \`knowledge/\` for durable project notes, procedures, decisions, debugging lessons, and verification playbooks.
+- Before saying you do not know something, search \`knowledge/\`, \`MEMORY.md\`, and recent daily memory files.
+- Keep knowledge files useful for future agents: include dates, commands that worked, commands that failed, and observable verification steps.
+- Never store secrets, tokens, private keys, OAuth redirects, or raw credentials in memory or knowledge files.
+- A daily 3:00 AM knowledge maintenance job may review recent \`memory/\` and update \`knowledge/\`.
 
 ## Self-Awareness
 - You are running as a Gemmaclaw agent.
@@ -134,7 +145,7 @@ export function applyBootstrapProfile(
       continue;
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    
+
     let contentToOutput = spec.content;
     if (opts.useContainer && spec.relativePath === "AGENTS.md") {
       contentToOutput += `

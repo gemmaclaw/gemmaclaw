@@ -13,8 +13,10 @@ import { createTestRuntime } from "./test-runtime-config-helpers.js";
 const hoisted = vi.hoisted(() => {
   let capturedMutatedConfig: OpenClawConfig = {};
   const execFileSync = vi.fn();
+  const ensureDefaultKnowledgeAgentCron = vi.fn(async () => {});
   return {
     execFileSync,
+    ensureDefaultKnowledgeAgentCron,
     get capturedMutatedConfig() {
       return capturedMutatedConfig;
     },
@@ -56,6 +58,10 @@ vi.mock("../config/config.js", () => ({
 
 vi.mock("../gemmaclaw/provision/bootstrap-profiles.js", () => ({
   applyBootstrapProfile: vi.fn(),
+}));
+
+vi.mock("./onboard-knowledge-agent.js", () => ({
+  ensureDefaultKnowledgeAgentCron: hoisted.ensureDefaultKnowledgeAgentCron,
 }));
 
 // Stub out filesystem writes so tests don't touch disk.
@@ -417,6 +423,19 @@ describe("setupGemmaCommand — agent creation", () => {
     expect(hoisted.capturedMutatedConfig.tools?.exec).toMatchObject({
       security: "full",
       ask: "off",
+    });
+    expect(hoisted.capturedMutatedConfig.hooks?.internal).toMatchObject({
+      enabled: true,
+      entries: {
+        "boot-md": { enabled: true },
+        "bootstrap-extra-files": { enabled: true },
+        "command-logger": { enabled: true },
+        "session-memory": { enabled: true },
+      },
+    });
+    expect(hoisted.ensureDefaultKnowledgeAgentCron).toHaveBeenCalledWith({
+      cfg: hoisted.capturedMutatedConfig,
+      runtime,
     });
     expect(fsMock.mkdirSync).toHaveBeenCalledWith(
       `${process.env.HOME ?? "/root"}/.gemmaclaw/shared`,

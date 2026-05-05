@@ -1020,6 +1020,15 @@ describe("setupChannels", () => {
     expect(select).toHaveBeenCalledWith(
       expect.objectContaining({ message: "Select channel (QuickStart)" }),
     );
+    const quickstartSelectCall = (
+      select.mock.calls as unknown as Array<
+        [{ message?: string; options: Array<{ label: string; value: string }> }]
+      >
+    ).find(([params]) => params.message === "Select channel (QuickStart)");
+    expect(quickstartSelectCall?.[0].options[0]).toMatchObject({
+      value: "__skip__",
+      label: "Skip for now (use web interface)",
+    });
     expect(select).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining("already configured") }),
     );

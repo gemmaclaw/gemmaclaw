@@ -50,6 +50,14 @@ import {
 } from "./channel-setup.status.js";
 export { noteChannelStatus } from "./channel-setup.status.js";
 
+const SKIP_CHANNEL_SETUP_OPTION = {
+  value: "__skip__",
+  label: "Skip for now (use web interface)",
+  hint: `You can add channels later from the web interface or via \`${formatCliCommand(
+    "openclaw channels add",
+  )}\``,
+} as const;
+
 export function createChannelOnboardingPostWriteHookCollector() {
   const hooks = new Map<string, ChannelOnboardingPostWriteHook>();
   return {
@@ -590,16 +598,12 @@ export async function setupChannels(
       const choice = await prompter.select({
         message: "Select channel (QuickStart)",
         options: [
+          SKIP_CHANNEL_SETUP_OPTION,
           ...resolveChannelSetupSelectionContributions({
             entries,
             statusByChannel,
             resolveDisabledHint,
           }).map((contribution) => contribution.option),
-          {
-            value: "__skip__",
-            label: "Skip for now",
-            hint: `You can add channels later via \`${formatCliCommand("openclaw channels add")}\``,
-          },
         ],
         initialValue: quickstartDefault,
         searchable: true,
@@ -619,16 +623,21 @@ export async function setupChannels(
       const choice = await prompter.select({
         message: "Select a channel",
         options: [
+          {
+            ...SKIP_CHANNEL_SETUP_OPTION,
+            value: doneValue,
+            hint:
+              selection.length > 0
+                ? "Done"
+                : `You can add channels later from the web interface or via \`${formatCliCommand(
+                    "openclaw channels add",
+                  )}\``,
+          },
           ...resolveChannelSetupSelectionContributions({
             entries,
             statusByChannel,
             resolveDisabledHint,
           }).map((contribution) => contribution.option),
-          {
-            value: doneValue,
-            label: "Finished",
-            hint: selection.length > 0 ? "Done" : "Skip for now",
-          },
         ],
         initialValue,
       });
