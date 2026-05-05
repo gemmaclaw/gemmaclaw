@@ -59,6 +59,103 @@ def load_benchmark_results():
     return results
 
 
+def load_agent_benchmark_results():
+    """Load agent benchmark result JSON files (type=agent_benchmark)."""
+    results = []
+    if not RESULTS_DIR.exists():
+        return results
+    for d in sorted(RESULTS_DIR.iterdir()):
+        afile = d / "agent-results.json"
+        if afile.exists():
+            try:
+                with open(afile) as f:
+                    data = json.load(f)
+                if data.get("type") != "agent_benchmark":
+                    continue
+                data["_dir"] = d.name
+                results.append(data)
+            except (json.JSONDecodeError, KeyError):
+                pass
+    return results
+
+
+def generate_agent_preview_section(agent_results):
+    """Render a Gemma 3n Pi agent benchmark preview section."""
+    if not agent_results:
+        return ""
+
+    rows_html = ""
+    difficulty_order = {"easy": 0, "medium": 1, "hard": 2, "very_hard": 3}
+    difficulty_label = {"easy": "Easy", "medium": "Medium", "hard": "Hard", "very_hard": "Very Hard"}
+    difficulty_color = {"easy": "#0d9438", "medium": "#1a73e8", "hard": "#e37400", "very_hard": "#c5221f"}
+
+    for result in agent_results:
+        tasks = result.get("tasks", [])
+        summary = result.get("summary", {})
+        hw = result.get("hardware_actual", "Unknown hardware")
+        model = result.get("model", "?")
+        quant = result.get("quant", "")
+        total_score = summary.get("totalScore", 0)
+        total_max = summary.get("maxScore", 0)
+        pct = summary.get("percentage", 0)
+        passed = summary.get("passedCount", 0)
+        total = summary.get("totalTasks", 0)
+        speed_gen = result.get("inferenceSpeed", {}).get("generateTokensPerSecond", 0)
+
+        rows_html += f"""
+        <div style="margin-bottom:2rem">
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+            <span style="font-size:1.1rem;font-weight:600">{model} ({quant})</span>
+            <span style="background:var(--bg-elev);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:0.85rem">{hw}</span>
+            <span style="font-size:0.9rem;color:var(--muted)">{speed_gen:.1f} tok/s gen · {passed}/{total} tasks passed · {total_score}/{total_max} pts ({pct}%)</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+            <thead><tr style="background:var(--bg-elev)">
+              <th style="padding:8px 12px;text-align:left;border:1px solid var(--border)">Task</th>
+              <th style="padding:8px 12px;text-align:left;border:1px solid var(--border)">Difficulty</th>
+              <th style="padding:8px 12px;text-align:center;border:1px solid var(--border)">Tools</th>
+              <th style="padding:8px 12px;text-align:center;border:1px solid var(--border)">Score</th>
+              <th style="padding:8px 12px;text-align:center;border:1px solid var(--border)">Result</th>
+            </tr></thead>
+            <tbody>"""
+
+        sorted_tasks = sorted(tasks, key=lambda t: (difficulty_order.get(t.get("difficulty", ""), 99), t.get("name", "")))
+        for task in sorted_tasks:
+            diff = task.get("difficulty", "")
+            diff_color = difficulty_color.get(diff, "#666")
+            diff_label_str = difficulty_label.get(diff, diff)
+            score = task.get("score")
+            max_s = task.get("maxScore")
+            pct_t = task.get("percentage")
+            passed_t = task.get("passed")
+            tools = task.get("toolCallCount", 0)
+            status = task.get("completionStatus", "?")
+
+            score_str = f"{score}/{max_s} ({pct_t}%)" if score is not None and max_s else "—"
+            result_str = '<span style="color:#0d9438;font-weight:600">PASS</span>' if passed_t else ('<span style="color:#c5221f">FAIL</span>' if status == "completed" else f'<span style="color:#e37400">{status.upper()}</span>')
+
+            rows_html += f"""
+              <tr>
+                <td style="padding:7px 12px;border:1px solid var(--border)">{task.get("name", task.get("id", "?"))}</td>
+                <td style="padding:7px 12px;border:1px solid var(--border)"><span style="color:{diff_color}">{diff_label_str}</span></td>
+                <td style="padding:7px 12px;border:1px solid var(--border);text-align:center">{tools}</td>
+                <td style="padding:7px 12px;border:1px solid var(--border);text-align:center">{score_str}</td>
+                <td style="padding:7px 12px;border:1px solid var(--border);text-align:center">{result_str}</td>
+              </tr>"""
+
+        rows_html += "</tbody></table></div>"
+
+    return f"""
+    <section id="agent-benchmark-preview" style="margin-top:3rem">
+      <h2>Gemma 3n Pi — Agent Benchmark Results (Preview)</h2>
+      <p style="color:var(--muted);margin-bottom:0.5rem">Gemma 3n E2B running on a <strong>Raspberry Pi 5 (8GB, CPU-only)</strong> via llama.cpp. Tested against all 24 Gemmaclaw agent tasks. Judge: claude-haiku-4-5 via OpenRouter.</p>
+      <div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;font-size:0.9rem">
+        <strong>Key finding:</strong> Gemma 3n E2B made <strong>0 tool calls</strong> across all 24 agent tasks. It can follow structured output instructions (JSON extraction: 91%) but cannot use any tool-calling interface. This is consistent with a 2B effective parameter model not trained for agentic function-calling patterns.
+      </div>
+      {rows_html}
+    </section>"""
+
+
 def best_results(results):
     """Return the best result per model, preferring runs that captured model output (for the
     conversation viewer), then highest percentage, then most recent timestamp."""
@@ -1596,7 +1693,7 @@ def generate_self_hosting_page(hw_cards):
 """
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
-def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html=""):
+def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html="", agent_preview_html=""):
     # COMING SOON: Do NOT remove this block until Frank explicitly approves
     # the new benchmark results. The old results had wrong GPU detection and
     # incomplete test explanations. PR #69 added this, PR #71 removed it.
@@ -1616,7 +1713,7 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
               <div style="padding:0.5rem 0;color:var(--fg-soft)">Speed benchmarks alongside quality scores</div>
             </div>
           </div>
-        </section>"""
+        </section>""" + agent_preview_html
         return page_template("Benchmarks", body, active_page="benchmarks.html")
 
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
@@ -1907,12 +2004,14 @@ def generate_site():
     community_cards = generate_community_cards(community_configs)
     community_count = len(community_configs)
     field_notes_html = load_field_notes()
+    agent_results = load_agent_benchmark_results()
+    agent_preview_html = generate_agent_preview_section(agent_results)
     SITE_DIR.mkdir(exist_ok=True)
     pages = {
         "index.html": generate_index_page(),
         "setup.html": generate_setup_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
-        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html),
+        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html, agent_preview_html),
         "benchmarking.html": generate_benchmarking_page(),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
         "goals.html": generate_goals_page(),
@@ -1925,6 +2024,7 @@ def generate_site():
     print(f"  {len(results)} benchmark results loaded")
     print(f"  {len(best)} unique model/backend combos")
     print(f"  {community_count} community hardware reports loaded")
+    print(f"  {len(agent_results)} agent benchmark results loaded")
 
 
 CSS = """

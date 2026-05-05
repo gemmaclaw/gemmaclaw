@@ -26,7 +26,10 @@ import path from "node:path";
 import type { HardwareInfo } from "../provision/hardware.js";
 import { detectSystemTools } from "../provision/hardware.js";
 import { selectQuickProfile } from "../provision/setup-wizard.js";
-import type { AgentBenchmarkTask } from "./agent-tasks.js";
+import {
+  evaluateDeterministicAgentTaskConversation,
+  type AgentBenchmarkTask,
+} from "./agent-tasks.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,8 @@ export type AgentBenchmarkConfig = {
   seedScript?: string;
   /** Path to gemmaclaw home for isolated runs. */
   gemmaclawHome?: string;
+  /** Directory for per-task dispatch logs. Defaults to a temp directory. */
+  logDir?: string;
   /** Filter tasks by id pattern (substring match). */
   filter?: string;
   /** Run in mock mode (no real model, deterministic responses). */
@@ -268,6 +273,24 @@ export function seedMockGog(seedScript?: string, stateDir?: string): void {
   execSync(`python3 ${script}`, { stdio: "inherit", env });
 }
 
+function benchmarkSeedStateDir(config: AgentBenchmarkConfig): string {
+  const base =
+    config.gemmaclawHome ?? path.join(os.tmpdir(), `gemmaclaw-bench-state-${Date.now()}`);
+  return path.join(base, ".config/gogcli/state");
+}
+
+function gemmaclawCommandArgs(): string[] {
+  const configured = process.env.GEMMACLAW_BIN;
+  if (configured) {
+    return configured.split(/\s+/).filter(Boolean);
+  }
+  if (fs.existsSync("/app/gemmaclaw.mjs")) {
+    return [process.execPath, "/app/gemmaclaw.mjs"];
+  }
+  const found = which("gemmaclaw");
+  return found ? [found] : ["gemmaclaw"];
+}
+
 /**
  * Create an isolated gemmaclaw home directory for benchmark runs.
  * Uses the existing Docker sandbox infrastructure so agent tool calls
@@ -429,6 +452,17 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
   return turns;
 }
 
+export function extractAssistantResponseFromStdout(stdout: string): string | undefined {
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
+    .filter((line) => !line.startsWith("[plugins]"));
+
+  const text = lines.join("\n").trim();
+  return text.length > 0 ? text : undefined;
+}
+
 /**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
@@ -452,17 +486,15 @@ export async function dispatchTask(
   const idleMs = config.idleTimeoutSeconds * 1000;
 
   // Create isolated benchmark home for this task
-  const benchHome = path.join(os.tmpdir(), `gemmaclaw-bench-${sessionId}`);
+  const benchHome = config.gemmaclawHome
+    ? path.join(config.gemmaclawHome, "tasks", sessionId)
+    : path.join(os.tmpdir(), `gemmaclaw-bench-${sessionId}`);
 
   // Dispatch via gemmaclaw CLI
-  const gemmaclawBin =
-    process.env.GEMMACLAW_BIN ??
-    (fs.existsSync("/app/gemmaclaw.mjs")
-      ? "node /app/gemmaclaw.mjs"
-      : (which("gemmaclaw") ?? "gemmaclaw"));
+  const gemmaclawArgs = gemmaclawCommandArgs();
 
   const args = [
-    gemmaclawBin,
+    ...gemmaclawArgs,
     "agent",
     "--local",
     "--session-id",
@@ -473,11 +505,14 @@ export async function dispatchTask(
   if (config.thinkingLevel) {
     args.push("--thinking", config.thinkingLevel);
   }
+  if (config.taskTimeoutSeconds > 0) {
+    args.push("--timeout", String(config.taskTimeoutSeconds));
+  }
 
-  log(`  Dispatching: ${args[0]} agent --local --session-id ${sessionId}`);
+  log(`  Dispatching: ${gemmaclawArgs.join(" ")} agent --local --session-id ${sessionId}`);
 
   // Write dispatch command to log file for debugging
-  const logDir = path.join(process.cwd(), "benchmark-results", ".logs");
+  const logDir = config.logDir ?? path.join(os.tmpdir(), "gemmaclaw-benchmark-logs");
   fs.mkdirSync(logDir, { recursive: true });
   const logFile = path.join(logDir, `${sessionId}.log`);
   fs.writeFileSync(logFile, `[${new Date().toISOString()}] Dispatching task: ${task.id}\n`);
@@ -500,6 +535,19 @@ export async function dispatchTask(
         defaults: {
           model: {
             primary: `${providerPrefix}/${config.model}`,
+          },
+          timeoutSeconds: config.taskTimeoutSeconds > 0 ? config.taskTimeoutSeconds : undefined,
+          // Benchmark tasks should exercise the task prompt, not the first-run
+          // workspace bootstrap workflow. Keep isolated homes bootstrap-free so
+          // slow local models don't spend a full generation replying to
+          // BOOTSTRAP.md status instructions instead of the benchmark fixture.
+          skipBootstrap: true,
+          // Slow CPU-only edge runs can spend several minutes evaluating a long
+          // prompt before the first streamed token. The benchmark runner already
+          // enforces task-timeout and kills the child, so disable OpenClaw's
+          // per-LLM idle watchdog inside this isolated benchmark config.
+          llm: {
+            idleTimeoutSeconds: 0,
           },
         },
       },
@@ -532,20 +580,17 @@ export async function dispatchTask(
       }),
     );
 
-    // Copy mock gog state into the isolated home
+    // Seed mock gog state into the isolated home without touching the user's default gog state.
     const gogStateDir = path.join(benchHome, ".config/gogcli/state");
     fs.mkdirSync(gogStateDir, { recursive: true });
-    const defaultGogState = path.join(process.env.HOME ?? "/root", ".config/gogcli/state");
-    if (fs.existsSync(defaultGogState)) {
-      for (const file of fs.readdirSync(defaultGogState)) {
-        fs.copyFileSync(path.join(defaultGogState, file), path.join(gogStateDir, file));
-      }
-    }
+    seedMockGog(config.seedScript, gogStateDir);
 
     const child = spawn(args[0], args.slice(1), {
       env: {
         ...process.env,
-        OPENCLAW_HOME: benchHome,
+        GEMMACLAW_HOME: ocDir,
+        OPENCLAW_STATE_DIR: ocDir,
+        OPENCLAW_HOME: ocDir,
         XDG_CONFIG_HOME: benchHome,
       },
       stdio: ["pipe", "pipe", "pipe"],
@@ -703,6 +748,16 @@ export async function dispatchTask(
           };
         }
         log(`  CLI completed successfully`);
+        if (conversation.length === 0) {
+          const stdout = Buffer.concat(stdoutChunks).toString();
+          const assistantResponse = extractAssistantResponseFromStdout(stdout);
+          if (assistantResponse) {
+            conversation.push(
+              { role: "user", content: task.prompt },
+              { role: "assistant", content: assistantResponse },
+            );
+          }
+        }
         return {
           conversation,
           elapsedMs: Date.now() - startMs,
@@ -785,6 +840,10 @@ export function saveResults(result: AgentBenchmarkResult, outputDir: string): vo
   // Per-task evaluation stubs (placeholders for LLM judge results added later)
   for (const tr of result.tasks) {
     const evalFile = path.join(evalDir, `${tr.task.id}.json`);
+    const deterministicScorer = evaluateDeterministicAgentTaskConversation(
+      tr.task,
+      tr.conversation,
+    );
     // Only write stub if no evaluation exists yet (don't overwrite existing judge results)
     if (!fs.existsSync(evalFile)) {
       fs.writeFileSync(
@@ -801,6 +860,7 @@ export function saveResults(result: AgentBenchmarkResult, outputDir: string): vo
             elapsedMs: tr.elapsedMs,
             conversationTurns: tr.conversation.length,
             transcriptFile: `transcripts/${tr.task.id}.txt`,
+            deterministicScorer: deterministicScorer ?? null,
             llmJudge: null,
           },
           null,
@@ -892,7 +952,8 @@ export async function runAgentBenchmark(
 
   // Seed mock gog state
   log("Seeding mock gog state...");
-  seedMockGog(config.seedScript);
+  const seedStateDir = benchmarkSeedStateDir(config);
+  seedMockGog(config.seedScript, seedStateDir);
 
   // In mock mode, skip gateway check (no real agent needed)
   // The benchmark uses `gemmaclaw agent --local` which runs an embedded agent
@@ -919,7 +980,9 @@ export async function runAgentBenchmark(
     ? tasks.filter(
         (t) =>
           t.id.includes(config.filter!) ||
-          t.name.toLowerCase().includes(config.filter!.toLowerCase()),
+          t.name.toLowerCase().includes(config.filter!.toLowerCase()) ||
+          t.category.toLowerCase().includes(config.filter!.toLowerCase()) ||
+          t.difficulty.toLowerCase().includes(config.filter!.toLowerCase()),
       )
     : tasks;
 
@@ -935,7 +998,7 @@ export async function runAgentBenchmark(
     const sessionId = `bench-${task.id}-${Date.now()}`;
 
     // Re-seed mock gog state before each task (clean slate)
-    seedMockGog(config.seedScript);
+    seedMockGog(config.seedScript, seedStateDir);
 
     let conversation: ConversationTurn[];
     let elapsedMs: number;
@@ -944,12 +1007,13 @@ export async function runAgentBenchmark(
 
     if (config.mock) {
       // Mock mode: simulate a successful agent run without dispatching
+      const finalResponse = task.mock?.finalResponse ?? `[Mock] Task completed: ${task.name}`;
       conversation = [
         { role: "user", content: task.prompt },
         { role: "assistant", content: `[Mock] Processing task: ${task.name}` },
         { role: "tool_call", content: "{}", toolName: "gog", toolArgs: {} },
         { role: "tool_result", content: "[Mock] Tool result" },
-        { role: "assistant", content: `[Mock] Task completed: ${task.name}` },
+        { role: "assistant", content: finalResponse },
       ];
       elapsedMs = 50;
       completionStatus = "completed";
