@@ -107,9 +107,8 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Read Jordan's email about the office maintenance report and " +
       "create tasks for all the critical and important items.",
-    // thinking=off works for corrected Gemma 4 template (consistent with all other tasks).
-    // thinking=minimal caused 193-tool-call context overflow loops; thinking=off does not.
-    thinkingLevelOverride: "off",
+    // thinking=off causes 193-tool-call context overflow loops (model can't reason about stopping).
+    // thinking=high (default) allows reasoning about task completion, completing in ~8 tool calls.
     grading: {
       type: "artifact_check",
       criteria: [
@@ -190,9 +189,8 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Go through ALL my emails and triage them. For each email, tell me: " +
       "sender, subject, urgency (high/medium/low), recommended action, and why.",
-    // thinking=off works for corrected Gemma 4 template (consistent with all other tasks).
-    // thinking=minimal caused 483-tool-call context overflow loops; thinking=off does not.
-    thinkingLevelOverride: "off",
+    // thinking=off causes 483-tool-call context overflow loops (model iterates emails without stopping).
+    // thinking=high allows the model to triage all emails in one reasoning pass.
     grading: {
       type: "conversation_check",
       criteria: [
@@ -412,7 +410,8 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
       "For maintenance requests, create tasks. For meeting requests, check " +
       "calendar and schedule. For suspicious emails, flag them. " +
       "When done, write a summary of everything you did to memory/email-actions.md",
-    thinkingLevelOverride: "off",
+    // thinking=off causes context overflow loops on "ALL emails" tasks (same pattern as email_triage).
+    // Remove override to allow thinking=high (reasoning helps model know when to stop).
     grading: {
       type: "artifact_check",
       criteria: [
