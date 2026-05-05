@@ -152,4 +152,37 @@ describe("extractTrajectoryError", () => {
     ).toBeUndefined();
     expect(extractTrajectoryError({ type: "model.started", data: {} })).toBeUndefined();
   });
+
+  it("ignores passive-retry context overflow (empty assistantTexts and toolMetas)", () => {
+    // When the gemmaclaw CLI retries after a full-context session, the retry attempt
+    // fails immediately at precheck with no model output.  These should not propagate
+    // as task errors — the primary session already completed.
+    expect(
+      extractTrajectoryError({
+        type: "trace.artifacts",
+        data: {
+          finalStatus: "error",
+          promptError: "Context overflow: prompt too large for the model (precheck).",
+          promptErrorSource: "precheck",
+          assistantTexts: [],
+          toolMetas: [],
+        },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("reports context overflow when the session did produce output (not a passive retry)", () => {
+    expect(
+      extractTrajectoryError({
+        type: "trace.artifacts",
+        data: {
+          finalStatus: "error",
+          promptError: "Context overflow: prompt too large for the model (precheck).",
+          promptErrorSource: "precheck",
+          assistantTexts: ["some output"],
+          toolMetas: [{ tool: "exec" }],
+        },
+      }),
+    ).toBe("Context overflow: prompt too large for the model (precheck).");
+  });
 });

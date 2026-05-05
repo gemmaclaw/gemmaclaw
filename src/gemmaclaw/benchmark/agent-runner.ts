@@ -458,6 +458,19 @@ export function extractTrajectoryError(entry: unknown): string | undefined {
   const timedOut = data.timedOut === true || data.idleTimedOut === true;
 
   if (promptError) {
+    // A context overflow that occurs on a passive retry (no model output, no tool
+    // calls attempted) is a harness artifact — the primary session already completed
+    // successfully.  Ignoring it prevents false ERROR status when the gemmaclaw CLI
+    // retries on a full context window after the agent finished its work.
+    const isContextOverflow = promptError.toLowerCase().includes("context overflow");
+    if (isContextOverflow) {
+      const assistantTexts = Array.isArray(data.assistantTexts) ? data.assistantTexts : [];
+      const toolMetas = Array.isArray(data.toolMetas) ? data.toolMetas : [];
+      const isPassiveRetry = assistantTexts.length === 0 && toolMetas.length === 0;
+      if (isPassiveRetry) {
+        return undefined;
+      }
+    }
     return promptError;
   }
   if (error) {
