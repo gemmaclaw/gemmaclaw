@@ -79,6 +79,7 @@ const finalizeSetupWizard = vi.hoisted(() =>
 const listChannelPlugins = vi.hoisted(() => vi.fn(() => []));
 const logConfigUpdated = vi.hoisted(() => vi.fn(() => {}));
 const setupInternalHooks = vi.hoisted(() => vi.fn(async (cfg) => cfg));
+const ensureDefaultKnowledgeAgentCron = vi.hoisted(() => vi.fn(async () => {}));
 
 const setupChannels = vi.hoisted(() => vi.fn(async (cfg) => cfg));
 const setupSkills = vi.hoisted(() => vi.fn(async (cfg) => cfg));
@@ -181,6 +182,10 @@ vi.mock("../commands/health.js", () => ({
 
 vi.mock("../commands/onboard-hooks.js", () => ({
   setupInternalHooks,
+}));
+
+vi.mock("../commands/onboard-knowledge-agent.js", () => ({
+  ensureDefaultKnowledgeAgentCron,
 }));
 
 vi.mock("../config/config.js", () => ({

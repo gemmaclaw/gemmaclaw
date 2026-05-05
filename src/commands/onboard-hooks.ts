@@ -5,6 +5,13 @@ import { buildWorkspaceHookStatus } from "../hooks/hooks-status.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 
+const DEFAULT_INTERNAL_HOOK_NAMES = new Set([
+  "boot-md",
+  "bootstrap-extra-files",
+  "command-logger",
+  "session-memory",
+]);
+
 export async function setupInternalHooks(
   cfg: OpenClawConfig,
   runtime: RuntimeEnv,
@@ -35,6 +42,10 @@ export async function setupInternalHooks(
     return cfg;
   }
 
+  const defaultEnabledHooks = eligibleHooks
+    .filter((hook) => DEFAULT_INTERNAL_HOOK_NAMES.has(hook.name))
+    .map((hook) => hook.name);
+
   const toEnable = await prompter.multiselect({
     message: "Enable hooks?",
     options: [
@@ -45,9 +56,12 @@ export async function setupInternalHooks(
         hint: hook.description,
       })),
     ],
+    initialValues: defaultEnabledHooks,
   });
 
-  const selected = toEnable.filter((name) => name !== "__skip__");
+  const selected = toEnable.includes("__skip__")
+    ? []
+    : toEnable.filter((name) => name !== "__skip__");
   if (selected.length === 0) {
     return cfg;
   }

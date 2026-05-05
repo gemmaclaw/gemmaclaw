@@ -35,8 +35,18 @@ You wake up fresh each session. These files are your continuity:
 
 - **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
 - **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
+- **Knowledge base:** `knowledge/` — durable project notes, procedures, research, decisions, and lessons that should survive beyond a single day
 
 Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
+
+### Knowledge Maintenance
+
+- Use `memory/` for chronological daily logs and `knowledge/` for durable, organized context.
+- Before saying you do not know something, search `knowledge/`, `MEMORY.md`, and recent daily memory files.
+- When you learn a stable fact, procedure, project decision, debugging lesson, or user preference, write it into the most relevant existing `knowledge/` file. Create a new file only when no good home exists.
+- Keep knowledge files useful for future agents: include dates, source context, commands that worked, commands that failed, and observable verification steps.
+- Never store secrets, tokens, private keys, OAuth redirects, or raw credentials in memory or knowledge files.
+- A daily 3:00 AM knowledge maintenance job may review recent `memory/` and update `knowledge/`. Keep these files clear enough that job can maintain them safely.
 
 ### 🧠 MEMORY.md - Your Long-Term Memory
 

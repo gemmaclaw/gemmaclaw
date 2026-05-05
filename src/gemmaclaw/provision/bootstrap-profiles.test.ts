@@ -54,6 +54,8 @@ describe("bootstrap-profiles", () => {
       expect(result.written).toContain("AGENTS.md");
       const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
       expect(written).toContain("AGENTS.md");
+      expect(written).toContain("Use `knowledge/` for durable project notes");
+      expect(written).toContain("daily 3:00 AM knowledge maintenance job");
     });
 
     it("writes both AGENTS.md and TOOLS.md for the coding profile", () => {
@@ -61,6 +63,9 @@ describe("bootstrap-profiles", () => {
       expect(result.written.toSorted()).toEqual(["AGENTS.md", "TOOLS.md"]);
       expect(fs.existsSync(path.join(tmpDir, "AGENTS.md"))).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, "TOOLS.md"))).toBe(true);
+      const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+      expect(written).toContain("Use `knowledge/` for durable project notes");
+      expect(written).toContain("observable verification steps");
     });
 
     it("writes nothing for the minimal profile", () => {

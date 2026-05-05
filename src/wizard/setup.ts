@@ -685,6 +685,10 @@ export async function runSetupWizard(
   const { setupInternalHooks } = await import("../commands/onboard-hooks.js");
   nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
 
+  const { ensureDefaultKnowledgeAgentCron } =
+    await import("../commands/onboard-knowledge-agent.js");
+  await ensureDefaultKnowledgeAgentCron({ cfg: nextConfig, runtime, prompter });
+
   nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
 

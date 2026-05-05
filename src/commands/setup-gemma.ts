@@ -43,6 +43,12 @@ export type SetupGemmaCommandOpts = {
 
 const HEALTH_POLL_INTERVAL_MS = 500;
 const HEALTH_POLL_MAX_ATTEMPTS = 60;
+const GEMMACLAW_DEFAULT_INTERNAL_HOOK_NAMES = [
+  "boot-md",
+  "bootstrap-extra-files",
+  "command-logger",
+  "session-memory",
+] as const;
 
 function ensureDockerWritableHostDir(
   fsModule: Pick<typeof import("node:fs"), "chmodSync" | "mkdirSync">,
@@ -87,6 +93,35 @@ function buildGemmaclawDockerSandboxConfig(): NonNullable<
       user: "0:0",
     },
   };
+}
+
+function applyGemmaclawHookDefaults(draft: OpenClawConfig): void {
+  draft.hooks ??= {};
+  const hooks = draft.hooks as Record<string, unknown>;
+  const internal =
+    typeof hooks.internal === "object" && hooks.internal !== null
+      ? ({ ...(hooks.internal as Record<string, unknown>) } as Record<string, unknown>)
+      : {};
+  const entries =
+    typeof internal.entries === "object" && internal.entries !== null
+      ? { ...(internal.entries as Record<string, unknown>) }
+      : {};
+  if (internal.enabled !== false) {
+    internal.enabled = true;
+  }
+  for (const name of GEMMACLAW_DEFAULT_INTERNAL_HOOK_NAMES) {
+    if (entries[name] === undefined) {
+      entries[name] = { enabled: true };
+    }
+  }
+  internal.entries = entries;
+  hooks.internal = internal;
+}
+
+async function ensureGemmaclawKnowledgeAgentCron(runtime: RuntimeEnv): Promise<void> {
+  const { loadConfig } = await import("../config/config.js");
+  const { ensureDefaultKnowledgeAgentCron } = await import("./onboard-knowledge-agent.js");
+  await ensureDefaultKnowledgeAgentCron({ cfg: loadConfig(), runtime });
 }
 
 async function ensureGemmaclawSharedDir(): Promise<void> {
@@ -390,14 +425,14 @@ export async function setupGemmaCommand(
 
   if (choices.backend === "gemini") {
     await setupGeminiBackend(runtime, choices, { dryRun });
-    await applySharedAgentDefaults(choices, useDocker);
+    await applySharedAgentDefaults(choices, useDocker, runtime);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
 
   if (choices.backend === "vertex") {
     await setupVertexBackend(runtime, choices, { dryRun });
-    await applySharedAgentDefaults(choices, useDocker);
+    await applySharedAgentDefaults(choices, useDocker, runtime);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
@@ -440,7 +475,7 @@ export async function setupGemmaCommand(
     runtime.log(
       `[dry-run] Would provision ${profile.backend} with model ${profile.model ?? "(auto)"} on port ${String(profile.port)}.`,
     );
-    await applySharedAgentDefaults(choices, useDocker);
+    await applySharedAgentDefaults(choices, useDocker, runtime);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
@@ -695,6 +730,7 @@ async function writeVertexAuthProfile(agentName: string, accessToken: string): P
 async function applySharedAgentDefaults(
   choices: OnboardingChoices,
   useContainer: boolean,
+  runtime: RuntimeEnv,
 ): Promise<void> {
   const { mutateConfigFile } = await import("../config/mutate.js");
   await mutateConfigFile({
@@ -720,6 +756,7 @@ async function applySharedAgentDefaults(
       draft.tools.exec ??= {};
       (draft.tools.exec as Record<string, unknown>).security = "full";
       (draft.tools.exec as Record<string, unknown>).ask = "off";
+      applyGemmaclawHookDefaults(draft);
       applySetupAgentConfig(draft, choices);
     },
   });
@@ -727,6 +764,7 @@ async function applySharedAgentDefaults(
     await ensureGemmaclawSharedDir();
   }
   await applyAgentNameAndBootstrap(choices);
+  await ensureGemmaclawKnowledgeAgentCron(runtime);
 }
 
 export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Promise<void> {

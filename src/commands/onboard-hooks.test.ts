@@ -159,6 +159,7 @@ describe("onboard-hooks", () => {
             hint: "Log all command events to a centralized audit file",
           },
         ],
+        initialValues: ["session-memory", "command-logger"],
       });
     });
 
@@ -169,6 +170,14 @@ describe("onboard-hooks", () => {
 
       expect(result.hooks?.internal).toBeUndefined();
       expect(prompter.note).toHaveBeenCalledTimes(1);
+    });
+
+    it("should treat skip as exclusive even when default hooks are selected", async () => {
+      const { result } = await runSetupInternalHooks({
+        selected: ["__skip__", "session-memory", "command-logger"],
+      });
+
+      expect(result.hooks?.internal).toBeUndefined();
     });
 
     it("should handle no eligible hooks", async () => {
