@@ -78,4 +78,21 @@ describe("collectBuiltBundledPluginStagedRuntimeDependencyErrors", () => {
     expect(packageJson.dependencies?.["@whiskeysockets/baileys"]).toBe("7.0.0-rc.9");
     expect(packageJson.openclaw?.bundle?.stageRuntimeDependencies).toBe(true);
   });
+
+  it("keeps the browser bundled plugin opted into staged runtime dependencies", () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), "extensions/browser/package.json"), "utf8"),
+    ) as {
+      dependencies?: Record<string, string>;
+      openclaw?: {
+        bundle?: {
+          stageRuntimeDependencies?: boolean;
+        };
+      };
+    };
+
+    expect(packageJson.dependencies?.["@modelcontextprotocol/sdk"]).toBe("1.29.0");
+    expect(packageJson.dependencies?.["playwright-core"]).toBe("1.59.1");
+    expect(packageJson.openclaw?.bundle?.stageRuntimeDependencies).toBe(true);
+  });
 });

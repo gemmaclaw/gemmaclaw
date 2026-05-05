@@ -389,4 +389,64 @@ console.log(JSON.stringify({
 }, null, 2));
 NODE
 
+BACKUP_DIR="$E2E_ROOT/backups"
+RESTORE_DIR="$E2E_ROOT/restored-gemmaclaw"
+BACKUP_CREATE_JSON="$E2E_ROOT/backup-create.json"
+BACKUP_RESTORE_JSON="$E2E_ROOT/backup-restore.json"
+
+echo "==> Verifying backup and restore CLI round trip ($FLOW)"
+mkdir -p "$BACKUP_DIR"
+HOME="$HOME_DIR" node gemmaclaw.mjs backup create --output "$BACKUP_DIR" --verify --json > "$BACKUP_CREATE_JSON"
+BACKUP_ARCHIVE="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")).archivePath; if (!p) process.exit(1); console.log(p)' "$BACKUP_CREATE_JSON")"
+HOME="$HOME_DIR" node gemmaclaw.mjs backup restore "$BACKUP_ARCHIVE" --target "$RESTORE_DIR" --json > "$BACKUP_RESTORE_JSON"
+
+SMOKE_RESTORE_DIR="$RESTORE_DIR" \
+SMOKE_FLOW="$FLOW" \
+SMOKE_BACKUP_ARCHIVE="$BACKUP_ARCHIVE" \
+node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const restoreDir = process.env.SMOKE_RESTORE_DIR;
+const flow = process.env.SMOKE_FLOW;
+const archive = process.env.SMOKE_BACKUP_ARCHIVE;
+const workspaceDir = path.join(restoreDir, "workspaces", `${flow}-smoke`);
+const sharedDir = path.join(restoreDir, "shared");
+
+function fail(message) {
+  console.error(`FAIL: ${message}`);
+  process.exit(1);
+}
+function read(file) {
+  return fs.readFileSync(file, "utf8").trim();
+}
+
+if (!fs.existsSync(archive)) {
+  fail(`backup archive was not created: ${archive}`);
+}
+if (!fs.existsSync(path.join(restoreDir, "openclaw.json"))) {
+  fail("restore did not recreate openclaw.json");
+}
+if (read(path.join(workspaceDir, "workspace_e2e.txt")) !== "WORKSPACE_WRITE_OK") {
+  fail("restore did not preserve workspace_e2e.txt");
+}
+if (!read(path.join(sharedDir, "shared_e2e.txt")).includes("HOST_APPEND_OK")) {
+  fail("restore did not preserve host-visible shared file edits");
+}
+if (read(path.join(sharedDir, "moved_e2e.txt")) !== "MOVED_SHARED_OK") {
+  fail("restore did not preserve moved shared file");
+}
+if (!fs.existsSync(path.join(workspaceDir, "cloned-repo-smoke", ".git"))) {
+  fail("restore did not preserve cloned workspace repository");
+}
+
+console.log(JSON.stringify({
+  status: "ok",
+  flow,
+  archive,
+  restoredWorkspace: workspaceDir,
+  restoredShared: sharedDir,
+}, null, 2));
+NODE
+
 echo "==> Gemmaclaw local-agent smoke passed ($FLOW)."

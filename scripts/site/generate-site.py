@@ -1095,6 +1095,7 @@ def generate_setup_page():
         <li><a href="#path-gemini" class="inline">Path 2: Gemini API</a> (cloud, no local hardware needed)</li>
         <li><a href="#path-vertex" class="inline">Path 3: Vertex AI</a> (enterprise, GCP integration)</li>
         <li><a href="#after-setup" class="inline">After Setup</a> (create agents, chat, message)</li>
+        <li><a href="#cmd-backup" class="inline">Backup and Restore</a> (portable instance archives)</li>
         <li><a href="#release-automation" class="inline">Release Automation</a></li>
         <li><a href="#cli-reference" class="inline">CLI Reference</a></li>
         <li><a href="#troubleshooting" class="inline">Troubleshooting</a></li>
@@ -1387,6 +1388,30 @@ gemmaclaw ssh work --non-interactive
 
 # Check which agents support container shell
 gemmaclaw list --json | jq '.[] | {id, shellAvailable, shellUnavailableReason}'</code></pre></div>
+      </div>
+
+      <div class="cli-cmd-card">
+        <h4 id="cmd-backup"><code>gemmaclaw backup</code></h4>
+        <p>Create, verify, and restore portable archives for a Gemmaclaw instance. Backups include local state, config, credentials, sessions, shared files, and workspace files by default. The same commands work for Docker-backed container agents and <code>--no-container</code> host-local agents because both store durable state under the active Gemmaclaw state directory.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Subcommand</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>backup create</code></td><td>Create a timestamped <code>.tar.gz</code> archive. Use <code>--verify</code> to validate immediately.</td></tr>
+            <tr><td><code>backup verify &lt;archive&gt;</code></td><td>Validate the embedded manifest and payload layout without restoring.</td></tr>
+            <tr><td><code>backup restore &lt;archive&gt;</code></td><td>Restore into the active state directory or a target directory. Alias: <code>backup recover</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block"><pre><code># Create and verify a complete instance backup
+gemmaclaw backup create --output ~/gemmaclaw-backups --verify
+
+# Inspect a backup before using it
+gemmaclaw backup verify ~/gemmaclaw-backups/2026-05-05T01-00-00.000Z-openclaw-backup.tar.gz
+
+# Restore into a fresh directory for inspection
+gemmaclaw backup restore ~/gemmaclaw-backups/backup.tar.gz --target ~/.gemmaclaw-restored
+
+# Replace active state safely. Existing state is moved aside first.
+gemmaclaw backup restore ~/gemmaclaw-backups/backup.tar.gz --force</code></pre></div>
       </div>
 
       <div class="cli-cmd-card">
