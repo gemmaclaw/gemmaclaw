@@ -2,6 +2,17 @@
 
 Docs: https://docs.openclaw.ai
 
+## [2026.4.23](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.4.22...gemmaclaw-v2026.4.23) (2026-05-05)
+
+
+### Bug Fixes
+
+* apply release-please bootstrap at root ([#101](https://github.com/gemmaclaw/gemmaclaw/issues/101)) ([167e7c9](https://github.com/gemmaclaw/gemmaclaw/commit/167e7c9b8960cb3afa9c115f0db1a937873611c5))
+* bound release-please first-run history ([#99](https://github.com/gemmaclaw/gemmaclaw/issues/99)) ([b0be30d](https://github.com/gemmaclaw/gemmaclaw/commit/b0be30db4d439d9ec9c318ddb19423e3831dfd59))
+* make setup container sandbox fully writable ([1442238](https://github.com/gemmaclaw/gemmaclaw/commit/1442238428d718f8d4a587f2495053b7c551de06))
+* point TUI help docs link to Gemmaclaw site ([f1de7cf](https://github.com/gemmaclaw/gemmaclaw/commit/f1de7cf0d854ddfb3cf6ad27566d29930155168d))
+* use release token for Gemmaclaw release PRs ([#98](https://github.com/gemmaclaw/gemmaclaw/issues/98)) ([538371d](https://github.com/gemmaclaw/gemmaclaw/commit/538371d57ef2eb973644f4a171a31cd9c4a8cf84))
+
 ## 2026.4.22
 
 ### Changes
