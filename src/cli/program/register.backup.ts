@@ -1,21 +1,29 @@
 import type { Command } from "commander";
+import { backupRestoreCommand } from "../../commands/backup-restore.js";
 import { backupVerifyCommand } from "../../commands/backup-verify.js";
 import { backupCreateCommand } from "../../commands/backup.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatDocsLink } from "../../terminal/links.js";
 import { theme } from "../../terminal/theme.js";
+import { replaceCliName, resolveCliName } from "../cli-name.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { formatHelpExamples } from "../help-format.js";
 
 export function registerBackupCommand(program: Command) {
+  const cliName = resolveCliName();
+  const productName = cliName === "openclaw" ? "OpenClaw" : "Gemmaclaw";
+  const cmd = (command: string) => replaceCliName(command, cliName);
+  const docsLink =
+    cliName === "openclaw"
+      ? formatDocsLink("/cli/backup", "docs.openclaw.ai/cli/backup")
+      : formatDocsLink(
+          "https://gemmaclaw.github.io/gemmaclaw/setup.html#cmd-backup",
+          "gemmaclaw.github.io/gemmaclaw/setup.html#cmd-backup",
+        );
   const backup = program
     .command("backup")
-    .description("Create and verify local backup archives for OpenClaw state")
-    .addHelpText(
-      "after",
-      () =>
-        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/backup", "docs.openclaw.ai/cli/backup")}\n`,
-    );
+    .description(`Create and verify local backup archives for ${productName} state`)
+    .addHelpText("after", () => `\n${theme.muted("Docs:")} ${docsLink}\n`);
 
   backup
     .command("create")
@@ -30,24 +38,27 @@ export function registerBackupCommand(program: Command) {
       "after",
       () =>
         `\n${theme.heading("Examples:")}\n${formatHelpExamples([
-          ["openclaw backup create", "Create a timestamped backup in the current directory."],
+          [cmd("openclaw backup create"), "Create a timestamped backup in the current directory."],
           [
-            "openclaw backup create --output ~/Backups",
+            cmd("openclaw backup create --output ~/Backups"),
             "Write the archive into an existing backup directory.",
           ],
           [
-            "openclaw backup create --dry-run --json",
+            cmd("openclaw backup create --dry-run --json"),
             "Preview the archive plan without writing any files.",
           ],
           [
-            "openclaw backup create --verify",
+            cmd("openclaw backup create --verify"),
             "Create the archive and immediately validate its manifest and payload layout.",
           ],
           [
-            "openclaw backup create --no-include-workspace",
+            cmd("openclaw backup create --no-include-workspace"),
             "Back up state/config without agent workspace files.",
           ],
-          ["openclaw backup create --only-config", "Back up only the active JSON config file."],
+          [
+            cmd("openclaw backup create --only-config"),
+            "Back up only the active JSON config file.",
+          ],
         ])}`,
     )
     .action(async (opts) => {
@@ -72,11 +83,11 @@ export function registerBackupCommand(program: Command) {
       () =>
         `\n${theme.heading("Examples:")}\n${formatHelpExamples([
           [
-            "openclaw backup verify ./2026-03-09T00-00-00.000Z-openclaw-backup.tar.gz",
+            cmd("openclaw backup verify ./2026-03-09T00-00-00.000Z-openclaw-backup.tar.gz"),
             "Check that the archive structure and manifest are intact.",
           ],
           [
-            "openclaw backup verify ~/Backups/latest.tar.gz --json",
+            cmd("openclaw backup verify ~/Backups/latest.tar.gz --json"),
             "Emit machine-readable verification output.",
           ],
         ])}`,
@@ -85,6 +96,52 @@ export function registerBackupCommand(program: Command) {
       await runCommandWithRuntime(defaultRuntime, async () => {
         await backupVerifyCommand(defaultRuntime, {
           archive: archive as string,
+          json: Boolean(opts.json),
+        });
+      });
+    });
+
+  backup
+    .command("restore <archive>")
+    .alias("recover")
+    .description(`Restore a backup archive into a ${productName} state directory`)
+    .option("--target <path>", "State directory to restore into (default: active state directory)")
+    .option("--force", "Move an existing non-empty target aside before restoring", false)
+    .option(
+      "--dry-run",
+      "Validate the archive and print the restore plan without writing files",
+      false,
+    )
+    .option("--json", "Output JSON", false)
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          [
+            cmd("openclaw backup restore ./2026-03-09T00-00-00.000Z-openclaw-backup.tar.gz"),
+            "Restore into the active state directory when it is empty.",
+          ],
+          [
+            cmd("openclaw backup restore ./backup.tar.gz --target ~/.gemmaclaw-restored"),
+            `Restore into a new ${productName} state directory for inspection.`,
+          ],
+          [
+            cmd("openclaw backup restore ./backup.tar.gz --force"),
+            "Move the existing active state aside, then restore atomically.",
+          ],
+          [
+            cmd("openclaw backup restore ./backup.tar.gz --dry-run --json"),
+            "Validate the archive and emit the restore plan without writing files.",
+          ],
+        ])}`,
+    )
+    .action(async (archive, opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await backupRestoreCommand(defaultRuntime, {
+          archive: archive as string,
+          target: opts.target as string | undefined,
+          force: Boolean(opts.force),
+          dryRun: Boolean(opts.dryRun),
           json: Boolean(opts.json),
         });
       });
