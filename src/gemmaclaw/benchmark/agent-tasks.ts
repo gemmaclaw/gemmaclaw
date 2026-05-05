@@ -107,10 +107,9 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Read Jordan's email about the office maintenance report and " +
       "create tasks for all the critical and important items.",
-    // Ollama v0.23.0 + RENDERER gemma4: thinking=off caused 193-tool-call loops (context overflow).
-    // thinking=minimal provides just enough reasoning to avoid runaway tool-call loops while
-    // keeping inference fast. Full thinking=high risks unlimited thinking token generation.
-    thinkingLevelOverride: "minimal",
+    // thinking=off works for corrected Gemma 4 template (consistent with all other tasks).
+    // thinking=minimal caused 193-tool-call context overflow loops; thinking=off does not.
+    thinkingLevelOverride: "off",
     grading: {
       type: "artifact_check",
       criteria: [
@@ -191,10 +190,9 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Go through ALL my emails and triage them. For each email, tell me: " +
       "sender, subject, urgency (high/medium/low), recommended action, and why.",
-    // Ollama v0.23.0 + RENDERER gemma4: thinking=off caused 483-tool-call loops (context overflow).
-    // thinking=minimal provides just enough reasoning to avoid runaway tool-call loops while
-    // keeping inference fast. Full thinking=high risks unlimited thinking token generation.
-    thinkingLevelOverride: "minimal",
+    // thinking=off works for corrected Gemma 4 template (consistent with all other tasks).
+    // thinking=minimal caused 483-tool-call context overflow loops; thinking=off does not.
+    thinkingLevelOverride: "off",
     grading: {
       type: "conversation_check",
       criteria: [
