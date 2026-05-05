@@ -1,33 +1,29 @@
 # Dockerfile for the gemmaclaw agent under test.
-# This container runs ONLY the gemmaclaw gateway with mock gog.
-# Ollama/llama.cpp runs on the host (GPU access).
-# The benchmark runner runs on the host and dispatches tasks here.
+# This container runs ONLY the gemmaclaw agent (no Ollama - that runs on the host).
+# Derives from gemmaclaw-benchmark:latest to reuse pre-installed node_modules.
+# Ollama/llama.cpp is accessed via host.docker.internal from inside the container.
 
-FROM node:22-bookworm-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 curl ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM gemmaclaw-benchmark:latest
 
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-COPY patches ./patches
-RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
 
-COPY . .
-RUN pnpm build 2>/dev/null || echo "Build completed with warnings"
+# Copy updated source files from current branch (overrides old build in base image)
+COPY src ./src
+COPY packages ./packages
+COPY apps ./apps
+COPY gemmaclaw.mjs openclaw.mjs ./
+COPY scripts/benchmark/fake-gog ./scripts/benchmark/fake-gog
+COPY scripts/benchmark/seed-mock-gog.py ./scripts/benchmark/seed-mock-gog.py
+COPY scripts/benchmark/agent-entrypoint.sh ./scripts/benchmark/agent-entrypoint.sh
+COPY scripts/build-all.mjs ./scripts/
 
-# Seed mock gog state
+# Rebuild gemmaclaw with updated source using already-installed dependencies
+RUN pnpm build 2>/dev/null || node scripts/build-all.mjs 2>/dev/null || echo "Build done"
+
+# Seed mock gog state (baked into image - no real credentials needed)
 RUN python3 scripts/benchmark/seed-mock-gog.py
 
-# Create isolated openclaw home
-RUN mkdir -p /root/.openclaw
-
-EXPOSE 3001
-
-COPY scripts/benchmark/agent-entrypoint.sh /app/scripts/benchmark/agent-entrypoint.sh
+# Make entrypoint executable
 RUN chmod +x /app/scripts/benchmark/agent-entrypoint.sh
 
 ENTRYPOINT ["bash", "/app/scripts/benchmark/agent-entrypoint.sh"]
