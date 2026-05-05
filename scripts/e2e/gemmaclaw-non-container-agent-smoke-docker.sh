@@ -55,6 +55,14 @@ printf 'HOST_SENTINEL_ORIGINAL\n' > "$HOST_SENTINEL"
 
 cleanup() {
   local status=$?
+  if command -v docker >/dev/null 2>&1; then
+    local uid gid
+    uid="$(id -u)"
+    gid="$(id -g)"
+    docker run --rm -v "$ROOT_DIR:/repo" debian:bookworm-slim \
+      sh -lc "chown -R $uid:$gid /repo/dist /repo/dist-runtime /repo/.artifacts 2>/dev/null || true" \
+      >/dev/null 2>&1 || true
+  fi
   if [ "$status" -eq 0 ]; then
     rm -rf "$HOST_ROOT"
   else
