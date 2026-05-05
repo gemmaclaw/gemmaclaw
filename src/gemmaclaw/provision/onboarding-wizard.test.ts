@@ -109,6 +109,11 @@ describe("resolveModelId", () => {
     expect(resolveModelId("local", "  gemma3:4b  ")).toBe("gemma3:4b");
   });
 
+  it("normalizes unqualified Gemini model ids to the Google provider", () => {
+    expect(resolveModelId("gemini", "gemini-2.5-flash")).toBe("google/gemini-2.5-flash");
+    expect(resolveModelId("gemini", "google/gemini-2.5-pro")).toBe("google/gemini-2.5-pro");
+  });
+
   it("returns the backend default when input is blank", () => {
     expect(resolveModelId("local", "")).toBe("auto");
     expect(resolveModelId("gemini", "")).toBe("google/gemini-2.5-flash");
@@ -276,7 +281,7 @@ describe("buildNonInteractiveChoices", () => {
       agentName: "ci-bot",
       useContainer: false,
       backend: "gemini",
-      model: "google/gemini-2.5-pro",
+      model: "gemini-2.5-pro",
       thinkingLevel: "high",
       bootstrap: "coding",
       apiKey: "AIza-x",

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { detectChangedLanes } from "../../scripts/changed-lanes.mjs";
-import { createChangedCheckPlan } from "../../scripts/check-changed.mjs";
+import { createChangedCheckPlan, sanitizeGitRepositoryEnv } from "../../scripts/check-changed.mjs";
 import { cleanupTempDirs, makeTempRepoRoot } from "../helpers/temp-repo.js";
 
 const tempDirs: string[] = [];
@@ -25,6 +25,24 @@ afterEach(() => {
 });
 
 describe("scripts/changed-lanes", () => {
+  it("sanitizes git repository env before launching changed-check child commands", () => {
+    expect(
+      sanitizeGitRepositoryEnv({
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_DIR: "/tmp/outer/.git",
+        GIT_INDEX_FILE: "/tmp/outer/.git/index",
+        GIT_PREFIX: "",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_WORK_TREE: "/tmp/outer",
+        PATH: "/usr/bin",
+      }),
+    ).toEqual({
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_TERMINAL_PROMPT: "0",
+      PATH: "/usr/bin",
+    });
+  });
+
   it("includes untracked worktree files in the default local diff", () => {
     const dir = makeTempRepoRoot(tempDirs, "openclaw-changed-lanes-");
     git(dir, ["init", "-q", "--initial-branch=main"]);

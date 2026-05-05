@@ -92,6 +92,15 @@ describe("bootstrap-profiles", () => {
       expect(fs.existsSync(nested)).toBe(true);
       expect(result.written).toContain("AGENTS.md");
     });
+
+    it("adds Docker shared-folder guidance when container mode is enabled", () => {
+      const result = applyBootstrapProfile("general", tmpDir, { useContainer: true });
+      expect(result.written).toContain("AGENTS.md");
+      const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+      expect(written).toContain("## Docker Sandbox Environment");
+      expect(written).toContain("/workspace/shared");
+      expect(written).toContain("apt-get -o APT::Sandbox::User=root install");
+    });
   });
 
   describe("BOOTSTRAP_PROFILES", () => {
