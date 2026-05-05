@@ -52,6 +52,9 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     category: "email",
     difficulty: "medium",
     prompt: "Check my email inbox and give me a summary of what needs my attention.",
+    // With thinking=high, 31B models enter an infinite reasoning loop (0 tool calls, 3600s+).
+    // thinking=low provides a bounded budget that allows the model to call tools immediately.
+    thinkingLevelOverride: "low",
     grading: {
       type: "conversation_check",
       criteria: [
@@ -75,6 +78,9 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "Schedule a project review with Sarah for next Wednesday at 10am. " +
       "It should be 2 hours long in Conference Room B.",
+    // With thinking=high, 31B model spends 3600s+ on reasoning without completing.
+    // thinking=low provides a bounded budget sufficient for this date-math + tool-call task.
+    thinkingLevelOverride: "low",
     grading: {
       type: "tool_sequence_check",
       criteria: [
