@@ -127,6 +127,6 @@ The most relevant Gemma-mentioning posts driving this update, with the newest fi
 - [Speculative decoding with Gemma-4-31B + Gemma-4-E2B](https://reddit.com/r/LocalLLaMA/comments/1sw782p)
 - [Gemma-4-E2B's safety filters make it unusable for emergencies](https://reddit.com/r/LocalLLaMA/comments/1sr35pk)
 
-The full set of 90 community reports lives in the Community Reports section above, filterable by hardware category and search.
+The full set of 97 community reports lives in the Community Reports section above, filterable by hardware category and search.
 
-_Last updated: 2026-05-05 (May 5 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+_Last updated: 2026-05-06 (May 6 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
