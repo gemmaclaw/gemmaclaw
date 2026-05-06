@@ -610,10 +610,23 @@ export async function dispatchTask(
         },
       },
       // Prevent bundled plugins with heavy runtime deps from running npm
-      // install at agent startup inside Docker (no internet access).
-      // deepgram, github-copilot, browser, fireworks all try npm install.
+      // install at agent startup inside Docker (no npm registry access).
+      // These plugins are enabledByDefault=true but have missing node_modules
+      // in the Docker image; they fail with ETIMEDOUT or npm errors at startup.
+      // Only ollama and openai are kept (their deps are npm-cached from staging).
       plugins: {
-        deny: ["browser", "fireworks", "deepgram", "github-copilot"],
+        deny: [
+          "browser",
+          "fireworks",
+          "deepgram",
+          "github-copilot",
+          "kimi",
+          "elevenlabs",
+          "lmstudio",
+          "microsoft",
+          "mistral",
+          "xai",
+        ],
       },
     };
     // URLs inside the container must use host.docker.internal to reach host services
