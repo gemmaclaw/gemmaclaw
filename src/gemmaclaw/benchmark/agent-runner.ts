@@ -609,6 +609,12 @@ export async function dispatchTask(
           },
         },
       },
+      // Prevent bundled plugins with heavy runtime deps (playwright browser,
+      // Fireworks AI SDK) from running npm install at agent startup.
+      // These plugins are not needed for benchmark tasks.
+      plugins: {
+        deny: ["browser", "fireworks"],
+      },
     };
     // URLs inside the container must use host.docker.internal to reach host services
     const containerOllamaUrl = config.ollamaUrl
