@@ -609,11 +609,11 @@ export async function dispatchTask(
           },
         },
       },
-      // Prevent bundled plugins with heavy runtime deps (playwright browser,
-      // Fireworks AI SDK) from running npm install at agent startup.
-      // These plugins are not needed for benchmark tasks.
+      // Prevent bundled plugins with heavy runtime deps from running npm
+      // install at agent startup inside Docker (no internet access).
+      // deepgram, github-copilot, browser, fireworks all try npm install.
       plugins: {
-        deny: ["browser", "fireworks"],
+        deny: ["browser", "fireworks", "deepgram", "github-copilot"],
       },
     };
     // URLs inside the container must use host.docker.internal to reach host services
