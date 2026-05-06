@@ -625,7 +625,7 @@ export async function dispatchTask(
           "fireworks",
           "github-copilot",
           "google",
-          "kimi",
+          "kimi-coding",
           "lmstudio",
           "microsoft",
           "mistral",

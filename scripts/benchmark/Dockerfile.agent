@@ -23,9 +23,13 @@ RUN pnpm build 2>/dev/null || node scripts/build-all.mjs 2>/dev/null || echo "Bu
 # Seed mock gog state (baked into image - no real credentials needed)
 RUN python3 scripts/benchmark/seed-mock-gog.py
 
-# Pre-install ollama plugin bundled runtime deps so containers start without npm access.
-# All other default-enabled plugins with npm deps are denied via openclaw.json deny list.
-RUN cd /app/dist/extensions/ollama && npm install --production --silent 2>/dev/null || true
+# Pre-install ollama plugin bundled runtime deps by copying from workspace node_modules.
+# npm install fails during Docker build (BuildKit network can't reach npm registry in WSL2 NAT).
+# The packages are already available at /app/node_modules from the pnpm workspace install.
+# Copying them here satisfies the plugin's sentinel check so it skips the runtime npm install.
+RUN mkdir -p /app/dist/extensions/ollama/node_modules && \
+    cp -rL /app/node_modules/@mariozechner /app/dist/extensions/ollama/node_modules/ && \
+    cp -rL /app/node_modules/typebox /app/dist/extensions/ollama/node_modules/typebox
 
 # Make entrypoint executable
 RUN chmod +x /app/scripts/benchmark/agent-entrypoint.sh
