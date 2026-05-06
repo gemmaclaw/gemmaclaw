@@ -609,22 +609,27 @@ export async function dispatchTask(
           },
         },
       },
-      // Prevent bundled plugins with heavy runtime deps from running npm
-      // install at agent startup inside Docker (no npm registry access).
-      // These plugins are enabledByDefault=true but have missing node_modules
-      // in the Docker image; they fail with ETIMEDOUT or npm errors at startup.
-      // Only ollama and openai are kept (their deps are npm-cached from staging).
+      // Deny all bundled plugins with runtime deps that need npm install at startup.
+      // Docker containers have no npm registry access (WSL2 NAT networking blocks it).
+      // Only ollama is allowed — it is pre-installed in the benchmark Docker image.
+      // List: all enabledByDefault plugins with package.json dependencies, minus ollama.
       plugins: {
         deny: [
+          "acpx",
+          "amazon-bedrock",
+          "amazon-bedrock-mantle",
+          "anthropic",
           "browser",
-          "fireworks",
           "deepgram",
-          "github-copilot",
-          "kimi",
           "elevenlabs",
+          "fireworks",
+          "github-copilot",
+          "google",
+          "kimi",
           "lmstudio",
           "microsoft",
           "mistral",
+          "openai",
           "xai",
         ],
       },
