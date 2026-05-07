@@ -1153,9 +1153,45 @@ export async function runAgentBenchmark(
 
   const results: AgentTaskResult[] = [];
 
+  // Checkpoint support: load existing progress so the run can resume if the process dies.
+  const checkpointDir = "/tmp/gc-benchmark-checkpoints";
+  const safeModel = config.model.replace(/[/:]/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+  const checkpointPath = `${checkpointDir}/${safeModel}.checkpoint.json`;
+  const checkpointedIds = new Set<string>();
+  if (!config.mock) {
+    try {
+      if (fs.existsSync(checkpointPath)) {
+        const cp = JSON.parse(fs.readFileSync(checkpointPath, "utf-8")) as {
+          tasks: AgentTaskResult[];
+        };
+        for (const t of cp.tasks ?? []) {
+          results.push(t);
+          checkpointedIds.add(t.task.id);
+        }
+        if (results.length > 0) {
+          log(
+            `Resuming from checkpoint: ${results.length} tasks already done (${[...checkpointedIds].join(", ")})`,
+          );
+        }
+      }
+    } catch {
+      log("  Warning: could not load checkpoint, starting fresh");
+    }
+  }
+
   for (let i = 0; i < filteredTasks.length; i++) {
     const task = filteredTasks[i];
     const taskNum = `[${i + 1}/${filteredTasks.length}]`;
+
+    // Skip tasks already completed in a prior run (checkpoint resume).
+    if (!config.mock && checkpointedIds.has(task.id)) {
+      const prev = results.find((r) => r.task.id === task.id);
+      log(
+        `${taskNum} ${task.name} (${task.difficulty}) - RESUMED from checkpoint (${prev?.completionStatus ?? "?"})`,
+      );
+      continue;
+    }
+
     log(`${taskNum} ${task.name} (${task.difficulty})`);
 
     const sessionId = `bench-${task.id}-${Date.now()}`;
@@ -1206,6 +1242,28 @@ export async function runAgentBenchmark(
       completionStatus,
       error,
     });
+
+    // Save checkpoint after each task so we can resume if the process dies.
+    if (!config.mock) {
+      try {
+        fs.mkdirSync(checkpointDir, { recursive: true });
+        fs.writeFileSync(
+          checkpointPath,
+          JSON.stringify(
+            { model: config.model, savedAt: new Date().toISOString(), tasks: results },
+            null,
+            2,
+          ),
+        );
+      } catch {}
+    }
+  }
+
+  // All tasks done: remove the checkpoint (run succeeded, no resume needed).
+  if (!config.mock) {
+    try {
+      fs.unlinkSync(checkpointPath);
+    } catch {}
   }
 
   const totalTimeMs = Date.now() - startTime;
