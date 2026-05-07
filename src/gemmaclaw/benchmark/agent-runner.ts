@@ -19,6 +19,7 @@
  */
 
 import { execSync, spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -66,10 +67,18 @@ export type AgentBenchmarkConfig = {
   mock?: boolean;
   /** Ollama context length. */
   contextLength?: number;
+  /** Output directory for results. Defaults to benchmark-results. */
+  outputDir?: string;
+  /** Stable run id. Use this to resume or rerun tasks into an existing run. */
+  runId?: string;
+  /** Force rerun of selected tasks even if a matching per-task result exists. */
+  rerun?: boolean;
+  /** Rerun only tasks whose existing result is timeout/error. */
+  rerunFailed?: boolean;
 };
 
 export type ConversationTurn = {
-  role: "user" | "assistant" | "tool_call" | "tool_result" | "system";
+  role: "user" | "assistant" | "thinking" | "tool_call" | "tool_result" | "system";
   content: string;
   /** Tool name if role is tool_call. */
   toolName?: string;
@@ -143,6 +152,25 @@ export type AgentBenchmarkResult = {
   };
 };
 
+type AgentRunManifest = {
+  schemaVersion: 1;
+  runId: string;
+  configHash: string;
+  config: AgentBenchmarkConfig;
+  metadata: RunMetadata;
+  taskIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AgentTaskArtifact = {
+  schemaVersion: 1;
+  runId: string;
+  configHash: string;
+  savedAt: string;
+  result: AgentTaskResult;
+};
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function which(cmd: string): string | null {
@@ -208,6 +236,176 @@ function httpPost(url: string, body: string, timeoutMs = 300_000): Promise<strin
     req.write(body);
     req.end();
   });
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => stableJson(v)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return `{${Object.keys(obj)
+      .toSorted()
+      .filter((key) => obj[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${stableJson(obj[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function computeConfigHash(config: AgentBenchmarkConfig): string {
+  const hashInput = {
+    backend: config.backend,
+    contextLength: config.contextLength,
+    filter: config.filter,
+    idleTimeoutSeconds: config.idleTimeoutSeconds,
+    llamaCppUrl: config.llamaCppUrl,
+    mock: config.mock ?? false,
+    model: config.model,
+    ollamaUrl: config.ollamaUrl,
+    quant: config.quant,
+    seedScript: config.seedScript,
+    taskTimeoutSeconds: config.taskTimeoutSeconds,
+    thinkingLevel: config.thinkingLevel,
+  };
+  return crypto.createHash("sha256").update(stableJson(hashInput)).digest("hex").slice(0, 16);
+}
+
+function atomicWriteJson(filePath: string, data: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
+  fs.renameSync(tmp, filePath);
+}
+
+function formatRunDirNameFromConfig(config: AgentBenchmarkConfig, metadata: RunMetadata): string {
+  if (config.runId) {
+    return config.runId;
+  }
+  const model = config.model.replace(/[/:]/g, "-");
+  const quant = config.quant ? `__${config.quant}` : "";
+  const ts = metadata.startedAt.replace(/[:.]/g, "-").slice(0, 19);
+  return `${model}${quant}__${ts}`;
+}
+
+function taskArtifactPath(runDir: string, taskId: string): string {
+  return path.join(runDir, "tasks", taskId, "result.json");
+}
+
+function taskTranscriptPath(runDir: string, taskId: string): string {
+  return path.join(runDir, "tasks", taskId, "transcript.txt");
+}
+
+function taskSessionCopyPath(runDir: string, taskId: string): string {
+  return path.join(runDir, "tasks", taskId, "session.jsonl");
+}
+
+function taskTrajectoryCopyPath(runDir: string, taskId: string): string {
+  return path.join(runDir, "tasks", taskId, "trajectory.jsonl");
+}
+
+function writeTranscript(filePath: string, result: AgentTaskResult): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const transcript = result.conversation
+    .map((t) => {
+      if (t.role === "tool_call") {
+        return `[tool_call] ${t.toolName} ${t.content}`;
+      }
+      if (t.role === "tool_result") {
+        return `[tool_result] ${t.content}`;
+      }
+      return `[${t.role}] ${t.content}`;
+    })
+    .join("\n\n");
+  fs.writeFileSync(filePath, transcript);
+}
+
+export function writeTaskArtifact(
+  runDir: string,
+  runId: string,
+  configHash: string,
+  result: AgentTaskResult,
+): void {
+  const taskDir = path.join(runDir, "tasks", result.task.id);
+  fs.mkdirSync(taskDir, { recursive: true });
+  writeTranscript(taskTranscriptPath(runDir, result.task.id), result);
+  atomicWriteJson(taskArtifactPath(runDir, result.task.id), {
+    schemaVersion: 1,
+    runId,
+    configHash,
+    savedAt: new Date().toISOString(),
+    result,
+  } satisfies AgentTaskArtifact);
+}
+
+function copyIfExists(source: string | undefined, dest: string): void {
+  if (!source || !fs.existsSync(source)) {
+    return;
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(source, dest);
+}
+
+export function loadTaskArtifacts(runDir: string, configHash: string): AgentTaskResult[] {
+  const tasksDir = path.join(runDir, "tasks");
+  if (!fs.existsSync(tasksDir)) {
+    return [];
+  }
+  const results: AgentTaskResult[] = [];
+  for (const taskId of fs.readdirSync(tasksDir)) {
+    const filePath = taskArtifactPath(runDir, taskId);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    try {
+      const artifact = JSON.parse(fs.readFileSync(filePath, "utf-8")) as AgentTaskArtifact;
+      if (artifact.configHash === configHash && artifact.result?.task?.id === taskId) {
+        results.push(artifact.result);
+      }
+    } catch {
+      /* Ignore malformed partial artifacts. Atomic writes should prevent this. */
+    }
+  }
+  return results;
+}
+
+function sortTaskResultsByDefinition(
+  results: AgentTaskResult[],
+  tasks: AgentBenchmarkTask[],
+): AgentTaskResult[] {
+  const order = new Map(tasks.map((task, index) => [task.id, index]));
+  return results.toSorted(
+    (a, b) =>
+      (order.get(a.task.id) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(b.task.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+function buildBenchmarkResult(
+  metadata: RunMetadata,
+  config: AgentBenchmarkConfig,
+  tasks: AgentTaskResult[],
+  startedAtMs: number,
+): AgentBenchmarkResult {
+  const totalTasks = tasks.length;
+  const completedCount = tasks.filter((r) => r.completionStatus === "completed").length;
+  const errorCount = tasks.filter((r) => r.completionStatus === "error").length;
+  const timeoutCount = tasks.filter((r) => r.completionStatus === "timeout").length;
+  const totalToolCalls = tasks.reduce((s, r) => s + r.toolCallCount, 0);
+  return {
+    metadata,
+    config,
+    tasks,
+    summary: {
+      totalTasks,
+      completedCount,
+      errorCount,
+      timeoutCount,
+      totalTimeMs: Date.now() - startedAtMs,
+      totalToolCalls,
+      avgToolCallsPerTask: totalTasks > 0 ? Math.round((totalToolCalls / totalTasks) * 10) / 10 : 0,
+    },
+  };
 }
 
 /** Collect metadata about the current environment and model. */
@@ -415,6 +613,8 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
       for (const block of content as Array<{
         type?: string;
         text?: string;
+        thinking?: string;
+        reasoning?: string;
         name?: string;
         input?: unknown;
         arguments?: unknown;
@@ -422,6 +622,11 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
       }>) {
         if (block.type === "text" && block.text) {
           turns.push({ role: "assistant", content: block.text, timestamp: ts });
+        } else if (block.type === "thinking" || block.type === "reasoning") {
+          const thinking = block.thinking ?? block.reasoning ?? block.text;
+          if (thinking) {
+            turns.push({ role: "thinking", content: thinking, timestamp: ts });
+          }
         } else if (block.type === "tool_use" || block.type === "toolCall") {
           const toolArgs = (block.input ?? block.arguments ?? {}) as Record<string, unknown>;
           turns.push({
@@ -463,6 +668,75 @@ export function extractAssistantResponseFromStdout(stdout: string): string | und
   return text.length > 0 ? text : undefined;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Extract a terminal OpenClaw trajectory error from a .trajectory.jsonl entry.
+ *
+ * The one-shot `gemmaclaw agent --local --json` command can exit 0 even when
+ * the embedded runner records `session.ended { status: "error" }` (for example
+ * an LLM idle timeout before the first token). The benchmark must treat those
+ * runs as failed/timeout instead of accepting an empty transcript.
+ */
+export function extractTrajectoryError(entry: unknown): string | undefined {
+  if (!isRecord(entry)) {
+    return undefined;
+  }
+  const type = typeof entry.type === "string" ? entry.type : "";
+  if (type !== "session.ended" && type !== "session_ended") {
+    return undefined;
+  }
+  const status = typeof entry.status === "string" ? entry.status : "";
+  if (status !== "error" && status !== "timeout" && status !== "failed") {
+    return undefined;
+  }
+  const error = entry.error;
+  if (typeof error === "string") {
+    return error;
+  }
+  if (isRecord(error)) {
+    const message = error.message;
+    if (typeof message === "string") {
+      return message;
+    }
+    const details = error.details;
+    if (typeof details === "string") {
+      return details;
+    }
+  }
+  const message = entry.message;
+  if (typeof message === "string") {
+    return message;
+  }
+  return `session ended with status ${status}`;
+}
+
+function readTrajectoryError(trajectoryPath: string): string | undefined {
+  if (!fs.existsSync(trajectoryPath)) {
+    return undefined;
+  }
+  let lastError: string | undefined;
+  try {
+    const lines = fs.readFileSync(trajectoryPath, "utf-8").split("\n").filter(Boolean);
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line) as unknown;
+        const error = extractTrajectoryError(entry);
+        if (error) {
+          lastError = error;
+        }
+      } catch {
+        // Ignore mid-write / malformed trajectory lines.
+      }
+    }
+  } catch {
+    return undefined;
+  }
+  return lastError;
+}
+
 /**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
@@ -479,6 +753,8 @@ export async function dispatchTask(
   elapsedMs: number;
   completionStatus: "completed" | "timeout" | "error";
   error?: string;
+  sessionJsonlPath?: string;
+  trajectoryJsonlPath?: string;
 }> {
   const startMs = Date.now();
   const timeoutMs =
@@ -650,6 +926,7 @@ export async function dispatchTask(
 
     const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
     const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+    const trajectoryPath = path.join(sessionsDir, `${sessionId}.trajectory.jsonl`);
 
     let lastLineCount = 0;
     let lastChangeMs = Date.now();
@@ -720,6 +997,8 @@ export async function dispatchTask(
           elapsedMs: Date.now() - startMs,
           completionStatus: "timeout",
           error: `task-timeout (${Math.round(timeoutMs / 1000)}s)`,
+          sessionJsonlPath: jsonlPath,
+          trajectoryJsonlPath: trajectoryPath,
         };
       }
 
@@ -735,6 +1014,8 @@ export async function dispatchTask(
             elapsedMs: Date.now() - startMs,
             completionStatus: "error",
             error: errMsg,
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
           };
         }
         if (childExitCode !== 0) {
@@ -745,6 +1026,29 @@ export async function dispatchTask(
             elapsedMs: Date.now() - startMs,
             completionStatus: "error",
             error: `CLI exited ${childExitCode}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`,
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
+          };
+        }
+        const trajectoryError = readTrajectoryError(trajectoryPath);
+        if (trajectoryError) {
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: /timeout|timed out/i.test(trajectoryError) ? "timeout" : "error",
+            error: `OpenClaw session error: ${trajectoryError.slice(0, 300)}`,
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
+          };
+        }
+        if (conversation.length === 0) {
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: "empty conversation transcript (no session JSONL turns parsed)",
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
           };
         }
         log(`  CLI completed successfully`);
@@ -762,6 +1066,8 @@ export async function dispatchTask(
           conversation,
           elapsedMs: Date.now() - startMs,
           completionStatus: "completed",
+          sessionJsonlPath: jsonlPath,
+          trajectoryJsonlPath: trajectoryPath,
         };
       }
 
@@ -778,6 +1084,8 @@ export async function dispatchTask(
             conversation,
             elapsedMs: Date.now() - startMs,
             completionStatus: "completed",
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
           };
         }
         // No assistant response yet, but stuck. Use 1.5x threshold to be safe.
@@ -788,6 +1096,8 @@ export async function dispatchTask(
             elapsedMs: Date.now() - startMs,
             completionStatus: "timeout",
             error: `idle-stuck-no-progress`,
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
           };
         }
       }
@@ -808,8 +1118,9 @@ export async function dispatchTask(
 
 /** Save results to disk in the standard directory structure. */
 export function saveResults(result: AgentBenchmarkResult, outputDir: string): void {
-  const runDir = path.join(outputDir, "runs", formatRunDirName(result));
-  const evalDir = path.join(outputDir, "evaluations", formatRunDirName(result));
+  const runName = formatRunDirNameFromConfig(result.config, result.metadata);
+  const runDir = path.join(outputDir, "runs", runName);
+  const evalDir = path.join(outputDir, "evaluations", runName);
   fs.mkdirSync(runDir, { recursive: true });
   fs.mkdirSync(evalDir, { recursive: true });
 
@@ -823,18 +1134,7 @@ export function saveResults(result: AgentBenchmarkResult, outputDir: string): vo
   const transcriptsDir = path.join(runDir, "transcripts");
   fs.mkdirSync(transcriptsDir, { recursive: true });
   for (const tr of result.tasks) {
-    const transcript = tr.conversation
-      .map((t) => {
-        if (t.role === "tool_call") {
-          return `[tool_call] ${t.toolName} ${t.content}`;
-        }
-        if (t.role === "tool_result") {
-          return `[tool_result] ${t.content}`;
-        }
-        return `[${t.role}] ${t.content}`;
-      })
-      .join("\n\n");
-    fs.writeFileSync(path.join(transcriptsDir, `${tr.task.id}.txt`), transcript);
+    writeTranscript(path.join(transcriptsDir, `${tr.task.id}.txt`), tr);
   }
 
   // Per-task evaluation stubs (placeholders for LLM judge results added later)
@@ -876,13 +1176,6 @@ export function saveResults(result: AgentBenchmarkResult, outputDir: string): vo
 
   console.log(`\nResults saved to: ${runDir}`);
   console.log(`Evaluations saved to: ${evalDir}`);
-}
-
-function formatRunDirName(result: AgentBenchmarkResult): string {
-  const model = result.config.model.replace(/[/:]/g, "-");
-  const quant = result.config.quant ? `__${result.config.quant}` : "";
-  const ts = result.metadata.startedAt.replace(/[:.]/g, "-").slice(0, 19);
-  return `${model}${quant}__${ts}`;
 }
 
 function generateResultsMarkdown(result: AgentBenchmarkResult): string {
@@ -936,6 +1229,40 @@ function generateResultsMarkdown(result: AgentBenchmarkResult): string {
   return lines.join("\n") + "\n";
 }
 
+/** Rebuild aggregate benchmark outputs from saved per-task artifacts. */
+export function assembleAgentBenchmarkRun(
+  tasks: AgentBenchmarkTask[],
+  config: AgentBenchmarkConfig,
+  outputDir = config.outputDir ?? "benchmark-results",
+): AgentBenchmarkResult {
+  if (!config.runId) {
+    throw new Error("--run-id is required when assembling a saved benchmark run");
+  }
+  const runDir = path.join(outputDir, "runs", config.runId);
+  const manifestPath = path.join(runDir, "manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`No benchmark manifest found at ${manifestPath}`);
+  }
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as AgentRunManifest;
+  const manifestConfig = { ...manifest.config, outputDir, runId: manifest.runId };
+  const filteredTasks = tasks.filter((task) => manifest.taskIds.includes(task.id));
+  const artifacts = sortTaskResultsByDefinition(
+    loadTaskArtifacts(runDir, manifest.configHash),
+    filteredTasks,
+  );
+  const startedAtMs = Number.isFinite(Date.parse(manifest.metadata.startedAt))
+    ? Date.parse(manifest.metadata.startedAt)
+    : Date.now();
+  const metadata = {
+    ...manifest.metadata,
+    finishedAt: new Date().toISOString(),
+  };
+  const result = buildBenchmarkResult(metadata, manifestConfig, artifacts, startedAtMs);
+  saveResults(result, outputDir);
+  return result;
+}
+
 // ── Main Runner ─────────────────────────────────────────────────────────────
 
 export async function runAgentBenchmark(
@@ -986,13 +1313,76 @@ export async function runAgentBenchmark(
       )
     : tasks;
 
-  log(`\nRunning ${filteredTasks.length} agent tasks against ${config.model}...\n`);
+  const outputDir = config.outputDir ?? "benchmark-results";
+  config = { ...config, outputDir, runId: formatRunDirNameFromConfig(config, metadata) };
+  const runId = config.runId!;
+  const runDir = path.join(outputDir, "runs", runId);
+  const configHash = computeConfigHash(config);
+  fs.mkdirSync(runDir, { recursive: true });
 
-  const results: AgentTaskResult[] = [];
+  const existingManifestPath = path.join(runDir, "manifest.json");
+  let createdAt = metadata.startedAt;
+  if (fs.existsSync(existingManifestPath)) {
+    try {
+      const existingManifest = JSON.parse(
+        fs.readFileSync(existingManifestPath, "utf-8"),
+      ) as AgentRunManifest;
+      createdAt = existingManifest.createdAt ?? createdAt;
+    } catch {
+      /* Keep the new timestamp if the old manifest is malformed. */
+    }
+  }
+  const writeManifest = (): void => {
+    atomicWriteJson(existingManifestPath, {
+      schemaVersion: 1,
+      runId,
+      configHash,
+      config,
+      metadata,
+      taskIds: filteredTasks.map((task) => task.id),
+      createdAt,
+      updatedAt: new Date().toISOString(),
+    } satisfies AgentRunManifest);
+  };
+  writeManifest();
+
+  const resultsById = new Map<string, AgentTaskResult>();
+  for (const result of loadTaskArtifacts(runDir, configHash)) {
+    resultsById.set(result.task.id, result);
+  }
+  const currentResults = (): AgentTaskResult[] =>
+    sortTaskResultsByDefinition([...resultsById.values()], filteredTasks);
+  const saveAggregate = (): void => {
+    saveResults(buildBenchmarkResult(metadata, config, currentResults(), startTime), outputDir);
+  };
+
+  log(`\nRunning ${filteredTasks.length} agent tasks against ${config.model}...`);
+  log(`Run id: ${runId}`);
+  log(`Per-task artifacts: ${path.join(runDir, "tasks")}\n`);
+  if (resultsById.size > 0) {
+    log(`Loaded ${resultsById.size} existing per-task result(s) for this run`);
+    saveAggregate();
+  }
 
   for (let i = 0; i < filteredTasks.length; i++) {
     const task = filteredTasks[i];
     const taskNum = `[${i + 1}/${filteredTasks.length}]`;
+
+    const existingResult = resultsById.get(task.id);
+    const shouldRerun =
+      config.rerun || (config.rerunFailed && existingResult?.completionStatus !== "completed");
+    if (existingResult && !shouldRerun) {
+      log(
+        `${taskNum} ${task.name} (${task.difficulty}) - RESUMED from per-task artifact (${existingResult.completionStatus})`,
+      );
+      continue;
+    }
+    if (existingResult && shouldRerun) {
+      log(
+        `${taskNum} ${task.name} (${task.difficulty}) - RERUNNING previous ${existingResult.completionStatus}`,
+      );
+    }
+
     log(`${taskNum} ${task.name} (${task.difficulty})`);
 
     const sessionId = `bench-${task.id}-${Date.now()}`;
@@ -1004,6 +1394,8 @@ export async function runAgentBenchmark(
     let elapsedMs: number;
     let completionStatus: "completed" | "timeout" | "error";
     let error: string | undefined;
+    let sessionJsonlPath: string | undefined;
+    let trajectoryJsonlPath: string | undefined;
 
     if (config.mock) {
       // Mock mode: simulate a successful agent run without dispatching
@@ -1024,6 +1416,8 @@ export async function runAgentBenchmark(
       elapsedMs = result.elapsedMs;
       completionStatus = result.completionStatus;
       error = result.error;
+      sessionJsonlPath = result.sessionJsonlPath;
+      trajectoryJsonlPath = result.trajectoryJsonlPath;
     }
 
     // Extract tool call stats
@@ -1035,7 +1429,7 @@ export async function runAgentBenchmark(
       `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${error ? ` | ${error}` : ""}`,
     );
 
-    results.push({
+    const taskResult: AgentTaskResult = {
       task,
       conversation,
       elapsedMs,
@@ -1043,31 +1437,21 @@ export async function runAgentBenchmark(
       toolsUsed,
       completionStatus,
       error,
-    });
+    };
+    resultsById.set(task.id, taskResult);
+
+    writeTaskArtifact(runDir, runId, configHash, taskResult);
+    copyIfExists(sessionJsonlPath, taskSessionCopyPath(runDir, task.id));
+    copyIfExists(trajectoryJsonlPath, taskTrajectoryCopyPath(runDir, task.id));
+    saveAggregate();
+    writeManifest();
   }
 
-  const totalTimeMs = Date.now() - startTime;
   metadata.finishedAt = new Date().toISOString();
+  writeManifest();
 
-  const totalTasks = results.length;
-  const completedCount = results.filter((r) => r.completionStatus === "completed").length;
-  const errorCount = results.filter((r) => r.completionStatus === "error").length;
-  const timeoutCount = results.filter((r) => r.completionStatus === "timeout").length;
-  const totalToolCalls = results.reduce((s, r) => s + r.toolCallCount, 0);
-
-  return {
-    metadata,
-    config,
-    tasks: results,
-    summary: {
-      totalTasks,
-      completedCount,
-      errorCount,
-      timeoutCount,
-      totalTimeMs,
-      totalToolCalls,
-      avgToolCallsPerTask: totalTasks > 0 ? Math.round((totalToolCalls / totalTasks) * 10) / 10 : 0,
-    },
-  };
+  const finalResult = buildBenchmarkResult(metadata, config, currentResults(), startTime);
+  saveResults(finalResult, outputDir);
+  return finalResult;
 }
 // benchmark harness v2

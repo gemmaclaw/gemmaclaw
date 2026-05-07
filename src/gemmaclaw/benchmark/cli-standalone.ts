@@ -29,9 +29,9 @@ import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/b
 import { defaultRuntime } from "../../runtime.js";
 import { detectHardware } from "../provision/hardware.js";
 import {
+  assembleAgentBenchmarkRun,
   autoSelectModel,
   runAgentBenchmark,
-  saveResults,
   type AgentBenchmarkConfig,
 } from "./agent-runner.js";
 import { AGENT_BENCHMARK_TASKS } from "./agent-tasks.js";
@@ -62,6 +62,14 @@ function parseArgs(argv: string[]) {
       opts.outputDir = args[++i]!;
     } else if (arg === "--gemmaclaw-home" && args[i + 1]) {
       opts.gemmaclawHome = args[++i]!;
+    } else if (arg === "--run-id" && args[i + 1]) {
+      opts.runId = args[++i]!;
+    } else if (arg === "--rerun") {
+      opts.rerun = true;
+    } else if (arg === "--rerun-failed") {
+      opts.rerunFailed = true;
+    } else if (arg === "--assemble") {
+      opts.assemble = true;
     } else if (arg === "--context-length" && args[i + 1]) {
       opts.contextLength = args[++i]!;
     } else if (arg === "--gpu-layers" && args[i + 1]) {
@@ -122,6 +130,10 @@ Agent Mode Options:
   --task <id>            Run a single task by exact id
   --output-dir <dir>     Output directory for results (default: benchmark-results)
   --gemmaclaw-home <dir> Isolated OpenClaw/gog state base for agent runs
+  --run-id <id>          Stable run id for resume/rerun (default: model + timestamp)
+  --rerun                Force rerun of selected tasks into the same run id
+  --rerun-failed         Rerun only selected tasks whose saved result failed or timed out
+  --assemble             Rebuild aggregate results from saved per-task artifacts
   --task-timeout <sec>   Max seconds per task, 0=unlimited (default: 600)
   --idle-timeout <sec>   Seconds of idle before task considered done (default: 30)
   --judge-model <name>   Model for LLM judge (default: same as test model)
@@ -146,7 +158,10 @@ Sandbox Options:
 Examples:
   pnpm benchmark agent                              # Run all agentic tasks with default model
   pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
-  pnpm benchmark agent --task email_triage           # Rerun a single task
+  pnpm benchmark agent --run-id q6k-v1               # Resume an interrupted run
+  pnpm benchmark agent --run-id q6k-v1 --task email_triage --rerun
+  pnpm benchmark agent --run-id q6k-v1 --rerun-failed
+  pnpm benchmark agent --run-id q6k-v1 --assemble    # Rebuild RESULTS.md/results.json
   pnpm benchmark agent --filter security             # Run only security tasks
   pnpm benchmark agent --gateway-url http://192.168.1.50:3001  # Remote gateway
   pnpm benchmark agent list                          # List all tasks
@@ -202,9 +217,13 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
     mock: Boolean(opts.mock),
     contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
     gemmaclawHome: opts.gemmaclawHome as string | undefined,
+    outputDir: (opts.outputDir as string) ?? "benchmark-results",
+    runId: opts.runId as string | undefined,
+    rerun: Boolean(opts.rerun),
+    rerunFailed: Boolean(opts.rerunFailed),
   };
 
-  const outputDir = (opts.outputDir as string) ?? "benchmark-results";
+  const outputDir = config.outputDir ?? "benchmark-results";
   config.logDir = path.join(outputDir, ".logs");
 
   console.log("========================================");
@@ -222,11 +241,21 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   if (config.filter) {
     console.log(`Filter:   ${config.filter}`);
   }
+  if (config.runId) {
+    console.log(`Run id:   ${config.runId}`);
+  }
+  if (config.rerun) {
+    console.log(`Resume:   rerun selected tasks`);
+  } else if (config.rerunFailed) {
+    console.log(`Resume:   rerun failed or timed-out tasks`);
+  } else {
+    console.log(`Resume:   reuse matching per-task artifacts`);
+  }
   console.log("");
 
-  const result = await runAgentBenchmark(AGENT_BENCHMARK_TASKS, config, hardware);
-
-  saveResults(result, outputDir);
+  const result = opts.assemble
+    ? assembleAgentBenchmarkRun(AGENT_BENCHMARK_TASKS, config, outputDir)
+    : await runAgentBenchmark(AGENT_BENCHMARK_TASKS, config, hardware);
 
   // Print summary
   console.log("\n========================================");

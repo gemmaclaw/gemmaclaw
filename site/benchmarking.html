@@ -401,6 +401,23 @@
       margin: 0 0 1rem 0; font-size: 0.95rem;
     }
     .conv-section { margin: 0.75rem 0; }
+    .conv-thread { display: grid; gap: 0.65rem; }
+    .conv-turn { margin: 0; }
+    details.conv-turn {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 6px; overflow: hidden;
+    }
+    details.conv-turn summary {
+      cursor: pointer; padding: 0.55rem 0.75rem;
+      font-size: 0.78rem; font-weight: 700; color: var(--fg-soft);
+      background: var(--bg-elev-2);
+    }
+    details.conv-turn .conv-block {
+      border-left: 0; border-top: 1px solid var(--border); border-radius: 0;
+    }
+    .conv-thinking summary { color: #7a5cff; }
+    .conv-tool summary { color: var(--accent); }
+    .conv-tool-result summary { color: var(--muted); }
     .conv-label {
       font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
       color: var(--muted); margin-bottom: 0.3rem;
@@ -628,7 +645,7 @@
     <section>
       <h2>Running Gemmaclaw Benchmarks</h2>
       <p>Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as AI agents with real tool use. The harness dispatches 22 complex agent tasks, captures full conversations including tool calls, and saves structured results ready for PR submission.</p>
-      <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). The model and backend are auto-detected from your hardware, or you can specify them explicitly.</p>
+      <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). Results are saved after every task, so an interrupted run can resume without losing completed tests.</p>
 
       <h3>Quick Start</h3>
       <div class="code-block"><pre><code># 1. Set up gemmaclaw (auto-detects hardware, installs backend, pulls model)
@@ -643,11 +660,16 @@ pnpm benchmark agent
 # 4. Run with a specific model
 pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
 
-# 5. Run a single task (useful for debugging or rerunning failures)
-pnpm benchmark agent --task email_triage
+# 5. Resume a run, rerun one task, or rerun failed tasks only
+pnpm benchmark agent --run-id q4-rtx3090-v1
+pnpm benchmark agent --run-id q4-rtx3090-v1 --task email_triage --rerun
+pnpm benchmark agent --run-id q4-rtx3090-v1 --rerun-failed
 
-# 6. Mock mode: test the harness without a real model (instant)
-pnpm benchmark agent --mock</code></pre></div>
+# 6. Rebuild aggregate results from saved per-task artifacts
+pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble
+
+# 7. Mock mode: test the harness without a real model (instant)
+pnpm benchmark agent --mock --run-id smoke</code></pre></div>
 
       <h3>Backends</h3>
       <p>The benchmark supports two inference backends:</p>
@@ -676,6 +698,10 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking level (off, low, medium, high)</td></tr>
         <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name)</td></tr>
         <tr><td><code>--task &lt;id&gt;</code></td><td>(all tasks)</td><td>Run a single task by exact id</td></tr>
+        <tr><td><code>--run-id &lt;id&gt;</code></td><td>model + timestamp</td><td>Stable result directory for resume and targeted reruns</td></tr>
+        <tr><td><code>--rerun</code></td><td>off</td><td>Rerun selected tasks even if matching per-task artifacts exist</td></tr>
+        <tr><td><code>--rerun-failed</code></td><td>off</td><td>Rerun only tasks whose saved status is timeout or error</td></tr>
+        <tr><td><code>--assemble</code></td><td>off</td><td>Rebuild <code>results.json</code>, <code>RESULTS.md</code>, and evaluation stubs from saved task artifacts</td></tr>
         <tr><td><code>--ollama-url &lt;url&gt;</code></td><td>http://127.0.0.1:11434</td><td>Ollama API URL</td></tr>
         <tr><td><code>--llama-cpp-url &lt;url&gt;</code></td><td>http://127.0.0.1:8080</td><td>llama.cpp server URL</td></tr>
         <tr><td><code>--task-timeout &lt;sec&gt;</code></td><td>600</td><td>Max seconds per task (0 = unlimited)</td></tr>
@@ -702,20 +728,45 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <li><strong>Seed mock tools:</strong> Before each task, a realistic workspace is created with emails, calendar events, contacts, and tasks. Professional/workplace themed.</li>
         <li><strong>Isolated environment:</strong> Each task runs in a fresh gemmaclaw home directory. No state leaks between tasks.</li>
         <li><strong>Dispatch task:</strong> The task prompt is sent via <code>gemmaclaw agent --local</code>. The agent reads emails, checks calendars, creates tasks, sends emails using mock tools.</li>
-        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, reasoning step, and follow-up action.</li>
-        <li><strong>Save results:</strong> Rich metadata (hardware, model, quant, git SHA, Ollama model info) plus per-task transcripts and evaluation stubs.</li>
+        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, thinking block, and follow-up action.</li>
+        <li><strong>Save per-task results:</strong> After each task, the harness writes <code>tasks/&lt;task-id&gt;/result.json</code>, a transcript, and copied session/trajectory logs when available.</li>
+        <li><strong>Resume or rerun:</strong> A later command with the same <code>--run-id</code> reuses matching task artifacts. Add <code>--rerun</code> for a selected task or <code>--rerun-failed</code> for only failures.</li>
         <li><strong>Evaluation (separate step):</strong> Results are reviewed against grading criteria. Scores are added to the evaluation files and published to the site.</li>
       </ol>
 
       <h3>Results Directory</h3>
       <div class="code-block"><pre><code>benchmark-results/
   runs/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
+    manifest.json        # Run id, task list, config hash, metadata
     metadata.json        # Hardware, model, quant, config, git SHA
     results.json         # Per-task conversations, tool calls, stats
+    tasks/
+      &lt;task-id&gt;/
+        result.json      # Atomic per-task artifact used for resume
+        transcript.txt   # Human-readable transcript for this task
+        session.jsonl    # Raw OpenClaw session log, when available
+        trajectory.jsonl # Raw OpenClaw trajectory log, when available
     transcripts/         # Human-readable per-task transcripts
     RESULTS.md           # Markdown summary
   evaluations/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
     &lt;task-id&gt;.json       # Grading criteria + evaluation scores</code></pre></div>
+
+      <h3>Crash Recovery and Targeted Reruns</h3>
+      <p>The harness treats each task as an independent artifact. If a process dies halfway through a 22-task run, keep the same <code>--run-id</code> and run the command again. Completed task artifacts with the same config hash are skipped, while missing tasks continue. If a task has a harness error or suspicious transcript, rerun just that task with <code>--task &lt;id&gt; --rerun</code>. If several tasks failed, use <code>--rerun-failed</code>.</p>
+      <div class="code-block"><pre><code># First full Q4 run
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1
+
+# Resume after crash
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1
+
+# Rerun a suspicious task only
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1 --task calendar_create --rerun
+
+# Rebuild aggregate outputs
+pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble</code></pre></div>
+
+      <h3>Publishing Requirements</h3>
+      <p>Publish only post-template results that have been inspected and evaluated. The benchmark page supports a model-level view, clickable task rows, and a full transcript viewer. Tool calls, tool results, and thinking blocks are shown inline with the conversation and collapsed by default so readers can inspect the evidence without losing the dialogue flow.</p>
 
       <h3>Metadata Captured</h3>
       <ul class="setup-list">

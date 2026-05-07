@@ -43,6 +43,24 @@ def load_benchmark_results():
     results = []
     if not RESULTS_DIR.exists():
         return results
+
+    # New agentic benchmark schema: benchmark-results/runs/<run-id>/results.json
+    runs_dir = RESULTS_DIR / "runs"
+    if runs_dir.exists():
+        for d in sorted(runs_dir.iterdir()):
+            rfile = d / "results.json"
+            if not rfile.exists():
+                continue
+            try:
+                with open(rfile) as f:
+                    data = json.load(f)
+                if "metadata" in data and "config" in data and "tasks" in data:
+                    results.append(normalize_agentic_benchmark_result(data, d.name))
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+
+    # Legacy prompt-response schema. Kept for local inspection only. Frank's current
+    # benchmark publication path uses the agentic schema above.
     for d in sorted(RESULTS_DIR.iterdir()):
         rfile = d / "results.json"
         if rfile.exists():
@@ -57,6 +75,110 @@ def load_benchmark_results():
             except (json.JSONDecodeError, KeyError):
                 pass
     return results
+
+
+def normalize_agentic_benchmark_result(data, run_id):
+    metadata = data.get("metadata", {})
+    config = data.get("config", {})
+    eval_dir = RESULTS_DIR / "evaluations" / run_id
+    normalized_tasks = []
+    total_score = 0
+    total_max = 0
+    completed = 0
+    elapsed_values = []
+    speed_values = []
+
+    for tr in data.get("tasks", []):
+        task = tr.get("task", {})
+        task_id = task.get("id", "unknown")
+        evaluation = {}
+        efile = eval_dir / f"{task_id}.json"
+        if efile.exists():
+            try:
+                with open(efile) as f:
+                    evaluation = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                evaluation = {}
+        judge = evaluation.get("llmJudge") or {}
+        max_score = int(
+            judge.get("maxScore")
+            or evaluation.get("maxScore")
+            or task.get("grading", {}).get("maxScore")
+            or 0
+        )
+        score = int(judge.get("score") or 0)
+        pct = round((score / max_score) * 100) if max_score else 0
+        status = tr.get("completionStatus", "error")
+        if status == "completed":
+            completed += 1
+        elapsed = tr.get("elapsedMs")
+        if isinstance(elapsed, (int, float)):
+            elapsed_values.append(elapsed)
+        speed = tr.get("tokensPerSecond")
+        if isinstance(speed, (int, float)) and speed > 0:
+            speed_values.append(speed)
+        total_score += score
+        total_max += max_score
+        last_assistant = ""
+        for turn in tr.get("conversation", []):
+            if turn.get("role") == "assistant" and turn.get("content"):
+                last_assistant = turn.get("content", "")
+        normalized_tasks.append({
+            "id": task_id,
+            "name": task.get("name", task_id),
+            "description": task.get("description", ""),
+            "category": task.get("category", ""),
+            "difficulty": task.get("difficulty", "medium"),
+            "prompt": task.get("prompt", ""),
+            "output": last_assistant,
+            "conversation": tr.get("conversation", []),
+            "score": score,
+            "maxScore": max_score,
+            "percentage": pct,
+            "passed": status == "completed" and (not max_score or pct >= 60),
+            "method": "LLM judge" if judge else "pending judge",
+            "details": judge.get("reasoning", "No judge evaluation recorded yet."),
+            "tokensPerSecond": speed,
+            "elapsedMs": elapsed,
+            "failureMode": "" if status == "completed" else status,
+            "toolCallCount": tr.get("toolCallCount", 0),
+            "toolsUsed": tr.get("toolsUsed", []),
+        })
+
+    hw = metadata.get("hardware", {})
+    cpu = hw.get("cpu", {})
+    ram = hw.get("ram", {})
+    gpu = hw.get("gpu", {})
+    total_ram = ram.get("totalBytes")
+    ram_label = f"{round(total_ram / (1024 ** 3))}GB" if isinstance(total_ram, (int, float)) else "Unknown"
+    total_time = data.get("summary", {}).get("totalTimeMs")
+    if not isinstance(total_time, (int, float)):
+        total_time = sum(elapsed_values) if elapsed_values else None
+    median_speed = None
+    if speed_values:
+        ordered = sorted(speed_values)
+        median_speed = ordered[len(ordered) // 2]
+
+    return {
+        "model": metadata.get("model") or config.get("model") or "unknown",
+        "backend": config.get("backend", "ollama"),
+        "timestamp": metadata.get("startedAt", ""),
+        "hardware": {
+            "cpu": cpu.get("model", "Unknown"),
+            "ram": ram_label,
+            "gpu": gpu.get("name", "None detected"),
+        },
+        "summary": {
+            "percentage": round((total_score / total_max) * 100) if total_max else 0,
+            "passedCount": completed,
+            "failedCount": max(0, len(normalized_tasks) - completed),
+            "medianTokensPerSecond": median_speed,
+            "totalTimeMs": total_time,
+            "failureModes": {},
+        },
+        "tasks": normalized_tasks,
+        "_dir": run_id,
+    }
 
 
 def load_agent_benchmark_results():
@@ -349,6 +471,38 @@ def generate_benchmark_table_rows(results):
     return "\n".join(rows)
 
 
+def render_agent_conversation(conversation):
+    if not conversation:
+        return ""
+    blocks = []
+    labels = {
+        "user": "User",
+        "assistant": "Assistant",
+        "thinking": "Thinking",
+        "tool_call": "Tool call",
+        "tool_result": "Tool result",
+        "system": "System",
+    }
+    for turn in conversation:
+        role = turn.get("role", "assistant")
+        label = labels.get(role, role.replace("_", " ").title())
+        content = turn.get("content", "")
+        if role == "tool_call":
+            tool = turn.get("toolName") or "tool"
+            label = f"Tool call: {tool}"
+            args = turn.get("toolArgs")
+            if args:
+                content = json.dumps(args, indent=2, sort_keys=True)
+            blocks.append(f"""<details class="conv-turn conv-tool"><summary>{html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
+        elif role == "tool_result":
+            blocks.append(f"""<details class="conv-turn conv-tool-result"><summary>{html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
+        elif role == "thinking":
+            blocks.append(f"""<details class="conv-turn conv-thinking"><summary>{html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
+        else:
+            blocks.append(f"""<div class="conv-turn conv-{html_escape(role)}"><div class="conv-label">{html_escape(label)}</div><pre class="conv-block">{html_escape(content)}</pre></div>""")
+    return "\n".join(blocks)
+
+
 def generate_task_detail_rows(tasks, model_id=""):
     rows = []
     for idx, t in enumerate(tasks):
@@ -372,7 +526,12 @@ def generate_task_detail_rows(tasks, model_id=""):
         score_pct = t.get("percentage", 0)
         judge_class = "judge-good" if score_pct >= 90 else ("judge-mid" if score_pct >= 60 else "judge-bad")
 
-        if not output_text:
+        conversation = t.get("conversation", [])
+        conversation_block = render_agent_conversation(conversation)
+
+        if conversation_block:
+            output_block = f'<div class="conv-thread">{conversation_block}</div>'
+        elif not output_text:
             output_block = '<div class="conv-empty">Model response was not captured for this run. Re-run the benchmark to capture full conversations.</div>'
         else:
             output_block = f'<pre class="conv-block">{html_escape(output_text)}</pre>'
@@ -401,7 +560,7 @@ def generate_task_detail_rows(tasks, model_id=""):
     </div>
     <p class="conv-desc">{html_escape(description)}</p>
     <div class="conv-section"><div class="conv-label">PROMPT</div><pre class="conv-block conv-prompt">{html_escape(prompt_text)}</pre></div>
-    <div class="conv-section"><div class="conv-label">MODEL RESPONSE</div>{output_block}</div>
+    <div class="conv-section"><div class="conv-label">FULL TRANSCRIPT</div>{output_block}</div>
     <div class="conv-section"><div class="conv-label">JUDGE EVALUATION ({t['score']}/{t['maxScore']})</div>{judge_block}</div>
   </td>
 </tr>""")
@@ -1679,6 +1838,16 @@ gemmaclaw configure</code></pre></div>
     return page_template("Setup Guide", body, active_page="setup.html")
 
 def generate_self_hosting_page(hw_cards):
+    if not hw_cards:
+        hw_cards = """<div class="hw-card">
+  <div class="hw-card-header">
+    <div class="hw-specs">
+      <div class="hw-spec"><strong>Benchmark matrix:</strong> being rebuilt from post-template agentic runs.</div>
+      <div class="hw-spec"><strong>Status:</strong> old result artifacts were removed so stale recommendations are not shown.</div>
+    </div>
+  </div>
+  <p class="hw-recommendation">Run <code>gemmaclaw setup</code> for local auto-detection today. The hardware matrix will repopulate after the Q4-first benchmark rerun and evaluation pass.</p>
+</div>"""
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Self-Hosting Guide</div>
     <section id="hosting">
       <h2>Gemma4 Self-Hosting Guide</h2>
@@ -1741,18 +1910,18 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
     <section id="benchmarks">
       <h2>Benchmark Results by Size Class</h2>
-      <p>All models are tested on the same 15-task suite covering instruction following, reasoning, data extraction, safety, and coding. Models are grouped by size class with hardware requirements per tier. Click any model to expand its task breakdown, then click any task row to see the full prompt, the model's response, and the LLM judge's evaluation.</p>
+      <p>All models are tested on the same 22-task agent suite covering email, calendar, memory, security, error recovery, coordination, and data analysis workflows. Models are grouped by size class with hardware requirements per tier. Click any model to expand its task breakdown, then click any task row to see the full prompt, full transcript, inline collapsed tool calls, inline collapsed thinking, and LLM judge evaluation.</p>
       {size_class_html}
       <div id="model-details">{model_details}</div>
     </section>
     <section id="task-explanations">
       <h2>What We Test</h2>
-      <p>Each benchmark run evaluates the model on 15 tasks across 5 categories. Here is what each task measures and an example prompt.</p>
+      <p>Each benchmark run evaluates the model on the same agentic task set. Here is what each task measures and an example prompt.</p>
       {task_explanations_html}
     </section>
     <section id="methodology">
       <h2>Methodology</h2>
-      <p>Each task is scored either deterministically (exact-match or rule-based) or by an LLM judge that grades against a per-task rubric (max score reflects rubric weight, typically 5 for easy, 10 for medium, 15 for hard). A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second of completion output, recorded per task and aggregated as median over the run. Total time covers the full 15-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. All runs are deterministic at temperature 0 unless a task explicitly requires creative generation.</p>
+      <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full 22-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
     </section>"""
     scripts = """
     document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {
@@ -1893,7 +2062,7 @@ def generate_benchmarking_page():
     <section>
       <h2>Running Gemmaclaw Benchmarks</h2>
       <p>Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as AI agents with real tool use. The harness dispatches 22 complex agent tasks, captures full conversations including tool calls, and saves structured results ready for PR submission.</p>
-      <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). The model and backend are auto-detected from your hardware, or you can specify them explicitly.</p>
+      <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). Results are saved after every task, so an interrupted run can resume without losing completed tests.</p>
 
       <h3>Quick Start</h3>
       <div class="code-block"><pre><code># 1. Set up gemmaclaw (auto-detects hardware, installs backend, pulls model)
@@ -1908,11 +2077,16 @@ pnpm benchmark agent
 # 4. Run with a specific model
 pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
 
-# 5. Run a single task (useful for debugging or rerunning failures)
-pnpm benchmark agent --task email_triage
+# 5. Resume a run, rerun one task, or rerun failed tasks only
+pnpm benchmark agent --run-id q4-rtx3090-v1
+pnpm benchmark agent --run-id q4-rtx3090-v1 --task email_triage --rerun
+pnpm benchmark agent --run-id q4-rtx3090-v1 --rerun-failed
 
-# 6. Mock mode: test the harness without a real model (instant)
-pnpm benchmark agent --mock</code></pre></div>
+# 6. Rebuild aggregate results from saved per-task artifacts
+pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble
+
+# 7. Mock mode: test the harness without a real model (instant)
+pnpm benchmark agent --mock --run-id smoke</code></pre></div>
 
       <h3>Backends</h3>
       <p>The benchmark supports two inference backends:</p>
@@ -1941,6 +2115,10 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking level (off, low, medium, high)</td></tr>
         <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name)</td></tr>
         <tr><td><code>--task &lt;id&gt;</code></td><td>(all tasks)</td><td>Run a single task by exact id</td></tr>
+        <tr><td><code>--run-id &lt;id&gt;</code></td><td>model + timestamp</td><td>Stable result directory for resume and targeted reruns</td></tr>
+        <tr><td><code>--rerun</code></td><td>off</td><td>Rerun selected tasks even if matching per-task artifacts exist</td></tr>
+        <tr><td><code>--rerun-failed</code></td><td>off</td><td>Rerun only tasks whose saved status is timeout or error</td></tr>
+        <tr><td><code>--assemble</code></td><td>off</td><td>Rebuild <code>results.json</code>, <code>RESULTS.md</code>, and evaluation stubs from saved task artifacts</td></tr>
         <tr><td><code>--ollama-url &lt;url&gt;</code></td><td>http://127.0.0.1:11434</td><td>Ollama API URL</td></tr>
         <tr><td><code>--llama-cpp-url &lt;url&gt;</code></td><td>http://127.0.0.1:8080</td><td>llama.cpp server URL</td></tr>
         <tr><td><code>--task-timeout &lt;sec&gt;</code></td><td>600</td><td>Max seconds per task (0 = unlimited)</td></tr>
@@ -1967,20 +2145,45 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <li><strong>Seed mock tools:</strong> Before each task, a realistic workspace is created with emails, calendar events, contacts, and tasks. Professional/workplace themed.</li>
         <li><strong>Isolated environment:</strong> Each task runs in a fresh gemmaclaw home directory. No state leaks between tasks.</li>
         <li><strong>Dispatch task:</strong> The task prompt is sent via <code>gemmaclaw agent --local</code>. The agent reads emails, checks calendars, creates tasks, sends emails using mock tools.</li>
-        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, reasoning step, and follow-up action.</li>
-        <li><strong>Save results:</strong> Rich metadata (hardware, model, quant, git SHA, Ollama model info) plus per-task transcripts and evaluation stubs.</li>
+        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, thinking block, and follow-up action.</li>
+        <li><strong>Save per-task results:</strong> After each task, the harness writes <code>tasks/&lt;task-id&gt;/result.json</code>, a transcript, and copied session/trajectory logs when available.</li>
+        <li><strong>Resume or rerun:</strong> A later command with the same <code>--run-id</code> reuses matching task artifacts. Add <code>--rerun</code> for a selected task or <code>--rerun-failed</code> for only failures.</li>
         <li><strong>Evaluation (separate step):</strong> Results are reviewed against grading criteria. Scores are added to the evaluation files and published to the site.</li>
       </ol>
 
       <h3>Results Directory</h3>
       <div class="code-block"><pre><code>benchmark-results/
   runs/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
+    manifest.json        # Run id, task list, config hash, metadata
     metadata.json        # Hardware, model, quant, config, git SHA
     results.json         # Per-task conversations, tool calls, stats
+    tasks/
+      &lt;task-id&gt;/
+        result.json      # Atomic per-task artifact used for resume
+        transcript.txt   # Human-readable transcript for this task
+        session.jsonl    # Raw OpenClaw session log, when available
+        trajectory.jsonl # Raw OpenClaw trajectory log, when available
     transcripts/         # Human-readable per-task transcripts
     RESULTS.md           # Markdown summary
   evaluations/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
     &lt;task-id&gt;.json       # Grading criteria + evaluation scores</code></pre></div>
+
+      <h3>Crash Recovery and Targeted Reruns</h3>
+      <p>The harness treats each task as an independent artifact. If a process dies halfway through a 22-task run, keep the same <code>--run-id</code> and run the command again. Completed task artifacts with the same config hash are skipped, while missing tasks continue. If a task has a harness error or suspicious transcript, rerun just that task with <code>--task &lt;id&gt; --rerun</code>. If several tasks failed, use <code>--rerun-failed</code>.</p>
+      <div class="code-block"><pre><code># First full Q4 run
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1
+
+# Resume after crash
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1
+
+# Rerun a suspicious task only
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1 --task calendar_create --rerun
+
+# Rebuild aggregate outputs
+pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble</code></pre></div>
+
+      <h3>Publishing Requirements</h3>
+      <p>Publish only post-template results that have been inspected and evaluated. The benchmark page supports a model-level view, clickable task rows, and a full transcript viewer. Tool calls, tool results, and thinking blocks are shown inline with the conversation and collapsed by default so readers can inspect the evidence without losing the dialogue flow.</p>
 
       <h3>Metadata Captured</h3>
       <ul class="setup-list">
@@ -2430,6 +2633,23 @@ CSS = """
       margin: 0 0 1rem 0; font-size: 0.95rem;
     }
     .conv-section { margin: 0.75rem 0; }
+    .conv-thread { display: grid; gap: 0.65rem; }
+    .conv-turn { margin: 0; }
+    details.conv-turn {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 6px; overflow: hidden;
+    }
+    details.conv-turn summary {
+      cursor: pointer; padding: 0.55rem 0.75rem;
+      font-size: 0.78rem; font-weight: 700; color: var(--fg-soft);
+      background: var(--bg-elev-2);
+    }
+    details.conv-turn .conv-block {
+      border-left: 0; border-top: 1px solid var(--border); border-radius: 0;
+    }
+    .conv-thinking summary { color: #7a5cff; }
+    .conv-tool summary { color: var(--accent); }
+    .conv-tool-result summary { color: var(--muted); }
     .conv-label {
       font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
       color: var(--muted); margin-bottom: 0.3rem;
