@@ -700,10 +700,18 @@ export async function dispatchTask(
     const promptFile = path.join(benchHome, "task-prompt.txt");
     fs.writeFileSync(promptFile, task.prompt);
 
+    const cidFile = path.join(os.tmpdir(), `docker-cid-${sessionId}.txt`);
+    // Remove any stale cidfile from a previous interrupted run
+    try {
+      fs.unlinkSync(cidFile);
+    } catch {}
+
     const dockerArgs = [
       "docker",
       "run",
       "--rm",
+      "--cidfile",
+      cidFile,
       "--add-host",
       "host.docker.internal:host-gateway",
       "-v",
@@ -770,6 +778,10 @@ export async function dispatchTask(
       if (stderr) {
         fs.appendFileSync(logFile, `STDERR:\n${stderr}\n\n`);
       }
+      // Clean up cidfile on normal exit
+      try {
+        fs.unlinkSync(cidFile);
+      } catch {}
     });
     child.on("error", (e: Error) => {
       childError = e;
@@ -836,6 +848,27 @@ export async function dispatchTask(
           await new Promise((r) => setTimeout(r, 100));
         }
       }
+      // Killing the docker client process does not stop the container — the
+      // Docker daemon keeps it running. Force-stop the container via the
+      // cidfile so the next task isn't blocked by a zombie container using GPU.
+      try {
+        const cid = fs.readFileSync(cidFile, "utf-8").trim();
+        if (cid) {
+          try {
+            execSync(`docker stop -t 5 ${cid}`, { timeout: 10_000 });
+          } catch {}
+          try {
+            execSync(`docker rm -f ${cid}`, { timeout: 5_000 });
+          } catch {}
+          fs.appendFileSync(
+            logFile,
+            `[${new Date().toISOString()}] Docker container stopped: ${cid}\n`,
+          );
+        }
+      } catch {}
+      try {
+        fs.unlinkSync(cidFile);
+      } catch {}
     };
 
     // Idle threshold while child is still running: tolerate model thinking
