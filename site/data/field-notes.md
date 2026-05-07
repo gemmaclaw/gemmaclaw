@@ -1,8 +1,14 @@
-## Field Notes — 2026-05-06
+## Field Notes — 2026-05-07
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
-Curated from the latest Gemma-mentioning posts (16 new or updated since 2026-05-05, 96 total) and their top comment threads.
+Curated from the latest Gemma-mentioning posts (17 new or updated since 2026-05-06, 100 total) and their top comment threads.
 Confidence is **medium** unless noted, since this is community signal rather than a controlled benchmark.
+
+_May 7 re-check, 2026-05-07 01:00 EDT:_ two new developments from this sweep that add meaningful signal.
+
+**Community use-case survey crystallizes where Gemma 4 wins.** A widely-upvoted discussion thread (94 score, 127 comments, May 6) asked practitioners directly what they use Gemma 4 for versus Qwen 3.6. The answers converge on a clear pattern: Gemma 4 is the preferred choice for vision and OCR ("Gemma trounces Qwen for handwriting analysis and general vision tasks"), bug tracing ("Gemma4 is really, really, really good at tracing bugs — much more consistent and reliable for finding the actual root cause"), translation especially Japanese and smaller European languages (independently confirmed across multiple reporters), creative writing, tone-sensitive text, and RAG over structured documents. Qwen 3.6 is preferred for agentic coding, multi-turn tool use, and long agentic loops. The niche-split that has been building across weeks of field notes is now directly confirmed from first-person practitioner reports. One practitioner summarizes: "For things I want to go fast, don't require accuracy or rely mostly on the vision encoder: Gemma4-26B-A4B. For where accuracy and nuance are important: Gemma4-31B. I prefer Qwen3.6 for anything programming or toolcalling related." The survey also confirms that translation quality holds at an unusually high bar: Gemma 4 is rated best open-weight option for Japanese→English, with one commenter noting it is "entirely undisputed" for open models on translation tasks. ([source](https://reddit.com/r/LocalLLaMA/comments/1t4zca8), 94 score, 127 comments)
+
+**Prompt injection defense: Gemma 4 E4B jumps from 21% to 100%.** A benchmark study (6100+ tests across 15 models, 7 attack types) found that Gemma 4 E4B went from 21.6% to 100% defense rate when the untrusted input was wrapped in a long random delimiter and the model was explicitly told not to execute injected instructions. This was the largest absolute improvement of any tested model (+78.4 percentage points) and the only model to reach a perfect score. Tested attack types included role hijack, authority claims, and fake delimiters. The benchmark used hand-crafted payloads rather than SOTA adversarial search, so the defense rate may be lower against gradient-based attacks. Practical takeaway for RAG and web-document pipelines: the delimiter + strict-prompt defense is a high-ROI hardening step for Gemma 4 deployments that process untrusted external content. ([source](https://reddit.com/r/LocalLLaMA/comments/1t47z4q), 24 score)
 
 _Morning re-check, 2026-05-02 08:30 EDT:_ a follow-up sweep against the past 24 hours of r/LocalLLaMA confirmed three additional posts worth recording. A first-hand AMD Radeon 9060 XT 16GB report (eGPU on a 7840HS mini-PC) lands the 24B A4B IQ4_NL variant at 25.9 tok/s with KV cache at q8_0 and a small 256-token target. More importantly, two independent posts within fourteen hours documented an emerging "zombie loops" failure mode on both Gemma 4 and Qwen 3.6 with quantized KV cache during thinking mode. The convergent expert reading is that q4_0 KV quantization accumulates drift across hundreds of internal reasoning tokens until the model falls into a repetition attractor. This pattern is now strong enough to call out as a known limit (see below).
 
@@ -127,6 +133,9 @@ The most relevant Gemma-mentioning posts driving this update, with the newest fi
 - [Speculative decoding with Gemma-4-31B + Gemma-4-E2B](https://reddit.com/r/LocalLLaMA/comments/1sw782p)
 - [Gemma-4-E2B's safety filters make it unusable for emergencies](https://reddit.com/r/LocalLLaMA/comments/1sr35pk)
 
-The full set of 97 community reports lives in the Community Reports section above, filterable by hardware category and search.
+- [What do you use Gemma 4 for?](https://reddit.com/r/LocalLLaMA/comments/1t4zca8) (May 6, 2026, 94 score, 127 comments — use-case survey: vision, translation, bug tracing vs Qwen)
+- [Prompt injection benchmark: delimiter + strict prompt](https://reddit.com/r/LocalLLaMA/comments/1t47z4q) (May 5, 2026, 24 score — Gemma 4 E4B 21%→100% defense rate)
 
-_Last updated: 2026-05-06 (May 6 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+The full set of 100 community reports lives in the Community Reports section above, filterable by hardware category and search.
+
+_Last updated: 2026-05-07 (May 7 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
