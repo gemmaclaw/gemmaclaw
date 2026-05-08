@@ -7,7 +7,7 @@ const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";
 export function parseGeminiAuth(apiKey: string): { headers: Record<string, string> } {
   if (apiKey === GCP_VERTEX_CREDENTIALS_MARKER) {
     try {
-      const token = execSync("gcloud auth print-access-token", {
+      const token = execSync("gcloud auth application-default print-access-token", {
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
       }).trim();
@@ -19,7 +19,7 @@ export function parseGeminiAuth(apiKey: string): { headers: Record<string, strin
       };
     } catch (e) {
       // In case gcloud fails, we log it and return empty headers (which will likely result in a 401).
-      console.error("Failed to resolve Vertex AI credentials via gcloud:", e);
+      console.error("Failed to resolve Vertex AI credentials via gcloud application-default:", e);
     }
   }
 
