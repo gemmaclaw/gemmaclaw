@@ -28,6 +28,7 @@ import process from "node:process";
 import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/benchmark-gemma.js";
 import { defaultRuntime } from "../../runtime.js";
 import { detectHardware } from "../provision/hardware.js";
+import { evaluateAgentBenchmarkRun, type AgentJudgeProvider } from "./agent-evaluator.js";
 import {
   assembleAgentBenchmarkRun,
   autoSelectModel,
@@ -71,6 +72,14 @@ function parseArgs(argv: string[]) {
       opts.rerunFailed = true;
     } else if (arg === "--assemble") {
       opts.assemble = true;
+    } else if (arg === "--evaluate") {
+      opts.evaluate = true;
+    } else if (arg === "--force-evaluate") {
+      opts.forceEvaluate = true;
+    } else if (arg === "--include-raw-judge-response") {
+      opts.includeRawJudgeResponse = true;
+    } else if (arg === "--judge-provider" && args[i + 1]) {
+      opts.judgeProvider = args[++i]!;
     } else if (arg === "--context-length" && args[i + 1]) {
       opts.contextLength = args[++i]!;
     } else if (arg === "--gpu-layers" && args[i + 1]) {
@@ -136,6 +145,9 @@ Agent Mode Options:
   --rerun                Force rerun of selected tasks into the same run id
   --rerun-failed         Rerun only selected tasks whose saved result failed or timed out
   --assemble             Rebuild aggregate results from saved per-task artifacts
+  --evaluate             Run LLM judge scoring for a saved run id
+  --force-evaluate       Replace existing LLM judge scores for that run
+  --judge-provider <id>  Judge provider (openai)
   --task-timeout <sec>   Max seconds per task, 0=unlimited (default: 600)
   --idle-timeout <sec>   Seconds of idle before task considered done (default: 30)
   --judge-model <name>   Model for LLM judge (default: same as test model)
@@ -165,6 +177,7 @@ Examples:
   pnpm benchmark agent --run-id q6k-v1 --task email_triage --rerun
   pnpm benchmark agent --run-id q6k-v1 --rerun-failed
   pnpm benchmark agent --run-id q6k-v1 --assemble    # Rebuild RESULTS.md/results.json
+  pnpm benchmark agent --run-id q6k-v1 --evaluate --judge-model gpt-5.5
   pnpm benchmark agent --filter security             # Run only security tasks
   pnpm benchmark agent --gateway-url http://192.168.1.50:3001  # Remote gateway
   pnpm benchmark agent list                          # List all tasks
@@ -196,6 +209,29 @@ function listAgentTasks(): void {
 async function runAgentMode(opts: Record<string, string | boolean>): Promise<void> {
   if (opts.list) {
     listAgentTasks();
+    return;
+  }
+
+  if (opts.evaluate) {
+    const runId = opts.runId as string | undefined;
+    if (!runId) {
+      throw new Error("--run-id is required with --evaluate");
+    }
+    const judgeProviderInput = (opts.judgeProvider as string | undefined) ?? "openai";
+    if (judgeProviderInput !== "openai") {
+      throw new Error(`Unsupported judge provider: ${judgeProviderInput}`);
+    }
+    const provider: AgentJudgeProvider = judgeProviderInput;
+    const model = (opts.judgeModel as string | undefined) ?? "gpt-5.5";
+    const outputDir = (opts.outputDir as string) ?? "benchmark-results";
+    await evaluateAgentBenchmarkRun({
+      outputDir,
+      runId,
+      provider,
+      model,
+      force: Boolean(opts.forceEvaluate),
+      includeRaw: Boolean(opts.includeRawJudgeResponse),
+    });
     return;
   }
 

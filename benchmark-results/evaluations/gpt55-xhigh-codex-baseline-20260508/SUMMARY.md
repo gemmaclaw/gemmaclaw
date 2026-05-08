@@ -20,6 +20,30 @@ The benchmark completed all 28 agent tasks with no harness errors and no timeout
 | Tool calls                  |     373 |
 | Average tool calls per task |    13.3 |
 
+## LLM Judge Score
+
+Full LLM scoring was added in this evaluation pass using `openai/gpt-5.5` as the judge. The
+machine-readable aggregate is `summary.json`; the per-task rubric results are stored in each
+task's sibling JSON file under `llmJudge`.
+
+| Metric       |       Value |
+| ------------ | ----------: |
+| Scored tasks |     28 / 28 |
+| Passed tasks |          28 |
+| Failed tasks |           0 |
+| Total score  |   621 / 648 |
+| Percentage   |         96% |
+
+Lowest-scoring passed tasks:
+
+| Task                             | Score     | Notes |
+| -------------------------------- | --------: | ----- |
+| Multi-Source Data Reconciliation | 21/30     | Passed at 70%; judge noted incomplete reconciliation detail. |
+| Log Event to Memory              | 6/8       | Passed at 75%; judge noted minor missing context. |
+| Email Inbox Summary              | 8/10      | Passed at 80%; judge noted prioritization was useful but not exhaustive. |
+| Comprehensive Weekly Action Plan | 30/35     | Passed at 86%; judge noted repeated actions and some inefficiency. |
+| Multi-Meeting Scheduling         | 22/25     | Passed at 88%; judge noted minor scheduling completeness issues. |
+
 Difficulty coverage:
 
 | Difficulty | Tasks |
