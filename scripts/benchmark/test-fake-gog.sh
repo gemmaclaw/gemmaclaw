@@ -170,6 +170,10 @@ sent="$(run_gog gmail send --to maya@acme-corp.dev --subject 'Client Visit' --bo
 assert_contains "$sent" "sent" "gmail send returns sent message"
 out="$(run_gog gmail messages search 'in:sent Client' --json)"
 assert_eq "$(printf '%s' "$out" | json_get 'len(data)')" "1" "gmail send persists in sent search"
+sent_no_recipient="$(run_gog gmail send --subject 'Schedule follow-up' --body 'No recipient yet.' --json)"
+assert_contains "$sent_no_recipient" "sent" "gmail send without recipient is persisted for draft-like benchmark flows"
+out="$(run_gog gmail messages search 'from:alex subject:Schedule' --json)"
+assert_eq "$(printf '%s' "$out" | json_get 'len(data)')" "1" "gmail search handles sent messages with null recipient fields"
 help_out="$(run_gog gmail --help)"
 assert_contains "$help_out" "fake-gog help" "gmail --help returns help text"
 set +e

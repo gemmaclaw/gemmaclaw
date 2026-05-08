@@ -17,7 +17,7 @@
  *   pnpm benchmark agent --model gemma4:31b # Specific model
  *   pnpm benchmark agent --filter email     # Filter by task id/name
  *   pnpm benchmark agent --mock             # Mock mode (no real model)
- *   pnpm benchmark agent --thinking high    # Set thinking level
+ *   pnpm benchmark agent --thinking xhigh   # Set thinking level
  *   pnpm benchmark agent --gateway-url http://remote:3001  # Remote gateway
  *   pnpm benchmark agent --task email_triage  # Run single task by id
  *   pnpm benchmark agent --quant Q4_K_M     # Record quantization level
@@ -31,6 +31,7 @@ import { detectHardware } from "../provision/hardware.js";
 import {
   assembleAgentBenchmarkRun,
   autoSelectModel,
+  isAgentBackendType,
   runAgentBenchmark,
   type AgentBenchmarkConfig,
 } from "./agent-runner.js";
@@ -123,7 +124,8 @@ Commands:
 Agent Mode Options:
   --model <name>         Model to test (default: gemma3:4b)
   --quant <level>        Quantization level to record (e.g. Q4_K_M, Q8_0, FP16)
-  --thinking <level>     Thinking/reasoning level (off, low, medium, high)
+  --backend <type>       Backend to test (ollama, llama-cpp, openai-codex)
+  --thinking <level>     Thinking/reasoning level (off, low, medium, high, xhigh)
   --gateway-url <url>    Gemmaclaw gateway URL (default: http://localhost:3001)
   --ollama-url <url>     Ollama API URL (default: http://127.0.0.1:11434)
   --filter <text>        Run only tasks matching text (id, name, category, difficulty)
@@ -158,6 +160,7 @@ Sandbox Options:
 Examples:
   pnpm benchmark agent                              # Run all agentic tasks with default model
   pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
+  pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking xhigh
   pnpm benchmark agent --run-id q6k-v1               # Resume an interrupted run
   pnpm benchmark agent --run-id q6k-v1 --task email_triage --rerun
   pnpm benchmark agent --run-id q6k-v1 --rerun-failed
@@ -200,7 +203,11 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
 
   // Auto-select model and backend if not specified
   const autoSelected = autoSelectModel(hardware);
-  const backend = ((opts.backend as string) ?? autoSelected.backend) as "ollama" | "llama-cpp";
+  const backendInput = (opts.backend as string | undefined) ?? autoSelected.backend;
+  if (!isAgentBackendType(backendInput)) {
+    throw new Error(`Unsupported agent benchmark backend: ${backendInput}`);
+  }
+  const backend = backendInput;
   const model = (opts.model as string) ?? autoSelected.model;
 
   const config: AgentBenchmarkConfig = {
@@ -230,9 +237,16 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   console.log("  Gemmaclaw Agent Benchmark");
   console.log("========================================\n");
   console.log(`Model:    ${config.model}${config.quant ? ` (${config.quant})` : ""}`);
+  console.log(`Backend:  ${config.backend}`);
   console.log(`Thinking: ${config.thinkingLevel ?? "default"}`);
   console.log(`Gateway:  ${config.gatewayUrl}`);
-  console.log(`Ollama:   ${config.ollamaUrl}`);
+  if (config.backend === "openai-codex") {
+    console.log(`Codex:    OAuth app-server`);
+  } else if (config.backend === "llama-cpp") {
+    console.log(`llama.cpp: ${config.llamaCppUrl}`);
+  } else {
+    console.log(`Ollama:   ${config.ollamaUrl}`);
+  }
   console.log(`GPU:      ${hardware.gpu.name ?? "not detected"}`);
   console.log(`Output:   ${outputDir}`);
   if (config.mock) {

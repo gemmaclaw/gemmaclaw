@@ -6,9 +6,16 @@ import {
   assembleAgentBenchmarkRun,
   computeConfigHash,
   extractAssistantResponseFromStdout,
+  isAgentBackendType,
   loadTaskArtifacts,
   parseSessionEntry,
+  resolveAgentProviderPrefix,
+  resolveCodexHome,
+  resolveFakeGogBinDir,
+  readOpenAICodexAuthProfilesFromStore,
+  resolveOpenAICodexAuthProfileStoreCandidates,
   writeTaskArtifact,
+  writeBenchmarkWorkspaceFiles,
   type AgentBenchmarkConfig,
   type AgentTaskResult,
   type RunMetadata,
@@ -148,6 +155,82 @@ describe("parseSessionEntry", () => {
     expect(extractAssistantResponseFromStdout(stdout)).toBe(
       '{"person":"Maya Chen","date":"2026-05-08"}',
     );
+  });
+});
+
+describe("benchmark backend resolution", () => {
+  it("maps agent benchmark backends to OpenClaw provider prefixes", () => {
+    expect(resolveAgentProviderPrefix("ollama")).toBe("ollama");
+    expect(resolveAgentProviderPrefix("llama-cpp")).toBe("openai");
+    expect(resolveAgentProviderPrefix("openai-codex")).toBe("openai-codex");
+  });
+
+  it("validates supported benchmark backend names", () => {
+    expect(isAgentBackendType("ollama")).toBe(true);
+    expect(isAgentBackendType("llama-cpp")).toBe(true);
+    expect(isAgentBackendType("openai-codex")).toBe(true);
+    expect(isAgentBackendType("openai")).toBe(false);
+  });
+
+  it("resolves the benchmark fake gog directory from the repository root", () => {
+    expect(resolveFakeGogBinDir("/repo")).toBe(path.join("/repo", "scripts/benchmark/fake-gog"));
+  });
+
+  it("uses CODEX_HOME when present for Codex OAuth lookup", () => {
+    expect(resolveCodexHome({ CODEX_HOME: "/tmp/codex-home" })).toBe("/tmp/codex-home");
+    expect(resolveCodexHome({ CODEX_HOME: "  " })).toContain(".codex");
+  });
+
+  it("allows explicit openai-codex auth profile stores for isolated benchmarks", () => {
+    expect(
+      resolveOpenAICodexAuthProfileStoreCandidates({
+        GEMMACLAW_BENCH_OPENAI_CODEX_AUTH_PROFILES: "/tmp/auth-profiles.json",
+      }),
+    ).toEqual(["/tmp/auth-profiles.json"]);
+  });
+
+  it("copies only openai-codex auth profiles into isolated benchmark homes", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-codex-auth-"));
+    const storePath = path.join(dir, "auth-profiles.json");
+    fs.writeFileSync(
+      storePath,
+      JSON.stringify({
+        version: 1,
+        profiles: {
+          "openai-codex:default": {
+            type: "oauth",
+            provider: "openai-codex",
+            access: "access",
+            refresh: "refresh",
+          },
+          "ollama:default": { type: "token", provider: "ollama", token: "dummy" },
+        },
+      }),
+    );
+
+    expect(readOpenAICodexAuthProfilesFromStore(storePath)).toEqual({
+      "openai-codex:default": {
+        type: "oauth",
+        provider: "openai-codex",
+        access: "access",
+        refresh: "refresh",
+      },
+    });
+  });
+
+  it("writes neutral benchmark workspace context files", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-workspace-context-"));
+
+    writeBenchmarkWorkspaceFiles(dir);
+
+    expect(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf-8")).toContain(
+      "isolated benchmark workspace",
+    );
+    expect(fs.readFileSync(path.join(dir, "TOOLS.md"), "utf-8")).toContain("fake gog");
+    expect(fs.readFileSync(path.join(dir, "IDENTITY.md"), "utf-8")).toContain(
+      "benchmark assistant",
+    );
+    expect(fs.existsSync(path.join(dir, "memory"))).toBe(true);
   });
 });
 
