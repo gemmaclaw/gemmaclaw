@@ -1,10 +1,12 @@
 ## Field Notes — 2026-05-08
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
-Curated from the latest Gemma-mentioning posts (13 new or updated since 2026-05-07, 103 total) and their top comment threads.
+Curated from the latest Gemma-mentioning posts (16 new or updated since 2026-05-07, 106 total) and their top comment threads.
 Confidence is **medium** unless noted, since this is community signal rather than a controlled benchmark.
 
-_May 8 re-check, 2026-05-08 01:00 EDT:_ two new developments from this sweep worth recording.
+_May 8 re-check, 2026-05-08 01:00 EDT:_ three new developments from this sweep worth recording.
+
+**MTP now working in llama.cpp for Gemma 4 — 40% decode speedup on M5 Max.** A community developer (May 8) implemented Multi-Token Prediction for llama.cpp, quantized Google's new Gemma 4 assistant GGUF models, and tested on a MacBook Pro M5 Max. Measured result: 97 tok/s baseline → 138 tok/s with MTP, a 40% speedup. This uses the new Google-released MTP draft models (Gemma-4-26B-A4B-it-assistant) and a patched llama.cpp fork available at [AtomicBot-ai](https://github.com/AtomicBot-ai/atomic-llama-cpp-turboquant); the patch is not yet merged into mainline llama.cpp. Key distinction from the omlx finding (below): this is llama.cpp-based MTP — relevant to Linux and Windows users who cannot use MLX. Commenters note the quality comparison between baseline and MTP outputs used different seeds and temperatures, so "40% faster with identical quality" requires verification at temp=0 with fixed seed; take the exact ratio as approximate. The directional finding (meaningful speedup via MTP on llama.cpp for Gemma 4) is credible given the confirmed mechanism. ([source](https://reddit.com/r/LocalLLaMA/comments/1t6se6r), 95 score, 19 comments)
 
 **MTP confirmed working on Apple Silicon via omlx runtime.** A direct first-hand report (May 7) confirms that the new Google MTP draft models work with the omlx runtime on M1 Max 64GB, nearly doubling decode speed from 11 tok/s to 20+ tok/s at max wattage. Standard MLX (the more widely used Apple Silicon inference library) does not yet support MTP — the omlx runtime is a separate fork-based project. On the technology: MTP only benefits decode (generation) speed, not prefill — prefill processes the full input in parallel by design, so there is nothing to speculate ahead. Commenters clarified a common confusion: some third-party projects advertise "speculative prefill" as a distinct feature, but this involves lossy KV cache population (not mathematically equivalent to standard generation); lossless MTP applies only to the decode phase. For Apple Silicon users: omlx is the current fastest path to Gemma 4 MTP; native MLX support is pending. ([source](https://reddit.com/r/LocalLLaMA/comments/1t6iy5s), 21 score, 22 comments)
 
