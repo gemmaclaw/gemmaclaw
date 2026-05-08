@@ -1,6 +1,7 @@
 import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { CHANNEL_IDS, normalizeChatChannelId } from "../channels/ids.js";
+import { listChannelPluginCatalogEntries } from "../channels/plugins/catalog.js";
 import { withBundledPluginAllowlistCompat } from "../plugins/bundled-compat.js";
 import {
   normalizePluginsConfig,
@@ -903,6 +904,16 @@ function validateConfigObjectWithPluginsBase(
 
   const allowedChannels = new Set<string>(["defaults", "modelByChannel", ...CHANNEL_IDS]);
 
+  const findInstallableChannelCatalogEntry = (channelId: string) => {
+    const normalizedChannelId = normalizeLowercaseStringOrEmpty(channelId);
+    if (!normalizedChannelId) {
+      return undefined;
+    }
+    return listChannelPluginCatalogEntries({ env: opts.env, excludeWorkspace: true }).find(
+      (entry) => normalizeLowercaseStringOrEmpty(entry.id) === normalizedChannelId,
+    );
+  };
+
   if (config.channels && isRecord(config.channels)) {
     for (const key of Object.keys(config.channels)) {
       const trimmed = key.trim();
@@ -918,10 +929,20 @@ function validateConfigObjectWithPluginsBase(
         }
       }
       if (!allowedChannels.has(trimmed)) {
-        issues.push({
+        const channelIssue = {
           path: `channels.${trimmed}`,
           message: `unknown channel id: ${trimmed}`,
-        });
+        };
+        const installCatalogEntry = findInstallableChannelCatalogEntry(trimmed);
+        if (installCatalogEntry) {
+          const pluginId = installCatalogEntry.pluginId ?? installCatalogEntry.id;
+          warnings.push({
+            path: channelIssue.path,
+            message: `channel plugin is not available: ${trimmed} (install or enable plugin "${pluginId}", then run gemmaclaw doctor --fix)`,
+          });
+        } else {
+          issues.push(channelIssue);
+        }
         continue;
       }
 
