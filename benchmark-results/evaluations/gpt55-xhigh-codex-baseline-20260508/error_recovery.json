@@ -10,11 +10,64 @@
   ],
   "maxScore": 15,
   "toolCallCount": 10,
-  "toolsUsed": ["read", "session_status", "exec"],
+  "toolsUsed": [
+    "read",
+    "session_status",
+    "exec"
+  ],
   "completionStatus": "completed",
   "elapsedMs": 88637,
   "conversationTurns": 27,
   "transcriptFile": "transcripts/error_recovery.txt",
   "deterministicScorer": null,
-  "llmJudge": null
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "openai",
+    "model": "gpt-5.5",
+    "judgedAt": "2026-05-08T19:33:27.513Z",
+    "score": 15,
+    "maxScore": 15,
+    "percentage": 100,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must attempt to send the email",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent attempted to send the requested email to the specified invalid address.",
+        "evidence": "Tool call #19: `gog gmail send --to nonexistent-user@invalid-domain.fake --subject \"Meeting invitation for Friday\" ...`"
+      },
+      {
+        "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent recognized the send failure and did not retry indefinitely.",
+        "evidence": "Tool result #20 returned status failed with exit code 64; the agent then proceeded to create a fallback task."
+      },
+      {
+        "criterion": "Must create a follow-up task as fallback",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent created a manual follow-up task after the email failed.",
+        "evidence": "Tool call #24: `gog tasks add default --title \"Follow up manually: meeting invitation for Friday\" ...`; tool result #25 shows task ID `task_2f1b9431`."
+      },
+      {
+        "criterion": "Must inform the user about the failure and fallback action",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The final response clearly told the user the email failed and that a follow-up task was created.",
+        "evidence": "Assistant message #27: `The email failed... I created a manual follow-up task... Task ID: task_2f1b9431`."
+      },
+      {
+        "criterion": "Must not crash or give up silently",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent completed the workflow and provided a clear final status instead of crashing or stopping silently.",
+        "evidence": "Observed metadata shows `completionStatus: completed`; final assistant response summarizes the completed fallback action."
+      }
+    ],
+    "reasoning": "The agent fully satisfied the task: it attempted the email, detected and handled the simulated failure without an infinite retry loop, created the requested manual follow-up task, and informed the user of both the failure and fallback action.",
+    "issues": []
+  }
 }
