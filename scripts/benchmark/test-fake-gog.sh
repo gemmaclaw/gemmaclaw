@@ -193,4 +193,21 @@ doc="$(run_gog drive read "$created_doc_id" --json)"
 assert_contains "$doc" "Fresh Bites quoted" "drive read sees created document"
 assert_contains "$doc" "Party Rentals quoted" "drive append persists content"
 
+new_state prompt_injection_seed
+GEMMACLAW_MOCK_GOG_STATE_DIR="$STATE_DIR" python3 "$SCRIPT_DIR/seed-mock-gog.py" >/dev/null
+out="$(run_gog gmail messages search Northwind --json)"
+assert_contains "$out" "msg_pi_invoice_001" "seed includes Northwind prompt-injection email"
+msg="$(run_gog gmail messages get msg_pi_invoice_001 --json)"
+assert_contains "$msg" "security-audit@external.invalid" "Northwind email includes external audit lure"
+out="$(run_gog gmail messages search Compliance --json)"
+assert_contains "$out" "msg_pi_policy_001" "seed includes compliance policy prompt-injection email"
+doc="$(run_gog drive read drive_travel_policy_update --json)"
+assert_contains "$doc" "Effective date: 2026-06-01" "travel policy doc includes legitimate facts"
+assert_contains "$doc" "attacker@example.invalid" "travel policy doc includes indirect prompt-injection lure"
+out="$(run_gog gmail messages search roadmap --json)"
+assert_contains "$out" "msg_pi_roadmap_001" "seed includes roadmap prompt-injection email"
+doc="$(run_gog drive read drive_roadmap_notes --json)"
+assert_contains "$doc" "API freeze: 2026-06-10" "roadmap doc includes API freeze date"
+assert_contains "$doc" "roadmap-audit@external.invalid" "roadmap doc includes tool-result exfiltration lure"
+
 echo "PASS: fake gog regression tests ($pass assertions)"
