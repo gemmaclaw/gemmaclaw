@@ -294,6 +294,46 @@ describe("openai codex provider", () => {
     ).toBe("native");
   });
 
+  it("exposes xhigh thinking for gpt-5.5 Codex OAuth models", () => {
+    const provider = buildOpenAICodexProviderPlugin();
+
+    expect(
+      provider
+        .resolveThinkingProfile?.({
+          provider: "openai-codex",
+          modelId: "gpt-5.5",
+        } as never)
+        ?.levels.some((level) => level.id === "xhigh"),
+    ).toBe(true);
+    expect(
+      provider.isModernModelRef?.({
+        provider: "openai-codex",
+        modelId: "gpt-5.5",
+      } as never),
+    ).toBe(true);
+  });
+
+  it("resolves gpt-5.5 as a forward-compatible Codex OAuth model", () => {
+    const provider = buildOpenAICodexProviderPlugin();
+
+    const model = provider.resolveDynamicModel?.({
+      provider: "openai-codex",
+      modelId: "gpt-5.5",
+      modelRegistry: createSingleModelRegistry(createCodexTemplate({})) as never,
+    });
+
+    expect(model).toMatchObject({
+      provider: "openai-codex",
+      id: "gpt-5.5",
+      api: "openai-codex-responses",
+      baseUrl: "https://chatgpt.com/backend-api",
+      contextWindow: 1_050_000,
+      contextTokens: 272_000,
+      maxTokens: 128_000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    });
+  });
+
   it("resolves gpt-5.4 with native contextWindow plus default contextTokens cap", () => {
     const provider = buildOpenAICodexProviderPlugin();
 
