@@ -180,7 +180,12 @@ function normalizeToolCallId(id: string): string {
 }
 
 function resolveGoogleModelPath(modelId: string): string {
-  if (modelId.startsWith("models/") || modelId.startsWith("tunedModels/")) {
+  if (
+    modelId.startsWith("models/") ||
+    modelId.startsWith("tunedModels/") ||
+    modelId.startsWith("publishers/") ||
+    modelId.startsWith("projects/")
+  ) {
     return modelId;
   }
   return `models/${modelId}`;

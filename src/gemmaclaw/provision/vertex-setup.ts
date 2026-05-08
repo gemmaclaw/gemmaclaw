@@ -23,6 +23,8 @@ export type VertexConfig = {
   project: string;
   region: string;
   model: string;
+  /** API format: "native" for Gemini API, "openai" for OpenAI-compatible. */
+  apiFormat?: "native" | "openai";
   /** Access token from gcloud (short-lived, refreshed per session). */
   accessToken?: string;
   /** Path to ADC credentials file. */
@@ -39,6 +41,7 @@ export type VertexSetupResult = {
 
 // Default Gemma models available on Vertex AI
 export const VERTEX_GEMMA_MODELS = [
+  { id: "gemma-4-31b-it", display: "Gemma 4 31B IT", params: "31B" },
   { id: "gemma-3-1b-it", display: "Gemma 3 1B IT", params: "1B" },
   { id: "gemma-3-4b-it", display: "Gemma 3 4B IT", params: "4B" },
   { id: "gemma-3-12b-it", display: "Gemma 3 12B IT", params: "12B" },
@@ -129,7 +132,13 @@ export async function testVertexConnection(
  * Returns the config object to merge into openclaw.json.
  */
 export function buildVertexConfig(vertex: VertexConfig): Record<string, unknown> {
-  const baseUrl = `https://${vertex.region}-aiplatform.googleapis.com/v1beta1/projects/${vertex.project}/locations/${vertex.region}/endpoints/openapi`;
+  const isNative = vertex.apiFormat === "native";
+
+  const baseUrl = isNative
+    ? `https://${vertex.region}-aiplatform.googleapis.com/v1/projects/${vertex.project}/locations/${vertex.region}/publishers/google`
+    : `https://${vertex.region}-aiplatform.googleapis.com/v1beta1/projects/${vertex.project}/locations/${vertex.region}/endpoints/openapi`;
+
+  const api = isNative ? "google-generative-ai" : "openai-responses";
 
   return {
     agents: {
@@ -147,7 +156,7 @@ export function buildVertexConfig(vertex: VertexConfig): Record<string, unknown>
             {
               id: vertex.model,
               name: vertex.model,
-              api: "google-generative-ai",
+              api,
             },
           ],
         },
@@ -164,6 +173,7 @@ export async function interactiveVertexSetup(opts?: {
   project?: string;
   region?: string;
   model?: string;
+  apiFormat?: "native" | "openai";
   nonInteractive?: boolean;
 }): Promise<VertexSetupResult> {
   const log = console.log;
@@ -204,10 +214,25 @@ export async function interactiveVertexSetup(opts?: {
   log(`  Project: ${project}`);
 
   // 3. Region
-  const region = opts?.region ?? "us-central1";
+  const region = opts?.region ?? "us-west1";
   log(`  Region: ${region}`);
 
-  // 4. Get access token
+  // 4. API Format
+  let apiFormat = opts?.apiFormat ?? "native";
+  if (!opts?.apiFormat && !opts?.nonInteractive) {
+    log("\nSelect API Protocol:");
+    log("  1) Native Gemini API (google-generative-ai)");
+    log("  2) OpenAI Compatible API (openai-responses)");
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const choice = await rl.question("Choice [1-2] (default: 1): ");
+    rl.close();
+    if (choice.trim() === "2") {
+      apiFormat = "openai";
+    }
+  }
+  log(`  Protocol: ${apiFormat}`);
+
+  // 5. Get access token
   log("Getting access token...");
   let accessToken: string | null = null;
 
@@ -291,6 +316,7 @@ export async function interactiveVertexSetup(opts?: {
       project,
       region,
       model,
+      apiFormat,
       accessToken: accessToken ?? undefined,
       adcPath: adcPath ?? undefined,
     },
@@ -304,6 +330,7 @@ export async function setupVertex(opts: {
   project?: string;
   region?: string;
   model?: string;
+  apiFormat?: "native" | "openai";
 }): Promise<VertexSetupResult> {
   return interactiveVertexSetup({ ...opts, nonInteractive: !process.stdin.isTTY });
 }
