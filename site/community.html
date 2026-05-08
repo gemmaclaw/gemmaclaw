@@ -628,8 +628,11 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-05-07</h2>
-<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (17 new or updated since 2026-05-06, 100 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-05-08</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (13 new or updated since 2026-05-07, 103 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>May 8 re-check, 2026-05-08 01:00 EDT:</em> two new developments from this sweep worth recording.</p>
+<p><strong>MTP confirmed working on Apple Silicon via omlx runtime.</strong> A direct first-hand report (May 7) confirms that the new Google MTP draft models work with the omlx runtime on M1 Max 64GB, nearly doubling decode speed from 11 tok/s to 20+ tok/s at max wattage. Standard MLX (the more widely used Apple Silicon inference library) does not yet support MTP — the omlx runtime is a separate fork-based project. On the technology: MTP only benefits decode (generation) speed, not prefill — prefill processes the full input in parallel by design, so there is nothing to speculate ahead. Commenters clarified a common confusion: some third-party projects advertise &quot;speculative prefill&quot; as a distinct feature, but this involves lossy KV cache population (not mathematically equivalent to standard generation); lossless MTP applies only to the decode phase. For Apple Silicon users: omlx is the current fastest path to Gemma 4 MTP; native MLX support is pending. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t6iy5s" target="_blank" rel="noopener">source</a>, 21 score, 22 comments)</p>
+<p><strong>Prompting sensitivity: Gemma 4 and Qwen 3.5 need different prompting than Qwen 3.6.</strong> A controlled test (May 7) ran two phrasings of the same math-word problem against Gemma 4 31B, Qwen 3.5, and Qwen 3.6 27B — 10 runs each (6 combinations). The headline result: the models respond very differently depending on phrasing, and Qwen 3.6 proved most robust to ambiguous phrasing while Gemma 4 and Qwen 3.5 performed better on the clearer of the two prompts. Key practical takeaway: Gemma 4's accuracy on reasoning tasks is sensitive to prompt clarity. Concise, unambiguous prompts tend to get better results than elaborated prompts that contain implicit assumptions. Quantization also matters: IQ2-quantized Qwen 3.6 underperformed Q8 on the same task, reinforcing the known guidance to prefer higher quants for reasoning workloads. This finding complements the token-efficiency story: Gemma 4 finishes tasks in fewer tokens, but benefits from being asked precisely. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t6bsil" target="_blank" rel="noopener">source</a>, 28 score, 13 comments)</p>
 <p><em>May 7 re-check, 2026-05-07 01:00 EDT:</em> two new developments from this sweep that add meaningful signal.</p>
 <p><strong>Community use-case survey crystallizes where Gemma 4 wins.</strong> A widely-upvoted discussion thread (94 score, 127 comments, May 6) asked practitioners directly what they use Gemma 4 for versus Qwen 3.6. The answers converge on a clear pattern: Gemma 4 is the preferred choice for vision and OCR (&quot;Gemma trounces Qwen for handwriting analysis and general vision tasks&quot;), bug tracing (&quot;Gemma4 is really, really, really good at tracing bugs — much more consistent and reliable for finding the actual root cause&quot;), translation especially Japanese and smaller European languages (independently confirmed across multiple reporters), creative writing, tone-sensitive text, and RAG over structured documents. Qwen 3.6 is preferred for agentic coding, multi-turn tool use, and long agentic loops. The niche-split that has been building across weeks of field notes is now directly confirmed from first-person practitioner reports. One practitioner summarizes: &quot;For things I want to go fast, don't require accuracy or rely mostly on the vision encoder: Gemma4-26B-A4B. For where accuracy and nuance are important: Gemma4-31B. I prefer Qwen3.6 for anything programming or toolcalling related.&quot; The survey also confirms that translation quality holds at an unusually high bar: Gemma 4 is rated best open-weight option for Japanese→English, with one commenter noting it is &quot;entirely undisputed&quot; for open models on translation tasks. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t4zca8" target="_blank" rel="noopener">source</a>, 94 score, 127 comments)</p>
 <p><strong>Prompt injection defense: Gemma 4 E4B jumps from 21% to 100%.</strong> A benchmark study (6100+ tests across 15 models, 7 attack types) found that Gemma 4 E4B went from 21.6% to 100% defense rate when the untrusted input was wrapped in a long random delimiter and the model was explicitly told not to execute injected instructions. This was the largest absolute improvement of any tested model (+78.4 percentage points) and the only model to reach a perfect score. Tested attack types included role hijack, authority claims, and fake delimiters. The benchmark used hand-crafted payloads rather than SOTA adversarial search, so the defense rate may be lower against gradient-based attacks. Practical takeaway for RAG and web-document pipelines: the delimiter + strict-prompt defense is a high-ROI hardening step for Gemma 4 deployments that process untrusted external content. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t47z4q" target="_blank" rel="noopener">source</a>, 24 score)</p>
@@ -658,7 +661,7 @@
 <li><strong>Constrained GPU (8-16 GB VRAM):</strong> Detailed speed benchmarks from an RTX 4070S 12GB user (DDR5 6000MHz, iGPU display offload) show Gemma 4 26B MoE and 31B Dense both runnable with substantial CPU offload. The 12GB club is real: careful config tuning (CUDA 13.1, display offload to iGPU, cache reuse settings) gets 40 t/s on 35B Q6 with system RAM spill. Keep Gemma 4 for prose and Qwen 3.6 for code in this tier. (<a href="https://reddit.com/r/LocalLLaMA/comments/1szziv0" target="_blank" rel="noopener">source</a>)</li>
 <li><strong>AMD consumer GPU (Radeon 9060 XT 16GB, eGPU):</strong> A first-hand report on a 7840HS mini-PC paired with an external Radeon 9060 XT lands the Gemma 4 24B A4B IQ4_NL variant at 25.9 tok/s via llama-server, with KV cache at q8_0 and a small 256-token batch target. The user notes the configuration is usable for OpenCode codebase Q&amp;A. Reply chain confirms 16GB is tight at 128K context and forces partial CPU offload, so for steady-state work expect lower numbers when context fills. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t0kxdw" target="_blank" rel="noopener">source</a>)</li>
 <li><strong>CPU-only (no GPU, DDR4/DDR5):</strong> Gemma 4 26B-A4B MoE is now confirmed to run at 9.25 t/s generation speed on an i5-8500 with 32GB DDR4 RAM — practical for interactive use. The reason: MoE only activates ~4B parameters per token despite 26B total. This makes it comparable to running a true 4B dense model on CPU. Qwen 3.6 27B Dense activates all 27B parameters per token and is ~8x slower on the same hardware — avoid for CPU-only setups. Recommended quant: Q4_K_M to fit comfortably in 32GB. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t4e046" target="_blank" rel="noopener">source</a>)</li>
-<li><strong>Apple Silicon (32-64 GB unified):</strong> The viral Pacman test ran Gemma 4 31B at 27 tok/s on M5 Max 64GB, confirming strong Apple Silicon inference. New as of May 6: MTPLX, a custom MTP inference engine built on a patched MLX fork, demonstrates 2.24x speedup (28 → 63 tok/s) on M5 Max with Qwen 3.6 27B. With official Gemma 4 MTP draft models now released, MTPLX may support Gemma 4 as well — unconfirmed as of this writing. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t0epei" target="_blank" rel="noopener">sources</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1t3zuvy" target="_blank" rel="noopener">MTPLX</a>)</li>
+<li><strong>Apple Silicon (32-64 GB unified):</strong> The viral Pacman test ran Gemma 4 31B at 27 tok/s on M5 Max 64GB, confirming strong Apple Silicon inference. MTP is now confirmed working for Gemma 4 via the omlx runtime: a first-hand M1 Max 64GB report (May 7) measured 11 → 20+ tok/s — roughly doubling decode speed. Standard MLX MTP support is still pending. MTPLX (a separate patched MLX fork) shows 2.24x speedup on Qwen 3.6 27B and claims compatibility with any MTP model. Recommended quant for 31B on 64GB: Q8 or Q6_K. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t0epei" target="_blank" rel="noopener">sources</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1t6iy5s" target="_blank" rel="noopener">omlx MTP</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1t3zuvy" target="_blank" rel="noopener">MTPLX</a>)</li>
 <li><strong>Professional GPUs (RTX 6000 Pro / A6000 Ada, 48-96GB):</strong> The recommendation to use sglang or vLLM over llama.cpp has an important nuance (May 3 update): for a single-user single-request workflow, llama.cpp-based tools like LMStudio are competitive. The vLLM/sglang advantage becomes significant at 4+ concurrent requests, where continuous batching scales throughput meaningfully. On an A6000 Ada running vLLM, one practitioner reports 400-500 tok/s across 8-12 parallel workloads. For single-user interactive use on Windows, LMStudio may be simpler with no real throughput cost. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t19iil" target="_blank" rel="noopener">source</a>)</li>
 </ul>
 <h3>What works</h3>
@@ -678,6 +681,7 @@
 <li><strong>Qwen 3.6 leads on code and agents in the same size band.</strong> Still the dominant community read. For coding agent workflows and long agentic loops, Qwen 3.6 is materially more reliable. But the Pacman test shows Gemma 4 can beat Qwen on one-shot code quality when the task is well-scoped. The gap narrows when you don't need sustained multi-turn tool calling. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t00d2m" target="_blank" rel="noopener">source</a>)</li>
 <li><strong>DFlash is still blocked; MTP is separate and now moving.</strong> These are two distinct paths to faster Gemma 4 inference. DFlash (z-lab) requires a speculative architecture refactor in llama.cpp PR #22105, which remains a draft — ggerganov reportedly wants to unify speculative methods before merging. MTP is independent: official Google MTP draft models released May 5, and llama.cpp PR #22673 is already in review for Gemma 4 MTP support. Expect MTP to land before DFlash. Either path guarantees identical output quality (unlike quantization). (<a href="https://reddit.com/r/LocalLLaMA/comments/1t0s4qv" target="_blank" rel="noopener">source DFlash</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1t4jq6h" target="_blank" rel="noopener">source MTP</a>)</li>
 <li><strong>Fine-tuning Gemma 4 is harder than expected.</strong> A community prediction thread flags that Gemma 4's architecture &quot;seems to be making fine-tuning tricky&quot; and notes that Gemma 4 &quot;didn't really take over the fine-tune crowd.&quot; If you need a fine-tunable base, this is a real friction point to watch. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t14yhr" target="_blank" rel="noopener">source</a>)</li>
+<li><strong>Reasoning accuracy is sensitive to prompt phrasing.</strong> A May 7 controlled test showed Gemma 4 31B performance varying significantly between two different phrasings of the same math-word problem. Qwen 3.6 was more robust to ambiguous phrasing; Gemma 4 performed best on the clearer, more explicit prompt. Practical guidance: for reasoning or multi-step tasks, prefer short, unambiguous prompts — avoid prompts with implicit assumptions or layered conditions. This is consistent with the token efficiency picture: Gemma 4 is concise and direct but expects the same from the user. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t6bsil" target="_blank" rel="noopener">source</a>)</li>
 <li><strong>Professional GPUs and sglang/vLLM: nuanced, not a blanket rule.</strong> sglang and vLLM pull ahead of llama.cpp at 4+ concurrent requests due to MTP (Multi-Token Prediction) support and continuous batching. But for a single-user setup, a card owner confirms: &quot;performance between vllm, sglang etc is the same as LMStudio until you move onto 4 or more concurrent pulls.&quot; The earlier framing (&quot;seriously gimping that card by running llama.cpp&quot;) applies to multi-user or high-concurrency scenarios, not necessarily solo development. If you are on Windows and single-user, LMStudio remains a reasonable starting point. (<a href="https://reddit.com/r/LocalLLaMA/comments/1t19iil" target="_blank" rel="noopener">source</a>)</li>
 <li><strong>Structured output stays unreliable below 7B.</strong> Still valid from last week. Validate paths, classify actions, and check outputs in code for sub-7B models.</li>
 <li><strong>Safety filters on E2B.</strong> Still too aggressive for emergency/medical prompts. No equivalent Gemma 4 uncensored release has surfaced.</li>
@@ -741,14 +745,16 @@
 <ul class="setup-list">
 <li><a href="https://reddit.com/r/LocalLLaMA/comments/1t4zca8" target="_blank" rel="noopener">What do you use Gemma 4 for?</a> (May 6, 2026, 94 score, 127 comments — use-case survey: vision, translation, bug tracing vs Qwen)</li>
 <li><a href="https://reddit.com/r/LocalLLaMA/comments/1t47z4q" target="_blank" rel="noopener">Prompt injection benchmark: delimiter + strict prompt</a> (May 5, 2026, 24 score — Gemma 4 E4B 21%→100% defense rate)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1t6iy5s" target="_blank" rel="noopener">New Gemma 4 MTP on MLX?</a> (May 7, 2026, 21 score, 22 comments — MTP confirmed working on M1 Max 64GB via omlx runtime, 11→20+ tok/s)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1t6bsil" target="_blank" rel="noopener">Two related prompts, different results: Qwen 3.5 and Gemma 4 need different prompting than Qwen 3.6</a> (May 7, 2026, 28 score, 13 comments — prompting sensitivity, Gemma 4 favors clear explicit prompts)</li>
 </ul>
-<p>The full set of 100 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
-<p><em>Last updated: 2026-05-07 (May 7 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
+<p>The full set of 103 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
+<p><em>Last updated: 2026-05-08 (May 8 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (100 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (103 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (14)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (13)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (6)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (3)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (6)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (69)</button><button class="cat-filter-btn" data-cat="general">Other (25)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (16)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (12)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (6)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (3)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (6)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (72)</button><button class="cat-filter-btn" data-cat="general">Other (25)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -783,28 +789,11 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/StupidScaredSquirrel (+277)</span><span class="cr-comment-text">I still wanna glaze gemma just cause I'm too scared qwen will stop delivering at some point and gemma is very close in terms of performance and I dont want google to stop releasing</span></div><div class="cr-comment"><span class="cr-comment-meta">u/MexInAbu (+208)</span><span class="cr-comment-text">Gemma 4 is superior for creative writing and there's no contest.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/markole (+83)</span><span class="cr-comment-text">Coding? Sure. Translating? Nah, qwen sucks for translating.</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1srhzii" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
-<div class="cr-card" data-search="qwen3.6-27b vs coder-next burned about 20 hours of side-by-side compute on my two rtx pro 6000 blackwells trying to get a definitive answer on which of these two models was clearly better. as with many things in life, after many tokens and kwhs later the answer was &quot;it depends.&quot; these models in the aggregate are actually crazy well matched against each other — scoring similarly overall across a wide range of tests and sce… hardware quantization benchmarking qwen \&amp;gt;burned about 2" data-cats="high-gpu mid-gpu quantization">
-  <div class="cr-card-header">
-    <div class="cr-title-row">
-      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t2ab5y" target="_blank" rel="noopener">Qwen3.6-27B vs Coder-Next</a></h4>
-      <span class="cr-score cr-score-high">+1088</span>
-    </div>
-    <div class="cr-meta">
-      <span class="cr-author">u/Signal_Ad657</span>
-      <span class="cr-date">2026-05-03</span>
-      <span class="cr-flair">Discussion</span>
-      <span class="cr-cat-badge">High-end GPU (24+ GB)</span><span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
-    </div>
-  </div>
-  <p class="cr-summary">Burned about 20 hours of side-by-side compute on my two RTX PRO 6000 Blackwells trying to get a definitive answer on which of these two models was clearly better. As with many things in life, after many tokens and kWhs later the answer was &quot;it depend...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/ortegaalfredo (+557)</span><span class="cr-comment-text">\&amp;gt;Burned about 20 hours of side-by-side compute on my two RTX PRO 6000 Blackwells trying to get a definitive answer on which of these two models was clearly better. We have to stop illegal LLM figh...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/jashAcharjee (+173)</span><span class="cr-comment-text">Lets wait for someone to milk out qwen3.6-coder-next-gguf</span></div><div class="cr-comment"><span class="cr-comment-meta">u/viperx7 (+120)</span><span class="cr-comment-text">For someone like you who is drowning in VRAM it might seem so but for most people its not how things work For example: if someone has 48GB VRAM the choice they face is - Qwen 3.6 27B @ Q8 with 264k un...</span></div></div>
-  <a href="https://reddit.com/r/LocalLLaMA/comments/1t2ab5y" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
-</div>
-<div class="cr-card" data-search="gemma 4 mtp released blog post: mtp draft models: [ inference google meta-llama gemma for those interested in how they work, i updated my visual guide with some snippets here and there: the e2b model has a 78m draft model - cuuute! enjoy!" data-cats="general">
+<div class="cr-card" data-search="gemma 4 mtp released blog post: mtp draft models: [ google gemma for those interested in how they work, i updated my visual guide with some snippets here and there: the e2b model has a 78m draft model - cuuute! enjoy!" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
       <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t4jq6h" target="_blank" rel="noopener">Gemma 4 MTP released</a></h4>
-      <span class="cr-score cr-score-high">+1028</span>
+      <span class="cr-score cr-score-high">+1067</span>
     </div>
     <div class="cr-meta">
       <span class="cr-author">u/rerri</span>
@@ -814,7 +803,7 @@
     </div>
   </div>
   <p class="cr-summary">Blog post: MTP draft models:</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/MaartenGr (+248)</span><span class="cr-comment-text">For those interested in how they work, I updated my visual guide with some snippets here and there:</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Craftkorb (+236)</span><span class="cr-comment-text">The E2B model has a 78M draft model - Cuuute!</span></div><div class="cr-comment"><span class="cr-comment-meta">u/hackerllama (+137)</span><span class="cr-comment-text">Enjoy!</span></div></div>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/MaartenGr (+260)</span><span class="cr-comment-text">For those interested in how they work, I updated my visual guide with some snippets here and there:</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Craftkorb (+244)</span><span class="cr-comment-text">The E2B model has a 78M draft model - Cuuute!</span></div><div class="cr-comment"><span class="cr-comment-meta">u/hackerllama (+141)</span><span class="cr-comment-text">Enjoy!</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t4jq6h" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="i'm done with using local llms for coding i think gave it a fair shot over the past few weeks, forcing myself to use local models for non-work tech asks. i use claude code at my job so that's what i'm comparing to. i used qwen 27b and gemma 4 31b, these are considered the best local models under the multi-hundred llms. i also tried multiple agentic apps. my verdict is that the loss of productivity is not worth it the advantages. i'll giv… hardware agents anthropic qwen deepseek gemma op's experi" data-cats="general">
@@ -848,7 +837,7 @@
     </div>
   </div>
   <p class="cr-summary">Gemma just crushed Qwen in a local LLM gamedev contest! Device: MacBook Pro M5 Max, 64GB RAM Qwen 3.6 27B: 32 tokens/sec · 18m 04s · 33,946 tokens. Gemma 4 31B: 27 tokens/sec · 3m 51s · 6,209 tokens. So what is more important: tokens per second, or t...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/OneSlash137 (+291)</span><span class="cr-comment-text">Keep performance stable and no bugs are pretty hilarious additions to the prompt.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/The-Pork-Piston (+230)</span><span class="cr-comment-text">I’ve shared it before but my secret source when prompting is: IMPORTANT: You are an expert coder turned professor, however you have been accused of a sexual crime and the only way to exonerate yoursel...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/zigzag3600 (+101)</span><span class="cr-comment-text">Have you tried: You are a senior-level software developer: do good, don't do bad.</span></div></div>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/OneSlash137 (+290)</span><span class="cr-comment-text">Keep performance stable and no bugs are pretty hilarious additions to the prompt.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/The-Pork-Piston (+234)</span><span class="cr-comment-text">I’ve shared it before but my secret source when prompting is: IMPORTANT: You are an expert coder turned professor, however you have been accused of a sexual crime and the only way to exonerate yoursel...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/zigzag3600 (+103)</span><span class="cr-comment-text">Have you tried: You are a senior-level software developer: do good, don't do bad.</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t0epei" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="what it feels like to have to have qwen 3.6 or gemma 4 running locally well or pretty close to it, they are excellent work horses. i run them in real work scenarios doing some of the work i used to do myself as an skilled expert in my field, billing 200$ an hour. ofc the key is building a system around their weaknesses, and i've had already llm systems doing expert work years ago when first ones came (shout out nous hermes 2 mistral!). but yeah pretty neat, especial… hardware fine-tuning agents " data-cats="quantization">
@@ -906,7 +895,7 @@
   <div class="cr-card-header">
     <div class="cr-title-row">
       <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t24y4p" target="_blank" rel="noopener">I made a visualizer for Hugging Face models</a></h4>
-      <span class="cr-score cr-score-high">+657</span>
+      <span class="cr-score cr-score-high">+674</span>
     </div>
     <div class="cr-meta">
       <span class="cr-author">u/Course_Latter</span>
@@ -916,7 +905,7 @@
     </div>
   </div>
   <p class="cr-summary">I built hfviewer.com, a small tool for visually exploring Hugging Face model architectures. You can paste a Hugging Face URL and get an interactive visualization of the architecture, which can make it easier to understand how different models are str...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/CheatCodesOfLife (+44)</span><span class="cr-comment-text">If you have two chrome tabs open with these links: then click back and forth between them, the diagram jumps up and down. I'm not a frontend dev but I'm guessing it's because of the &quot;p&quot; in -pt hanging...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Hurricane31337 (+11)</span><span class="cr-comment-text">Nice idea! Looks really polished!</span></div><div class="cr-comment"><span class="cr-comment-meta">u/overand (+10)</span><span class="cr-comment-text">A simple workaround for this (without requiring layout changes) might be to switch to a monospaced font. (It might be a problem if anything requires word wrap, but, it should help.) You could give it ...</span></div></div>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/CheatCodesOfLife (+47)</span><span class="cr-comment-text">If you have two chrome tabs open with these links: then click back and forth between them, the diagram jumps up and down. I'm not a frontend dev but I'm guessing it's because of the &quot;p&quot; in -pt hanging...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Hurricane31337 (+10)</span><span class="cr-comment-text">Nice idea! Looks really polished!</span></div><div class="cr-comment"><span class="cr-comment-meta">u/overand (+9)</span><span class="cr-comment-text">A simple workaround for this (without requiring layout changes) might be to switch to a monospaced font. (It might be a problem if anything requires word wrap, but, it should help.) You could give it ...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t24y4p" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="i'm running qwen3.6-35b-a3b with 8 bit quant and 64k context thru opencode on my mbp m5 max 128gb and it's as good as claude of course this is just a trust me bro post but i've been testing various local models (a couple gemma4s, qwen3 coder next, nemotron) and i noticed the new qwen3.6 show up on lm studio so i hooked it up. very impressed. it's super fast to respond, handles long research tasks with many tool calls (i had it investigate why r8 was breaking some serialization across an android " data-cats="apple-silicon high-gpu quantization">
@@ -1123,6 +1112,23 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/ailee43 (+82)</span><span class="cr-comment-text">every day i regret more the 16GB of VRAM on my 5070ti.... should have gone 3090</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Uncle___Marty (+61)</span><span class="cr-comment-text">Saw someone making a reply to another post about qwen 3.6 saying roughly &quot;so many qwen 3.6 posts are getting boring&quot;. I TOTALLY disagree. I'm literally swimming in posts with peoples experiences right...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/grumd (+38)</span><span class="cr-comment-text">I've got a 5080 (also 16GB) and the only model I can't run is Qwen 27B and Gemma 31B. We're good, mate. Just use llama.cpp and offload MoE experts to RAM. I'm running Qwen 3.6 35B-A3B with FULL 262k c...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1so3rsx" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="qwen3.6 27b uncensored heretic v2 native mtp preserved is out now with kld 0.0021, 6/100 refusals and the full 15 mtps preserved and retained, available in safetensors, ggufs and nvfp4s formats. llmfan46/qwen3.6-27b-uncensored-heretic-v2-native-mtp-preserved: llmfan46/qwen3.6-27b-uncensored-heretic-v2-native-mtp-preserved-gguf: [ hardware quantization benchmarking gemma heretic optimizes for minimal kl divergence on non-refusal prompts, so the acceptance rate for those good effort! would love to" data-cats="mid-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t5yajb" target="_blank" rel="noopener">Qwen3.6 27B uncensored heretic v2 Native MTP Preserved is Out Now With KLD 0.0021, 6/100 Refusals and the Full 15 MTPs P</a></h4>
+      <span class="cr-score cr-score-high">+328</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/LLMFan46</span>
+      <span class="cr-date">2026-05-07</span>
+      <span class="cr-flair">New Model</span>
+      <span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">llmfan46/Qwen3.6-27B-uncensored-heretic-v2-Native-MTP-Preserved: llmfan46/Qwen3.6-27B-uncensored-heretic-v2-Native-MTP-Preserved-GGUF:</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/-p-e-w- (+33)</span><span class="cr-comment-text">Heretic optimizes for minimal KL divergence on non-refusal prompts, so the acceptance rate for those should remain roughly the same. For prompts that were previously refused and thus had their behavio...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/inrea1time (+32)</span><span class="cr-comment-text">Good effort! Would love to try it, can you add a Q4\K\XS to run on 16GB with enough context? Does the MTP work with TurboQuant compressed kv?</span></div><div class="cr-comment"><span class="cr-comment-meta">u/hideo_kuze_ (+23)</span><span class="cr-comment-text">&amp;gt; We choose to run cutting edge AI models in 16GB VRAM GPUs in this year and do the other things, not because they are easy, but because they are hard!</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t5yajb" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="gemma 4 vision a lot of people in the gemma 4 model request thread were asking for better vision capabilities in the next gemma model. this tells me that people are not configuring gemma 4's vision budget. gemma 4 ships with [variable image resolution]( hardware quantization inference google meta-llama qwen gemma cmd: | llama-server --port ${port} --model '/models/gemma4/gemma-4-31b-it-q8_0.gguf' --mmproj '/mode thanks for sharing. thanks for writing it.. and thanks for the typos that i believe " data-cats="cpu-only quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -1157,6 +1163,23 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/R_Duncan (+64)</span><span class="cr-comment-text">Please add your configuration for Qwen, and quantization used.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/dampflokfreund (+34)</span><span class="cr-comment-text">There's still a lot of bugs left in Gemma to squash. For example there is one where it will tell you it's going to do X now but then fails to call the tool in its thought process. Or it is going to te...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Lowkey_LokiSN (+30)</span><span class="cr-comment-text">Nothing specialized. Just went with model card recommendations. Qwen config: For agentic coding: temperature=0.6, topp=0.95, topk=20, minp=0.0, presencepenalty=0.0, repetitionpenalty=1.0 For PDF resea...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1soc98n" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="deepseek v4 pro matches gpt-5.2 on foodtruck bench, our agentic benchmark — 10 weeks later, ~17× cheaper tested deepseek v4 pro on foodtruck bench — our 30-day agentic benchmark where models run a food truck via 34 tools (locations, pricing, inventory, staff, weather, events) with persistent memory and daily reflection. first chinese model to land in the frontier tier on our benchmark. tied with grok 4.3 latest on outcome, within 3% of gpt-5.2's median, #4 overall behind opus 4.6, gpt-5.2, and g" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t47qbw" target="_blank" rel="noopener">DeepSeek V4 Pro matches GPT-5.2 on FoodTruck Bench, our agentic benchmark — 10 weeks later, ~17× cheaper</a></h4>
+      <span class="cr-score cr-score-high">+299</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Disastrous_Theme5906</span>
+      <span class="cr-date">2026-05-05</span>
+      <span class="cr-flair">Resources</span>
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Tested DeepSeek V4 Pro on FoodTruck Bench — our 30-day agentic benchmark where models run a food truck via 34 tools (locations, pricing, inventory, staff, weather, events) with persistent memory and daily reflection. First Chinese model to land in th...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/Total_Activity_7550 (+62)</span><span class="cr-comment-text">Good for DeepSeek, but Claude Opus 4.6 doing 1.7x profit over next group of models (and that's not even Mythos) rings a bell that they're leaving competitors behind...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Disastrous_Theme5906 (+38)</span><span class="cr-comment-text">Yeah, agreed — Opus is in a league of its own right now. Worth noting xAI and Google's flagships are also lagging on this, not just the Chinese tier.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Disastrous_Theme5906 (+21)</span><span class="cr-comment-text">Wanna test it but not ready to drop $300+ on a full benchmark run rn. Tried 5.3 and 5.4 before that and they kept going into infinite loops in their replies. Sometimes a single request hit like $1 in ...</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t47qbw" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="deepseek v4 update deepseek v4 update fine-tuning deepseek for the pill question, i agree with v4’s assumption. 60 minutes is the more logical answer, even if &quot;this is a classic puzzle/riddle&quot; implies that both of these are in training data, so it's perhaps n the real question here is what medication is requiring you to take it every 30 minutes? this sounds" data-cats="cpu-only">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -1173,23 +1196,6 @@
   <p class="cr-summary">DeepSeek V4 Update</p>
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/datbackup (+164)</span><span class="cr-comment-text">For the pill question, i agree with V4’s assumption. 60 minutes is the more logical answer, even if 90 minutes is perhaps the technically “correct” answer. The problem is that the user failed to adequ...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/tm604 (+91)</span><span class="cr-comment-text">&quot;This is a classic puzzle/riddle&quot; implies that both of these are in training data, so it's perhaps not the most exciting result of the year.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Materva (+64)</span><span class="cr-comment-text">The real question here is what medication is requiring you to take it every 30 minutes? This sounds like the pharmaceutical version of a power hour.</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1sv8806" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
-</div>
-<div class="cr-card" data-search="deepseek v4 pro matches gpt-5.2 on foodtruck bench, our agentic benchmark — 10 weeks later, ~17× cheaper tested deepseek v4 pro on foodtruck bench — our 30-day agentic benchmark where models run a food truck via 34 tools (locations, pricing, inventory, staff, weather, events) with persistent memory and daily reflection. first chinese model to land in the frontier tier on our benchmark. tied with grok 4.3 latest on outcome, within 3% of gpt-5.2's median, #4 overall behind opus 4.6, gpt-5.2, and g" data-cats="general">
-  <div class="cr-card-header">
-    <div class="cr-title-row">
-      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t47qbw" target="_blank" rel="noopener">DeepSeek V4 Pro matches GPT-5.2 on FoodTruck Bench, our agentic benchmark — 10 weeks later, ~17× cheaper</a></h4>
-      <span class="cr-score cr-score-high">+296</span>
-    </div>
-    <div class="cr-meta">
-      <span class="cr-author">u/Disastrous_Theme5906</span>
-      <span class="cr-date">2026-05-05</span>
-      <span class="cr-flair">Resources</span>
-      <span class="cr-cat-badge">General</span>
-    </div>
-  </div>
-  <p class="cr-summary">Tested DeepSeek V4 Pro on FoodTruck Bench — our 30-day agentic benchmark where models run a food truck via 34 tools (locations, pricing, inventory, staff, weather, events) with persistent memory and daily reflection. First Chinese model to land in th...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/Total_Activity_7550 (+61)</span><span class="cr-comment-text">Good for DeepSeek, but Claude Opus 4.6 doing 1.7x profit over next group of models (and that's not even Mythos) rings a bell that they're leaving competitors behind...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Disastrous_Theme5906 (+38)</span><span class="cr-comment-text">Yeah, agreed — Opus is in a league of its own right now. Worth noting xAI and Google's flagships are also lagging on this, not just the Chinese tier.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Disastrous_Theme5906 (+22)</span><span class="cr-comment-text">Wanna test it but not ready to drop $300+ on a full benchmark run rn. Tried 5.3 and 5.4 before that and they kept going into infinite loops in their replies. Sometimes a single request hit like $1 in ...</span></div></div>
-  <a href="https://reddit.com/r/LocalLLaMA/comments/1t47qbw" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="an actual example of &quot;if you dont run it, you dont own it&quot; and gemma 4 beats both chat gpt and gemini chat a bit of an interesting story of model degradation and censorship. so, one of my use cases for ai has been translating and reading an chinese novel as it appears, chapter by chapter. due to the way some characters have secret identities plot points, and the ai had to follow context clues for the translation + consistency reasons too, i had to prompt the ai to look for them, and ch" data-cats="quantization">
   <div class="cr-card-header">
@@ -1365,7 +1371,7 @@
   <div class="cr-card-header">
     <div class="cr-title-row">
       <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t4nkez" target="_blank" rel="noopener">Dense Model Shoot-Off:  Gemma 4 31B vs Qwen3.6/5 27B... Result is Slower is Faster.</a></h4>
-      <span class="cr-score cr-score-mid">+178</span>
+      <span class="cr-score cr-score-mid">+188</span>
     </div>
     <div class="cr-meta">
       <span class="cr-author">u/MiaBchDave</span>
@@ -1375,7 +1381,7 @@
     </div>
   </div>
   <p class="cr-summary">Not affiliated with Kaitchup, but a fan of their testing. I was looking forward to this article... and it did not disappoint. Lots of free info in the link. The juicy part is behind a paywall. I'll respect that, but the short of it is: It's showing t...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/LORD_CMDR_INTERNET (+72)</span><span class="cr-comment-text">Anecdotally, for coding, I find Qwen3.6 27B and Gemma4 31B trade blows. I will swap Plan/Act roles if either gets stuck and that seems to work quite well.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/ambient_temp_xeno (+50)</span><span class="cr-comment-text">lol this was not surprising.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/slower-is-faster (+49)</span><span class="cr-comment-text">I knew it</span></div></div>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/LORD_CMDR_INTERNET (+71)</span><span class="cr-comment-text">Anecdotally, for coding, I find Qwen3.6 27B and Gemma4 31B trade blows. I will swap Plan/Act roles if either gets stuck and that seems to work quite well.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/ambient_temp_xeno (+51)</span><span class="cr-comment-text">lol this was not surprising.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/slower-is-faster (+50)</span><span class="cr-comment-text">I knew it</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t4nkez" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="recent open models from last 6 months - nov 2025 - apr 2026 i created this chart with recent open models from last 6 months. few might be older than that possibly. included only latest versions(ex: only kimi-k2.6, no kimi-k2.5 &amp;amp; kimi-k2. also only glm-5.1 &amp;amp; glm-4.7, no glm-4.6 &amp;amp; glm-4.5). i couldn't add some models like ling-2.5-1t, ring-2.5-1t, omnicoder. also i didn't add small models(except qwen3.5-9b/4b &amp;amp; gemma-4-e4b) as the graph is t… hardware openai qwen mi" data-cats="general">
@@ -1531,6 +1537,23 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/false79 (+29)</span><span class="cr-comment-text">People who know what they are doing with local models have been doing real work for a while now. I'm talking about the devs who know what aspects of their role is manually repetative and automating it...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/alrojo (+17)</span><span class="cr-comment-text">How aggresive are your timeouts? At 1.9 tokens per second that is very slow generation.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/cygn (+13)</span><span class="cr-comment-text">so the gap between Qwen's official post (59.3) and what you measured (38.2) for 27b is purely because of the timeout? I still wonder if they have benchmaxxed terminal bench 2.0. Would love to see some...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1sxn7x2" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="what do you use gemma 4 for? both gemma 4 and qwen 3.6 seems to be the hottest local models right now. looking at the benchmarks and reviews, it seems like it's better in every way: coding, benchmarks, agentic tasks. so is qwen outright better? in what case would you pick gemma over qwen? rag qwen gemma gemma trounces qwen for my handwriting analysis and general vision tasks at the very least. i also gemma4 is really, really, really good at tracing bugs. when you feed a ticket to qwen3.6 27b it'" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t4zca8" target="_blank" rel="noopener">What do you use Gemma 4 for?</a></h4>
+      <span class="cr-score cr-score-mid">+106</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/HornyGooner4402</span>
+      <span class="cr-date">2026-05-06</span>
+      <span class="cr-flair">Discussion</span>
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Both Gemma 4 and Qwen 3.6 seems to be the hottest local models right now. Looking at the benchmarks and reviews, it seems like it's better in every way: coding, benchmarks, agentic tasks. So is Qwen outright better? In what case would you pick Gemma ...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/FoxiPanda (+83)</span><span class="cr-comment-text">Gemma trounces Qwen for my handwriting analysis and general vision tasks at the very least. I also appreciate Gemma in chat significantly more than Qwen (qwen is cold and calculating even with system ...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/ggonavyy (+78)</span><span class="cr-comment-text">Gemma4 is really, really, really good at tracing bugs. When you feed a ticket to Qwen3.6 27B it'll fill the context with all available info available and maybe probably find the root cause, and someti...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Pro-Row-335 (+36)</span><span class="cr-comment-text">The only things I use llms for are coding and JP-&amp;gt;EN translation, for agentic coding its a nobrainer, Qwen is much better than gemma with tools, for JP-&amp;gt;EN translation its also a nobrainer, Gemm...</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t4zca8" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="qwen3.6 merged chat template from allanchan339 and froggeric hi, recently froggeric and allanchan339 released enhanced/fixed template for qwen3.6 each one addressing different topics. i didn't know which one to use so i merged both with the help of claude opus to have the best of both. i've uploaded it to this gist [ quantization inference fine-tuning anthropic google meta-llama qwen gemma would love for someone to explain to me how a chat template can be community modified to possibly ou if it " data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -1565,23 +1588,6 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/nicksterling (+20)</span><span class="cr-comment-text">I’m happy to see pi getting more love. The extension system is incredible and being able to customize my harness is great. I added Claude Code plugin support via extensions so I’m not losing any compa...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/hailnobra (+9)</span><span class="cr-comment-text">Sure thing. Qwen 3.6 is running on a Strix Halo system with 96GB of RAM (75GB allocated to GTT). Host OS is running on CachyOS and llama server currently running on the amd-strix-halo-toolboxes:rocm-7...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/sine120 (+8)</span><span class="cr-comment-text">Qwen + Pi has been working really well for me for coding. I just need to get a better search setup and I think I can start phasing out gemini day to day.</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1ss9pku" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
-<div class="cr-card" data-search="what do you use gemma 4 for? both gemma 4 and qwen 3.6 seems to be the hottest local models right now. looking at the benchmarks and reviews, it seems like it's better in every way: coding, benchmarks, agentic tasks. so is qwen outright better? in what case would you pick gemma over qwen? rag qwen gemma gemma trounces qwen for my handwriting analysis and general vision tasks at the very least. i also gemma4 is really, really, really good at tracing bugs. when you feed a ticket to qwen3.6 27b it'" data-cats="general">
-  <div class="cr-card-header">
-    <div class="cr-title-row">
-      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t4zca8" target="_blank" rel="noopener">What do you use Gemma 4 for?</a></h4>
-      <span class="cr-score cr-score-mid">+94</span>
-    </div>
-    <div class="cr-meta">
-      <span class="cr-author">u/HornyGooner4402</span>
-      <span class="cr-date">2026-05-06</span>
-      <span class="cr-flair">Discussion</span>
-      <span class="cr-cat-badge">General</span>
-    </div>
-  </div>
-  <p class="cr-summary">Both Gemma 4 and Qwen 3.6 seems to be the hottest local models right now. Looking at the benchmarks and reviews, it seems like it's better in every way: coding, benchmarks, agentic tasks. So is Qwen outright better? In what case would you pick Gemma ...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/FoxiPanda (+80)</span><span class="cr-comment-text">Gemma trounces Qwen for my handwriting analysis and general vision tasks at the very least. I also appreciate Gemma in chat significantly more than Qwen (qwen is cold and calculating even with system ...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/ggonavyy (+72)</span><span class="cr-comment-text">Gemma4 is really, really, really good at tracing bugs. When you feed a ticket to Qwen3.6 27B it'll fill the context with all available info available and maybe probably find the root cause, and someti...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Pro-Row-335 (+33)</span><span class="cr-comment-text">The only things I use llms for are coding and JP-&amp;gt;EN translation, for agentic coding its a nobrainer, Qwen is much better than gemma with tools, for JP-&amp;gt;EN translation its also a nobrainer, Gemm...</span></div></div>
-  <a href="https://reddit.com/r/LocalLLaMA/comments/1t4zca8" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
-</div>
 <div class="cr-card" data-search="qwen 3.6 wins the benchmarks, but gemma 4 wins reality. 7 things i learned testing 27b/31b vision models locally (vllm / fp8) side by side. benchmaxing seems real. hey guys, a couple of weeks ago, i asked this sub for the hardest vision use cases you were dealing with to test the newly dropped qwen 3.6 against gemma 4. i finally finished running the gauntlet side-by-side locally on vllm (fp8 quants) using my custom gui. if you look at the benchmarks then qwen should win but from testing it seems" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -1598,23 +1604,6 @@
   <p class="cr-summary">Hey guys, A couple of weeks ago, I asked this sub for the hardest Vision use cases you were dealing with to test the newly dropped Qwen 3.6 against Gemma 4. I finally finished running the gauntlet side-by-side locally on vLLM (FP8 quants) using my cu...</p>
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/pedronasser_ (+39)</span><span class="cr-comment-text">It may be the backend/harness influence, but I have the opposite of your findings. Qwen3.6 follows instructions better than Gemma4 for me. And I don't care at all about the visual capabilities.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/LetsGoBrandon4256 (+33)</span><span class="cr-comment-text">&amp;gt; side-by-side &amp;gt; noticeably better on simple prompts—it stops earlier &amp;gt; 0–1000 Quite impressive that you used all three variants of dashes in one post.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/chimpera (+28)</span><span class="cr-comment-text">my sense is that gemma is much better at short one shot, but that because of it architecture it struggles with long context. There is something about its attention mechanism and its also far more sens...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t1te8y" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
-</div>
-<div class="cr-card" data-search="use qwen3.6 right way -&amp;gt; send it to pi coding agent and forget just a reminder, the harness you use can makes a huge diffrence (your llm client and interface bascially), it's is way more important than people think, i'm using pi.dev for over 2 months and oooh boy qwen3.6 suddenly become a monster. my local machine… benchmarking agents can you point to the specific extension npm packages that you're using, specifically the exa web sea for everyone that now wants to try (some) pi, know that" data-cats="high-gpu">
-  <div class="cr-card-header">
-    <div class="cr-title-row">
-      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t4ji36" target="_blank" rel="noopener">Use Qwen3.6 right way -&amp;gt; send it to pi coding agent and forget</a></h4>
-      <span class="cr-score cr-score-mid">+93</span>
-    </div>
-    <div class="cr-meta">
-      <span class="cr-author">u/Willing-Toe1942</span>
-      <span class="cr-date">2026-05-05</span>
-      <span class="cr-flair">Tutorial | Guide</span>
-      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
-    </div>
-  </div>
-  <p class="cr-summary">Just a reminder, the harness you use can makes a huge diffrence (your llm client and interface bascially), It's is way more important than people think, I'm using pi.dev for over 2 months and oooh boy Qwen3.6 suddenly become a monster. my local machi...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/gladfelter (+31)</span><span class="cr-comment-text">Can you point to the specific extension NPM packages that you're using, specifically the exa web search and agent browser extensions? There are many. These are the most popular that match your descrip...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/bonobomaster (+19)</span><span class="cr-comment-text">For everyone that now wants to try (some) Pi, know that this Pi could serve you a slice of sudo rm -rf in a heartbeat! Standard Pi Agent has ZERO command filtering or sandboxing per default! If Pi dec...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/JuniorDeveloper73 (+11)</span><span class="cr-comment-text">opencode with planner works better</span></div></div>
-  <a href="https://reddit.com/r/LocalLLaMA/comments/1t4ji36" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="gemma 4 - mlx doesn't seem better than gguf going to flag this up front - i know that there are some properly smart people on this sub, please can you correct my noob user errors or misunderstandings and educate my ass. model: google/gemma-4-26b-a4b versions: * mlx: [ hardware quantization inference google meta-llama gemma gguf has come a long way recently. gguf/llama.cpp has really caught up to mlx over the past few months by leaning into metal. that my friend, is the downside of writing my own" data-cats="apple-silicon quantization">
   <div class="cr-card-header">
@@ -1649,6 +1638,23 @@
   <p class="cr-summary">I ran a pretty simple but revealing local-LLM test. At first I was only going to post about the two Qwens and Gemma4 and go to bed, and what do you know, I go on reddit and see a post that Qwen 3.6-27B dropped. Oh well... Models tested: Gemma4 `cyank...</p>
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/LocoMod (+149)</span><span class="cr-comment-text">&amp;gt;Context: I’m working on fairly complex tool that takes noisy evidence and turns it into a structured “truth report.” Your harness is irrelevant here as your entire post doesnt read like someone wh...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/drwebb (+18)</span><span class="cr-comment-text">I'm pretty sure any serious dev could easily get work done with either qwen 3.5, qwen 3.6, and Gemma-4 31. Like you say, one might be better than the other, but just creating some artificial task made...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Southern_Sun_2106 (+16)</span><span class="cr-comment-text">&quot;I am building a Mystery Tool, and this is how the models did - according to me and to chatgpt&quot; - ok, thanks for sharing, but this tells close to nothing about anything.</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1st35c8" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="most people seem obsessed with token generation speed, but isn’t prefill the real bottleneck? am i missing something? i read this sub every day and i keep seeing benchmarks and discussions focused almost entirely on tokens/s generation speed. prompt processing speed barely gets mentioned. from my own experience running a bunch of different models on different gpus for all kinds of tasks, the prefill stage is usually the part that actually feels slow. once generation starts, even “only” 15 t/s is" data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t5o4kc" target="_blank" rel="noopener">Most people seem obsessed with token generation speed, but isn’t prefill the real bottleneck? Am I missing something?</a></h4>
+      <span class="cr-score cr-score-mid">+84</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/wbulot</span>
+      <span class="cr-date">2026-05-06</span>
+      <span class="cr-flair">Discussion</span>
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">I read this sub every day and I keep seeing benchmarks and discussions focused almost entirely on tokens/s generation speed. Prompt processing speed barely gets mentioned. From my own experience running a bunch of different models on different GPUs f...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/pfn0 (+70)</span><span class="cr-comment-text">when chatting, most of the prefill is cached by prefix, so re-processing doesn't end up costing anything. it mostly matters when you're doing agentic work and processing tons of data. so for many peop...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/ikkiho (+35)</span><span class="cr-comment-text">Two things worth separating cleanly: (1) Prefill and decode are bottlenecked by different physical resources. Prefill is compute-bound, since it's a big matmul over the full prompt, so it scales with ...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Badger-Purple (+32)</span><span class="cr-comment-text">90% of sub posters don’t even run their own local models. It’s a group of highly knowledgeable folks with great tips and tricks, and a gaggle of newbs and fanbois who have never stepped beyond openrou...</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t5o4kc" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="does the &quot;6 months gap&quot; still hold? hi. it is quite a consensus that the &quot;jump&quot; in quality of agentic development happened sometime in december 2025, transforming from &quot;nice to have&quot;, to actually performing. it was also long discussed that open source models lag the state of the art by 6 to 12 months. now, does it mean that to get the equivalence of dec 2025 frontier performance (opus 4.5?) from open source models, we should still… hardware fine-tuning anthropic mis" data-cats="high-gpu quantization">
   <div class="cr-card-header">
@@ -1909,7 +1915,7 @@
   <div class="cr-card-header">
     <div class="cr-title-row">
       <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t4e83m" target="_blank" rel="noopener">Current state of local research tools as of May 2026</a></h4>
-      <span class="cr-score cr-score-mid">+53</span>
+      <span class="cr-score cr-score-mid">+52</span>
     </div>
     <div class="cr-meta">
       <span class="cr-author">u/Shoddy-Tutor9563</span>
@@ -2109,23 +2115,6 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/Willing-Toe1942 (+38)</span><span class="cr-comment-text">I didn't like the performance comparing it to 35B MoE for the desnse 27B numbers are: 10 - 11 T/S for generation near 300 for prompt processing strixhalo laptop tdp maximum to 80watt</span></div><div class="cr-comment"><span class="cr-comment-meta">u/tecneeq (+19)</span><span class="cr-comment-text">The results are great, but it's slow as heck. I use 35b-a3b for that reason.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Sixstringsickness (+15)</span><span class="cr-comment-text">Very slow depending on quant, 7-8tps. Not convinced the improvement in intelligence is worth the trade off in performance over 35b 3a. Gemma4 using draft model and spec decoding is 13-20tps using q4 k...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1sxbvux" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
-<div class="cr-card" data-search="decoupled attention from weights - gemma 4 26b absolutely unbelievably exciting work, split attention (i.e. a couple of gb) onto local machine and the weights onto another local machine (say a cheap xeon) to basically bypass the scale issue with local llms completely!! repo with functional code: edit: just found for excellent overview of what's happening here. quantization inference gemma so he figured out slow inference across a network? cool inside the github it shows the method is running 23 " data-cats="quantization">
-  <div class="cr-card-header">
-    <div class="cr-title-row">
-      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t5ap0y" target="_blank" rel="noopener">Decoupled Attention from Weights - Gemma 4 26B</a></h4>
-      <span class="cr-score ">+40</span>
-    </div>
-    <div class="cr-meta">
-      <span class="cr-author">u/yeah-ok</span>
-      <span class="cr-date">2026-05-06</span>
-      <span class="cr-flair">News</span>
-      <span class="cr-cat-badge">Quantization &amp; Backends</span>
-    </div>
-  </div>
-  <p class="cr-summary">Absolutely unbelievably exciting work, split attention (i.e. a couple of GB) onto local machine and the weights onto another local machine (say a cheap Xeon) to basically bypass the scale issue with local LLMs completely!! Repo with functional code: ...</p>
-  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/TokenRingAI (+23)</span><span class="cr-comment-text">So he figured out slow inference across a network? Cool</span></div><div class="cr-comment"><span class="cr-comment-meta">u/retireb435 (+18)</span><span class="cr-comment-text">Inside the github it shows the method is running 23 times slower. I don’t see any improvement comparing to our nowadays offloading method? Seems like a clickbait</span></div><div class="cr-comment"><span class="cr-comment-meta">u/jacek2023 (+10)</span><span class="cr-comment-text">how it is different than RPC?</span></div></div>
-  <a href="https://reddit.com/r/LocalLLaMA/comments/1t5ap0y" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
-</div>
 <div class="cr-card" data-search="opencode with gemma 26b i was testing opencode and roo code with gemma 26b on llama.cpp yesterday for about 10 hours. i was able to make progress on my project, both solutions work. but: opencode is kind of fucked up at the moment, because of that there is often long prompt processing.. roo code works correctly, but it has different issues (thinking takes longer, probably opencode has better prompts). the problem with o… quantization inference google meta-llama gemma if you don't have a supercom" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -2177,6 +2166,40 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/EuphoricPenguin22 (+3)</span><span class="cr-comment-text">That's actually what it does itself: it indexes online materials into a local semantically-tagged copy with the embedding model that is then queried with the same embedding model. It's basically textb...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/mr_Owner (+1)</span><span class="cr-comment-text">Hmm what if you point the grounded mcp server to a local folder with docs and manuals containing all the utils needed? That would be really offline and sounds tbh very very interesting of possible. Wh...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/mr_Owner (+1)</span><span class="cr-comment-text">Dayum</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1sv3ff6" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="running qwen3.5 / qwen3.6 with nextn mtp (multi-token prediction) speculative decode in llama.cpp — single rtx 3090 ti gpu guide i was asked for this guide, so here it is. some overlap with someone else’s post from yesterday. ymmv! too busy with work to write myself, so i asked opus to write for me (i have validated the content!). i’m sure there will be debate over using q4 blah blah. i’m happy with how it works with my models. i am happy to create higher q models as far as my hardware allows, i" data-cats="high-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t65vl8" target="_blank" rel="noopener">Running Qwen3.5 / Qwen3.6 with NextN MTP (Multi-Token Prediction) speculative decode in llama.cpp — single RTX 3090 Ti G</a></h4>
+      <span class="cr-score ">+34</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/yes_i_tried_google</span>
+      <span class="cr-date">2026-05-07</span>
+      <span class="cr-flair">Tutorial | Guide</span>
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">I was asked for this guide, so here it is. Some overlap with someone else’s post from yesterday. YMMV! Too busy with work to write myself, so I asked Opus to write for me (I have validated the content!). I’m sure there will be debate over using q4 bl...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/am17an (+18)</span><span class="cr-comment-text">Just use my fork lol, all the fixes are going to land there</span></div><div class="cr-comment"><span class="cr-comment-meta">u/yes_i_tried_google (+4)</span><span class="cr-comment-text">Same limitations I’m afraid. I’ve not modified anything in the actual PRs beyond the bare essentials.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/GCoderDCoder (+3)</span><span class="cr-comment-text">This is great thanks! Speculative decoding works on other quants too if anyone complains about q4. I'm wrestling with some things right now in speculative decoding with gemma 4 31b where formatting se...</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t65vl8" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="decoupled attention from weights - gemma 4 26b absolutely unbelievably exciting work, split attention (i.e. a couple of gb) onto local machine and the weights onto another local machine (say a cheap xeon) to basically bypass the scale issue with local llms completely!! repo with functional code: edit: just found for excellent overview of what's happening here. quantization inference meta-llama gemma so he figured out slow inference across a network? cool inside the github it shows the method is " data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t5ap0y" target="_blank" rel="noopener">Decoupled Attention from Weights - Gemma 4 26B</a></h4>
+      <span class="cr-score ">+34</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/yeah-ok</span>
+      <span class="cr-date">2026-05-06</span>
+      <span class="cr-flair">News</span>
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Absolutely unbelievably exciting work, split attention (i.e. a couple of GB) onto local machine and the weights onto another local machine (say a cheap Xeon) to basically bypass the scale issue with local LLMs completely!! Repo with functional code: ...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/TokenRingAI (+28)</span><span class="cr-comment-text">So he figured out slow inference across a network? Cool</span></div><div class="cr-comment"><span class="cr-comment-meta">u/retireb435 (+26)</span><span class="cr-comment-text">Inside the github it shows the method is running 23 times slower. I don’t see any improvement comparing to our nowadays offloading method? Seems like a clickbait</span></div><div class="cr-comment"><span class="cr-comment-meta">u/jacek2023 (+15)</span><span class="cr-comment-text">how it is different than RPC?</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t5ap0y" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="your local llm predictions and hopes for may 2026 which of these do you think we'll get in may? also, feel free to pick/rank which ones you'd want the most badly: - more gemma4 models (124b?) (other sizes?) - more qwen3.6 models (9b? 122b? 397b?) - new qwen coder model (80b even nexter?) (~397b/400b+ coder?) - new glm model in the 100b-300b size range? - small kimi model of some sort? - more nvidia/nemotron models? - new stepfun model? - new ope… hardware inference fine-tuning openai meta-llama " data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -2210,6 +2233,23 @@
   <p class="cr-summary">Longtime lurker here, thought i should post my speeeeds... I have a RTX 4070S 12 GB Vram (+10% OC), AMD 9800x3D with 4x16 Gb DDR5 6000Mhz CL30. EDIT: I offload my display to my igpu btw to save some vram on the rtx dgpu. Otherwise drop 10% or so on p...</p>
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/Party-Log-1084 (+10)</span><span class="cr-comment-text">40 t/s on a 35B Q6 with just 12GB of VRAM is honestly wild. That 9800x3D and DDR5 combo is definitely carrying hard since you're obviously spilling a ton over into system RAM. Appreciate you dropping ...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Farther_father (+2)</span><span class="cr-comment-text">As part of the 12GB VRAM club (although with i9/128GB RAM on the CPU side), I appreciate this post! I wonder how my daily driver (gpt-oss-120) would sit in this comparison, but I’ll steal/test your se...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/mr_Owner (+1)</span><span class="cr-comment-text">Enjoy! Curious if it's any better then what you had before 😁</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1szziv0" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="two related prompts, different results: qwen 3.5 and gemma 4 need different prompting than qwen 3.6 with every new model release there's the &quot;better than opus 6.13&quot; guys vs the &quot;this is so bad, why did they even release it&quot; camp and i'm always wondering which one is using it wrong. so i did a little test with 2 related prompts, 3 models and ran each combination 10 times. short prompt: &amp;gt;mike grew up as one of 6 siblings and has 3 sisters. he has $25 and bought 5 boxes o" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t6bsil" target="_blank" rel="noopener">Two related prompts, different results: Qwen 3.5 and Gemma 4 need different prompting than Qwen 3.6</a></h4>
+      <span class="cr-score ">+28</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Excellent_Jelly2788</span>
+      <span class="cr-date">2026-05-07</span>
+      <span class="cr-flair">Generation</span>
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">With every new model release there's the &quot;better than Opus 6.13&quot; guys vs the &quot;this is so bad, why did they even release it&quot; camp and I'm always wondering which one is using it wrong. So I did a little test with 2 related prompts, 3 models and ran eac...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/ExplanationAway672 (+8)</span><span class="cr-comment-text">Try 27B... first try below with the short prompt Qwen3.6 27B UD Q4\K\XL (and got it right twice more in new sessions). Biggest hang up in reasoning was whether he was one of 6 siblings or had 6 siblin...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Antique_Bit_1049 (+2)</span><span class="cr-comment-text">This shows 3.5 destroying 3.6?</span></div><div class="cr-comment"><span class="cr-comment-meta">u/audioen (+2)</span><span class="cr-comment-text">I tested this puzzle against Qwen3.6-27b at q8_0, and found it necessary to clarify phrasing, or it simply failed to understand. Firstly, &quot;Mike grew up as one of 6 siblings&quot; was not parsed to mean tha...</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t6bsil" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="notes on what actually breaks when you run a coding agent on small local models i've spent the last few weeks running real multi-file coding tasks through small local models and small cloud models on free tiers. wanted to share the failure points that came up consistently, since some of them surprised me and i wanted to share with the community so maybe it helps someone. markdown fences are the most common failure across every small model i tested. you can put &quot;output on… inference agents m" data-cats="general">
   <div class="cr-card-header">
@@ -2312,6 +2352,23 @@
   <p class="cr-summary">Which LLM with under 10B params has the best ability to do web searches Is there any benchmark for this where i could see how certain models perform I've checked out gemma e4b it, is it any good for web searching compared to other alternatives at the...</p>
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/OleCuvee (+14)</span><span class="cr-comment-text">Any decent model will do solid web search if you provide it with the right tools. I gave my researchers searXNG, so that I don’t have to rely on Firefly, Brave and Google tokens. Works great, search o...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/totonn87 (+7)</span><span class="cr-comment-text">If I remember correctly you have to use openwebui + searxng to use Gemma e4b with web search.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/DinoAmino (+4)</span><span class="cr-comment-text">&amp;gt; Openweb UI just isn't a great harness for any kind of research. Because OWUI is not a harness for research. But OP only asked about basic web search, and OWUI is completely capable of that. Diffi...</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1sp6qy7" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="new gemma 4 mtp on mlx? in case you haven't heard, google just released multi token prediction drafters for gemma 4, a speculative decoding approach that pairs the main model with a lightweight drafter. it can predict several tokens ahead and then verify them in parallel, speeding up inference 2-3x faster. has anyone used this with mlx? i tried to without success. it does not seem to be supported yet. quantization google gemma works on omlx. at max wattage, doubles my generation speed from 11tk/" data-cats="apple-silicon quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1t6iy5s" target="_blank" rel="noopener">New Gemma 4 MTP on MLX?</a></h4>
+      <span class="cr-score ">+21</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/purealgo</span>
+      <span class="cr-date">2026-05-07</span>
+      <span class="cr-flair">Discussion</span>
+      <span class="cr-cat-badge">Apple Silicon</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">In case you haven't heard, Google just released Multi Token Prediction drafters for Gemma 4, a speculative decoding approach that pairs the main model with a lightweight drafter. It can predict several tokens ahead and then verify them in parallel, s...</p>
+  <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/WillyTheWoo (+13)</span><span class="cr-comment-text">Works on omlx. At max wattage, doubles my generation speed from 11tk/s to 20+ tk/s. Little effect for spec prefill though. M1Max 64GB RAM</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Dany0 (+12)</span><span class="cr-comment-text">it functionally cannot affect prefill</span></div><div class="cr-comment"><span class="cr-comment-meta">u/pantalooniedoon (+8)</span><span class="cr-comment-text">That doesnt makes any sense to me. You already have the entire prompt to process in parallel. The point of spec decoding it to get something you can parallelize.</span></div></div>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1t6iy5s" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="qwen3.6-27b builds a chat interface for gemma-4-e4b (text, image, audio) - qwen3.5-27b (bf16) on 2x pro 6k and gemma-4-e4b (bf16) on rtx 5090 - took about 8 minutes total (40k tokens total - but like 10k is opencode prompt) - one prompt for planning (i answered a few follow ups) - one shot 1000 lines of code - fixed only bug (image preview in chat history) in one go the chat connects to gemma-4-e4b-it running on my workstation via vllm. qwen had no problems getting al… hardware quantization infe" data-cats="high-gpu quantization">
   <div class="cr-card-header">
