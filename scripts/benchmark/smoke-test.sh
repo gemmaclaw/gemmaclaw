@@ -57,6 +57,16 @@ echo "========================================="
 echo "Mode: $MODE"
 echo ""
 
+# ── 0. Fake gog contract tests (always runs) ────────────────────────────
+echo "[fake-gog] Verifying benchmark mock Google CLI contract..."
+if bash scripts/benchmark/test-fake-gog.sh; then
+  echo "  PASS: fake gog contract"
+  PASSED=$((PASSED + 1))
+else
+  echo "  FAIL: fake gog contract"
+  FAILED=$((FAILED + 1))
+fi
+
 # ── 1. Mock mode (always runs) ──────────────────────────────────────────
 echo "[mock] Running mock benchmark..."
 OUT_MOCK="/tmp/gemmaclaw-smoke-mock-$$"

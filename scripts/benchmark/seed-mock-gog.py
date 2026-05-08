@@ -58,6 +58,7 @@ def main() -> None:
     next_wednesday = (next_monday + timedelta(days=2)).replace(hour=10, minute=0)
     next_friday = (next_monday + timedelta(days=4)).replace(hour=11, minute=0)
     next_saturday = (next_monday + timedelta(days=5)).replace(hour=18, minute=0)
+    q2_conference = (next_monday + timedelta(days=10)).replace(hour=9, minute=0)
 
     inbox_labels = ["INBOX", "UNREAD"]
 
@@ -315,6 +316,15 @@ def main() -> None:
             "location": "Conference Room A",
             "description": "Regular standup.",
         },
+        {
+            "id": "evt_q2_product_conference",
+            "summary": "Q2 Product Conference",
+            "title": "Q2 Product Conference",
+            "start": dt_iso(q2_conference),
+            "end": dt_iso(q2_conference.replace(hour=17, minute=0)),
+            "location": "Toronto Convention Centre",
+            "description": "May conference associated with Q2 travel/events spend.",
+        },
     ]
 
     # ── Contacts ────────────────────────────────────────────────────────────
@@ -338,6 +348,38 @@ def main() -> None:
 
     tasks: list[dict] = []
     sent: list[dict] = []
+
+    drive = [
+        {
+            "id": "drive_team_building_budget",
+            "name": "team-building-budget.md",
+            "title": "Team Building Budget",
+            "mimeType": "text/markdown",
+            "modifiedTime": dt_iso(today - timedelta(days=1)),
+            "content": (
+                "# Team Building Budget\n\n"
+                "Budget owner: Lisa Wong\n"
+                "Event: Team building trivia night at Riverside Pavilion\n"
+                "Approved budget: $1200 for food and rentals\n\n"
+                "Known constraints:\n"
+                "- Food for 12 people\n"
+                "- Outdoor table/chair rental for 12 people\n"
+                "- Track vendor outreach and estimated spend here\n"
+            ),
+        },
+        {
+            "id": "drive_q2_expense_report",
+            "name": "q2-expense-report.md",
+            "title": "Q2 Expense Report",
+            "mimeType": "text/markdown",
+            "modifiedTime": dt_iso(today - timedelta(days=2)),
+            "content": (
+                "# Q2 Expense Report\n\n"
+                "Use the Finance Team email as the source of truth for current Q2 "
+                "expense reconciliation.\n"
+            ),
+        },
+    ]
 
     tasklists = [
         {"id": "scheduled", "title": "Scheduled"},
@@ -364,6 +406,7 @@ def main() -> None:
     write_json(os.path.join(STATE_DIR, "contacts.json"), contacts)
     write_json(os.path.join(STATE_DIR, "tasklists.json"), tasklists)
     write_json(os.path.join(STATE_DIR, "auth.json"), auth)
+    write_json(os.path.join(STATE_DIR, "drive.json"), drive)
 
     print(f"Mock gog state seeded: {len(emails)} emails, {len(calendar)} events, "
           f"{len(contacts)} contacts")
