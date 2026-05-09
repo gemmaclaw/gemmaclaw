@@ -247,7 +247,7 @@ describe("plugins cli install", () => {
       runPluginsCommand(["plugins", "install", "alpha", "--marketplace", "local/repo", "--link"]),
     ).rejects.toThrow("__exit__:1");
 
-    expect(runtimeErrors.at(-1)).toContain("`--link` is not supported with `--marketplace`.");
+    expect(runtimeErrors.at(-1)).toContain("--link is not supported with --marketplace.");
     expect(installPluginFromMarketplace).not.toHaveBeenCalled();
   });
 
@@ -256,7 +256,7 @@ describe("plugins cli install", () => {
       runPluginsCommand(["plugins", "install", "./plugin", "--link", "--force"]),
     ).rejects.toThrow("__exit__:1");
 
-    expect(runtimeErrors.at(-1)).toContain("`--force` is not supported with `--link`.");
+    expect(runtimeErrors.at(-1)).toContain("--force is not supported with --link.");
     expect(installPluginFromMarketplace).not.toHaveBeenCalled();
     expect(installPluginFromNpmSpec).not.toHaveBeenCalled();
   });
