@@ -22,6 +22,7 @@ import {
 import { defaultRuntime } from "../runtime.js";
 import { theme } from "../terminal/theme.js";
 import { shortenHomePath } from "../utils.js";
+import { formatCliCommand } from "./command-format.js";
 import { looksLikeLocalInstallSpec } from "./install-spec.js";
 import { resolvePinnedNpmInstallRecordForCli } from "./npm-resolution.js";
 import {
@@ -301,16 +302,22 @@ export async function runPluginInstallCommand(params: {
   };
   if (opts.marketplace) {
     if (opts.link) {
-      defaultRuntime.error("`--link` is not supported with `--marketplace`.");
+      defaultRuntime.error(
+        `--link is not supported with --marketplace. Remove --link, or install a local path with ${formatCliCommand("openclaw plugins install --link <path>")}.`,
+      );
       return defaultRuntime.exit(1);
     }
     if (opts.pin) {
-      defaultRuntime.error("`--pin` is not supported with `--marketplace`.");
+      defaultRuntime.error(
+        `--pin is not supported with --marketplace. Use ${formatCliCommand("openclaw plugins install <plugin> --marketplace <name>")} without --pin.`,
+      );
       return defaultRuntime.exit(1);
     }
   }
   if (opts.link && opts.force) {
-    defaultRuntime.error("`--force` is not supported with `--link`.");
+    defaultRuntime.error(
+      `--force is not supported with --link. Linked plugins point at the source path directly; remove --force and re-run ${formatCliCommand("openclaw plugins install --link <path>")}.`,
+    );
     return defaultRuntime.exit(1);
   }
   const requestResolution = resolvePluginInstallRequestContext({
@@ -461,7 +468,9 @@ export async function runPluginInstallCommand(params: {
   }
 
   if (opts.link) {
-    defaultRuntime.error("`--link` requires a local path.");
+    defaultRuntime.error(
+      `--link requires a local path. Run ${formatCliCommand("openclaw plugins install --link <path>")}.`,
+    );
     return defaultRuntime.exit(1);
   }
 

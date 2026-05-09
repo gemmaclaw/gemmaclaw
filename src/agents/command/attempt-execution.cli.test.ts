@@ -321,8 +321,12 @@ describe("CLI attempt execution", () => {
     });
 
     const sessionFile = updatedEntry?.sessionFile;
-    expect(sessionFile).toBeTruthy();
-    const messages = await readSessionMessages(sessionFile!);
+    expect(typeof sessionFile).toBe("string");
+    expect(sessionFile?.length ?? 0).toBeGreaterThan(0);
+    if (typeof sessionFile !== "string" || sessionFile.length === 0) {
+      throw new Error("Expected CLI transcript session file.");
+    }
+    const messages = await readSessionMessages(sessionFile);
     expect(messages).toHaveLength(2);
     expect(messages[0]).toMatchObject({
       role: "user",

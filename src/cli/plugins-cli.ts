@@ -28,6 +28,7 @@ import { formatDocsLink } from "../terminal/links.js";
 import { getTerminalTableWidth, renderTable } from "../terminal/table.js";
 import { theme } from "../terminal/theme.js";
 import { shortenHomeInString, shortenHomePath } from "../utils.js";
+import { formatCliCommand } from "./command-format.js";
 import {
   applySlotSelectionForPlugin,
   createPluginInstallLogger,
@@ -171,7 +172,11 @@ export function registerPluginsCli(program: Command) {
       }
 
       if (list.length === 0) {
-        defaultRuntime.log(theme.muted("No plugins found."));
+        defaultRuntime.log(
+          theme.muted(
+            `No plugins found. Run ${formatCliCommand("openclaw plugins install <plugin>")} to add one, or ${formatCliCommand("openclaw plugins list --json")} to inspect raw discovery state.`,
+          ),
+        );
         return;
       }
 
