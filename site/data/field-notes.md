@@ -1,7 +1,7 @@
 ## Field Notes — 2026-05-09
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
-Curated from the latest Gemma-mentioning posts (16 new or updated since 2026-05-08, 109 total) and their top comment threads.
+Curated from the latest Gemma-mentioning posts (23 new or updated since 2026-05-08, 109 total) and their top comment threads.
 Confidence is **medium** unless noted, since this is community signal rather than a controlled benchmark.
 
 _May 9 re-check, 2026-05-09 01:00 EDT:_ two new developments worth recording.
