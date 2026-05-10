@@ -8,7 +8,9 @@ import {
   HOST_OAUTH_MARKERS,
   HOST_PATH_MARKERS,
   REAL_ACCOUNT_MARKERS,
+  inspectTaskQuality,
   summarizeValidation,
+  summarizeQualityInspection,
   validateTaskArtifact,
 } from "./agent-validator.js";
 
@@ -204,5 +206,98 @@ describe("validateTaskArtifact", () => {
     expect(REAL_ACCOUNT_MARKERS).toContain("wsfccorp@gmail.com");
     expect(HOST_OAUTH_MARKERS.length).toBeGreaterThan(0);
     expect(HOST_PATH_MARKERS).toContain("/home/frank/.config/gogcli/state");
+  });
+});
+
+describe("inspectTaskQuality", () => {
+  it("records score-readiness info when an LLM judge is missing", () => {
+    const runDir = freshRunDir();
+    writeTaskArtifacts(runDir, baseTask.id, {
+      transcript: "[user] Check inbox\n[assistant] You have 3 emails.",
+    });
+    const validation = validateTaskArtifact({
+      runDir,
+      task: baseTask,
+      result: makeResult(),
+      fakeGogLogPath: path.join(runDir, "fake-gog.log"),
+    });
+
+    const inspection = inspectTaskQuality({
+      runDir,
+      task: baseTask,
+      result: makeResult(),
+      validation,
+      llmJudgePresent: false,
+      inspectedAt: "2026-05-10T19:40:00.000Z",
+    });
+
+    expect(inspection.publishable).toBe(false);
+    expect(inspection.issues.map((issue) => issue.kind)).toContain("llm_judge_missing");
+    expect(summarizeQualityInspection(inspection)).toContain("info:llm_judge_missing");
+  });
+
+  it("flags malformed tool usage for critical post-task review", () => {
+    const runDir = freshRunDir();
+    const transcript = [
+      '[tool_call] exec {"command":"gog calendar create \\"Backend\\" \\"2026-05-13T10:00:00\\""}',
+      '[tool_result] {"id":"evt_1","calendarId":"Backend","summary":"2026-05-13T10:00:00","start":null,"end":null}',
+      "[tool_result] {}",
+      "(Command exited with code 3)",
+    ].join("\n");
+    writeTaskArtifacts(runDir, baseTask.id, { transcript });
+    const result = makeResult({
+      conversation: [
+        { role: "user", content: "Schedule meetings" },
+        {
+          role: "tool_call",
+          toolName: "exec",
+          toolArgs: { command: 'gog tasks create --notes "Budget: $1200"' },
+          content: '{"command":"gog tasks create --notes \\"Budget: $1200\\""}',
+        },
+        { role: "tool_result", content: transcript },
+        { role: "assistant", content: "Done." },
+      ],
+    });
+
+    const inspection = inspectTaskQuality({
+      runDir,
+      task: baseTask,
+      result,
+      validation: { valid: true, issues: [] },
+      llmJudgePresent: true,
+      inspectedAt: "2026-05-10T19:41:00.000Z",
+    });
+
+    expect(inspection.issues.map((issue) => issue.kind)).toEqual(
+      expect.arrayContaining([
+        "tool_command_failed",
+        "malformed_calendar_output",
+        "shell_dollar_expansion_risk",
+      ]),
+    );
+    expect(inspection.publishable).toBe(true);
+  });
+
+  it("blocks publication when validation blocked or task did not complete", () => {
+    const runDir = freshRunDir();
+    writeTaskArtifacts(runDir, baseTask.id, { transcript: "" });
+    const validation = validateTaskArtifact({
+      runDir,
+      task: baseTask,
+      result: makeResult({ conversation: [], completionStatus: "error" }),
+    });
+
+    const inspection = inspectTaskQuality({
+      runDir,
+      task: baseTask,
+      result: makeResult({ conversation: [], completionStatus: "error" }),
+      validation,
+      llmJudgePresent: true,
+    });
+
+    expect(inspection.publishable).toBe(false);
+    expect(inspection.issues.map((issue) => issue.kind)).toEqual(
+      expect.arrayContaining(["validation_blocked", "task_not_completed"]),
+    );
   });
 });

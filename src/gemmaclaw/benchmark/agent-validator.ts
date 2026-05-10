@@ -75,6 +75,31 @@ export type ValidationResult = {
   deterministicScore?: ReturnType<typeof evaluateDeterministicAgentTaskConversation>;
 };
 
+export type QualityInspectionSeverity = "block" | "warn" | "info";
+
+export type QualityInspectionIssueKind =
+  | "validation_blocked"
+  | "task_not_completed"
+  | "llm_judge_missing"
+  | "tool_command_failed"
+  | "malformed_calendar_output"
+  | "shell_dollar_expansion_risk"
+  | "deterministic_score_low";
+
+export type QualityInspectionIssue = {
+  kind: QualityInspectionIssueKind;
+  severity: QualityInspectionSeverity;
+  message: string;
+  evidence?: string;
+};
+
+export type QualityInspectionResult = {
+  schemaVersion: 1;
+  inspectedAt: string;
+  publishable: boolean;
+  issues: QualityInspectionIssue[];
+};
+
 /**
  * Markers that indicate real-user contamination in a benchmark transcript.
  * Frank's real Gmail addresses, the corporate sender pattern, and the
@@ -386,6 +411,172 @@ export function validateTaskArtifact(input: ValidateTaskArtifactInput): Validati
 export function summarizeValidation(result: ValidationResult): string {
   if (result.issues.length === 0) {
     return "validation: ok";
+  }
+  return result.issues
+    .map((issue) => `${issue.severity}:${issue.kind}:${issue.message}`)
+    .join("; ");
+}
+
+function pushQualityIssue(issues: QualityInspectionIssue[], issue: QualityInspectionIssue): void {
+  const duplicate = issues.some(
+    (existing) => existing.kind === issue.kind && existing.message === issue.message,
+  );
+  if (!duplicate) {
+    issues.push(issue);
+  }
+}
+
+function transcriptContainsCommandFailure(transcript: string): string | undefined {
+  const match = transcript.match(/\(Command exited with code [1-9][0-9]*\)/);
+  if (!match) {
+    return undefined;
+  }
+  const start = Math.max(0, match.index! - 160);
+  const end = Math.min(transcript.length, match.index! + match[0].length + 160);
+  return clip(transcript.slice(start, end));
+}
+
+function transcriptContainsMalformedCalendarOutput(transcript: string): string | undefined {
+  const patterns = [
+    /"calendarId":\s*"[^"]+"\s*,\s*"summary":\s*"[^"]*"\s*,[\s\S]{0,500}?"start":\s*null\s*,\s*"end":\s*null/,
+    /"start":\s*null\s*,\s*"end":\s*null/,
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(transcript);
+    if (!match) {
+      continue;
+    }
+    const start = Math.max(0, match.index - 160);
+    const end = Math.min(transcript.length, match.index + match[0].length + 160);
+    return clip(transcript.slice(start, end));
+  }
+  return undefined;
+}
+
+function transcriptContainsShellDollarExpansionRisk(
+  conversation: ConversationTurn[],
+): string | undefined {
+  for (const turn of conversation) {
+    if (turn.role !== "tool_call") {
+      continue;
+    }
+    const body = `${turn.content}\n${JSON.stringify(turn.toolArgs ?? {})}`;
+    const match = body.match(/\$\d/);
+    if (!match) {
+      continue;
+    }
+    const start = Math.max(0, match.index! - 120);
+    const end = Math.min(body.length, match.index! + match[0].length + 120);
+    return clip(body.slice(start, end));
+  }
+  return undefined;
+}
+
+/**
+ * Lightweight per-task quality inspection for score readiness.
+ *
+ * This is not a replacement for the LLM judge. It is a durable stop-and-look
+ * gate between "the harness produced an artifact" and "this artifact is safe
+ * to carry forward into evaluation/site publishing." It records model-quality
+ * warnings without rerunning to improve scores, while still blocking harness
+ * and artifact failures that would make a score misleading.
+ */
+export function inspectTaskQuality(input: {
+  runDir: string;
+  task: AgentBenchmarkTask;
+  result: ValidatableTaskResult;
+  validation?: ValidationResult;
+  llmJudgePresent?: boolean;
+  inspectedAt?: string;
+}): QualityInspectionResult {
+  const { runDir, task, result, validation } = input;
+  const issues: QualityInspectionIssue[] = [];
+  const taskDir = path.join(runDir, "tasks", task.id);
+  const transcript =
+    readIfExists(path.join(taskDir, "transcript.txt")) || transcriptText(result.conversation ?? []);
+
+  if (validation && !validation.valid) {
+    pushQualityIssue(issues, {
+      kind: "validation_blocked",
+      severity: "block",
+      message: "Per-task validation failed; this result must not be evaluated or published.",
+      evidence: summarizeValidation(validation),
+    });
+  }
+
+  if (result.completionStatus !== "completed") {
+    pushQualityIssue(issues, {
+      kind: "task_not_completed",
+      severity: "block",
+      message: `Task completionStatus is ${result.completionStatus}; inspect before scoring.`,
+      evidence: result.error,
+    });
+  }
+
+  if (!input.llmJudgePresent) {
+    pushQualityIssue(issues, {
+      kind: "llm_judge_missing",
+      severity: "info",
+      message:
+        "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result.",
+    });
+  }
+
+  const commandFailure = transcriptContainsCommandFailure(transcript);
+  if (commandFailure) {
+    pushQualityIssue(issues, {
+      kind: "tool_command_failed",
+      severity: "warn",
+      message:
+        "A tool command exited nonzero inside a completed task. Preserve as model behavior unless it is a harness bug, but grade critically.",
+      evidence: commandFailure,
+    });
+  }
+
+  const malformedCalendar = transcriptContainsMalformedCalendarOutput(transcript);
+  if (malformedCalendar) {
+    pushQualityIssue(issues, {
+      kind: "malformed_calendar_output",
+      severity: "warn",
+      message:
+        "A calendar tool result has null start/end fields, usually caused by malformed command usage. Grade critically and inspect for harness ambiguity.",
+      evidence: malformedCalendar,
+    });
+  }
+
+  const shellDollarRisk = transcriptContainsShellDollarExpansionRisk(result.conversation ?? []);
+  if (shellDollarRisk) {
+    pushQualityIssue(issues, {
+      kind: "shell_dollar_expansion_risk",
+      severity: "warn",
+      message:
+        "A shell-exec tool call contains an unescaped dollar-number pattern. Shell expansion can corrupt benchmark side effects such as $1200 -> 200.",
+      evidence: shellDollarRisk,
+    });
+  }
+
+  const deterministicScore = validation?.deterministicScore;
+  if (deterministicScore && !deterministicScore.passed) {
+    pushQualityIssue(issues, {
+      kind: "deterministic_score_low",
+      severity: "warn",
+      message: `Deterministic scorer failed: ${deterministicScore.score}/${deterministicScore.maxScore}.`,
+      evidence: deterministicScore.details,
+    });
+  }
+
+  const hasBlocker = issues.some((issue) => issue.severity === "block");
+  return {
+    schemaVersion: 1,
+    inspectedAt: input.inspectedAt ?? new Date().toISOString(),
+    publishable: !hasBlocker && Boolean(input.llmJudgePresent),
+    issues,
+  };
+}
+
+export function summarizeQualityInspection(result: QualityInspectionResult): string {
+  if (result.issues.length === 0) {
+    return "quality: ok";
   }
   return result.issues
     .map((issue) => `${issue.severity}:${issue.kind}:${issue.message}`)
