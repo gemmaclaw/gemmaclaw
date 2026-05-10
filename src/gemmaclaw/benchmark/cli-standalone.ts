@@ -23,11 +23,21 @@
  *   pnpm benchmark agent --quant Q4_K_M     # Record quantization level
  */
 
+import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/benchmark-gemma.js";
 import { defaultRuntime } from "../../runtime.js";
 import { detectHardware } from "../provision/hardware.js";
+import {
+  AGENT_BENCHMARK_DOCKER_IMAGE,
+  assertSingleAgentBenchmarkTaskInContainer,
+  defaultAgentBenchmarkRunId,
+  isInsideAgentBenchmarkContainer,
+  findBenchmarkRepoRoot,
+  preparePerTaskContainerArgs,
+  selectAgentBenchmarkTaskIds,
+} from "./agent-container-guard.js";
 import { evaluateAgentBenchmarkRun, type AgentJudgeProvider } from "./agent-evaluator.js";
 import {
   assembleAgentBenchmarkRun,
@@ -133,12 +143,107 @@ function parseArgs(argv: string[]) {
   return opts;
 }
 
+async function runAgentModeInDocker(opts: Record<string, string | boolean>): Promise<void> {
+  const repoRoot = findBenchmarkRepoRoot();
+  const hostOutputDir = path.resolve((opts.outputDir as string | undefined) ?? "benchmark-results");
+  const containerOutputDir = "/results";
+  const selectedTaskIds = selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts);
+  const runId = defaultAgentBenchmarkRunId(opts);
+
+  console.log("========================================");
+  console.log("  Gemmaclaw Agent Benchmark Containers");
+  console.log("========================================\n");
+  console.log(
+    "Agent benchmarks are container-only. Building benchmark image once, then running one fresh container per task.",
+  );
+  console.log(`Image:  ${AGENT_BENCHMARK_DOCKER_IMAGE}`);
+  console.log(`Output: ${hostOutputDir}`);
+  console.log(`Run id: ${runId}`);
+  console.log(`Tasks:  ${selectedTaskIds.length}`);
+  console.log("");
+
+  execSync(`docker build -f Dockerfile.benchmark -t ${AGENT_BENCHMARK_DOCKER_IMAGE} .`, {
+    cwd: repoRoot,
+    stdio: "inherit",
+    timeout: 900_000,
+  });
+
+  for (let index = 0; index < selectedTaskIds.length; index++) {
+    const taskId = selectedTaskIds[index];
+    const forwardedArgs = preparePerTaskContainerArgs(process.argv.slice(2), {
+      taskId,
+      runId,
+      outputDir: containerOutputDir,
+    });
+    const dockerArgs = [
+      "run",
+      "--rm",
+      "--add-host=host.docker.internal:host-gateway",
+      "-e",
+      "GEMMACLAW_BENCHMARK_CONTAINER=1",
+      "-v",
+      `${hostOutputDir}:${containerOutputDir}`,
+      AGENT_BENCHMARK_DOCKER_IMAGE,
+      ...forwardedArgs,
+    ];
+
+    console.log(`\n[container ${index + 1}/${selectedTaskIds.length}] ${taskId}`);
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn("docker", dockerArgs, { cwd: repoRoot, stdio: "inherit" });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(
+            new Error(
+              `containerized agent benchmark task ${taskId} failed with exit code ${code ?? 1}`,
+            ),
+          );
+        }
+      });
+    });
+  }
+
+  console.log("\nAssembling aggregate results on host-mounted artifacts...");
+  assembleAgentBenchmarkRun(
+    AGENT_BENCHMARK_TASKS,
+    {
+      gatewayUrl: "containerized-per-task",
+      backend: "ollama",
+      ollamaUrl: "host-mounted-results",
+      llamaCppUrl: "host-mounted-results",
+      model: String(opts.model ?? "auto"),
+      quant: opts.quant as string | undefined,
+      thinkingLevel: opts.thinking as string | undefined,
+      taskTimeoutSeconds: opts.taskTimeout ? Number.parseInt(String(opts.taskTimeout), 10) : 600,
+      idleTimeoutSeconds: opts.idleTimeout ? Number.parseInt(String(opts.idleTimeout), 10) : 30,
+      noActivityTimeoutSeconds: opts.noActivityTimeout
+        ? Number.parseInt(String(opts.noActivityTimeout), 10)
+        : undefined,
+      hardCapSeconds: opts.hardCap ? Number.parseInt(String(opts.hardCap), 10) : undefined,
+      validatePerTask: opts.validatePerTask !== false,
+      validationRerunOnFail: opts.validationRerunOnFail !== false,
+      filter: opts.task ? String(opts.task) : (opts.filter as string | undefined),
+      mock: false,
+      contextLength: opts.contextLength
+        ? Number.parseInt(String(opts.contextLength), 10)
+        : undefined,
+      outputDir: hostOutputDir,
+      runId,
+      rerun: Boolean(opts.rerun),
+      rerunFailed: Boolean(opts.rerunFailed),
+    },
+    hostOutputDir,
+  );
+}
+
 function printHelp(): void {
   console.log(`Usage: pnpm benchmark [command] [options]
 
 Commands:
   (default)            Run prompt-response benchmarks (original mode)
-  agent                Run E2E agentic benchmarks (24 tasks with tool calling)
+  agent                Run E2E agentic benchmarks, one fresh Docker container per real task
   agent list           List all available agent benchmark tasks
   sandbox              Run benchmark in a persistent Docker container
 
@@ -151,7 +256,7 @@ Agent Mode Options:
   --ollama-url <url>     Ollama API URL (default: http://127.0.0.1:11434)
   --filter <text>        Run only tasks matching text (id, name, category, difficulty)
   --task <id>            Run a single task by exact id
-  --output-dir <dir>     Output directory for results (default: benchmark-results)
+  --output-dir <dir>     Host-mounted output directory for results/evals (default: benchmark-results)
   --gemmaclaw-home <dir> Isolated OpenClaw/gog state base for agent runs
   --run-id <id>          Stable run id for resume/rerun (default: model + timestamp)
   --rerun                Force rerun of selected tasks into the same run id
@@ -186,7 +291,7 @@ Sandbox Options:
   --keep                 Keep container running after benchmark finishes
 
 Examples:
-  pnpm benchmark agent                              # Run all agentic tasks with default model
+  pnpm benchmark agent                              # Run all agentic tasks, one Docker container per task
   pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
   pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking xhigh
   pnpm benchmark agent --run-id q6k-v1               # Resume an interrupted run
@@ -249,6 +354,17 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
       includeRaw: Boolean(opts.includeRawJudgeResponse),
     });
     return;
+  }
+
+  if (!opts.mock && !opts.assemble && !isInsideAgentBenchmarkContainer()) {
+    await runAgentModeInDocker(opts);
+    return;
+  }
+
+  if (!opts.mock && !opts.assemble && isInsideAgentBenchmarkContainer()) {
+    assertSingleAgentBenchmarkTaskInContainer({
+      taskIds: selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts),
+    });
   }
 
   const hardware = detectHardware();

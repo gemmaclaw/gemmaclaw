@@ -64,6 +64,18 @@ When running `--pack jake-agent` without a live runner, Gemmaclaw defaults to th
 
 Tool-free packs other than the built-in `core` are recognized by the loader and v1 schema, but the gemmaclaw benchmark runner currently only executes the built-in `core` pack end-to-end. For arbitrary tool-free packs, use `loadBenchmarkPack(path)` from JS or invoke jake-benchmark's `jake-bench run` CLI.
 
+### Live Agent Benchmark Isolation
+
+The standalone live agent benchmark command is container-only by default:
+
+```bash
+pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --output-dir /path/on/host/benchmark-results
+```
+
+When run from the host, the CLI builds `Dockerfile.benchmark` once and then starts one fresh Docker container per selected task. Each container receives exactly one `--task` plus the shared `--run-id`, so task-local OpenClaw, gog, browser, filesystem, and environment state cannot leak between benchmark cases. The only persistent boundary is the bind-mounted `--output-dir`, which is mounted at `/results` inside the container. Per-task artifacts, aggregate `results.json`, `RESULTS.md`, transcripts, and later judge/evaluation files must be written under that host-mounted output tree so container removal never loses benchmark evidence.
+
+Host execution is allowed only for inspection and artifact-only work (`agent list`, `--mock`, `--assemble`, and `--evaluate`). A real non-mock agent run outside the benchmark container is refused. A direct in-container run that selects multiple real tasks is also refused unless `GEMMACLAW_BENCHMARK_ALLOW_MULTI_TASK_CONTAINER=1` is set for a deliberate debugging override.
+
 ### Sweep / Upload (legacy programmatic surface)
 
 `runSweep` and `uploadResult` remain available as library functions:
