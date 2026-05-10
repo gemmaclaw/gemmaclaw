@@ -362,6 +362,61 @@ function taskTrajectoryCopyPath(runDir: string, taskId: string): string {
   return path.join(runDir, "tasks", taskId, "trajectory.jsonl");
 }
 
+function taskStartedMarkerPath(runDir: string, taskId: string): string {
+  return path.join(runDir, "tasks", taskId, "started.json");
+}
+
+/**
+ * Per-task "started" marker. Written before each dispatch attempt so silent
+ * kills of the runner process (parent worker death, OOM, host shutdown) leave
+ * observable evidence that the task was attempted. Without this marker, an
+ * interrupted dispatch is indistinguishable from "never tried" because
+ * result.json is only written after dispatch returns. Motivation: 2026-05-10
+ * context_memory_chain rerun was killed mid-flight and produced no artifact
+ * at all. The marker is cleared on completion (success/timeout/error) when
+ * result.json lands, so a started.json with no result.json is a positive
+ * signal that the attempt was killed.
+ */
+export type TaskStartedMarker = {
+  schemaVersion: 1;
+  taskId: string;
+  taskName: string;
+  runId: string;
+  configHash: string;
+  sessionId: string;
+  attempt: number;
+  startedAt: string;
+  pid: number;
+};
+
+export function writeTaskStartedMarker(runDir: string, marker: TaskStartedMarker): void {
+  const taskDir = path.join(runDir, "tasks", marker.taskId);
+  fs.mkdirSync(taskDir, { recursive: true });
+  atomicWriteJson(taskStartedMarkerPath(runDir, marker.taskId), marker);
+}
+
+export function clearTaskStartedMarker(runDir: string, taskId: string): void {
+  const filePath = taskStartedMarkerPath(runDir, taskId);
+  if (fs.existsSync(filePath)) {
+    fs.rmSync(filePath, { force: true });
+  }
+}
+
+export function readTaskStartedMarker(
+  runDir: string,
+  taskId: string,
+): TaskStartedMarker | undefined {
+  const filePath = taskStartedMarkerPath(runDir, taskId);
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as TaskStartedMarker;
+  } catch {
+    return undefined;
+  }
+}
+
 function writeTranscript(filePath: string, result: AgentTaskResult): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const transcript = result.conversation
@@ -1787,6 +1842,7 @@ export async function runAgentBenchmark(
    */
   const runOneTaskAttempt = async (
     task: AgentBenchmarkTask,
+    attempt: number = 1,
   ): Promise<{
     taskResult: AgentTaskResult;
     sessionJsonlPath?: string;
@@ -1794,6 +1850,20 @@ export async function runAgentBenchmark(
     fakeGogLogPath?: string;
   }> => {
     const sessionId = `bench-${task.id}-${Date.now()}`;
+    // Write a "started" marker BEFORE dispatch so silent kills (parent worker
+    // death, OOM, host shutdown) leave observable evidence that the task was
+    // attempted. Cleared by the caller once writeTaskArtifact lands.
+    writeTaskStartedMarker(runDir, {
+      schemaVersion: 1,
+      taskId: task.id,
+      taskName: task.name,
+      runId,
+      configHash,
+      sessionId,
+      attempt,
+      startedAt: new Date().toISOString(),
+      pid: process.pid,
+    });
     seedMockGog(config.seedScript, seedStateDir);
     let conversation: ConversationTurn[];
     let elapsedMs: number;
@@ -1887,7 +1957,7 @@ export async function runAgentBenchmark(
         if (fs.existsSync(taskDir)) {
           fs.rmSync(taskDir, { recursive: true, force: true });
         }
-        attempt = await runOneTaskAttempt(task);
+        attempt = await runOneTaskAttempt(task, 2);
         validationRerunCount = 1;
         writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
         copyIfExists(attempt.sessionJsonlPath, taskSessionCopyPath(runDir, task.id));
@@ -1914,6 +1984,14 @@ export async function runAgentBenchmark(
       }
       writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
     }
+
+    // Final result.json has landed for this task. Clear the started.json
+    // marker so a future audit can distinguish "killed mid-flight" (started
+    // present, result absent) from "ran to completion" (result present,
+    // started absent). Validation reruns wipe the entire task dir, so the
+    // marker is re-written by runOneTaskAttempt on each retry and only
+    // cleared here once we hold a final result.json.
+    clearTaskStartedMarker(runDir, task.id);
 
     resultsById.set(task.id, attempt.taskResult);
     saveAggregate();

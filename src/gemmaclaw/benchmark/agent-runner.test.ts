@@ -4,11 +4,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assembleAgentBenchmarkRun,
+  clearTaskStartedMarker,
   computeConfigHash,
   extractAssistantResponseFromStdout,
   isAgentBackendType,
   loadTaskArtifacts,
   parseSessionEntry,
+  readTaskStartedMarker,
   resolveAgentProviderPrefix,
   resolveCodexHome,
   resolveFakeGogBinDir,
@@ -18,9 +20,11 @@ import {
   runAgentBenchmark,
   writeTaskArtifact,
   writeBenchmarkWorkspaceFiles,
+  writeTaskStartedMarker,
   type AgentBenchmarkConfig,
   type AgentTaskResult,
   type RunMetadata,
+  type TaskStartedMarker,
 } from "./agent-runner.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
 
@@ -350,6 +354,79 @@ describe("per-task benchmark artifacts", () => {
     toolsUsed: ["gog"],
     completionStatus: "completed",
   };
+
+  it("writes, reads, and clears a task started.json marker", () => {
+    const runDir = tempDir();
+    const configHash = computeConfigHash(config);
+    const marker: TaskStartedMarker = {
+      schemaVersion: 1,
+      taskId: "email_summarize",
+      taskName: "Email Inbox Summary",
+      runId: "q4-smoke",
+      configHash,
+      sessionId: "bench-email_summarize-12345",
+      attempt: 1,
+      startedAt: "2026-05-10T15:39:00.000Z",
+      pid: 4242,
+    };
+
+    expect(readTaskStartedMarker(runDir, "email_summarize")).toBeUndefined();
+    writeTaskStartedMarker(runDir, marker);
+
+    const markerPath = path.join(runDir, "tasks/email_summarize/started.json");
+    expect(fs.existsSync(markerPath)).toBe(true);
+    const reloaded = readTaskStartedMarker(runDir, "email_summarize");
+    expect(reloaded).toEqual(marker);
+
+    clearTaskStartedMarker(runDir, "email_summarize");
+    expect(fs.existsSync(markerPath)).toBe(false);
+    expect(readTaskStartedMarker(runDir, "email_summarize")).toBeUndefined();
+    // Clear is idempotent so a runner that never wrote a marker (or already
+    // cleared it) doesn't crash.
+    expect(() => clearTaskStartedMarker(runDir, "email_summarize")).not.toThrow();
+  });
+
+  it("clears the started marker once a final result.json is written by the run loop", async () => {
+    const outputDir = tempDir();
+    const runDir = path.join(outputDir, "runs", "q4-smoke");
+    const parentConfig = { ...config, outputDir, runId: "q4-smoke", mock: true };
+
+    await runAgentBenchmark([task], parentConfig, hardware);
+
+    expect(fs.existsSync(path.join(runDir, "tasks/email_summarize/result.json"))).toBe(true);
+    // After a clean mock run the started marker must be cleared so a future
+    // audit can distinguish "ran to completion" from "killed mid-flight".
+    expect(fs.existsSync(path.join(runDir, "tasks/email_summarize/started.json"))).toBe(false);
+  });
+
+  it("preserves a leftover started.json when writeTaskArtifact never runs (silent kill semantics)", () => {
+    // Simulate the failure mode that motivated the marker: dispatch is killed
+    // mid-flight before result.json lands. The marker we wrote at task start
+    // must remain on disk as positive evidence that the attempt happened.
+    const runDir = tempDir();
+    const configHash = computeConfigHash(config);
+    const marker: TaskStartedMarker = {
+      schemaVersion: 1,
+      taskId: "context_memory_chain",
+      taskName: "Context and Memory Chain",
+      runId: "q4-smoke",
+      configHash,
+      sessionId: "bench-context_memory_chain-99999",
+      attempt: 1,
+      startedAt: "2026-05-10T15:39:27.000Z",
+      pid: 3914806,
+    };
+
+    writeTaskStartedMarker(runDir, marker);
+    // No writeTaskArtifact, no clear: the runner died after writing started
+    // and before producing a result.
+    const startedPath = path.join(runDir, "tasks/context_memory_chain/started.json");
+    expect(fs.existsSync(startedPath)).toBe(true);
+    expect(fs.existsSync(path.join(runDir, "tasks/context_memory_chain/result.json"))).toBe(false);
+    const reloaded = readTaskStartedMarker(runDir, "context_memory_chain");
+    expect(reloaded?.sessionId).toBe("bench-context_memory_chain-99999");
+    expect(reloaded?.pid).toBe(3914806);
+  });
 
   it("saves and reloads an individual task result with transcript", () => {
     const runDir = tempDir();
