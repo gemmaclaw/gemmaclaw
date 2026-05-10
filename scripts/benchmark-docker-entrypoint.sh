@@ -9,6 +9,24 @@ echo ""
 export GEMMACLAW_BENCHMARK_CONTAINER=1
 OLLAMA_PID=""
 
+# Bounded curl probes. Every health/readiness probe in this entrypoint must use
+# explicit --connect-timeout and --max-time so a stuck network syscall (peer up
+# but not responding, kernel TCP backlog wedge, etc.) cannot pin a probe loop
+# forever. Codex eval observed a stuck `curl -s /healthz` in smoke container
+# 8672a8bfe1e2 on PR #139 before these bounds were added.
+HEALTH_CONNECT_TIMEOUT=2
+HEALTH_MAX_TIME=5
+WARMUP_CONNECT_TIMEOUT=10
+WARMUP_MAX_TIME=600
+
+probe_curl() {
+  curl -s --connect-timeout "$HEALTH_CONNECT_TIMEOUT" --max-time "$HEALTH_MAX_TIME" "$@"
+}
+
+probe_curl_fail() {
+  curl -sf --connect-timeout "$HEALTH_CONNECT_TIMEOUT" --max-time "$HEALTH_MAX_TIME" "$@"
+}
+
 # Extract --model from args, default gemma3:1b.
 MODEL="${BENCHMARK_MODEL:-gemma3:1b}"
 prev_was_model=0
@@ -41,12 +59,12 @@ if [ "$IS_AGENT" != "1" ]; then
 
   echo "[2/3] Waiting for Ollama..."
   for i in $(seq 1 60); do
-    if curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+    if probe_curl http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
       echo "  Ollama ready after ${i}s"
       break
     fi
     if [ "$i" -eq 60 ]; then
-      echo "ERROR: Ollama failed to start after 60s"
+      echo "ERROR: Ollama failed to start after 60s (each probe bounded to ${HEALTH_MAX_TIME}s)"
       exit 1
     fi
     sleep 1
@@ -204,11 +222,12 @@ if [ "$IS_AGENT" = "1" ]; then
     OLLAMA_TARGET="http://host.docker.internal:11434"
   fi
 
-  if curl -sf "$OLLAMA_TARGET/api/tags" >/dev/null 2>&1; then
+  if probe_curl_fail "$OLLAMA_TARGET/api/tags" >/dev/null 2>&1; then
     echo "[agent] Using host/configured Ollama at $OLLAMA_TARGET"
   else
     echo "FAIL: Agent benchmarks require a reachable host/configured Ollama at $OLLAMA_TARGET"
     echo "      Start host Ollama or pass OLLAMA_URL. Container-local Ollama is disabled for agent benchmarks."
+    echo "      (probe bounded to ${HEALTH_MAX_TIME}s per attempt)"
     exit 1
   fi
 
@@ -216,9 +235,10 @@ if [ "$IS_AGENT" = "1" ]; then
   # gateway. A missing model is a hard fail; we do not fall back to a
   # different model silently.
   if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
-    if ! curl -sf "$OLLAMA_TARGET/api/tags" \
+    if ! probe_curl_fail "$OLLAMA_TARGET/api/tags" \
         | python3 -c "import json,sys; tags=json.load(sys.stdin).get('models',[]); names=[m.get('name','') for m in tags]; sys.exit(0 if '$MODEL' in names else 1)"; then
       echo "FAIL: model $MODEL is not present on host Ollama at $OLLAMA_TARGET. Run 'ollama pull $MODEL' on the host before running benchmarks."
+      echo "      (api/tags probe bounded to ${HEALTH_MAX_TIME}s)"
       exit 1
     fi
     echo "[agent] Confirmed host Ollama has model: $MODEL"
@@ -296,19 +316,46 @@ GCEOF
     >> "$GATEWAY_LOG" 2>&1 &
   GATEWAY_PID=$!
 
-  echo "[agent] Waiting for gateway..."
+  # Bounded gateway readiness probe. Each curl is capped at ${HEALTH_MAX_TIME}s
+  # so a stuck network syscall cannot pin this loop forever (Codex eval found a
+  # stuck unbounded `curl -s /healthz` in smoke container 8672a8bfe1e2). Worst-
+  # case wall-clock for 60 attempts is ~60 * (HEALTH_MAX_TIME + 1)s.
+  echo "[agent] Waiting for gateway (probe timeout: connect=${HEALTH_CONNECT_TIMEOUT}s max=${HEALTH_MAX_TIME}s, attempts=60)..."
+  GATEWAY_READY=0
+  HEALTH_FAILS=0
   for i in $(seq 1 60); do
-    if curl -s http://127.0.0.1:3001/healthz >/dev/null 2>&1; then
-      echo "  Gateway ready after ${i}s"
+    HEALTH_BODY=""
+    if HEALTH_BODY="$(probe_curl http://127.0.0.1:3001/healthz 2>&1)"; then
+      echo "  Gateway ready after ${i}s (healthz: ${HEALTH_BODY:-<empty>})"
+      GATEWAY_READY=1
       break
     fi
-    if [ "$i" -eq 60 ]; then
-      echo "FAIL: Gateway failed to start after 60s"
-      cleanup_ollama
-      exit 1
+    HEALTH_FAILS=$((HEALTH_FAILS + 1))
+    # Loud diagnostic every 10 failed probes so the log shows progress instead
+    # of going silent if the gateway boots slowly or hangs.
+    if [ "$((HEALTH_FAILS % 10))" = "0" ]; then
+      echo "  [healthz probe] still waiting after ${i}s (curl rc!=0; last 5 gateway log lines):"
+      tail -5 "$GATEWAY_LOG" 2>/dev/null | sed 's/^/    /'
+      if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
+        echo "FAIL: Gateway PID $GATEWAY_PID is no longer alive after ${i}s"
+        echo "      Last 80 gateway log lines:"
+        tail -80 "$GATEWAY_LOG" 2>/dev/null | sed 's/^/    /'
+        cleanup_ollama
+        exit 1
+      fi
     fi
     sleep 1
   done
+  if [ "$GATEWAY_READY" != "1" ]; then
+    echo "FAIL: Gateway healthz did not respond after 60 bounded probes"
+    echo "      curl: --connect-timeout=${HEALTH_CONNECT_TIMEOUT}s --max-time=${HEALTH_MAX_TIME}s"
+    echo "      Gateway PID: $GATEWAY_PID (alive=$(kill -0 "$GATEWAY_PID" 2>/dev/null && echo yes || echo no))"
+    echo "      Last 120 gateway log lines:"
+    tail -120 "$GATEWAY_LOG" 2>/dev/null | sed 's/^/    /'
+    kill "$GATEWAY_PID" 2>/dev/null || true
+    cleanup_ollama
+    exit 1
+  fi
 
   # Verify gateway picked up our config: the most recent "agent model:" log
   # line must match EXPECTED_AGENT_MODEL. The gateway sometimes emits this
@@ -345,17 +392,21 @@ GCEOF
   # waiting for the model to load while the activity-based watchdog ticks.
   if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
     echo "[agent] Warming host Ollama with $MODEL (keep_alive=30m)"
-    if ! curl -sf -X POST "$OLLAMA_TARGET/api/generate" \
+    # Warmup is a real generate call that may take a while when the model
+    # is cold-loading from disk. Bound it generously (--max-time 600) so a
+    # truly stuck call still fails instead of pinning the entrypoint.
+    if ! curl -sf --connect-timeout "$WARMUP_CONNECT_TIMEOUT" --max-time "$WARMUP_MAX_TIME" \
+        -X POST "$OLLAMA_TARGET/api/generate" \
         -H "Content-Type: application/json" \
         -d "{\"model\":\"$MODEL\",\"prompt\":\"hi\",\"stream\":false,\"keep_alive\":\"30m\",\"options\":{\"num_predict\":1}}" \
         >/tmp/ollama-warmup.json 2>&1; then
-      echo "FAIL: host Ollama warmup for $MODEL failed."
+      echo "FAIL: host Ollama warmup for $MODEL failed (curl bounded to ${WARMUP_MAX_TIME}s)."
       cat /tmp/ollama-warmup.json 2>/dev/null | tail -20
       kill $GATEWAY_PID 2>/dev/null || true
       cleanup_ollama
       exit 1
     fi
-    LOADED_MODELS="$(curl -sf "$OLLAMA_TARGET/api/ps" 2>/dev/null \
+    LOADED_MODELS="$(probe_curl_fail "$OLLAMA_TARGET/api/ps" 2>/dev/null \
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(','.join(m.get('name','') for m in d.get('models',[])))" 2>/dev/null)"
     if ! echo "$LOADED_MODELS" | tr ',' '\n' | grep -Fxq "$MODEL"; then
       echo "FAIL: after warmup, host Ollama /api/ps does not show $MODEL loaded. Loaded: $LOADED_MODELS"
@@ -388,7 +439,7 @@ GCEOF
   # model loaded after the benchmark dispatch. If the dispatch silently
   # routed to a different model, /api/ps will say so.
   if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
-    POST_LOADED="$(curl -sf "$OLLAMA_TARGET/api/ps" 2>/dev/null \
+    POST_LOADED="$(probe_curl_fail "$OLLAMA_TARGET/api/ps" 2>/dev/null \
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(','.join(m.get('name','') for m in d.get('models',[])))" 2>/dev/null)"
     if echo "$POST_LOADED" | tr ',' '\n' | grep -Fxq "$MODEL"; then
       echo "[agent] POST-TASK OK: host Ollama still has $MODEL loaded ($POST_LOADED)"
