@@ -73,6 +73,8 @@ export type AgentEvaluationConfig = {
   runId: string;
   provider: AgentJudgeProvider;
   model: string;
+  /** Optional base URL for the judge API (e.g. http://127.0.0.1:11434/v1/ for local Ollama). */
+  judgeBaseUrl?: string;
   force?: boolean;
   includeRaw?: boolean;
 };
@@ -365,27 +367,33 @@ export class OpenAIAgentJudgeClient implements AgentJudgeClient {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(model: string, apiKey = process.env.OPENAI_API_KEY) {
-    this.client = new OpenAI({ apiKey });
+  constructor(model: string, apiKey = process.env.OPENAI_API_KEY, baseURL?: string) {
+    this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     this.model = model;
   }
 
   async judge(prompt: string): Promise<string> {
-    const response = await this.client.responses.create({
+    const response = await this.client.chat.completions.create({
       model: this.model,
-      input: [
+      messages: [
         { role: "system", content: JUDGE_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
-      max_output_tokens: 4096,
+      max_tokens: 4096,
     });
-    return response.output_text ?? "";
+    return response.choices[0]?.message?.content ?? "";
   }
+}
+
+function makeJudgeClient(config: AgentEvaluationConfig): AgentJudgeClient {
+  // Local Ollama: accepts any API key value, uses OpenAI-compatible /v1/ API.
+  const apiKey = config.judgeBaseUrl ? "ollama" : process.env.OPENAI_API_KEY;
+  return new OpenAIAgentJudgeClient(config.model, apiKey, config.judgeBaseUrl);
 }
 
 export async function evaluateAgentBenchmarkRun(
   config: AgentEvaluationConfig,
-  judgeClient: AgentJudgeClient = new OpenAIAgentJudgeClient(config.model),
+  judgeClient: AgentJudgeClient = makeJudgeClient(config),
   log: (message: string) => void = console.log,
 ): Promise<AgentEvaluationSummary> {
   const runDir = path.join(config.outputDir, "runs", config.runId);

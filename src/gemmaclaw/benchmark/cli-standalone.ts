@@ -92,6 +92,8 @@ function parseArgs(argv: string[]) {
       opts.includeRawJudgeResponse = true;
     } else if (arg === "--judge-provider" && args[i + 1]) {
       opts.judgeProvider = args[++i]!;
+    } else if (arg === "--judge-base-url" && args[i + 1]) {
+      opts.judgeBaseUrl = args[++i]!;
     } else if (arg === "--context-length" && args[i + 1]) {
       opts.contextLength = args[++i]!;
     } else if (arg === "--gpu-layers" && args[i + 1]) {
@@ -395,6 +397,7 @@ Agent Mode Options:
   --evaluate             Run LLM judge scoring for a saved run id
   --force-evaluate       Replace existing LLM judge scores for that run
   --judge-provider <id>  Judge provider (openai)
+  --judge-base-url <url> Judge API base URL (e.g. http://127.0.0.1:11434/v1/ for local Ollama)
   --task-timeout <sec>   Legacy alias for --hard-cap (default: 600). Activity-based timeout is the normal "stuck" signal.
   --idle-timeout <sec>   Seconds of idle before task considered done (default: 30)
   --no-activity-timeout <sec>  Kill the task if no useful agent activity (stdout/stderr/JSONL/trajectory) for N seconds (default: 600)
@@ -476,11 +479,13 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
     const provider: AgentJudgeProvider = judgeProviderInput;
     const model = (opts.judgeModel as string | undefined) ?? "gpt-5.5";
     const outputDir = (opts.outputDir as string) ?? "benchmark-results";
+    const judgeBaseUrl = opts.judgeBaseUrl as string | undefined;
     await evaluateAgentBenchmarkRun({
       outputDir,
       runId,
       provider,
       model,
+      judgeBaseUrl,
       force: Boolean(opts.forceEvaluate),
       includeRaw: Boolean(opts.includeRawJudgeResponse),
     });
