@@ -1055,6 +1055,9 @@ export async function dispatchTask(
   }
 
   log(`  Dispatching: ${gemmaclawArgs.join(" ")} agent --local --session-id ${sessionId}`);
+  log(
+    `    Inner agent model: ${resolveAgentProviderPrefix(config.backend)}/${config.model} (from ${path.join(benchHome, ".openclaw/openclaw.json")})`,
+  );
 
   // Write dispatch command to log file for debugging
   const logDir = config.logDir ?? path.join(os.tmpdir(), "gemmaclaw-benchmark-logs");
