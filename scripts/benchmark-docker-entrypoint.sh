@@ -235,18 +235,29 @@ if [ "$IS_AGENT" = "1" ]; then
     "defaults": {
       "model": {
         "primary": "${EXPECTED_AGENT_MODEL}"
-      }
+      },
+      "llm": { "idleTimeoutSeconds": 0 }
     }
   },
   "models": {
     "providers": {
       "ollama": {
         "baseUrl": "${OLLAMA_TARGET}",
-        "api": "ollama"
+        "api": "ollama",
+        "models": [
+          {
+            "id": "${MODEL}",
+            "name": "${MODEL}",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 262144,
+            "maxTokens": 8192,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          }
+        ]
       }
     }
   },
-  "sandbox": { "mode": "off" },
   "tools": { "exec": { "host": "gateway", "security": "full", "ask": "off" } }
 }
 GCEOF
