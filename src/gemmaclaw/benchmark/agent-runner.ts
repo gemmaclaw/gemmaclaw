@@ -454,7 +454,10 @@ export async function dispatchTask(
     const defaultGogState = path.join(process.env.HOME ?? "/root", ".config/gogcli/state");
     if (fs.existsSync(defaultGogState)) {
       for (const file of fs.readdirSync(defaultGogState)) {
-        fs.copyFileSync(path.join(defaultGogState, file), path.join(gogStateDir, file));
+        const src = path.join(defaultGogState, file);
+        if (fs.statSync(src).isFile()) {
+          fs.copyFileSync(src, path.join(gogStateDir, file));
+        }
       }
     }
 
