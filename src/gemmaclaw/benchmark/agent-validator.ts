@@ -42,11 +42,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentTaskResult, ConversationTurn } from "./agent-runner.js";
 import {
   evaluateDeterministicAgentTaskConversation,
   type AgentBenchmarkTask,
 } from "./agent-tasks.js";
+import type { ConversationTurn, ValidatableTaskResult } from "./agent-types.js";
 
 export type ValidationSeverity = "block" | "warn";
 
@@ -202,7 +202,7 @@ export type ValidateTaskArtifactInput = {
   /** Task definition (used for deterministic scoring + criteria). */
   task: AgentBenchmarkTask;
   /** Resolved task result (already persisted). */
-  result: AgentTaskResult;
+  result: ValidatableTaskResult;
   /** Optional fake-gog log path. When present and non-empty, fake-gog was used. */
   fakeGogLogPath?: string;
   /** Optional benchmark home dir. Used to scope path-leak checks. */
