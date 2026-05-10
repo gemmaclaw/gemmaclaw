@@ -158,14 +158,44 @@ if [ "$IS_AGENT" = "1" ]; then
   echo "========================================"
   echo ""
 
+  # Determine which provider/backend the host caller asked for. Default is
+  # ollama. llama-cpp uses an OpenAI-compatible base URL, so the provider
+  # prefix differs.
+  BENCHMARK_BACKEND="ollama"
+  prev_was_backend=0
+  for arg in "$@"; do
+    if [ "$prev_was_backend" = "1" ]; then
+      BENCHMARK_BACKEND="$arg"
+      prev_was_backend=0
+      continue
+    fi
+    if [ "$arg" = "--backend" ]; then
+      prev_was_backend=1
+    fi
+  done
+  case "$BENCHMARK_BACKEND" in
+    ollama)         PROVIDER_PREFIX="ollama" ;;
+    llama-cpp)      PROVIDER_PREFIX="openai" ;;
+    openai-codex)   PROVIDER_PREFIX="openai-codex" ;;
+    *)              PROVIDER_PREFIX="$BENCHMARK_BACKEND" ;;
+  esac
+  EXPECTED_AGENT_MODEL="${PROVIDER_PREFIX}/${MODEL}"
+
   # Seed mock gog state
   echo "[agent] Seeding mock gog state..."
   python3 /app/scripts/benchmark/seed-mock-gog.py
 
-  # Start gemmaclaw gateway in the background
+  # Start gemmaclaw gateway in the background. The gemmaclaw binary resolves
+  # its state directory via GEMMACLAW_HOME first, then OPENCLAW_STATE_DIR,
+  # then ~/.gemmaclaw (see src/gemmaclaw/home.ts). OPENCLAW_HOME is NOT a
+  # supported override and was the source of an earlier bug where the gateway
+  # silently fell back to /root/.gemmaclaw/openclaw.json (default
+  # openai/gpt-5.4) instead of the entrypoint-written config.
   echo "[agent] Starting gemmaclaw gateway..."
-  export OPENCLAW_HOME="/root/.openclaw"
-  mkdir -p "$OPENCLAW_HOME"
+  export GEMMACLAW_HOME="/root/.gemmaclaw"
+  export OPENCLAW_STATE_DIR="$GEMMACLAW_HOME"
+  unset OPENCLAW_HOME
+  mkdir -p "$GEMMACLAW_HOME"
 
   # Determine Ollama URL. Real agent benchmarks must use host Ollama so each
   # per-task container starts clean without downloading or serving models.
@@ -177,21 +207,60 @@ if [ "$IS_AGENT" = "1" ]; then
   if curl -sf "$OLLAMA_TARGET/api/tags" >/dev/null 2>&1; then
     echo "[agent] Using host/configured Ollama at $OLLAMA_TARGET"
   else
-    echo "ERROR: Agent benchmarks require a reachable host/configured Ollama at $OLLAMA_TARGET"
-    echo "       Start host Ollama or pass OLLAMA_URL. Container-local Ollama is disabled for agent benchmarks."
+    echo "FAIL: Agent benchmarks require a reachable host/configured Ollama at $OLLAMA_TARGET"
+    echo "      Start host Ollama or pass OLLAMA_URL. Container-local Ollama is disabled for agent benchmarks."
     exit 1
   fi
 
-  # Create minimal gemmaclaw config
-  cat > "$OPENCLAW_HOME/openclaw.json" << GCEOF
+  # Verify the requested model exists on host Ollama before starting the
+  # gateway. A missing model is a hard fail; we do not fall back to a
+  # different model silently.
+  if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
+    if ! curl -sf "$OLLAMA_TARGET/api/tags" \
+        | python3 -c "import json,sys; tags=json.load(sys.stdin).get('models',[]); names=[m.get('name','') for m in tags]; sys.exit(0 if '$MODEL' in names else 1)"; then
+      echo "FAIL: model $MODEL is not present on host Ollama at $OLLAMA_TARGET. Run 'ollama pull $MODEL' on the host before running benchmarks."
+      exit 1
+    fi
+    echo "[agent] Confirmed host Ollama has model: $MODEL"
+  fi
+
+  # Write the gateway config in the canonical schema. The OUTER gateway is
+  # primarily used by per-task agents for tools.exec.host=gateway, but its
+  # configured agent model is also the diagnostic source of truth for
+  # "what is this benchmark actually running?". Use the same schema the
+  # benchmark agent-runner writes for its isolated per-task config.
+  cat > "$GEMMACLAW_HOME/openclaw.json" << GCEOF
 {
-  "provider": "ollama",
-  "model": "$MODEL",
-  "ollamaUrl": "$OLLAMA_TARGET",
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "${EXPECTED_AGENT_MODEL}"
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "${OLLAMA_TARGET}",
+        "api": "ollama"
+      }
+    }
+  },
   "sandbox": { "mode": "off" },
-  "tools": { "exec": { "host": "gateway" } },
-  "security": "full",
-  "ask": "off"
+  "tools": { "exec": { "host": "gateway", "security": "full", "ask": "off" } }
+}
+GCEOF
+
+  # Provide a minimal auth profile so the gateway can boot without prompting
+  # (the inner per-task agent writes its own isolated profile).
+  mkdir -p "$GEMMACLAW_HOME/agents/main/agent"
+  cat > "$GEMMACLAW_HOME/agents/main/agent/auth-profiles.json" << GCEOF
+{
+  "ollama:default": {
+    "type": "token",
+    "provider": "ollama",
+    "token": "benchmark-dummy-key"
+  }
 }
 GCEOF
 
@@ -203,25 +272,88 @@ GCEOF
 
   export GEMMACLAW_BIN="$GEMMACLAW_CMD"
 
+  GATEWAY_LOG="/tmp/gemmaclaw-gateway-startup.log"
+  : > "$GATEWAY_LOG"
+
   # Start gateway in the foreground inside the container. "gateway start" is
   # the service-manager command and is intentionally unavailable in benchmark
-  # containers.
-  $GEMMACLAW_CMD gateway run --port 3001 --bind loopback --auth none --allow-unconfigured &
+  # containers. Redirect stdout+stderr to a grep-able log file so the
+  # entrypoint can verify the resolved agent model after startup. (The
+  # container's own stdout already reports the entrypoint's echoes; the
+  # gateway's verbose log is not needed on container stdout.)
+  $GEMMACLAW_CMD gateway run --port 3001 --bind loopback --auth none --allow-unconfigured \
+    >> "$GATEWAY_LOG" 2>&1 &
   GATEWAY_PID=$!
 
   echo "[agent] Waiting for gateway..."
-  for i in $(seq 1 30); do
+  for i in $(seq 1 60); do
     if curl -s http://127.0.0.1:3001/healthz >/dev/null 2>&1; then
       echo "  Gateway ready after ${i}s"
       break
     fi
-    if [ "$i" -eq 30 ]; then
-      echo "ERROR: Gateway failed to start after 30s"
+    if [ "$i" -eq 60 ]; then
+      echo "FAIL: Gateway failed to start after 60s"
       cleanup_ollama
       exit 1
     fi
     sleep 1
   done
+
+  # Verify gateway picked up our config: the most recent "agent model:" log
+  # line must match EXPECTED_AGENT_MODEL. The gateway sometimes emits this
+  # line twice (once on initial start, once after a restart triggered by a
+  # config-recovery write). We use the LAST occurrence.
+  echo "[agent] Verifying gateway resolved agent model = $EXPECTED_AGENT_MODEL"
+  for i in $(seq 1 30); do
+    if grep -E "\[gateway\] agent model: " "$GATEWAY_LOG" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  ACTUAL_AGENT_MODEL="$(grep -E "\[gateway\] agent model: " "$GATEWAY_LOG" | tail -1 | sed -E 's/.*\[gateway\] agent model: //' | tr -d '\r' | awk '{print $1}')"
+  if [ -z "$ACTUAL_AGENT_MODEL" ]; then
+    echo "FAIL: Gateway did not log an 'agent model:' line within 30s. Gateway log:"
+    tail -40 "$GATEWAY_LOG"
+    kill $GATEWAY_PID 2>/dev/null || true
+    cleanup_ollama
+    exit 1
+  fi
+  if [ "$ACTUAL_AGENT_MODEL" != "$EXPECTED_AGENT_MODEL" ]; then
+    echo "FAIL: gateway agent model is '$ACTUAL_AGENT_MODEL', expected '$EXPECTED_AGENT_MODEL'."
+    echo "      Last 60 gateway log lines:"
+    tail -60 "$GATEWAY_LOG"
+    kill $GATEWAY_PID 2>/dev/null || true
+    cleanup_ollama
+    exit 1
+  fi
+  echo "[agent] PREFLIGHT OK: gateway agent model = $ACTUAL_AGENT_MODEL"
+  echo "[agent] Gateway log captured at $GATEWAY_LOG"
+
+  # Warm host Ollama so the model is loaded into VRAM before the agent
+  # dispatch starts. Without this, the first task can spend several minutes
+  # waiting for the model to load while the activity-based watchdog ticks.
+  if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
+    echo "[agent] Warming host Ollama with $MODEL (keep_alive=30m)"
+    if ! curl -sf -X POST "$OLLAMA_TARGET/api/generate" \
+        -H "Content-Type: application/json" \
+        -d "{\"model\":\"$MODEL\",\"prompt\":\"hi\",\"stream\":false,\"keep_alive\":\"30m\",\"options\":{\"num_predict\":1}}" \
+        >/tmp/ollama-warmup.json 2>&1; then
+      echo "FAIL: host Ollama warmup for $MODEL failed."
+      cat /tmp/ollama-warmup.json 2>/dev/null | tail -20
+      kill $GATEWAY_PID 2>/dev/null || true
+      cleanup_ollama
+      exit 1
+    fi
+    LOADED_MODELS="$(curl -sf "$OLLAMA_TARGET/api/ps" 2>/dev/null \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print(','.join(m.get('name','') for m in d.get('models',[])))" 2>/dev/null)"
+    if ! echo "$LOADED_MODELS" | tr ',' '\n' | grep -Fxq "$MODEL"; then
+      echo "FAIL: after warmup, host Ollama /api/ps does not show $MODEL loaded. Loaded: $LOADED_MODELS"
+      kill $GATEWAY_PID 2>/dev/null || true
+      cleanup_ollama
+      exit 1
+    fi
+    echo "[agent] Host Ollama loaded models: $LOADED_MODELS"
+  fi
 
   # Run the benchmark
   HAS_OUTPUT_DIR=0
@@ -240,6 +372,20 @@ GCEOF
   node --import tsx /app/src/gemmaclaw/benchmark/cli-standalone.ts "$@" "${EXTRA_ARGS[@]}"
 
   EXIT_CODE=$?
+
+  # Post-task verification: the host Ollama process must show the requested
+  # model loaded after the benchmark dispatch. If the dispatch silently
+  # routed to a different model, /api/ps will say so.
+  if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
+    POST_LOADED="$(curl -sf "$OLLAMA_TARGET/api/ps" 2>/dev/null \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print(','.join(m.get('name','') for m in d.get('models',[])))" 2>/dev/null)"
+    if echo "$POST_LOADED" | tr ',' '\n' | grep -Fxq "$MODEL"; then
+      echo "[agent] POST-TASK OK: host Ollama still has $MODEL loaded ($POST_LOADED)"
+    else
+      echo "WARN: after benchmark, host Ollama /api/ps does not show $MODEL. Loaded: $POST_LOADED"
+      echo "      This may be a timing race (model unloaded after task finished) or a model-selection bug."
+    fi
+  fi
 
   # Cleanup
   kill $GATEWAY_PID 2>/dev/null || true
