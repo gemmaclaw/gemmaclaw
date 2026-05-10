@@ -1,8 +1,16 @@
-## Field Notes — 2026-05-09
+## Field Notes — 2026-05-10
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
-Curated from the latest Gemma-mentioning posts (23 new or updated since 2026-05-08, 109 total) and their top comment threads.
+Curated from the latest Gemma-mentioning posts (6 new or updated since 2026-05-09, 115 total) and their top comment threads.
 Confidence is **medium** unless noted, since this is community signal rather than a controlled benchmark.
+
+_May 10 re-check, 2026-05-10 01:00 EDT:_ three developments from this sweep reinforce and extend findings from May 9.
+
+**Practitioner survey confirms use-case split: Gemma 4 for instruction-following, prose, and games; Qwen for code.** A second independent use-case thread (May 9, 20 score, 42 comments) drew direct practitioner reports of what they reach for Gemma 4 specifically. Common answers: generating narrative responses for NPCs in video games (E2B is cited here explicitly), writing PRDs and product specification documents using Gemma 4 31B and then handing implementation to Qwen, and structured tasks where instruction-following fidelity matters more than raw reasoning depth. The most-cited single-sentence summary from the thread: "best instruction-following of any open-weight model I've tried." This is the second large practitioner survey in as many weeks — after the 94-score May 6 thread — reaching the same structure: Gemma 4 is the answer when the task is open-ended instruction compliance or voice/tone matching, and Qwen is the answer for multi-turn agentic code execution. The split is now documented from two independent data points with combined 114 score and 169 comments. ([source](https://reddit.com/r/LocalLLaMA/comments/1t7rco2), May 9, 20 score, 42 comments)
+
+**MTP in llama.cpp: Georgi unifying speculative decode architecture before any merge lands.** A thread asking how long until official llama.cpp MTP support (May 9, 68 score, 46 comments) surfaced a clarification from Georgi Gerganov: he is building a unified speculative decode architecture that covers MTP, Eagle3, and DFlash together — rather than merging each independently. All three methods will land in one correct implementation rather than piecemeal patches that create technical debt in the speculative decode path. This explains why PRs like #22673 (Gemma 4 MTP) and #22105 (DFlash) have been slow to merge despite being functional. No timeline was given; this is active in-progress work, not a planned milestone. Users who need MTP now should use the AtomicBot-ai patched fork (TurboQuant path) or the omlx runtime on Apple Silicon. The unified refactor, when it lands, should give llama.cpp native parity with vLLM on speculative decode across all three methods simultaneously. ([source](https://reddit.com/r/LocalLLaMA/comments/1t7ur1f), May 9, 68 score, 46 comments)
+
+**Practical deployment: Gemma 4 on Mac Mini drives MCP server at full interactive speed.** A first-person report (May 9, 29 score) confirms that Gemma 4 running on a Mac Mini runs fast enough to serve as the backend for a Model Context Protocol server at full interactive speed — with native tool calling, at zero cloud API cost. This is a concrete production data point for the "Gemma 4 as a free local MCP backend" deployment pattern: the model's tool calling quality and throughput are sufficient for MCP server workloads on current consumer Apple Silicon hardware. No hardware specifics (exact chip, RAM size, model variant, quant) were disclosed, so treat the speed claim as an existence proof rather than a precise benchmark target. The finding is consistent with the broader practitioner picture: Gemma 4 at the right hardware tier delivers cloud-grade instruction following with no recurring API cost. ([source](https://reddit.com/r/LocalLLaMA/comments/1t8olv3), May 9, 29 score)
 
 _May 9 re-check, 2026-05-09 01:00 EDT:_ six significant developments from this sweep.
 
@@ -168,7 +176,10 @@ The most relevant Gemma-mentioning posts driving this update, with the newest fi
 - [Taiwanese company Skymizer announces HTX301 — PCIe inference card with 384GB memory at ~240W](https://reddit.com/r/LocalLLaMA/comments/1t6tvfw) (May 8, 2026, 250 score, 103 comments — skeptical community reception; 384GB at 240W; no bandwidth figures published)
 - [Got MTP+TurboQuant running: Qwen3.6 27B, 80 t/s at 262K context on RTX 4090](https://reddit.com/r/LocalLLaMA/comments/1t7kyju) (May 9, 2026, 60 score, 42 comments — TurboQuant + MTP throughput claim; quality contested; not in mainline llama.cpp)
 - [vLLM ROCm has been added to Lemonade as an experimental backend](https://reddit.com/r/LocalLLaMA/comments/1t7g70j) (May 9, 2026 — AMD ROCm inference path before GGUF conversion; experimental)
+- [Those of you who like Gemma4 models - how are you guys using them?](https://reddit.com/r/LocalLLaMA/comments/1t7rco2) (May 9, 2026, 20 score, 42 comments — second practitioner survey: instruction-following leader, E2B for game NPC dialogue, 31B for PRDs, "best instruction-following of any open-weight model")
+- [How long for llama.cpp official support of MTP?](https://reddit.com/r/LocalLLaMA/comments/1t7ur1f) (May 9, 2026, 68 score, 46 comments — Georgi building unified MTP+Eagle3+DFlash architecture; all three merge together, not piecemeal)
+- [1 year ago, @jspahrsummers and I released the first version of the Model Context Protocol](https://reddit.com/r/LocalLLaMA/comments/1t8olv3) (May 9, 2026, 29 score — Gemma 4 on Mac Mini drives MCP server at full speed; native tool calling at zero cloud API cost)
 
-The full set of 122 community reports lives in the Community Reports section above, filterable by hardware category and search.
+The full set of 128 community reports lives in the Community Reports section above, filterable by hardware category and search.
 
-_Last updated: 2026-05-09 (May 9 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+_Last updated: 2026-05-10 (May 10 re-check). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
