@@ -7,30 +7,9 @@ echo "========================================"
 echo ""
 
 export GEMMACLAW_BENCHMARK_CONTAINER=1
+OLLAMA_PID=""
 
-# ---------------------------------------------------------------------------
-# 1. Start Ollama
-# ---------------------------------------------------------------------------
-echo "[1/3] Starting Ollama server..."
-ollama serve &
-OLLAMA_PID=$!
-
-echo "[2/3] Waiting for Ollama..."
-for i in $(seq 1 60); do
-  if curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-    echo "  Ollama ready after ${i}s"
-    break
-  fi
-  if [ "$i" -eq 60 ]; then
-    echo "ERROR: Ollama failed to start after 60s"
-    exit 1
-  fi
-  sleep 1
-done
-
-# ---------------------------------------------------------------------------
-# 2. Pull model (extract --model from args, default gemma3:1b)
-# ---------------------------------------------------------------------------
+# Extract --model from args, default gemma3:1b.
 MODEL="${BENCHMARK_MODEL:-gemma3:1b}"
 prev_was_model=0
 for arg in "$@"; do
@@ -44,8 +23,63 @@ for arg in "$@"; do
   fi
 done
 
-echo "[3/3] Pulling model: $MODEL"
-ollama pull "$MODEL"
+IS_AGENT=0
+for arg in "$@"; do
+  if [ "$arg" = "agent" ]; then
+    IS_AGENT=1
+    break
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 1. Start Ollama
+# ---------------------------------------------------------------------------
+if [ "$IS_AGENT" != "1" ]; then
+  echo "[1/3] Starting Ollama server..."
+  ollama serve &
+  OLLAMA_PID=$!
+
+  echo "[2/3] Waiting for Ollama..."
+  for i in $(seq 1 60); do
+    if curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+      echo "  Ollama ready after ${i}s"
+      break
+    fi
+    if [ "$i" -eq 60 ]; then
+      echo "ERROR: Ollama failed to start after 60s"
+      exit 1
+    fi
+    sleep 1
+  done
+else
+  echo "[1/3] Agent mode: using host Ollama, not container-local Ollama"
+  echo "[2/3] Skipping container-local Ollama startup"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Pull model for local benchmark modes only. Agent mode must use the host
+# model cache so one-container-per-task runs do not redownload large models.
+# ---------------------------------------------------------------------------
+if [ "$IS_AGENT" != "1" ]; then
+  echo "[3/3] Pulling model: $MODEL"
+  ollama pull "$MODEL"
+else
+  echo "[3/3] Agent mode: skipping container-local model pull for $MODEL"
+fi
+
+cleanup_ollama() {
+  if [ -n "${OLLAMA_PID:-}" ]; then
+    kill "$OLLAMA_PID" 2>/dev/null || true
+  fi
+}
+
+fix_results_owner() {
+  if [ -n "${GEMMACLAW_BENCHMARK_HOST_UID:-}" ] && [ -n "${GEMMACLAW_BENCHMARK_HOST_GID:-}" ]; then
+    chown -R "$GEMMACLAW_BENCHMARK_HOST_UID:$GEMMACLAW_BENCHMARK_HOST_GID" /results 2>/dev/null || true
+  fi
+}
+
+trap fix_results_owner EXIT
 
 # ---------------------------------------------------------------------------
 # 3. Sandbox mode: read the user-supplied file
@@ -110,21 +144,13 @@ if [ "${BENCHMARK_SANDBOX:-0}" = "1" ]; then
     sleep infinity
   fi
 
-  kill $OLLAMA_PID 2>/dev/null || true
+  cleanup_ollama
   exit ${EXIT_CODE:-0}
 fi
 
 # ---------------------------------------------------------------------------
 # 4. Agent mode: start gateway + mock gog, run E2E agentic benchmarks
 # ---------------------------------------------------------------------------
-IS_AGENT=0
-for arg in "$@"; do
-  if [ "$arg" = "agent" ]; then
-    IS_AGENT=1
-    break
-  fi
-done
-
 if [ "$IS_AGENT" = "1" ]; then
   echo ""
   echo "========================================"
@@ -141,20 +167,19 @@ if [ "$IS_AGENT" = "1" ]; then
   export OPENCLAW_HOME="/root/.openclaw"
   mkdir -p "$OPENCLAW_HOME"
 
-  # Determine Ollama URL: prefer env, then check host.docker.internal (host Ollama),
-  # then fall back to local container Ollama
+  # Determine Ollama URL. Real agent benchmarks must use host Ollama so each
+  # per-task container starts clean without downloading or serving models.
   OLLAMA_TARGET="${OLLAMA_URL:-}"
   if [ -z "$OLLAMA_TARGET" ]; then
-    # Try host Ollama first (avoids GPU passthrough and model re-download)
-    if curl -sf http://host.docker.internal:11434/api/tags >/dev/null 2>&1; then
-      OLLAMA_TARGET="http://host.docker.internal:11434"
-      echo "[agent] Using host Ollama at $OLLAMA_TARGET"
-    else
-      OLLAMA_TARGET="http://127.0.0.1:11434"
-      echo "[agent] Using container-local Ollama"
-    fi
+    OLLAMA_TARGET="http://host.docker.internal:11434"
+  fi
+
+  if curl -sf "$OLLAMA_TARGET/api/tags" >/dev/null 2>&1; then
+    echo "[agent] Using host/configured Ollama at $OLLAMA_TARGET"
   else
-    echo "[agent] Using configured Ollama at $OLLAMA_TARGET"
+    echo "ERROR: Agent benchmarks require a reachable host/configured Ollama at $OLLAMA_TARGET"
+    echo "       Start host Ollama or pass OLLAMA_URL. Container-local Ollama is disabled for agent benchmarks."
+    exit 1
   fi
 
   # Create minimal gemmaclaw config
@@ -178,8 +203,10 @@ GCEOF
 
   export GEMMACLAW_BIN="$GEMMACLAW_CMD"
 
-  # Start gateway
-  $GEMMACLAW_CMD gateway start &
+  # Start gateway in the foreground inside the container. "gateway start" is
+  # the service-manager command and is intentionally unavailable in benchmark
+  # containers.
+  $GEMMACLAW_CMD gateway run --port 3001 --bind loopback --auth none --allow-unconfigured &
   GATEWAY_PID=$!
 
   echo "[agent] Waiting for gateway..."
@@ -190,7 +217,7 @@ GCEOF
     fi
     if [ "$i" -eq 30 ]; then
       echo "ERROR: Gateway failed to start after 30s"
-      kill $OLLAMA_PID 2>/dev/null || true
+      cleanup_ollama
       exit 1
     fi
     sleep 1
@@ -210,17 +237,13 @@ GCEOF
     EXTRA_ARGS+=(--output-dir /results)
   fi
 
-  if [ -f /app/dist/entry.js ]; then
-    node /app/gemmaclaw.mjs benchmark "$@" "${EXTRA_ARGS[@]}"
-  else
-    npx tsx /app/src/gemmaclaw/benchmark/cli-standalone.ts "$@" "${EXTRA_ARGS[@]}"
-  fi
+  node --import tsx /app/src/gemmaclaw/benchmark/cli-standalone.ts "$@" "${EXTRA_ARGS[@]}"
 
   EXIT_CODE=$?
 
   # Cleanup
   kill $GATEWAY_PID 2>/dev/null || true
-  kill $OLLAMA_PID 2>/dev/null || true
+  cleanup_ollama
 
   exit ${EXIT_CODE:-0}
 fi
@@ -251,6 +274,6 @@ fi
 
 EXIT_CODE=$?
 
-kill $OLLAMA_PID 2>/dev/null || true
+cleanup_ollama
 
 exit ${EXIT_CODE:-0}

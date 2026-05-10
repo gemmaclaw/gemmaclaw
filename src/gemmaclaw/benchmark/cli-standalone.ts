@@ -23,7 +23,8 @@
  *   pnpm benchmark agent --quant Q4_K_M     # Record quantization level
  */
 
-import { execSync, spawn } from "node:child_process";
+import { execSync, spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/benchmark-gemma.js";
@@ -42,6 +43,7 @@ import { evaluateAgentBenchmarkRun, type AgentJudgeProvider } from "./agent-eval
 import {
   assembleAgentBenchmarkRun,
   autoSelectModel,
+  computeConfigHash,
   isAgentBackendType,
   runAgentBenchmark,
   type AgentBenchmarkConfig,
@@ -143,12 +145,122 @@ function parseArgs(argv: string[]) {
   return opts;
 }
 
+function buildAgentBenchmarkConfig(
+  opts: Record<string, string | boolean>,
+  outputDir: string,
+): AgentBenchmarkConfig {
+  const hardware = detectHardware();
+  const autoSelected = autoSelectModel(hardware);
+  const backendInput = (opts.backend as string | undefined) ?? autoSelected.backend;
+  if (!isAgentBackendType(backendInput)) {
+    throw new Error(`Unsupported agent benchmark backend: ${backendInput}`);
+  }
+  const backend = backendInput;
+  const model = (opts.model as string) ?? autoSelected.model;
+
+  return {
+    gatewayUrl: (opts.gatewayUrl as string) ?? "http://localhost:3001",
+    backend,
+    ollamaUrl: (opts.ollamaUrl as string) ?? "http://127.0.0.1:11434",
+    llamaCppUrl: (opts.llamaCppUrl as string) ?? "http://127.0.0.1:8080",
+    model,
+    quant: opts.quant as string | undefined,
+    thinkingLevel: opts.thinking as string | undefined,
+    taskTimeoutSeconds: opts.taskTimeout ? Number.parseInt(String(opts.taskTimeout), 10) : 600,
+    idleTimeoutSeconds: opts.idleTimeout ? Number.parseInt(String(opts.idleTimeout), 10) : 30,
+    noActivityTimeoutSeconds: opts.noActivityTimeout
+      ? Number.parseInt(String(opts.noActivityTimeout), 10)
+      : undefined,
+    hardCapSeconds: opts.hardCap ? Number.parseInt(String(opts.hardCap), 10) : undefined,
+    validatePerTask: opts.validatePerTask !== false,
+    validationRerunOnFail: opts.validationRerunOnFail !== false,
+    filter: (opts.task as string) ?? (opts.filter as string) ?? undefined,
+    mock: Boolean(opts.mock),
+    contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
+    gemmaclawHome: opts.gemmaclawHome as string | undefined,
+    outputDir,
+    runId: opts.runId as string | undefined,
+    rerun: Boolean(opts.rerun),
+    rerunFailed: Boolean(opts.rerunFailed),
+  };
+}
+
+function parseJsonEnv(name: string): unknown {
+  const raw = process.env[name];
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in ${name}: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+function existingRunArtifactConfigHash(outputDir: string, runId: string): string | undefined {
+  const tasksDir = path.join(outputDir, "runs", runId, "tasks");
+  if (!fs.existsSync(tasksDir)) {
+    return undefined;
+  }
+  const counts = new Map<string, number>();
+  for (const taskId of fs.readdirSync(tasksDir)) {
+    const artifactPath = path.join(tasksDir, taskId, "result.json");
+    if (!fs.existsSync(artifactPath)) {
+      continue;
+    }
+    try {
+      const data = JSON.parse(fs.readFileSync(artifactPath, "utf-8")) as { configHash?: string };
+      if (data.configHash) {
+        counts.set(data.configHash, (counts.get(data.configHash) ?? 0) + 1);
+      }
+    } catch {
+      /* Ignore malformed partial artifacts. */
+    }
+  }
+  return [...counts.entries()].toSorted((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+function restoreHostOutputOwnership(hostOutputDir: string): void {
+  const uid = process.getuid?.();
+  if (uid === undefined) {
+    return;
+  }
+  const gid = process.getgid?.() ?? uid;
+  const result = spawnSync(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "-v",
+      `${hostOutputDir}:/results`,
+      "--entrypoint",
+      "chown",
+      AGENT_BENCHMARK_DOCKER_IMAGE,
+      "-R",
+      `${uid}:${gid}`,
+      "/results",
+    ],
+    { stdio: "inherit" },
+  );
+  if (result.status !== 0) {
+    console.warn(
+      `Warning: failed to restore host ownership for ${hostOutputDir}; host-side assembly may need manual chown.`,
+    );
+  }
+}
+
 async function runAgentModeInDocker(opts: Record<string, string | boolean>): Promise<void> {
   const repoRoot = findBenchmarkRepoRoot();
   const hostOutputDir = path.resolve((opts.outputDir as string | undefined) ?? "benchmark-results");
   const containerOutputDir = "/results";
   const selectedTaskIds = selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts);
   const runId = defaultAgentBenchmarkRunId(opts);
+  const manifestConfig = { ...buildAgentBenchmarkConfig(opts, hostOutputDir), runId };
+  const artifactConfigHash =
+    existingRunArtifactConfigHash(hostOutputDir, runId) ?? computeConfigHash(manifestConfig);
 
   console.log("========================================");
   console.log("  Gemmaclaw Agent Benchmark Containers");
@@ -159,6 +271,7 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
   console.log(`Image:  ${AGENT_BENCHMARK_DOCKER_IMAGE}`);
   console.log(`Output: ${hostOutputDir}`);
   console.log(`Run id: ${runId}`);
+  console.log(`Artifact config hash: ${artifactConfigHash}`);
   console.log(`Tasks:  ${selectedTaskIds.length}`);
   console.log("");
 
@@ -181,6 +294,16 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
       "--add-host=host.docker.internal:host-gateway",
       "-e",
       "GEMMACLAW_BENCHMARK_CONTAINER=1",
+      "-e",
+      `GEMMACLAW_BENCHMARK_ARTIFACT_CONFIG_HASH=${artifactConfigHash}`,
+      "-e",
+      `GEMMACLAW_BENCHMARK_MANIFEST_TASK_IDS=${JSON.stringify(selectedTaskIds)}`,
+      "-e",
+      `GEMMACLAW_BENCHMARK_MANIFEST_CONFIG=${JSON.stringify(manifestConfig)}`,
+      "-e",
+      `GEMMACLAW_BENCHMARK_HOST_UID=${process.getuid?.() ?? 0}`,
+      "-e",
+      `GEMMACLAW_BENCHMARK_HOST_GID=${process.getgid?.() ?? 0}`,
       "-v",
       `${hostOutputDir}:${containerOutputDir}`,
       AGENT_BENCHMARK_DOCKER_IMAGE,
@@ -192,6 +315,7 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
       const child = spawn("docker", dockerArgs, { cwd: repoRoot, stdio: "inherit" });
       child.on("error", reject);
       child.on("close", (code) => {
+        restoreHostOutputOwnership(hostOutputDir);
         if (code === 0) {
           resolve();
         } else {
@@ -368,41 +492,14 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   }
 
   const hardware = detectHardware();
-
-  // Auto-select model and backend if not specified
-  const autoSelected = autoSelectModel(hardware);
-  const backendInput = (opts.backend as string | undefined) ?? autoSelected.backend;
-  if (!isAgentBackendType(backendInput)) {
-    throw new Error(`Unsupported agent benchmark backend: ${backendInput}`);
-  }
-  const backend = backendInput;
-  const model = (opts.model as string) ?? autoSelected.model;
-
-  const config: AgentBenchmarkConfig = {
-    gatewayUrl: (opts.gatewayUrl as string) ?? "http://localhost:3001",
-    backend,
-    ollamaUrl: (opts.ollamaUrl as string) ?? "http://127.0.0.1:11434",
-    llamaCppUrl: (opts.llamaCppUrl as string) ?? "http://127.0.0.1:8080",
-    model,
-    quant: opts.quant as string | undefined,
-    thinkingLevel: opts.thinking as string | undefined,
-    taskTimeoutSeconds: opts.taskTimeout ? Number.parseInt(String(opts.taskTimeout), 10) : 600,
-    idleTimeoutSeconds: opts.idleTimeout ? Number.parseInt(String(opts.idleTimeout), 10) : 30,
-    noActivityTimeoutSeconds: opts.noActivityTimeout
-      ? Number.parseInt(String(opts.noActivityTimeout), 10)
-      : undefined,
-    hardCapSeconds: opts.hardCap ? Number.parseInt(String(opts.hardCap), 10) : undefined,
-    validatePerTask: opts.validatePerTask !== false,
-    validationRerunOnFail: opts.validationRerunOnFail !== false,
-    filter: (opts.task as string) ?? (opts.filter as string) ?? undefined,
-    mock: Boolean(opts.mock),
-    contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
-    gemmaclawHome: opts.gemmaclawHome as string | undefined,
-    outputDir: (opts.outputDir as string) ?? "benchmark-results",
-    runId: opts.runId as string | undefined,
-    rerun: Boolean(opts.rerun),
-    rerunFailed: Boolean(opts.rerunFailed),
-  };
+  const config = buildAgentBenchmarkConfig(opts, (opts.outputDir as string) ?? "benchmark-results");
+  config.artifactConfigHash = process.env.GEMMACLAW_BENCHMARK_ARTIFACT_CONFIG_HASH;
+  config.manifestTaskIds = parseJsonEnv("GEMMACLAW_BENCHMARK_MANIFEST_TASK_IDS") as
+    | string[]
+    | undefined;
+  config.manifestConfig = parseJsonEnv("GEMMACLAW_BENCHMARK_MANIFEST_CONFIG") as
+    | AgentBenchmarkConfig
+    | undefined;
 
   const outputDir = config.outputDir ?? "benchmark-results";
   config.logDir = path.join(outputDir, ".logs");

@@ -115,6 +115,12 @@ export type AgentBenchmarkConfig = {
   rerun?: boolean;
   /** Rerun only tasks whose existing result is timeout/error. */
   rerunFailed?: boolean;
+  /** Internal: force per-task artifacts to use the shared parent run hash. */
+  artifactConfigHash?: string;
+  /** Internal: manifest config to write when a per-task container runs a slice. */
+  manifestConfig?: AgentBenchmarkConfig;
+  /** Internal: full selected task set for the shared run manifest. */
+  manifestTaskIds?: string[];
 };
 
 export type ConversationTurn = {
@@ -1033,7 +1039,11 @@ export async function dispatchTask(
     "--message",
     task.prompt,
   ];
-  if (config.thinkingLevel) {
+  // Ollama/Gemma benchmark runs record the requested thinking level in the
+  // benchmark metadata, but the embedded agent CLI may reject reasoning flags
+  // for local provider paths. Only forward the flag to backends where the
+  // agent harness is expected to support it.
+  if (config.thinkingLevel && config.backend === "openai-codex") {
     args.push("--thinking", config.thinkingLevel);
   }
   // Pass the hard wall-clock cap to the embedded CLI so it has its own ceiling
@@ -1119,6 +1129,26 @@ export async function dispatchTask(
           },
         },
       };
+    } else if (!isOpenAICodex) {
+      benchConfigData.models = {
+        providers: {
+          ollama: {
+            baseUrl: config.ollamaUrl,
+            api: "ollama",
+            models: [
+              {
+                id: config.model,
+                name: config.model,
+                reasoning: false,
+                input: ["text"],
+                contextWindow: config.contextLength ?? 262_144,
+                maxTokens: 8_192,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              },
+            ],
+          },
+        },
+      };
     }
     fs.writeFileSync(path.join(ocDir, "openclaw.json"), JSON.stringify(benchConfigData, null, 2));
 
@@ -1157,6 +1187,7 @@ export async function dispatchTask(
         GEMMACLAW_FAKE_GOG_STATE_DIR: gogStateDir,
         GEMMACLAW_FAKE_GOG_WRITES_DIR: path.join(gogStateDir, "_writes"),
         GEMMACLAW_FAKE_GOG_LOG: fakeGogLog,
+        OLLAMA_HOST: config.ollamaUrl,
         XDG_CONFIG_HOME: benchHome,
         HOME: benchHome,
         PATH: `${fakeGogBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
@@ -1664,8 +1695,10 @@ export async function runAgentBenchmark(
   config = { ...config, outputDir, runId: formatRunDirNameFromConfig(config, metadata) };
   const runId = config.runId!;
   const runDir = path.join(outputDir, "runs", runId);
-  const configHash = computeConfigHash(config);
+  const configHash = config.artifactConfigHash ?? computeConfigHash(config);
   fs.mkdirSync(runDir, { recursive: true });
+  const manifestConfig = config.manifestConfig ? { ...config.manifestConfig, runId } : config;
+  const manifestTaskIds = config.manifestTaskIds ?? filteredTasks.map((task) => task.id);
 
   const existingManifestPath = path.join(runDir, "manifest.json");
   let createdAt = metadata.startedAt;
@@ -1684,9 +1717,9 @@ export async function runAgentBenchmark(
       schemaVersion: 1,
       runId,
       configHash,
-      config,
+      config: manifestConfig,
       metadata,
-      taskIds: filteredTasks.map((task) => task.id),
+      taskIds: manifestTaskIds,
       createdAt,
       updatedAt: new Date().toISOString(),
     } satisfies AgentRunManifest);

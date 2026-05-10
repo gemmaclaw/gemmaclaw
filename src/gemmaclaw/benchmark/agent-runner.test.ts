@@ -15,6 +15,7 @@ import {
   readOpenAICodexAuthProfilesFromStore,
   resolveOpenAICodexAuthProfileStoreCandidates,
   resolveTimeoutBudgets,
+  runAgentBenchmark,
   writeTaskArtifact,
   writeBenchmarkWorkspaceFiles,
   type AgentBenchmarkConfig,
@@ -301,6 +302,14 @@ describe("per-task benchmark artifacts", () => {
     },
   };
 
+  const secondTask: AgentBenchmarkTask = {
+    ...task,
+    id: "calendar_summary",
+    name: "Calendar Summary",
+    category: "calendar",
+    prompt: "Summarize my calendar",
+  };
+
   const config: AgentBenchmarkConfig = {
     gatewayUrl: "http://localhost:3001",
     backend: "ollama",
@@ -313,6 +322,18 @@ describe("per-task benchmark artifacts", () => {
     idleTimeoutSeconds: 3600,
     mock: true,
     runId: "q4-smoke",
+  };
+
+  const hardware = {
+    cpu: { arch: "x64", cores: 16, model: "test cpu" },
+    ram: { totalBytes: 32 * 1024 ** 3, availableBytes: 16 * 1024 ** 3 },
+    gpu: {
+      detected: true,
+      nvidia: true,
+      apple: false,
+      name: "test gpu",
+      vramBytes: 24 * 1024 ** 3,
+    },
   };
 
   const result: AgentTaskResult = {
@@ -363,17 +384,7 @@ describe("per-task benchmark artifacts", () => {
       model: config.model,
       quant: config.quant,
       thinkingLevel: config.thinkingLevel,
-      hardware: {
-        cpu: { arch: "x64", cores: 16, model: "test cpu" },
-        ram: { totalBytes: 32 * 1024 ** 3, availableBytes: 16 * 1024 ** 3 },
-        gpu: {
-          detected: true,
-          nvidia: true,
-          apple: false,
-          name: "test gpu",
-          vramBytes: 24 * 1024 ** 3,
-        },
-      },
+      hardware,
       gatewayUrl: config.gatewayUrl,
       ollamaUrl: config.ollamaUrl,
       startedAt: "2026-05-07T10:00:00.000Z",
@@ -406,5 +417,46 @@ describe("per-task benchmark artifacts", () => {
     expect(fs.existsSync(path.join(outputDir, "evaluations/q4-smoke/email_summarize.json"))).toBe(
       true,
     );
+  });
+
+  it("lets per-task container slices share the parent artifact hash and manifest", async () => {
+    const outputDir = tempDir();
+    const runDir = path.join(outputDir, "runs", "q4-smoke");
+    const sharedHash = "legacy-clean-hash";
+    const parentConfig = { ...config, outputDir, runId: "q4-smoke", mock: true };
+    writeTaskArtifact(runDir, "q4-smoke", sharedHash, result);
+
+    await runAgentBenchmark(
+      [secondTask],
+      {
+        ...parentConfig,
+        filter: secondTask.id,
+        artifactConfigHash: sharedHash,
+        manifestConfig: parentConfig,
+        manifestTaskIds: [task.id, secondTask.id],
+      },
+      hardware,
+    );
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(runDir, "manifest.json"), "utf-8")) as {
+      configHash: string;
+      taskIds: string[];
+      config: AgentBenchmarkConfig;
+    };
+    expect(manifest.configHash).toBe(sharedHash);
+    expect(manifest.taskIds).toEqual([task.id, secondTask.id]);
+    expect(manifest.config.filter).toBeUndefined();
+    expect(
+      loadTaskArtifacts(runDir, sharedHash)
+        .map((entry) => entry.task.id)
+        .toSorted(),
+    ).toEqual([task.id, secondTask.id].toSorted());
+
+    const assembled = assembleAgentBenchmarkRun(
+      [task, secondTask],
+      { ...parentConfig, runId: "q4-smoke" },
+      outputDir,
+    );
+    expect(assembled.tasks.map((entry) => entry.task.id)).toEqual([task.id, secondTask.id]);
   });
 });
