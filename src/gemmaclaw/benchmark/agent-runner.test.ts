@@ -7,6 +7,7 @@ import {
   clearTaskStartedMarker,
   computeConfigHash,
   extractAssistantResponseFromStdout,
+  extractSessionProviderError,
   isAgentBackendType,
   loadTaskArtifacts,
   parseSessionEntry,
@@ -548,5 +549,117 @@ describe("per-task benchmark artifacts", () => {
       outputDir,
     );
     expect(assembled.tasks.map((entry) => entry.task.id)).toEqual([task.id, secondTask.id]);
+  });
+});
+
+describe("extractSessionProviderError", () => {
+  it("returns errorMessage for an assistant message with stopReason=error", () => {
+    const entry = {
+      type: "message",
+      timestamp: "2026-05-10T19:59:20.876Z",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "error",
+        api: "ollama",
+        provider: "ollama",
+        model: "gemma4:31b",
+        errorMessage: "fetch failed | Headers Timeout Error",
+      },
+    };
+    expect(extractSessionProviderError(entry)).toBe("fetch failed | Headers Timeout Error");
+  });
+
+  it("returns errorMessage when role/stopReason are at the top level (no nested message)", () => {
+    const entry = {
+      role: "assistant",
+      content: [],
+      stopReason: "error",
+      errorMessage: "connection reset",
+    };
+    expect(extractSessionProviderError(entry)).toBe("connection reset");
+  });
+
+  it("returns undefined for a normal assistant message without stopReason=error", () => {
+    const entry = {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Here is my response." }],
+        stopReason: "end_turn",
+      },
+    };
+    expect(extractSessionProviderError(entry)).toBeUndefined();
+  });
+
+  it("returns undefined when stopReason is not error", () => {
+    const entry = {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "max_tokens",
+        errorMessage: "something",
+      },
+    };
+    expect(extractSessionProviderError(entry)).toBeUndefined();
+  });
+
+  it("returns undefined when errorMessage is missing or empty", () => {
+    expect(
+      extractSessionProviderError({
+        message: { role: "assistant", content: [], stopReason: "error", errorMessage: "" },
+      }),
+    ).toBeUndefined();
+    expect(
+      extractSessionProviderError({
+        message: { role: "assistant", content: [], stopReason: "error" },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined for user messages", () => {
+    const entry = {
+      type: "message",
+      message: {
+        role: "user",
+        content: "hello",
+        stopReason: "error",
+        errorMessage: "some error",
+      },
+    };
+    expect(extractSessionProviderError(entry)).toBeUndefined();
+  });
+
+  it("returns undefined for non-message entries", () => {
+    expect(extractSessionProviderError({ type: "session.started" })).toBeUndefined();
+    expect(extractSessionProviderError(null)).toBeUndefined();
+    expect(extractSessionProviderError("string")).toBeUndefined();
+  });
+
+  it("handles provider error across full session JSONL with recovery clearing the error", () => {
+    // Simulates: error entry followed by a successful assistant turn
+    const errorEntry = {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "error",
+        errorMessage: "fetch failed | Headers Timeout Error",
+      },
+    };
+    const successEntry = {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Recovered response." }],
+        stopReason: "end_turn",
+      },
+    };
+    expect(extractSessionProviderError(errorEntry)).toBe("fetch failed | Headers Timeout Error");
+    // Successful turn produces assistant turns — caller resets the error window.
+    expect(parseSessionEntry(successEntry).some((t) => t.role === "assistant")).toBe(true);
+    // Error entry produces no conversation turns.
+    expect(parseSessionEntry(errorEntry)).toEqual([]);
   });
 });

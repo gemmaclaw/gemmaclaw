@@ -992,6 +992,37 @@ export function extractAssistantResponseFromStdout(stdout: string): string | und
   return text.length > 0 ? text : undefined;
 }
 
+/**
+ * Extract a provider-level error from a session JSONL entry.
+ *
+ * OpenClaw records LLM API failures (e.g. "fetch failed | Headers Timeout
+ * Error") as assistant messages with stopReason="error" and an errorMessage
+ * field. The content array is empty so parseSessionEntry produces no turns,
+ * making the polling loop oblivious to the failure. After recording this error
+ * the embedded agent may keep running (retrying the provider call) and
+ * continuously emit stderr that resets the activity timer, causing the
+ * no-activity watchdog to never fire.
+ *
+ * Returns the errorMessage string when the entry is an assistant message with
+ * stopReason="error" and a non-empty errorMessage; returns undefined otherwise.
+ */
+export function extractSessionProviderError(entry: unknown): string | undefined {
+  if (!isRecord(entry)) {
+    return undefined;
+  }
+  const msg = isRecord(entry.message) ? entry.message : entry;
+  if (!isRecord(msg)) {
+    return undefined;
+  }
+  const role = typeof msg.role === "string" ? msg.role : "";
+  const stopReason = typeof msg.stopReason === "string" ? msg.stopReason : "";
+  const errorMessage = typeof msg.errorMessage === "string" ? msg.errorMessage : "";
+  if (role === "assistant" && stopReason === "error" && errorMessage.length > 0) {
+    return errorMessage;
+  }
+  return undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1360,6 +1391,17 @@ export async function dispatchTask(
     let lastActivityMs = Date.now();
     const conversation: ConversationTurn[] = [];
 
+    // Provider-error recovery tracking. When the session JSONL records an
+    // assistant message with stopReason="error" (e.g. "fetch failed | Headers
+    // Timeout Error"), the embedded agent may keep running and emitting stderr
+    // retries that prevent the no-activity watchdog from firing. Track the
+    // first such error so we can enforce a bounded recovery window.
+    // Grace period: 3 minutes (180 s). If no new successful assistant turn
+    // appears within that window after a provider error, we kill the child.
+    let lastProviderErrorMs: number | null = null;
+    let lastProviderErrorMsg = "";
+    const providerErrorRecoveryMs = 180_000; // 3 min
+
     const parseJsonl = () => {
       if (!fs.existsSync(jsonlPath)) {
         return;
@@ -1372,14 +1414,33 @@ export async function dispatchTask(
           lastIoMs = Date.now();
           lastActivityMs = Date.now();
           conversation.length = 0;
+          let latestProviderError: string | undefined;
           for (const line of lines) {
             try {
               const entry = JSON.parse(line);
               const turns = parseSessionEntry(entry);
-              conversation.push(...turns);
+              if (turns.length > 0) {
+                conversation.push(...turns);
+                // A new successful assistant turn clears the provider-error
+                // recovery window — the agent recovered.
+                if (turns.some((t) => t.role === "assistant" || t.role === "tool_call")) {
+                  lastProviderErrorMs = null;
+                  lastProviderErrorMsg = "";
+                  latestProviderError = undefined;
+                }
+              } else {
+                const providerErr = extractSessionProviderError(entry);
+                if (providerErr) {
+                  latestProviderError = providerErr;
+                }
+              }
             } catch {
               // Skip unparseable lines
             }
+          }
+          if (latestProviderError && lastProviderErrorMs === null) {
+            lastProviderErrorMs = Date.now();
+            lastProviderErrorMsg = latestProviderError;
           }
         }
       } catch {
@@ -1478,6 +1539,30 @@ export async function dispatchTask(
           trajectoryJsonlPath: trajectoryPath,
           fakeGogLogPath,
         };
+      }
+
+      // (3) Provider-error recovery: when the session JSONL records an
+      // assistant message with stopReason="error" (e.g. "fetch failed | Headers
+      // Timeout Error"), the embedded agent may keep running (retrying the
+      // provider) and emit stderr that continuously resets the activity timer.
+      // If no new successful assistant or tool-call turn arrives within the
+      // recovery window, treat the task as a provider error and kill the child.
+      if (lastProviderErrorMs !== null) {
+        const sinceProviderError = Date.now() - lastProviderErrorMs;
+        if (sinceProviderError > providerErrorRecoveryMs) {
+          await killChild(
+            `provider-error-no-recovery: ${lastProviderErrorMsg.slice(0, 100)} (${Math.round(sinceProviderError / 1000)}s since error, no recovery)`,
+          );
+          return {
+            conversation,
+            elapsedMs: Date.now() - startMs,
+            completionStatus: "error",
+            error: `provider error (no recovery in ${Math.round(providerErrorRecoveryMs / 1000)}s): ${lastProviderErrorMsg}`,
+            sessionJsonlPath: jsonlPath,
+            trajectoryJsonlPath: trajectoryPath,
+            fakeGogLogPath,
+          };
+        }
       }
 
       // Child exited naturally
