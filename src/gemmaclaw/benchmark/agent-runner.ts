@@ -31,6 +31,11 @@ import {
   evaluateDeterministicAgentTaskConversation,
   type AgentBenchmarkTask,
 } from "./agent-tasks.js";
+import {
+  summarizeValidation,
+  validateTaskArtifact,
+  type ValidationResult,
+} from "./agent-validator.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,10 +58,43 @@ export type AgentBenchmarkConfig = {
   quant?: string;
   /** Thinking/reasoning level (off, low, medium, high, xhigh). */
   thinkingLevel?: string;
-  /** Maximum seconds to wait for a single task to complete. 0 = no limit. */
+  /**
+   * Maximum seconds to wait for a single task to complete. 0 = no limit.
+   *
+   * Historically this was the only timeout; in the new harness it acts as a
+   * BACKWARD-COMPAT alias for {@link hardCapSeconds} when the latter is not
+   * set. Activity-based timeout ({@link noActivityTimeoutSeconds}) is the
+   * normal "task is stuck" signal; the hard cap exists only as a runaway
+   * guard for catastrophic loops.
+   */
   taskTimeoutSeconds: number;
   /** Seconds of idle (no new JSONL lines) before considering task done. */
   idleTimeoutSeconds: number;
+  /**
+   * Seconds with no useful agent activity before declaring the task stuck.
+   * "Useful activity" = stdout/stderr chunk, new session JSONL line, new
+   * trajectory JSONL line, or assistant/tool turn parsed from JSONL. Defaults
+   * to 600 (10 minutes) when not set, per Frank's directive that timeout
+   * should mean "no progress for 10 minutes" rather than a hard wall-clock
+   * cap.
+   */
+  noActivityTimeoutSeconds?: number;
+  /**
+   * Hard wall-clock runaway cap, in seconds. Defaults to
+   * `max(taskTimeoutSeconds, 28800)` when not set, so legacy callers that
+   * pass `taskTimeoutSeconds: 3600` keep their existing semantics while new
+   * callers can let benchmarks run as long as they remain active. Always
+   * acts as a hard ceiling regardless of activity.
+   */
+  hardCapSeconds?: number;
+  /** When true, run the validation gate after each task. Defaults to true. */
+  validatePerTask?: boolean;
+  /**
+   * When true and per-task validation produces a block-severity issue, the
+   * runner reruns the task once before recording a final failure. Defaults
+   * to true.
+   */
+  validationRerunOnFail?: boolean;
   /** Path to mock gog seed script. */
   seedScript?: string;
   /** Path to gemmaclaw home for isolated runs. */
@@ -106,6 +144,14 @@ export type AgentTaskResult = {
   completionStatus: "completed" | "timeout" | "error";
   /** Error message if any. */
   error?: string;
+  /**
+   * Validation gate result for this task, when {@link AgentBenchmarkConfig.validatePerTask}
+   * is enabled. Persisted in the artifact so downstream evaluators and the
+   * site generator can surface validation issues without rerunning the gate.
+   */
+  validation?: ValidationResult;
+  /** Number of times this task was rerun by the validation gate (0 = first try). */
+  validationRerunCount?: number;
 };
 
 export type RunMetadata = {
@@ -264,6 +310,10 @@ export function computeConfigHash(config: AgentBenchmarkConfig): string {
     llamaCppUrl: config.llamaCppUrl,
     mock: config.mock ?? false,
     model: config.model,
+    noActivityTimeoutSeconds: config.noActivityTimeoutSeconds ?? null,
+    hardCapSeconds: config.hardCapSeconds ?? null,
+    validatePerTask: config.validatePerTask !== false,
+    validationRerunOnFail: config.validationRerunOnFail !== false,
     ollamaUrl: config.ollamaUrl,
     quant: config.quant,
     seedScript: config.seedScript,
@@ -914,6 +964,40 @@ function readTrajectoryError(trajectoryPath: string): string | undefined {
  * Uses `gemmaclaw agent --local` to send the message, then polls the session
  * JSONL for completion (idle detection). Returns the full conversation.
  */
+/**
+ * Resolve effective timeouts for a task. Returns hard cap (runaway guard) and
+ * the activity-based "no useful progress" timeout in milliseconds.
+ *
+ * Defaults:
+ *   - noActivityTimeoutSeconds: 600 (10 min). Reset by stdout/stderr/JSONL/
+ *     trajectory activity. Triggering this returns completionStatus=timeout
+ *     with a no-activity reason.
+ *   - hardCapSeconds: max(taskTimeoutSeconds, 28800). Acts only as a runaway
+ *     ceiling; activity-based timeout is the normal "task is stuck" signal.
+ *
+ * `taskTimeoutSeconds` remains a backward-compat alias: when callers pass it
+ * but no `hardCapSeconds`, we treat it as the hard cap.
+ */
+export function resolveTimeoutBudgets(config: AgentBenchmarkConfig): {
+  hardCapMs: number;
+  noActivityMs: number;
+} {
+  const noActivitySec =
+    typeof config.noActivityTimeoutSeconds === "number" && config.noActivityTimeoutSeconds > 0
+      ? config.noActivityTimeoutSeconds
+      : 600;
+  const hardCapInputSec =
+    typeof config.hardCapSeconds === "number" && config.hardCapSeconds > 0
+      ? config.hardCapSeconds
+      : config.taskTimeoutSeconds > 0
+        ? Math.max(config.taskTimeoutSeconds, 28_800)
+        : 28_800;
+  return {
+    hardCapMs: hardCapInputSec * 1000,
+    noActivityMs: noActivitySec * 1000,
+  };
+}
+
 export async function dispatchTask(
   task: AgentBenchmarkTask,
   config: AgentBenchmarkConfig,
@@ -926,10 +1010,10 @@ export async function dispatchTask(
   error?: string;
   sessionJsonlPath?: string;
   trajectoryJsonlPath?: string;
+  fakeGogLogPath?: string;
 }> {
   const startMs = Date.now();
-  const timeoutMs =
-    config.taskTimeoutSeconds > 0 ? config.taskTimeoutSeconds * 1000 : Number.MAX_SAFE_INTEGER;
+  const { hardCapMs, noActivityMs } = resolveTimeoutBudgets(config);
   const idleMs = config.idleTimeoutSeconds * 1000;
 
   // Create isolated benchmark home for this task
@@ -952,8 +1036,12 @@ export async function dispatchTask(
   if (config.thinkingLevel) {
     args.push("--thinking", config.thinkingLevel);
   }
-  if (config.taskTimeoutSeconds > 0) {
-    args.push("--timeout", String(config.taskTimeoutSeconds));
+  // Pass the hard wall-clock cap to the embedded CLI so it has its own ceiling
+  // even if the harness watchdog dies. Activity-based timeout is enforced in
+  // the polling loop below using process I/O + JSONL/trajectory activity.
+  const hardCapSec = Math.round(hardCapMs / 1000);
+  if (hardCapSec > 0) {
+    args.push("--timeout", String(hardCapSec));
   }
 
   log(`  Dispatching: ${gemmaclawArgs.join(" ")} agent --local --session-id ${sessionId}`);
@@ -977,7 +1065,8 @@ export async function dispatchTask(
     writeBenchmarkWorkspaceFiles(workspaceDir);
     const gogStateDir = path.join(benchHome, ".config/gogcli/state");
     const fakeGogBinDir = resolveFakeGogBinDir();
-    const fakeGogLog = path.join(benchHome, "fake-gog.log");
+    const fakeGogLogPath = path.join(benchHome, "fake-gog.log");
+    const fakeGogLog = fakeGogLogPath;
 
     // Build config using the same logic as gemmaclaw setup
     const isLlamaCpp = config.backend === "llama-cpp";
@@ -1133,6 +1222,11 @@ export async function dispatchTask(
 
     let lastLineCount = 0;
     let lastChangeMs = Date.now();
+    let lastTrajectoryLineCount = 0;
+    // Activity timestamp: any of stdout/stderr/JSONL/trajectory progress
+    // resets it. The activity-based watchdog uses this as the only signal of
+    // "agent is making progress"; it is independent of wall-clock elapsed.
+    let lastActivityMs = Date.now();
     const conversation: ConversationTurn[] = [];
 
     const parseJsonl = () => {
@@ -1145,6 +1239,7 @@ export async function dispatchTask(
           lastLineCount = lines.length;
           lastChangeMs = Date.now();
           lastIoMs = Date.now();
+          lastActivityMs = Date.now();
           conversation.length = 0;
           for (const line of lines) {
             try {
@@ -1160,6 +1255,33 @@ export async function dispatchTask(
         // File might be mid-write
       }
     };
+
+    const checkTrajectoryActivity = () => {
+      if (!fs.existsSync(trajectoryPath)) {
+        return;
+      }
+      try {
+        const lines = fs.readFileSync(trajectoryPath, "utf-8").split("\n").filter(Boolean);
+        if (lines.length > lastTrajectoryLineCount) {
+          lastTrajectoryLineCount = lines.length;
+          lastActivityMs = Date.now();
+        }
+      } catch {
+        // mid-write; ignore
+      }
+    };
+
+    // Make stdout/stderr handlers also reset the activity clock. The runner
+    // already pushed handlers earlier that update lastIoMs; here we wire the
+    // activity clock alongside them by re-attaching listeners. The original
+    // listeners stay in place (Node multi-listener) so existing chunk capture
+    // behavior is unchanged.
+    child.stdout?.on("data", () => {
+      lastActivityMs = Date.now();
+    });
+    child.stderr?.on("data", () => {
+      lastActivityMs = Date.now();
+    });
 
     const killChild = async (reason: string): Promise<void> => {
       if (childExitCode !== null) {
@@ -1179,29 +1301,51 @@ export async function dispatchTask(
       }
     };
 
-    // Idle threshold while child is still running: tolerate model thinking
-    // (idle JSONL during long generation) by extending the idle threshold.
-    // Only declare task done via idle once we have an assistant response.
-    const stuckThresholdMs = Math.max(idleMs * 4, 120_000);
+    // Idle threshold for "completed via idle" once we already have an
+    // assistant turn: keep the legacy short threshold so a model that finishes
+    // streaming and quietly waits is treated as done. Activity-based timeout
+    // (below) handles the "stuck before any assistant turn" case.
+    const idleCompletionMs = Math.max(idleMs * 4, 120_000);
 
     // Polling loop concurrent with child execution
     while (true) {
       const elapsed = Date.now() - startMs;
 
       parseJsonl();
+      checkTrajectoryActivity();
 
-      // Hard task timeout
-      if (elapsed > timeoutMs) {
+      // (1) Activity-based timeout: kill if no useful activity for
+      // noActivityMs. Resets on stdout/stderr/JSONL/trajectory.
+      const sinceActivity = Date.now() - lastActivityMs;
+      if (sinceActivity > noActivityMs) {
         await killChild(
-          `hard task-timeout ${Math.round(elapsed / 1000)}s > ${Math.round(timeoutMs / 1000)}s`,
+          `no-activity ${Math.round(sinceActivity / 1000)}s > ${Math.round(noActivityMs / 1000)}s`,
         );
         return {
           conversation,
           elapsedMs: Date.now() - startMs,
           completionStatus: "timeout",
-          error: `task-timeout (${Math.round(timeoutMs / 1000)}s)`,
+          error: `no-activity-timeout (${Math.round(noActivityMs / 1000)}s of inactivity)`,
           sessionJsonlPath: jsonlPath,
           trajectoryJsonlPath: trajectoryPath,
+          fakeGogLogPath,
+        };
+      }
+
+      // (2) Hard wall-clock cap (runaway guard). Only fires when an actively
+      // chatty agent runs past the explicit ceiling.
+      if (elapsed > hardCapMs) {
+        await killChild(
+          `hard-cap ${Math.round(elapsed / 1000)}s > ${Math.round(hardCapMs / 1000)}s`,
+        );
+        return {
+          conversation,
+          elapsedMs: Date.now() - startMs,
+          completionStatus: "timeout",
+          error: `hard-cap (${Math.round(hardCapMs / 1000)}s wall-clock ceiling)`,
+          sessionJsonlPath: jsonlPath,
+          trajectoryJsonlPath: trajectoryPath,
+          fakeGogLogPath,
         };
       }
 
@@ -1210,6 +1354,7 @@ export async function dispatchTask(
         // Give filesystem a moment to flush in case JSONL just got written
         await new Promise((r) => setTimeout(r, 500));
         parseJsonl();
+        checkTrajectoryActivity();
         if (childError) {
           const errMsg = (childError as Error).message;
           return {
@@ -1219,6 +1364,7 @@ export async function dispatchTask(
             error: errMsg,
             sessionJsonlPath: jsonlPath,
             trajectoryJsonlPath: trajectoryPath,
+            fakeGogLogPath,
           };
         }
         if (childExitCode !== 0) {
@@ -1231,6 +1377,7 @@ export async function dispatchTask(
             error: `CLI exited ${childExitCode}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`,
             sessionJsonlPath: jsonlPath,
             trajectoryJsonlPath: trajectoryPath,
+            fakeGogLogPath,
           };
         }
         const trajectoryError = readTrajectoryError(trajectoryPath);
@@ -1242,6 +1389,7 @@ export async function dispatchTask(
             error: `OpenClaw session error: ${trajectoryError.slice(0, 300)}`,
             sessionJsonlPath: jsonlPath,
             trajectoryJsonlPath: trajectoryPath,
+            fakeGogLogPath,
           };
         }
         if (conversation.length === 0) {
@@ -1252,33 +1400,28 @@ export async function dispatchTask(
             error: "empty conversation transcript (no session JSONL turns parsed)",
             sessionJsonlPath: jsonlPath,
             trajectoryJsonlPath: trajectoryPath,
+            fakeGogLogPath,
           };
         }
         log(`  CLI completed successfully`);
-        if (conversation.length === 0) {
-          const stdout = Buffer.concat(stdoutChunks).toString();
-          const assistantResponse = extractAssistantResponseFromStdout(stdout);
-          if (assistantResponse) {
-            conversation.push(
-              { role: "user", content: task.prompt },
-              { role: "assistant", content: assistantResponse },
-            );
-          }
-        }
         return {
           conversation,
           elapsedMs: Date.now() - startMs,
           completionStatus: "completed",
           sessionJsonlPath: jsonlPath,
           trajectoryJsonlPath: trajectoryPath,
+          fakeGogLogPath,
         };
       }
 
-      // Idle detection: kill if JSONL AND stdio both quiet for stuckThreshold
+      // Idle-completion detection: once we already have an assistant turn AND
+      // the JSONL/stdio have both been quiet for idleCompletionMs, the agent
+      // is done streaming. This is a separate signal from the activity-based
+      // timeout above (which fires when there is NO assistant turn yet).
       const idleSinceWrite = Date.now() - lastChangeMs;
       const idleSinceIo = Date.now() - lastIoMs;
       const realIdle = Math.min(idleSinceWrite, idleSinceIo);
-      if (lastLineCount > 0 && realIdle > stuckThresholdMs) {
+      if (lastLineCount > 0 && realIdle > idleCompletionMs) {
         const hasAssistant = conversation.some((t) => t.role === "assistant");
         if (hasAssistant) {
           await killChild(`task done via idle (${Math.round(realIdle / 1000)}s no JSONL/stdio)`);
@@ -1289,18 +1432,7 @@ export async function dispatchTask(
             completionStatus: "completed",
             sessionJsonlPath: jsonlPath,
             trajectoryJsonlPath: trajectoryPath,
-          };
-        }
-        // No assistant response yet, but stuck. Use 1.5x threshold to be safe.
-        if (realIdle > stuckThresholdMs * 1.5) {
-          await killChild(`stuck without assistant turn (${Math.round(realIdle / 1000)}s idle)`);
-          return {
-            conversation,
-            elapsedMs: Date.now() - startMs,
-            completionStatus: "timeout",
-            error: `idle-stuck-no-progress`,
-            sessionJsonlPath: jsonlPath,
-            trajectoryJsonlPath: trajectoryPath,
+            fakeGogLogPath,
           };
         }
       }
@@ -1579,6 +1711,73 @@ export async function runAgentBenchmark(
     saveAggregate();
   }
 
+  // Per-task validation gate. Defaults true so old callers (which never set
+  // these flags) get the new safety net automatically. Pass
+  // `validatePerTask: false` to opt out for synthetic / unit-test runs.
+  const validatePerTask = config.validatePerTask !== false;
+  const validationRerunOnFail = config.validationRerunOnFail !== false;
+
+  /**
+   * Dispatch one attempt of a task. Returns the populated AgentTaskResult plus
+   * the artifact-side paths needed for validation. Used by the run loop and
+   * by the validation rerun helper.
+   */
+  const runOneTaskAttempt = async (
+    task: AgentBenchmarkTask,
+  ): Promise<{
+    taskResult: AgentTaskResult;
+    sessionJsonlPath?: string;
+    trajectoryJsonlPath?: string;
+    fakeGogLogPath?: string;
+  }> => {
+    const sessionId = `bench-${task.id}-${Date.now()}`;
+    seedMockGog(config.seedScript, seedStateDir);
+    let conversation: ConversationTurn[];
+    let elapsedMs: number;
+    let completionStatus: "completed" | "timeout" | "error";
+    let error: string | undefined;
+    let sessionJsonlPath: string | undefined;
+    let trajectoryJsonlPath: string | undefined;
+    let fakeGogLogPath: string | undefined;
+    if (config.mock) {
+      const finalResponse = task.mock?.finalResponse ?? `[Mock] Task completed: ${task.name}`;
+      conversation = [
+        { role: "user", content: task.prompt },
+        { role: "assistant", content: `[Mock] Processing task: ${task.name}` },
+        { role: "tool_call", content: "{}", toolName: "gog", toolArgs: {} },
+        { role: "tool_result", content: "[Mock] Tool result" },
+        { role: "assistant", content: finalResponse },
+      ];
+      elapsedMs = 50;
+      completionStatus = "completed";
+    } else {
+      const dispatchResult = await dispatchTask(task, config, sessionId, log);
+      conversation = dispatchResult.conversation;
+      elapsedMs = dispatchResult.elapsedMs;
+      completionStatus = dispatchResult.completionStatus;
+      error = dispatchResult.error;
+      sessionJsonlPath = dispatchResult.sessionJsonlPath;
+      trajectoryJsonlPath = dispatchResult.trajectoryJsonlPath;
+      fakeGogLogPath = dispatchResult.fakeGogLogPath;
+    }
+    const toolCalls = conversation.filter((t) => t.role === "tool_call");
+    const toolCallCount = toolCalls.length;
+    const toolsUsed = [...new Set(toolCalls.map((t) => t.toolName).filter(Boolean))] as string[];
+    log(
+      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${error ? ` | ${error}` : ""}`,
+    );
+    const taskResult: AgentTaskResult = {
+      task,
+      conversation,
+      elapsedMs,
+      toolCallCount,
+      toolsUsed,
+      completionStatus,
+      error,
+    };
+    return { taskResult, sessionJsonlPath, trajectoryJsonlPath, fakeGogLogPath };
+  };
+
   for (let i = 0; i < filteredTasks.length; i++) {
     const task = filteredTasks[i];
     const taskNum = `[${i + 1}/${filteredTasks.length}]`;
@@ -1600,64 +1799,60 @@ export async function runAgentBenchmark(
 
     log(`${taskNum} ${task.name} (${task.difficulty})`);
 
-    const sessionId = `bench-${task.id}-${Date.now()}`;
+    let attempt = await runOneTaskAttempt(task);
+    let validationRerunCount = 0;
 
-    // Re-seed mock gog state before each task (clean slate)
-    seedMockGog(config.seedScript, seedStateDir);
+    // Persist first-attempt artifacts so validation reads from disk.
+    writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
+    copyIfExists(attempt.sessionJsonlPath, taskSessionCopyPath(runDir, task.id));
+    copyIfExists(attempt.trajectoryJsonlPath, taskTrajectoryCopyPath(runDir, task.id));
 
-    let conversation: ConversationTurn[];
-    let elapsedMs: number;
-    let completionStatus: "completed" | "timeout" | "error";
-    let error: string | undefined;
-    let sessionJsonlPath: string | undefined;
-    let trajectoryJsonlPath: string | undefined;
+    if (validatePerTask) {
+      let validation = validateTaskArtifact({
+        runDir,
+        task,
+        result: attempt.taskResult,
+        fakeGogLogPath: attempt.fakeGogLogPath,
+      });
+      log(`  validation: ${summarizeValidation(validation)}`);
 
-    if (config.mock) {
-      // Mock mode: simulate a successful agent run without dispatching
-      const finalResponse = task.mock?.finalResponse ?? `[Mock] Task completed: ${task.name}`;
-      conversation = [
-        { role: "user", content: task.prompt },
-        { role: "assistant", content: `[Mock] Processing task: ${task.name}` },
-        { role: "tool_call", content: "{}", toolName: "gog", toolArgs: {} },
-        { role: "tool_result", content: "[Mock] Tool result" },
-        { role: "assistant", content: finalResponse },
-      ];
-      elapsedMs = 50;
-      completionStatus = "completed";
-    } else {
-      // Real mode: dispatch to gateway and collect conversation
-      const result = await dispatchTask(task, config, sessionId, log);
-      conversation = result.conversation;
-      elapsedMs = result.elapsedMs;
-      completionStatus = result.completionStatus;
-      error = result.error;
-      sessionJsonlPath = result.sessionJsonlPath;
-      trajectoryJsonlPath = result.trajectoryJsonlPath;
+      if (!validation.valid && validationRerunOnFail) {
+        log(`  Validation BLOCK detected; rerunning task once before recording.`);
+        // Wipe the old per-task artifact dir before retry so the validator on
+        // the next attempt does not see stale session/trajectory copies.
+        const taskDir = path.join(runDir, "tasks", task.id);
+        if (fs.existsSync(taskDir)) {
+          fs.rmSync(taskDir, { recursive: true, force: true });
+        }
+        attempt = await runOneTaskAttempt(task);
+        validationRerunCount = 1;
+        writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
+        copyIfExists(attempt.sessionJsonlPath, taskSessionCopyPath(runDir, task.id));
+        copyIfExists(attempt.trajectoryJsonlPath, taskTrajectoryCopyPath(runDir, task.id));
+        validation = validateTaskArtifact({
+          runDir,
+          task,
+          result: attempt.taskResult,
+          fakeGogLogPath: attempt.fakeGogLogPath,
+        });
+        log(`  validation (rerun): ${summarizeValidation(validation)}`);
+      }
+
+      // Persist validation result on the task artifact itself so consumers
+      // (site generator, evaluator) can show the gate decision without
+      // re-running the validator.
+      attempt.taskResult.validation = validation;
+      attempt.taskResult.validationRerunCount = validationRerunCount;
+      // If still invalid after the rerun budget, force completionStatus=error
+      // so downstream evaluators don't accidentally score a contaminated run.
+      if (!validation.valid && attempt.taskResult.completionStatus === "completed") {
+        attempt.taskResult.completionStatus = "error";
+        attempt.taskResult.error = `validation_failed: ${summarizeValidation(validation)}`;
+      }
+      writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
     }
 
-    // Extract tool call stats
-    const toolCalls = conversation.filter((t) => t.role === "tool_call");
-    const toolCallCount = toolCalls.length;
-    const toolsUsed = [...new Set(toolCalls.map((t) => t.toolName).filter(Boolean))] as string[];
-
-    log(
-      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${error ? ` | ${error}` : ""}`,
-    );
-
-    const taskResult: AgentTaskResult = {
-      task,
-      conversation,
-      elapsedMs,
-      toolCallCount,
-      toolsUsed,
-      completionStatus,
-      error,
-    };
-    resultsById.set(task.id, taskResult);
-
-    writeTaskArtifact(runDir, runId, configHash, taskResult);
-    copyIfExists(sessionJsonlPath, taskSessionCopyPath(runDir, task.id));
-    copyIfExists(trajectoryJsonlPath, taskTrajectoryCopyPath(runDir, task.id));
+    resultsById.set(task.id, attempt.taskResult);
     saveAggregate();
     writeManifest();
   }

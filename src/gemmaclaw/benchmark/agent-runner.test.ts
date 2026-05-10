@@ -14,6 +14,7 @@ import {
   resolveFakeGogBinDir,
   readOpenAICodexAuthProfilesFromStore,
   resolveOpenAICodexAuthProfileStoreCandidates,
+  resolveTimeoutBudgets,
   writeTaskArtifact,
   writeBenchmarkWorkspaceFiles,
   type AgentBenchmarkConfig,
@@ -158,6 +159,53 @@ describe("parseSessionEntry", () => {
   });
 });
 
+describe("resolveTimeoutBudgets", () => {
+  const base = {
+    gatewayUrl: "http://localhost:3001",
+    backend: "ollama" as const,
+    ollamaUrl: "http://127.0.0.1:11434",
+    llamaCppUrl: "http://127.0.0.1:8080",
+    model: "gemma4:31b",
+    quant: "Q4_K_M",
+    thinkingLevel: "high",
+    taskTimeoutSeconds: 0,
+    idleTimeoutSeconds: 30,
+  };
+
+  it("defaults activity timeout to 600s and hard cap to 28800s when nothing is set", () => {
+    const { hardCapMs, noActivityMs } = resolveTimeoutBudgets(base);
+    expect(noActivityMs).toBe(600_000);
+    expect(hardCapMs).toBe(28_800_000);
+  });
+
+  it("treats legacy taskTimeoutSeconds as a floor for the hard cap", () => {
+    const { hardCapMs } = resolveTimeoutBudgets({ ...base, taskTimeoutSeconds: 3600 });
+    expect(hardCapMs).toBe(28_800_000);
+    const { hardCapMs: bigCap } = resolveTimeoutBudgets({ ...base, taskTimeoutSeconds: 50_000 });
+    expect(bigCap).toBe(50_000_000);
+  });
+
+  it("respects explicit hardCapSeconds and noActivityTimeoutSeconds", () => {
+    const { hardCapMs, noActivityMs } = resolveTimeoutBudgets({
+      ...base,
+      hardCapSeconds: 7200,
+      noActivityTimeoutSeconds: 300,
+    });
+    expect(hardCapMs).toBe(7_200_000);
+    expect(noActivityMs).toBe(300_000);
+  });
+
+  it("falls back to defaults when explicit timeouts are <=0", () => {
+    const { hardCapMs, noActivityMs } = resolveTimeoutBudgets({
+      ...base,
+      hardCapSeconds: 0,
+      noActivityTimeoutSeconds: -1,
+    });
+    expect(noActivityMs).toBe(600_000);
+    expect(hardCapMs).toBe(28_800_000);
+  });
+});
+
 describe("benchmark backend resolution", () => {
   it("maps agent benchmark backends to OpenClaw provider prefixes", () => {
     expect(resolveAgentProviderPrefix("ollama")).toBe("ollama");
@@ -296,6 +344,16 @@ describe("per-task benchmark artifacts", () => {
       { task: { id: "email_summarize" }, completionStatus: "completed" },
     ]);
     expect(loadTaskArtifacts(runDir, "wrong-hash")).toEqual([]);
+  });
+
+  it("includes activity-timeout fields in the config hash so different gates produce different hashes", () => {
+    const baseHash = computeConfigHash(config);
+    const withActivity = computeConfigHash({ ...config, noActivityTimeoutSeconds: 600 });
+    const withHardCap = computeConfigHash({ ...config, hardCapSeconds: 28_800 });
+    const withValidationOff = computeConfigHash({ ...config, validatePerTask: false });
+    expect(baseHash).not.toBe(withActivity);
+    expect(baseHash).not.toBe(withHardCap);
+    expect(baseHash).not.toBe(withValidationOff);
   });
 
   it("assembles aggregate outputs from saved per-task artifacts", () => {

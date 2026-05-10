@@ -94,6 +94,18 @@ function parseArgs(argv: string[]) {
       opts.taskTimeout = args[++i]!;
     } else if (arg === "--idle-timeout" && args[i + 1]) {
       opts.idleTimeout = args[++i]!;
+    } else if (arg === "--no-activity-timeout" && args[i + 1]) {
+      opts.noActivityTimeout = args[++i]!;
+    } else if (arg === "--hard-cap" && args[i + 1]) {
+      opts.hardCap = args[++i]!;
+    } else if (arg === "--validate-per-task") {
+      opts.validatePerTask = true;
+    } else if (arg === "--no-validate-per-task") {
+      opts.validatePerTask = false;
+    } else if (arg === "--validation-rerun-on-fail") {
+      opts.validationRerunOnFail = true;
+    } else if (arg === "--no-validation-rerun-on-fail") {
+      opts.validationRerunOnFail = false;
     } else if (arg === "--backend" && args[i + 1]) {
       opts.backend = args[++i]!;
     } else if (arg === "--llama-cpp-url" && args[i + 1]) {
@@ -148,8 +160,12 @@ Agent Mode Options:
   --evaluate             Run LLM judge scoring for a saved run id
   --force-evaluate       Replace existing LLM judge scores for that run
   --judge-provider <id>  Judge provider (openai)
-  --task-timeout <sec>   Max seconds per task, 0=unlimited (default: 600)
+  --task-timeout <sec>   Legacy alias for --hard-cap (default: 600). Activity-based timeout is the normal "stuck" signal.
   --idle-timeout <sec>   Seconds of idle before task considered done (default: 30)
+  --no-activity-timeout <sec>  Kill the task if no useful agent activity (stdout/stderr/JSONL/trajectory) for N seconds (default: 600)
+  --hard-cap <sec>       Hard wall-clock ceiling per task as a runaway guard (default: 28800 = 8h)
+  --validate-per-task    Run the per-task validation gate after each task (default: on). Use --no-validate-per-task to opt out.
+  --validation-rerun-on-fail  Rerun a task once if validation produces a block-severity issue (default: on)
   --judge-model <name>   Model for LLM judge (default: same as test model)
   --mock                 Mock mode: no real model, deterministic pass/fail
   --context-length <n>   Ollama context window size
@@ -256,6 +272,12 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
     thinkingLevel: opts.thinking as string | undefined,
     taskTimeoutSeconds: opts.taskTimeout ? Number.parseInt(String(opts.taskTimeout), 10) : 600,
     idleTimeoutSeconds: opts.idleTimeout ? Number.parseInt(String(opts.idleTimeout), 10) : 30,
+    noActivityTimeoutSeconds: opts.noActivityTimeout
+      ? Number.parseInt(String(opts.noActivityTimeout), 10)
+      : undefined,
+    hardCapSeconds: opts.hardCap ? Number.parseInt(String(opts.hardCap), 10) : undefined,
+    validatePerTask: opts.validatePerTask !== false,
+    validationRerunOnFail: opts.validationRerunOnFail !== false,
     filter: (opts.task as string) ?? (opts.filter as string) ?? undefined,
     mock: Boolean(opts.mock),
     contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
