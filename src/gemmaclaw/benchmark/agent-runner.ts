@@ -496,11 +496,38 @@ export async function collectMetadata(
     /* ollama not available or model not loaded */
   }
 
+  // When running inside a Docker container (no local GPU passthrough) but using
+  // the Ollama backend, the host Ollama server is doing GPU-backed inference.
+  // Query /api/ps to detect actual GPU VRAM in use so the manifest accurately
+  // records that this was a GPU-backed run.
+  let effectiveHardware = hardware;
+  if (!hardware.gpu.detected && config.ollamaUrl) {
+    try {
+      const psResp = await httpGet(`${config.ollamaUrl}/api/ps`, 10_000);
+      const ps = JSON.parse(psResp) as { models?: { size_vram?: number }[] };
+      const totalVram = (ps.models ?? []).reduce((sum, m) => sum + (m.size_vram ?? 0), 0);
+      if (totalVram > 0) {
+        effectiveHardware = {
+          ...hardware,
+          gpu: {
+            detected: true,
+            nvidia: true,
+            apple: false,
+            name: "GPU (via Ollama host)",
+            vramBytes: totalVram,
+          },
+        };
+      }
+    } catch {
+      /* ollama ps not available or container not using ollama host */
+    }
+  }
+
   return {
     model: config.model,
     quant: config.quant,
     thinkingLevel: config.thinkingLevel,
-    hardware,
+    hardware: effectiveHardware,
     gatewayUrl: config.gatewayUrl,
     ollamaUrl: config.ollamaUrl,
     gitSha,

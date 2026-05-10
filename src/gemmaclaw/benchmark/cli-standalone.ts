@@ -518,7 +518,12 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   } else {
     console.log(`Ollama:   ${config.ollamaUrl}`);
   }
-  console.log(`GPU:      ${hardware.gpu.name ?? "not detected"}`);
+  const gpuDisplay =
+    hardware.gpu.name ??
+    (config.backend === "ollama" && !hardware.gpu.detected
+      ? "via Ollama host (detect after run)"
+      : "not detected");
+  console.log(`GPU:      ${gpuDisplay}`);
   console.log(`Output:   ${outputDir}`);
   if (config.mock) {
     console.log(`Mode:     MOCK (no real model)`);
