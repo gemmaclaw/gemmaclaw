@@ -32,8 +32,11 @@ import {
   type AgentBenchmarkTask,
 } from "./agent-tasks.js";
 import {
+  inspectTaskQuality,
+  summarizeQualityInspection,
   summarizeValidation,
   validateTaskArtifact,
+  type QualityInspectionResult,
   type ValidationResult,
 } from "./agent-validator.js";
 
@@ -89,6 +92,12 @@ export type AgentBenchmarkConfig = {
   hardCapSeconds?: number;
   /** When true, run the validation gate after each task. Defaults to true. */
   validatePerTask?: boolean;
+  /**
+   * When true, run a lightweight quality/readiness inspection after each task.
+   * This records score-readiness warnings before the next task is dispatched.
+   * Defaults to true.
+   */
+  qualityInspectPerTask?: boolean;
   /**
    * When true and per-task validation produces a block-severity issue, the
    * runner reruns the task once before recording a final failure. Defaults
@@ -156,6 +165,11 @@ export type AgentTaskResult = {
    * site generator can surface validation issues without rerunning the gate.
    */
   validation?: ValidationResult;
+  /**
+   * Lightweight score-readiness inspection for this task. This is not the LLM
+   * judge score; it catches malformed artifacts/tool usage before publication.
+   */
+  qualityInspection?: QualityInspectionResult;
   /** Number of times this task was rerun by the validation gate (0 = first try). */
   validationRerunCount?: number;
 };
@@ -319,6 +333,7 @@ export function computeConfigHash(config: AgentBenchmarkConfig): string {
     noActivityTimeoutSeconds: config.noActivityTimeoutSeconds ?? null,
     hardCapSeconds: config.hardCapSeconds ?? null,
     validatePerTask: config.validatePerTask !== false,
+    qualityInspectPerTask: config.qualityInspectPerTask !== false,
     validationRerunOnFail: config.validationRerunOnFail !== false,
     ollamaUrl: config.ollamaUrl,
     quant: config.quant,
@@ -1833,6 +1848,7 @@ export async function runAgentBenchmark(
   // these flags) get the new safety net automatically. Pass
   // `validatePerTask: false` to opt out for synthetic / unit-test runs.
   const validatePerTask = config.validatePerTask !== false;
+  const qualityInspectPerTask = config.qualityInspectPerTask !== false;
   const validationRerunOnFail = config.validationRerunOnFail !== false;
 
   /**
@@ -1940,8 +1956,9 @@ export async function runAgentBenchmark(
     copyIfExists(attempt.sessionJsonlPath, taskSessionCopyPath(runDir, task.id));
     copyIfExists(attempt.trajectoryJsonlPath, taskTrajectoryCopyPath(runDir, task.id));
 
+    let validation: ValidationResult | undefined;
     if (validatePerTask) {
-      let validation = validateTaskArtifact({
+      validation = validateTaskArtifact({
         runDir,
         task,
         result: attempt.taskResult,
@@ -1982,6 +1999,19 @@ export async function runAgentBenchmark(
         attempt.taskResult.completionStatus = "error";
         attempt.taskResult.error = `validation_failed: ${summarizeValidation(validation)}`;
       }
+      writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
+    }
+
+    if (qualityInspectPerTask) {
+      const qualityInspection = inspectTaskQuality({
+        runDir,
+        task,
+        result: attempt.taskResult,
+        validation,
+        llmJudgePresent: false,
+      });
+      attempt.taskResult.qualityInspection = qualityInspection;
+      log(`  quality: ${summarizeQualityInspection(qualityInspection)}`);
       writeTaskArtifact(runDir, runId, configHash, attempt.taskResult);
     }
 

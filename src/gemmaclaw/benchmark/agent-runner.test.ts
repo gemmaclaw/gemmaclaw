@@ -397,6 +397,14 @@ describe("per-task benchmark artifacts", () => {
     // After a clean mock run the started marker must be cleared so a future
     // audit can distinguish "ran to completion" from "killed mid-flight".
     expect(fs.existsSync(path.join(runDir, "tasks/email_summarize/started.json"))).toBe(false);
+    const taskArtifact = JSON.parse(
+      fs.readFileSync(path.join(runDir, "tasks/email_summarize/result.json"), "utf-8"),
+    ) as { result: AgentTaskResult };
+    const taskResult = taskArtifact.result;
+    expect(taskResult.qualityInspection?.schemaVersion).toBe(1);
+    expect(taskResult.qualityInspection?.issues.map((issue) => issue.kind)).toContain(
+      "llm_judge_missing",
+    );
   });
 
   it("preserves a leftover started.json when writeTaskArtifact never runs (silent kill semantics)", () => {
@@ -449,9 +457,14 @@ describe("per-task benchmark artifacts", () => {
     const withActivity = computeConfigHash({ ...config, noActivityTimeoutSeconds: 600 });
     const withHardCap = computeConfigHash({ ...config, hardCapSeconds: 28_800 });
     const withValidationOff = computeConfigHash({ ...config, validatePerTask: false });
+    const withQualityInspectionOff = computeConfigHash({
+      ...config,
+      qualityInspectPerTask: false,
+    });
     expect(baseHash).not.toBe(withActivity);
     expect(baseHash).not.toBe(withHardCap);
     expect(baseHash).not.toBe(withValidationOff);
+    expect(baseHash).not.toBe(withQualityInspectionOff);
   });
 
   it("assembles aggregate outputs from saved per-task artifacts", () => {
