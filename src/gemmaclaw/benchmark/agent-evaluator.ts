@@ -373,15 +373,19 @@ export class OpenAIAgentJudgeClient implements AgentJudgeClient {
   }
 
   async judge(prompt: string): Promise<string> {
+    // Prepend /no_think so thinking models (qwen3, deepseek-r1) emit content directly
+    // rather than spending all max_tokens on internal reasoning.
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [
         { role: "system", content: JUDGE_SYSTEM_PROMPT },
-        { role: "user", content: prompt },
+        { role: "user", content: `/no_think\n${prompt}` },
       ],
-      max_tokens: 4096,
+      max_tokens: 8192,
     });
-    return response.choices[0]?.message?.content ?? "";
+    const msg = response.choices[0]?.message;
+    // Fallback: some thinking models put output in .reasoning when content is empty.
+    return msg?.content || (msg as unknown as Record<string, string>)?.reasoning || "";
   }
 }
 
