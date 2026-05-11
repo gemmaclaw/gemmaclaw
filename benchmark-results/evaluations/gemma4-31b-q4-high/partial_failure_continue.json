@@ -1,0 +1,142 @@
+{
+  "taskId": "partial_failure_continue",
+  "taskName": "Partial Failure and Continue",
+  "gradingCriteria": [
+    "Must attempt the email send (step 1, expected to fail)",
+    "Must handle the email failure gracefully",
+    "Must continue to step 2 (calendar check) despite step 1 failure",
+    "Must successfully check Friday calendar",
+    "Must continue to step 3 (create task) despite step 1 failure",
+    "Must report clearly what succeeded and what failed"
+  ],
+  "maxScore": 25,
+  "toolCallCount": 6,
+  "toolsUsed": ["read", "session_status", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 1785137,
+  "conversationTurns": 20,
+  "transcriptFile": "transcripts/partial_failure_continue.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T01:00:00.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct",
+    "score": 16,
+    "maxScore": 25,
+    "percentage": 64,
+    "passed": false,
+    "confidence": "medium",
+    "criteria": [
+      {
+        "criterion": "Must attempt the email send (step 1, expected to fail)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent sent email to feedback@nonexistent.invalid. The send did not fail because fake-gog accepts all sends without SMTP validation.",
+        "evidence": "turns #9,#11: gog gmail send attempted, returned message_id (success)",
+        "turnRefs": [9, 11]
+      },
+      {
+        "criterion": "Must handle the email failure gracefully",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Email did not fail in the fake-gog environment (returned success). The harness did not simulate a delivery failure, so graceful failure handling was not demonstrated. This is a harness limitation.",
+        "evidence": "turn #11: TOOL_RESULT returned message_id indicating success, no error to handle",
+        "turnRefs": [11]
+      },
+      {
+        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent proceeded to calendar check after the email send, demonstrating sequential execution even when step 1 would not fail",
+        "evidence": "turns #13-14: gog calendar check executed after email send",
+        "turnRefs": [13, 14]
+      },
+      {
+        "criterion": "Must successfully check Friday calendar",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent checked calendar for next Friday (May 15, 2026) and retrieved the scheduled events",
+        "evidence": "turn #13: gog calendar events for 2026-05-15",
+        "turnRefs": [13]
+      },
+      {
+        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "Agent continued to step 3 but created a CALENDAR EVENT instead of a TASK. Used gog calendar create instead of gog tasks create.",
+        "evidence": "turns #16-17: gog calendar create 'Review Q3 numbers' instead of gog tasks create",
+        "turnRefs": [16, 17]
+      },
+      {
+        "criterion": "Must report clearly what succeeded and what failed",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "Agent reported all 3 steps as successful (which was technically accurate since fake-gog didn't fail the email). No failure was reported because none occurred. Did not demonstrate failure reporting capability.",
+        "evidence": "turn #19: ASSISTANT reports all 3 tasks completed successfully",
+        "turnRefs": [19]
+      }
+    ],
+    "reasoning": "Steps 2 and 4 executed correctly. Step 1 (email to invalid address) did not fail because fake-gog accepts all sends, preventing the resilience test from being exercised. Step 3 used wrong tool (calendar event vs task). Harness limitation prevented full evaluation of failure-recovery behavior.",
+    "issues": [
+      "harness_note: fake-gog did not simulate email delivery failure to nonexistent.invalid",
+      "model_miss: created calendar event instead of task for step 3"
+    ],
+    "judgeRuntime": "cc-acp/claude-code",
+    "judgeMethod": "manual_transcript_read",
+    "rationale": "Steps 2 and 4 executed correctly. Step 1 (email to invalid address) did not fail because fake-gog accepts all sends, preventing the resilience test from being exercised. Step 3 used wrong tool (calendar event vs task). Harness limitation prevented full evaluation of failure-recovery behavior.",
+    "criterionEvidence": [
+      {
+        "criterion": "Must attempt the email send (step 1, expected to fail)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent sent email to feedback@nonexistent.invalid. The send did not fail because fake-gog accepts all sends without SMTP validation.",
+        "evidence": "turns #9,#11: gog gmail send attempted, returned message_id (success)",
+        "turnRefs": [9, 11]
+      },
+      {
+        "criterion": "Must handle the email failure gracefully",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Email did not fail in the fake-gog environment (returned success). The harness did not simulate a delivery failure, so graceful failure handling was not demonstrated. This is a harness limitation.",
+        "evidence": "turn #11: TOOL_RESULT returned message_id indicating success, no error to handle",
+        "turnRefs": [11]
+      },
+      {
+        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent proceeded to calendar check after the email send, demonstrating sequential execution even when step 1 would not fail",
+        "evidence": "turns #13-14: gog calendar check executed after email send",
+        "turnRefs": [13, 14]
+      },
+      {
+        "criterion": "Must successfully check Friday calendar",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent checked calendar for next Friday (May 15, 2026) and retrieved the scheduled events",
+        "evidence": "turn #13: gog calendar events for 2026-05-15",
+        "turnRefs": [13]
+      },
+      {
+        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "Agent continued to step 3 but created a CALENDAR EVENT instead of a TASK. Used gog calendar create instead of gog tasks create.",
+        "evidence": "turns #16-17: gog calendar create 'Review Q3 numbers' instead of gog tasks create",
+        "turnRefs": [16, 17]
+      },
+      {
+        "criterion": "Must report clearly what succeeded and what failed",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "Agent reported all 3 steps as successful (which was technically accurate since fake-gog didn't fail the email). No failure was reported because none occurred. Did not demonstrate failure reporting capability.",
+        "evidence": "turn #19: ASSISTANT reports all 3 tasks completed successfully",
+        "turnRefs": [19]
+      }
+    ],
+    "scorePercent": 64
+  }
+}
