@@ -316,4 +316,75 @@ describe("agent evaluator", () => {
     expect(fs.existsSync(path.join(evalDir, "summary.json"))).toBe(true);
     expect(fs.existsSync(path.join(evalDir, "LLM_EVALUATION.md"))).toBe(true);
   });
+
+  it("honors taskIds when doing a targeted judge rerun", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-evaluator-filter-"));
+    const runId = "run-filter";
+    const runDir = path.join(dir, "runs", runId);
+    const evalDir = path.join(dir, "evaluations", runId);
+    const skippedTask: AgentTaskResult = {
+      ...taskResult,
+      task: { ...taskResult.task, id: "calendar_create", name: "Calendar Create" },
+    };
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.mkdirSync(evalDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, "results.json"),
+      JSON.stringify({ tasks: [taskResult, skippedTask] }),
+    );
+    for (const result of [taskResult, skippedTask]) {
+      fs.writeFileSync(
+        path.join(evalDir, `${result.task.id}.json`),
+        JSON.stringify({
+          taskId: result.task.id,
+          taskName: result.task.name,
+          gradingCriteria: result.task.grading.criteria,
+          maxScore: 10,
+          toolCallCount: result.toolCallCount,
+          toolsUsed: result.toolsUsed,
+          completionStatus: "completed",
+          elapsedMs: 1000,
+          conversationTurns: 4,
+          transcriptFile: `transcripts/${result.task.id}.txt`,
+          deterministicScorer: null,
+          llmJudge: null,
+        }),
+      );
+    }
+
+    let judgeCalls = 0;
+    await evaluateAgentBenchmarkRun(
+      {
+        outputDir: dir,
+        runId,
+        provider: "openai",
+        model: "gpt-5.5",
+        taskIds: ["email_summarize"],
+        force: true,
+      },
+      {
+        async judge() {
+          judgeCalls += 1;
+          return JSON.stringify({
+            score: 10,
+            confidence: "high",
+            criteria: [{ status: "met", pointsAwarded: 10, reasoning: "target judged" }],
+            reasoning: "complete",
+            issues: [],
+          });
+        },
+      },
+      () => {},
+    );
+
+    const judged = JSON.parse(
+      fs.readFileSync(path.join(evalDir, "email_summarize.json"), "utf-8"),
+    ) as AgentEvaluationFile;
+    const skipped = JSON.parse(
+      fs.readFileSync(path.join(evalDir, "calendar_create.json"), "utf-8"),
+    ) as AgentEvaluationFile;
+    expect(judgeCalls).toBe(1);
+    expect(judged.llmJudge?.score).toBe(10);
+    expect(skipped.llmJudge).toBeNull();
+  });
 });

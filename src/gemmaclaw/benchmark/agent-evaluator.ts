@@ -79,6 +79,8 @@ export type AgentEvaluationConfig = {
   runId: string;
   provider: AgentJudgeProvider;
   model: string;
+  /** Optional task id filter for targeted rejudging after per-task reruns. */
+  taskIds?: string[];
   /** Optional base URL for exploratory local judge API calls. Never allowed for publishable scoring. */
   judgeBaseUrl?: string;
   exploratoryLocalJudge?: boolean;
@@ -519,10 +521,15 @@ export async function evaluateAgentBenchmarkRun(
   const results = readJson(resultsPath) as { tasks: AgentTaskResult[] };
   const judgedAt = new Date().toISOString();
   const evaluations: AgentEvaluationFile[] = [];
+  const taskFilter = config.taskIds?.length ? new Set(config.taskIds) : undefined;
 
   for (const taskResult of results.tasks) {
     const evalPath = path.join(evalDir, `${taskResult.task.id}.json`);
     const evaluation = readJson(evalPath) as AgentEvaluationFile;
+    if (taskFilter && !taskFilter.has(taskResult.task.id)) {
+      evaluations.push(evaluation);
+      continue;
+    }
     if (evaluation.llmJudge && !config.force) {
       log(`skip ${taskResult.task.id}: already judged`);
       evaluations.push(evaluation);

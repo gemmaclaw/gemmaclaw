@@ -513,6 +513,7 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
       runId,
       provider,
       model,
+      taskIds: selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts),
       judgeBaseUrl,
       exploratoryLocalJudge: Boolean(opts.exploratoryLocalJudge),
       force: Boolean(opts.forceEvaluate),
