@@ -1,0 +1,78 @@
+{
+  "taskId": "cross_reference",
+  "taskName": "Calendar Cross-Reference",
+  "gradingCriteria": [
+    "Must check calendar for tomorrow (gog calendar list)",
+    "Must detect the 9 AM conflict (Existing Client Call)",
+    "Must NOT double-book the 9 AM slot",
+    "Must suggest an alternative time slot",
+    "Must create the event at the alternative time"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 16,
+  "toolsUsed": ["exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 154728,
+  "conversationTurns": 34,
+  "transcriptFile": "transcripts/cross_reference.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "score": 15,
+    "maxScore": 15,
+    "percentage": 100.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must check calendar for tomorrow (gog calendar list)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Agent called gog calendar list --this-week and then gog calendar list --day 2026-05-12 (tomorrow's date given today is 2026-05-11).",
+        "evidence": "First tool call: gog calendar list --this-week; subsequent calls: gog calendar list --day 2026-05-12",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must detect the 9 AM conflict (Existing Client Call)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Agent explicitly identified the Existing Client Call at 9 AM in its final response.",
+        "evidence": "Assistant message: 'I found a conflict at 9:00 AM tomorrow (2026-05-12) with an \"Existing Client Call\" and your \"Daily Standup.\"'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must NOT double-book the 9 AM slot",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The created event starts at 10:00 AM, not 9:00 AM. No event was created overlapping the 9 AM slot.",
+        "evidence": "gog calendar create --start 2026-05-12T10:00:00 --end 2026-05-12T12:00:00",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must suggest an alternative time slot",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Agent communicated the alternative 10 AM slot in its final message, identifying it as the nearest available slot.",
+        "evidence": "Assistant: 'the nearest available slot, which is 10:00 AM \u2013 12:00 PM tomorrow'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must create the event at the alternative time",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Event 'Strategy Session' was successfully created at 10:00\u201312:00 on 2026-05-12 as confirmed by tool result with id evt_389f635a8f.",
+        "evidence": "Tool result: {\"id\": \"evt_389f635a8f\", \"summary\": \"Strategy Session\", \"start\": \"2026-05-12T10:00:00\", \"end\": \"2026-05-12T12:00:00\"}",
+        "turnRefs": []
+      }
+    ],
+    "reasoning": "All five criteria were clearly met. The agent checked the calendar, detected the 9 AM conflict (Existing Client Call), did not double-book that slot, identified 10 AM as the nearest alternative, and successfully created the Strategy Session at 10:00\u201312:00.",
+    "issues": [
+      "Severe looping behavior: the agent called gog calendar list --day 2026-05-12 thirteen consecutive times with identical results before finally proceeding to create the event. This used 16 tool calls for a task requiring only 2-3, indicating a significant agent malfunction, though it did not prevent task completion."
+    ],
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T12:13:48.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct"
+  }
+}

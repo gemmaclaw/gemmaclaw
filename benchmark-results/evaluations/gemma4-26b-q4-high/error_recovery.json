@@ -1,0 +1,76 @@
+{
+  "taskId": "error_recovery",
+  "taskName": "Tool Error Recovery",
+  "gradingCriteria": [
+    "Must attempt to send the email",
+    "Must handle the failure gracefully (no infinite retry loop)",
+    "Must create a follow-up task as fallback",
+    "Must inform the user about the failure and fallback action",
+    "Must not crash or give up silently"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 2,
+  "toolsUsed": ["exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 74618,
+  "conversationTurns": 6,
+  "transcriptFile": "transcripts/error_recovery.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "score": 15,
+    "maxScore": 15,
+    "percentage": 100.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must attempt to send the email",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent immediately called the gmail send command with the correct recipient, subject, and a proper meeting invitation body.",
+        "evidence": "exec {\"command\":\"gog gmail send --to nonexistent-user@invalid-domain.fake --subject \\\"Meeting Invitation\\\" --body ...\"}",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "After the single failed send attempt (exit code 64), the agent did not retry. It moved directly to the fallback action.",
+        "evidence": "Tool result showed status: failed, and the next action was task creation \u2014 no retry attempt.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must create a follow-up task as fallback",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent successfully created a follow-up task with a descriptive title and notes explaining the context of the failure.",
+        "evidence": "exec {\"command\":\"gog tasks create --title \\\"Follow up manually on meeting invitation...\\\"\"} returned task_82339c6a with status needsAction.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must inform the user about the failure and fallback action",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The assistant response clearly explains the failure reason and provides full details of the created follow-up task including title, ID, and notes.",
+        "evidence": "Assistant: 'The attempt to send the email... failed because the recipient was rejected... I have created a follow-up task: Task Title... Task ID: task_82339c6a...'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must not crash or give up silently",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The agent completed the full workflow without crashing, hanging, or silently dropping the task. It produced a valid final response with all relevant information.",
+        "evidence": "Full conversation completed with 2 tool calls and a final informative assistant message.",
+        "turnRefs": []
+      }
+    ],
+    "reasoning": "The agent executed all required steps perfectly: attempted the email send, handled the SMTP rejection without retrying, created the fallback task with appropriate content, and clearly communicated both the failure and the fallback to the user. No issues found.",
+    "issues": [],
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T12:13:48.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct"
+  }
+}
