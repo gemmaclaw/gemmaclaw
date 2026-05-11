@@ -387,4 +387,67 @@ describe("agent evaluator", () => {
     expect(judged.llmJudge?.score).toBe(10);
     expect(skipped.llmJudge).toBeNull();
   });
+
+  it("retries once when the judge returns malformed JSON", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-evaluator-retry-"));
+    const runId = "run-retry";
+    const runDir = path.join(dir, "runs", runId);
+    const evalDir = path.join(dir, "evaluations", runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.mkdirSync(evalDir, { recursive: true });
+    fs.writeFileSync(path.join(runDir, "results.json"), JSON.stringify({ tasks: [taskResult] }));
+    fs.writeFileSync(
+      path.join(evalDir, "email_summarize.json"),
+      JSON.stringify({
+        taskId: "email_summarize",
+        taskName: "Email Inbox Summary",
+        gradingCriteria: taskResult.task.grading.criteria,
+        maxScore: 10,
+        toolCallCount: 1,
+        toolsUsed: ["exec"],
+        completionStatus: "completed",
+        elapsedMs: 1000,
+        conversationTurns: 4,
+        transcriptFile: "transcripts/email_summarize.txt",
+        deterministicScorer: null,
+        llmJudge: null,
+      }),
+    );
+
+    const prompts: string[] = [];
+    await evaluateAgentBenchmarkRun(
+      {
+        outputDir: dir,
+        runId,
+        provider: "openai",
+        model: "gpt-5.5",
+      },
+      {
+        async judge(prompt) {
+          prompts.push(prompt);
+          if (prompts.length === 1) {
+            return '{"score": 10, "confidence": "high", "criteria": [';
+          }
+          return JSON.stringify({
+            score: 9,
+            confidence: "high",
+            criteria: [
+              { status: "met", pointsAwarded: 5, reasoning: "read inbox" },
+              { status: "partial", pointsAwarded: 4, reasoning: "minor issue" },
+            ],
+            reasoning: "valid after retry",
+            issues: [],
+          });
+        },
+      },
+      () => {},
+    );
+
+    const evaluation = JSON.parse(
+      fs.readFileSync(path.join(evalDir, "email_summarize.json"), "utf-8"),
+    ) as AgentEvaluationFile;
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("not valid JSON");
+    expect(evaluation.llmJudge?.score).toBe(9);
+  });
 });

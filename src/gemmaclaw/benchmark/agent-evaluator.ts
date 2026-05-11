@@ -101,6 +101,8 @@ const JUDGE_SYSTEM_PROMPT = [
   "Return only valid JSON.",
 ].join(" ");
 
+const JUDGE_PARSE_ATTEMPTS = 2;
+
 function clampScore(score: number, maxScore: number): number {
   if (!Number.isFinite(score)) {
     return 0;
@@ -305,6 +307,27 @@ export function buildAgentJudgePrompt(result: AgentTaskResult): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function buildJudgeRepairPrompt(
+  originalPrompt: string,
+  invalidResponse: string,
+  error: unknown,
+): string {
+  return [
+    "Your previous benchmark evaluation response was not valid JSON.",
+    `Parser error: ${error instanceof Error ? error.message : String(error)}`,
+    "",
+    "Return the same evaluation again, but as ONLY valid JSON.",
+    "Do not use markdown fences. Do not include comments or prose outside the JSON object.",
+    "Escape quotes and newlines inside string values.",
+    "",
+    "Original evaluation prompt:",
+    originalPrompt,
+    "",
+    "Invalid response to repair:",
+    invalidResponse,
+  ].join("\n");
 }
 
 export function summarizeAgentEvaluations(
@@ -538,15 +561,34 @@ export async function evaluateAgentBenchmarkRun(
 
     log(`judge ${taskResult.task.id} (${taskResult.task.grading.maxScore} pts)`);
     const prompt = buildAgentJudgePrompt(taskResult);
-    const response = await client.judge(prompt);
-    const judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
-      provider: config.provider,
-      model: config.model,
-      judgedAt,
-      criteria: taskResult.task.grading.criteria,
-      exploratoryLocalJudge: config.exploratoryLocalJudge,
-      includeRaw: config.includeRaw,
-    });
+    let judge: AgentLlmJudgeResult | undefined;
+    let response = "";
+    let repairPrompt = prompt;
+    for (let attempt = 1; attempt <= JUDGE_PARSE_ATTEMPTS; attempt += 1) {
+      response = await client.judge(repairPrompt);
+      try {
+        judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
+          provider: config.provider,
+          model: config.model,
+          judgedAt,
+          criteria: taskResult.task.grading.criteria,
+          exploratoryLocalJudge: config.exploratoryLocalJudge,
+          includeRaw: config.includeRaw,
+        });
+        break;
+      } catch (error) {
+        if (attempt >= JUDGE_PARSE_ATTEMPTS) {
+          throw error;
+        }
+        log(
+          `judge ${taskResult.task.id}: invalid JSON from judge, retrying once (${error instanceof Error ? error.message : String(error)})`,
+        );
+        repairPrompt = buildJudgeRepairPrompt(prompt, response, error);
+      }
+    }
+    if (!judge) {
+      throw new Error(`judge ${taskResult.task.id} did not produce a parsed evaluation`);
+    }
     const updated: AgentEvaluationFile = {
       ...evaluation,
       maxScore: taskResult.task.grading.maxScore,
