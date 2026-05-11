@@ -16,7 +16,7 @@ export function buildGoogleProvider(): ProviderPlugin {
     id: "google",
     label: "Google AI Studio",
     docsPath: "/providers/models",
-    hookAliases: ["google-antigravity", "google-vertex"],
+    hookAliases: [],
     envVars: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     auth: [
       createProviderApiKeyAuthMethod({
@@ -58,6 +58,53 @@ export function buildGoogleProvider(): ProviderPlugin {
   };
 }
 
+export function buildGoogleVertexProvider(): ProviderPlugin {
+  return {
+    id: "google-vertex",
+    label: "Google Cloud Vertex AI",
+    docsPath: "/providers/models",
+    envVars: ["GOOGLE_APPLICATION_CREDENTIALS"],
+    auth: [
+      createProviderApiKeyAuthMethod({
+        providerId: "google-vertex",
+        methodId: "gcloud-adc",
+        label: "gcloud Application Default Credentials",
+        hint: "Vertex AI via gcloud auth",
+        optionKey: "vertexCredentials",
+        flagName: "--vertex-credentials",
+        envVar: "GOOGLE_APPLICATION_CREDENTIALS",
+        promptMessage: "Enter path to service account key (or leave blank for gcloud ADC)",
+        defaultModel: "gemma-4-31b-it",
+        expectedProviders: ["google-vertex"],
+        applyConfig: (cfg) => applyGoogleGeminiModelDefault(cfg).next,
+        wizard: {
+          choiceId: "vertex-adc",
+          choiceLabel: "Google Cloud Vertex AI (gcloud)",
+          groupId: "google",
+          groupLabel: "Google",
+          groupHint: "Vertex AI via gcloud ADC or service account",
+        },
+      }),
+    ],
+    normalizeTransport: ({ api, baseUrl }) => resolveGoogleGenerativeAiTransport({ api, baseUrl }),
+    normalizeConfig: ({ provider, providerConfig }) =>
+      normalizeGoogleProviderConfig(provider, providerConfig),
+    normalizeModelId: ({ modelId }) => normalizeGoogleModelId(modelId),
+    resolveDynamicModel: (ctx) =>
+      resolveGoogleGeminiForwardCompatModel({
+        providerId: ctx.provider,
+        ctx,
+      }),
+    createStreamFn: ({ model }) =>
+      model.api === "google-generative-ai"
+        ? createGoogleGenerativeAiTransportStreamFn()
+        : undefined,
+    ...GOOGLE_GEMINI_PROVIDER_HOOKS,
+    isModernModelRef: ({ modelId }) => isModernGoogleModel(modelId),
+  };
+}
+
 export function registerGoogleProvider(api: OpenClawPluginApi) {
   api.registerProvider(buildGoogleProvider());
+  api.registerProvider(buildGoogleVertexProvider());
 }

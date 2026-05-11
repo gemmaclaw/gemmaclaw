@@ -7,7 +7,7 @@ export function createGoogleProvider(): ProviderPlugin {
     id: "google",
     label: "Google AI Studio",
     docsPath: "/providers/models",
-    hookAliases: ["google-antigravity", "google-vertex"],
+    hookAliases: [],
     envVars: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     auth: [
       {
@@ -22,6 +22,31 @@ export function createGoogleProvider(): ProviderPlugin {
           groupId: "google",
           groupLabel: "Google",
           groupHint: "Gemini API key + OAuth",
+        },
+      },
+    ],
+  };
+}
+
+export function createGoogleVertexProvider(): ProviderPlugin {
+  return {
+    id: "google-vertex",
+    label: "Google Cloud Vertex AI",
+    docsPath: "/providers/models",
+    envVars: ["GOOGLE_APPLICATION_CREDENTIALS"],
+    auth: [
+      {
+        id: "gcloud-adc",
+        kind: "api_key",
+        label: "gcloud Application Default Credentials",
+        hint: "Vertex AI via gcloud auth",
+        run: noopAuth,
+        wizard: {
+          choiceId: "vertex-adc",
+          choiceLabel: "Google Cloud Vertex AI (gcloud)",
+          groupId: "google",
+          groupLabel: "Google",
+          groupHint: "Vertex AI via gcloud ADC or service account",
         },
       },
     ],
