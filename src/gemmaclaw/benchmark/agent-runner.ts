@@ -42,9 +42,20 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type AgentBackendType = "ollama" | "llama-cpp" | "openai-codex";
+export type AgentBackendType =
+  | "ollama"
+  | "llama-cpp"
+  | "openai-codex"
+  | "google-gemini-cli"
+  | "openrouter";
 
-export const AGENT_BACKENDS = ["ollama", "llama-cpp", "openai-codex"] as const;
+export const AGENT_BACKENDS = [
+  "ollama",
+  "llama-cpp",
+  "openai-codex",
+  "google-gemini-cli",
+  "openrouter",
+] as const;
 
 export type AgentBenchmarkConfig = {
   /** URL of the gemmaclaw gateway. */
@@ -76,10 +87,10 @@ export type AgentBenchmarkConfig = {
   /**
    * Seconds with no useful agent activity before declaring the task stuck.
    * "Useful activity" = stdout/stderr chunk, new session JSONL line, new
-   * trajectory JSONL line, or assistant/tool turn parsed from JSONL. Defaults
-   * to 600 (10 minutes) when not set, per Frank's directive that timeout
-   * should mean "no progress for 10 minutes" rather than a hard wall-clock
-   * cap.
+   * trajectory JSONL line, provider-owned thinking/tool log update, or
+   * assistant/tool turn parsed from JSONL. Defaults to 600 (10 minutes) when
+   * not set, per Frank's directive that timeout should mean "no progress for
+   * 10 minutes" rather than a hard wall-clock cap.
    */
   noActivityTimeoutSeconds?: number;
   /**
@@ -609,20 +620,18 @@ export async function collectMetadata(
   };
 }
 
-/** Seed mock gog state before a benchmark run.
- * If gemmaclawHome is set, seeds inside that directory's gogcli state.
- * Otherwise seeds in the default ~/.config/gogcli/state/.
- */
+/** Seed mock gog state before a benchmark run. Always requires an isolated state directory. */
 export function seedMockGog(seedScript?: string, stateDir?: string): void {
   // Find repo root from cwd (pnpm sets cwd to repo root)
   const script = seedScript ?? path.resolve(process.cwd(), "scripts/benchmark/seed-mock-gog.py");
   if (!fs.existsSync(script)) {
     throw new Error(`Mock gog seed script not found: ${script}`);
   }
-  const env: Record<string, string> = { ...process.env } as Record<string, string>;
-  if (stateDir) {
-    env.GEMMACLAW_MOCK_GOG_STATE_DIR = stateDir;
+  if (!stateDir) {
+    throw new Error("Mock gog seed requires an isolated stateDir");
   }
+  const env: Record<string, string> = { ...process.env } as Record<string, string>;
+  env.GEMMACLAW_MOCK_GOG_STATE_DIR = stateDir;
   execSync(`python3 ${script}`, { stdio: "inherit", env });
 }
 
@@ -636,12 +645,18 @@ type AuthProfiles = Record<string, unknown>;
 
 export function resolveAgentProviderPrefix(
   backend: AgentBackendType,
-): "ollama" | "openai" | "openai-codex" {
+): "ollama" | "openai" | "openai-codex" | "google-gemini-cli" | "openrouter" {
   if (backend === "llama-cpp") {
     return "openai";
   }
   if (backend === "openai-codex") {
     return "openai-codex";
+  }
+  if (backend === "google-gemini-cli") {
+    return "google-gemini-cli";
+  }
+  if (backend === "openrouter") {
+    return "openrouter";
   }
   return "ollama";
 }
@@ -650,10 +665,66 @@ export function isAgentBackendType(value: string): value is AgentBackendType {
   return (AGENT_BACKENDS as readonly string[]).includes(value);
 }
 
+export function resolveAgentPluginAllowIds(backend: AgentBackendType): string[] {
+  if (backend === "google-gemini-cli") {
+    return ["google"];
+  }
+  if (backend === "openai-codex") {
+    return ["codex"];
+  }
+  if (backend === "llama-cpp") {
+    return ["openai"];
+  }
+  return [backend];
+}
+
 export function resolveCodexHome(env: NodeJS.ProcessEnv = process.env): string {
   return env.CODEX_HOME && env.CODEX_HOME.trim()
     ? env.CODEX_HOME
     : path.join(os.homedir(), ".codex");
+}
+
+export function resolveGeminiHome(env: NodeJS.ProcessEnv = process.env): string {
+  return env.GEMINI_CONFIG_HOME && env.GEMINI_CONFIG_HOME.trim()
+    ? env.GEMINI_CONFIG_HOME
+    : path.join(os.homedir(), ".gemini");
+}
+
+function copyFileIfExists(source: string, target: string): void {
+  if (!fs.existsSync(source)) {
+    return;
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(source, target);
+}
+
+function stageGeminiCliOAuthHome(sourceGeminiHome: string, benchHome: string): void {
+  const targetGeminiHome = path.join(benchHome, ".gemini");
+  fs.mkdirSync(targetGeminiHome, { recursive: true });
+  for (const file of [
+    "oauth_creds.json",
+    "settings.json",
+    "google_accounts.json",
+    "installation_id",
+    "state.json",
+  ]) {
+    copyFileIfExists(path.join(sourceGeminiHome, file), path.join(targetGeminiHome, file));
+  }
+  fs.writeFileSync(
+    path.join(targetGeminiHome, "GEMINI.md"),
+    [
+      "# Gemmaclaw Benchmark Gemini CLI Context",
+      "",
+      "You are running inside an isolated benchmark container.",
+      "Use only the benchmark prompt, local workspace files, and available mock tools.",
+      "Do not attempt to read host-only Frank workspace context files.",
+      "",
+    ].join("\n"),
+  );
+}
+
+function resolveOpenRouterApiKey(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return env.OPENROUTER_API_KEY?.trim() || undefined;
 }
 
 export function resolveOpenAICodexAuthProfileStoreCandidates(
@@ -783,8 +854,10 @@ const BENCHMARK_WORKSPACE_FILES: Record<string, string> = {
     "",
     "Use the `exec` tool to run `gog` CLI commands for mock Gmail, Calendar, Drive, Contacts, People, and Tasks data.",
     "The benchmark harness places a fake gog executable first on PATH. Call it via exec, not as a direct function name.",
+    "If your runtime exposes a shell tool named `run_shell_command` instead of `exec`, use `run_shell_command` with the same gog command.",
     "Examples:",
     '  exec command="gog gmail list"',
+    '  run_shell_command command="gog gmail list"',
     '  exec command="gog calendar list --this-week"',
     "  exec command=\"gog calendar create --start 2025-05-14T10:00:00 --end 2025-05-14T12:00:00 --summary 'Meeting' --location 'Room B'\"",
     '  exec command="gog contacts list"',
@@ -1097,6 +1170,241 @@ function readTrajectoryError(trajectoryPath: string): string | undefined {
   return lastError;
 }
 
+function readLatestFileActivitySignature(rootDir: string, maxFiles = 200): string | undefined {
+  if (!fs.existsSync(rootDir)) {
+    return undefined;
+  }
+  const pending = [rootDir];
+  let visited = 0;
+  let latestMtimeMs = 0;
+  let latestSize = 0;
+  let latestPath = "";
+  while (pending.length > 0 && visited < maxFiles) {
+    const current = pending.pop();
+    if (!current) {
+      continue;
+    }
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(fullPath);
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+      visited += 1;
+      if (visited > maxFiles) {
+        break;
+      }
+      try {
+        const stat = fs.statSync(fullPath);
+        if (
+          stat.mtimeMs > latestMtimeMs ||
+          (stat.mtimeMs === latestMtimeMs && stat.size > latestSize)
+        ) {
+          latestMtimeMs = stat.mtimeMs;
+          latestSize = stat.size;
+          latestPath = fullPath;
+        }
+      } catch {
+        // File may disappear while the provider rotates temp state.
+      }
+    }
+  }
+  if (!latestPath) {
+    return undefined;
+  }
+  return `${latestPath}:${Math.round(latestMtimeMs)}:${latestSize}`;
+}
+
+function findLatestGeminiCliSessionJsonl(benchHome: string): string | undefined {
+  const chatsDir = path.join(benchHome, ".gemini/tmp/workspace/chats");
+  if (!fs.existsSync(chatsDir)) {
+    return undefined;
+  }
+  let latestPath = "";
+  let latestMtimeMs = 0;
+  for (const entry of fs.readdirSync(chatsDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".jsonl")) {
+      continue;
+    }
+    const fullPath = path.join(chatsDir, entry.name);
+    try {
+      const stat = fs.statSync(fullPath);
+      if (stat.mtimeMs > latestMtimeMs) {
+        latestMtimeMs = stat.mtimeMs;
+        latestPath = fullPath;
+      }
+    } catch {
+      // File may be rotated while Gemini CLI writes it.
+    }
+  }
+  return latestPath || undefined;
+}
+
+function toolResultText(value: unknown): string {
+  if (!isRecord(value)) {
+    return stringFromUnknownForTranscript(value);
+  }
+  const response = isRecord(value.response) ? value.response : undefined;
+  if (response) {
+    if (typeof response.output === "string") {
+      return response.output;
+    }
+    if (typeof response.error === "string") {
+      return response.error;
+    }
+  }
+  if (typeof value.resultDisplay === "string") {
+    return value.resultDisplay;
+  }
+  return stringFromUnknownForTranscript(value);
+}
+
+function stringFromUnknownForTranscript(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return Object.prototype.toString.call(value);
+  }
+}
+
+export function parseGeminiCliSessionEntry(entry: unknown): ConversationTurn[] {
+  if (!isRecord(entry)) {
+    return [];
+  }
+  const type = typeof entry.type === "string" ? entry.type : "";
+  const timestamp = typeof entry.timestamp === "string" ? entry.timestamp : undefined;
+  const turns: ConversationTurn[] = [];
+
+  if (type === "user") {
+    const content = entry.content;
+    if (typeof content === "string") {
+      turns.push({ role: "user", content, timestamp });
+    } else if (Array.isArray(content)) {
+      const text = content
+        .map((item) => (isRecord(item) && typeof item.text === "string" ? item.text : ""))
+        .filter(Boolean)
+        .join("\n");
+      if (text) {
+        turns.push({ role: "user", content: text, timestamp });
+      }
+    }
+  }
+
+  if (type !== "gemini") {
+    return turns;
+  }
+
+  const thoughts = Array.isArray(entry.thoughts) ? entry.thoughts : [];
+  for (const thought of thoughts) {
+    if (!isRecord(thought)) {
+      continue;
+    }
+    const subject = typeof thought.subject === "string" ? thought.subject : "";
+    const description = typeof thought.description === "string" ? thought.description : "";
+    const text = [subject, description].filter(Boolean).join(": ");
+    if (text) {
+      turns.push({ role: "thinking", content: text, timestamp });
+    }
+  }
+
+  const toolCalls = Array.isArray(entry.toolCalls) ? entry.toolCalls : [];
+  for (const call of toolCalls) {
+    if (!isRecord(call)) {
+      continue;
+    }
+    const name = typeof call.name === "string" ? call.name : "unknown";
+    const args = isRecord(call.args) ? call.args : {};
+    turns.push({
+      role: "tool_call",
+      toolName: name,
+      toolArgs: args,
+      content: JSON.stringify(args),
+      timestamp,
+    });
+    if (Array.isArray(call.result)) {
+      for (const result of call.result) {
+        if (!isRecord(result)) {
+          continue;
+        }
+        const functionResponse = isRecord(result.functionResponse)
+          ? result.functionResponse
+          : result;
+        const text = toolResultText(functionResponse);
+        if (text) {
+          turns.push({ role: "tool_result", toolName: name, content: text, timestamp });
+        }
+      }
+    } else if (typeof call.resultDisplay === "string") {
+      turns.push({ role: "tool_result", toolName: name, content: call.resultDisplay, timestamp });
+    }
+  }
+
+  if (typeof entry.content === "string" && entry.content.trim()) {
+    turns.push({ role: "assistant", content: entry.content.trim(), timestamp });
+  }
+
+  return turns;
+}
+
+function readGeminiCliConversation(benchHome: string): ConversationTurn[] {
+  const sessionPath = findLatestGeminiCliSessionJsonl(benchHome);
+  if (!sessionPath) {
+    return [];
+  }
+  const turns: ConversationTurn[] = [];
+  try {
+    const lines = fs.readFileSync(sessionPath, "utf-8").split("\n").filter(Boolean);
+    for (const line of lines) {
+      try {
+        turns.push(...parseGeminiCliSessionEntry(JSON.parse(line)));
+      } catch {
+        // Ignore partially-written provider lines.
+      }
+    }
+  } catch {
+    return [];
+  }
+  return turns;
+}
+
+function mergeProviderConversation(
+  baseConversation: ConversationTurn[],
+  providerConversation: ConversationTurn[],
+): ConversationTurn[] {
+  if (providerConversation.length === 0) {
+    return baseConversation;
+  }
+  const merged = [...providerConversation];
+  const providerAssistantTexts = new Set(
+    providerConversation
+      .filter((turn) => turn.role === "assistant")
+      .map((turn) => turn.content.trim()),
+  );
+  for (const turn of baseConversation) {
+    const isDuplicateAssistant =
+      turn.role === "assistant" && providerAssistantTexts.has(turn.content.trim());
+    if (!isDuplicateAssistant) {
+      merged.push(turn);
+    }
+  }
+  return merged;
+}
+
 /**
  * Dispatch a task to the gemmaclaw gateway and wait for completion.
  *
@@ -1217,6 +1525,8 @@ export async function dispatchTask(
     // Build config using the same logic as gemmaclaw setup
     const isLlamaCpp = config.backend === "llama-cpp";
     const isOpenAICodex = config.backend === "openai-codex";
+    const isGeminiCli = config.backend === "google-gemini-cli";
+    const isOpenRouter = config.backend === "openrouter";
     const providerPrefix = resolveAgentProviderPrefix(config.backend);
     const benchConfigData: Record<string, unknown> = {
       agents: {
@@ -1231,6 +1541,8 @@ export async function dispatchTask(
           // BOOTSTRAP.md status instructions instead of the benchmark fixture.
           skipBootstrap: true,
           workspace: workspaceDir,
+          memorySearch: { enabled: false },
+          heartbeat: { every: "0m", includeSystemPromptSection: false },
           // Slow CPU-only edge runs can spend several minutes evaluating a long
           // prompt before the first streamed token. The benchmark runner already
           // enforces task-timeout and kills the child, so disable OpenClaw's
@@ -1255,6 +1567,9 @@ export async function dispatchTask(
           pathPrepend: [fakeGogBinDir],
         },
       },
+      plugins: {
+        allow: resolveAgentPluginAllowIds(config.backend),
+      },
     };
     if (isLlamaCpp) {
       benchConfigData.models = {
@@ -1262,6 +1577,33 @@ export async function dispatchTask(
           openai: {
             baseUrl: config.llamaCppUrl + "/v1",
             models: [{ id: config.model, name: config.model, api: "openai-completions" }],
+          },
+        },
+      };
+    } else if (isGeminiCli) {
+      stageGeminiCliOAuthHome(resolveGeminiHome(), benchHome);
+      (benchConfigData.env as Record<string, string>).GEMINI_CONFIG_HOME = path.join(
+        benchHome,
+        ".gemini",
+      );
+      (benchConfigData.env as Record<string, string>).GEMINI_CLI_TRUST_WORKSPACE = "true";
+    } else if (isOpenRouter) {
+      benchConfigData.models = {
+        providers: {
+          openrouter: {
+            baseUrl: "https://openrouter.ai/api/v1",
+            api: "openai-completions",
+            models: [
+              {
+                id: config.model,
+                name: config.model,
+                reasoning: true,
+                input: ["text"],
+                contextWindow: config.contextLength ?? 131_072,
+                maxTokens: 8_192,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              },
+            ],
           },
         },
       };
@@ -1299,6 +1641,25 @@ export async function dispatchTask(
         );
       }
       writeAuthProfiles(ocDir, codexProfiles);
+    } else if (isGeminiCli) {
+      const geminiOauthPath = path.join(benchHome, ".gemini/oauth_creds.json");
+      if (!fs.existsSync(geminiOauthPath)) {
+        throw new Error(
+          `Gemini CLI OAuth credentials not staged at ${geminiOauthPath}. Run gemini auth login on the host first.`,
+        );
+      }
+    } else if (isOpenRouter) {
+      const openRouterApiKey = resolveOpenRouterApiKey();
+      if (!openRouterApiKey) {
+        throw new Error("OPENROUTER_API_KEY is required for openrouter benchmark isolation.");
+      }
+      writeAuthProfiles(ocDir, {
+        "openrouter:default": {
+          type: "api_key",
+          provider: "openrouter",
+          key: openRouterApiKey,
+        },
+      });
     } else {
       const authProvider = isLlamaCpp ? "openai" : "ollama";
       writeAuthProfiles(ocDir, {
@@ -1320,6 +1681,12 @@ export async function dispatchTask(
         GEMMACLAW_HOME: ocDir,
         OPENCLAW_STATE_DIR: ocDir,
         OPENCLAW_HOME: benchHome,
+        ...(isGeminiCli
+          ? {
+              GEMINI_CONFIG_HOME: path.join(benchHome, ".gemini"),
+              GEMINI_CLI_TRUST_WORKSPACE: "true",
+            }
+          : {}),
         GEMMACLAW_FAKE_GOG_STATE_DIR: gogStateDir,
         GEMMACLAW_FAKE_GOG_WRITES_DIR: path.join(gogStateDir, "_writes"),
         GEMMACLAW_FAKE_GOG_LOG: fakeGogLog,
@@ -1328,6 +1695,7 @@ export async function dispatchTask(
         HOME: benchHome,
         PATH: `${fakeGogBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
       },
+      detached: process.platform !== "win32",
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -1386,10 +1754,14 @@ export async function dispatchTask(
     const sessionsDir = path.join(benchHome, ".openclaw/agents/main/sessions");
     const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
     const trajectoryPath = path.join(sessionsDir, `${sessionId}.trajectory.jsonl`);
+    const providerActivityDirs = isGeminiCli
+      ? [path.join(benchHome, ".gemini/tmp"), path.join(benchHome, ".gemini/history")]
+      : [];
 
     let lastLineCount = 0;
     let lastChangeMs = Date.now();
     let lastTrajectoryLineCount = 0;
+    let lastProviderActivitySignature = "";
     // Activity timestamp: any of stdout/stderr/JSONL/trajectory progress
     // resets it. The activity-based watchdog uses this as the only signal of
     // "agent is making progress"; it is independent of wall-clock elapsed.
@@ -1468,6 +1840,22 @@ export async function dispatchTask(
       }
     };
 
+    const checkProviderActivity = () => {
+      for (const dir of providerActivityDirs) {
+        const signature = readLatestFileActivitySignature(dir);
+        if (signature && signature !== lastProviderActivitySignature) {
+          lastProviderActivitySignature = signature;
+          lastActivityMs = Date.now();
+        }
+      }
+    };
+
+    const currentConversation = () =>
+      mergeProviderConversation(
+        conversation,
+        isGeminiCli ? readGeminiCliConversation(benchHome) : [],
+      );
+
     // Make stdout/stderr handlers also reset the activity clock. The runner
     // already pushed handlers earlier that update lastIoMs; here we wire the
     // activity clock alongside them by re-attaching listeners. The original
@@ -1487,12 +1875,20 @@ export async function dispatchTask(
       log(`  Killing child: ${reason}`);
       fs.appendFileSync(logFile, `[${new Date().toISOString()}] Killing child: ${reason}\n`);
       try {
-        child.kill("SIGTERM");
+        if (process.platform !== "win32" && child.pid) {
+          process.kill(-child.pid, "SIGTERM");
+        } else {
+          child.kill("SIGTERM");
+        }
       } catch {}
       await waitForChildExit(5000);
       if (childExitCode === null) {
         try {
-          child.kill("SIGKILL");
+          if (process.platform !== "win32" && child.pid) {
+            process.kill(-child.pid, "SIGKILL");
+          } else {
+            child.kill("SIGKILL");
+          }
         } catch {}
         await waitForChildExit(3000);
       }
@@ -1510,6 +1906,7 @@ export async function dispatchTask(
 
       parseJsonl();
       checkTrajectoryActivity();
+      checkProviderActivity();
 
       // (1) Activity-based timeout: kill if no useful activity for
       // noActivityMs. Resets on stdout/stderr/JSONL/trajectory.
@@ -1519,7 +1916,7 @@ export async function dispatchTask(
           `no-activity ${Math.round(sinceActivity / 1000)}s > ${Math.round(noActivityMs / 1000)}s`,
         );
         return {
-          conversation,
+          conversation: currentConversation(),
           elapsedMs: Date.now() - startMs,
           completionStatus: "timeout",
           error: `no-activity-timeout (${Math.round(noActivityMs / 1000)}s of inactivity)`,
@@ -1536,7 +1933,7 @@ export async function dispatchTask(
           `hard-cap ${Math.round(elapsed / 1000)}s > ${Math.round(hardCapMs / 1000)}s`,
         );
         return {
-          conversation,
+          conversation: currentConversation(),
           elapsedMs: Date.now() - startMs,
           completionStatus: "timeout",
           error: `hard-cap (${Math.round(hardCapMs / 1000)}s wall-clock ceiling)`,
@@ -1559,7 +1956,7 @@ export async function dispatchTask(
             `provider-error-no-recovery: ${lastProviderErrorMsg.slice(0, 100)} (${Math.round(sinceProviderError / 1000)}s since error, no recovery)`,
           );
           return {
-            conversation,
+            conversation: currentConversation(),
             elapsedMs: Date.now() - startMs,
             completionStatus: "error",
             error: `provider error (no recovery in ${Math.round(providerErrorRecoveryMs / 1000)}s): ${lastProviderErrorMsg}`,
@@ -1579,7 +1976,7 @@ export async function dispatchTask(
         if (childError) {
           const errMsg = (childError as Error).message;
           return {
-            conversation,
+            conversation: currentConversation(),
             elapsedMs: Date.now() - startMs,
             completionStatus: "error",
             error: errMsg,
@@ -1592,7 +1989,7 @@ export async function dispatchTask(
           const stderr = Buffer.concat(stderrChunks).toString().trim();
           const stdout = Buffer.concat(stdoutChunks).toString().trim();
           return {
-            conversation,
+            conversation: currentConversation(),
             elapsedMs: Date.now() - startMs,
             completionStatus: "error",
             error: `CLI exited ${childExitCode}: ${stderr.slice(0, 200) || stdout.slice(0, 200)}`,
@@ -1604,7 +2001,7 @@ export async function dispatchTask(
         const trajectoryError = readTrajectoryError(trajectoryPath);
         if (trajectoryError) {
           return {
-            conversation,
+            conversation: currentConversation(),
             elapsedMs: Date.now() - startMs,
             completionStatus: /timeout|timed out/i.test(trajectoryError) ? "timeout" : "error",
             error: `OpenClaw session error: ${trajectoryError.slice(0, 300)}`,
@@ -1615,7 +2012,7 @@ export async function dispatchTask(
         }
         if (conversation.length === 0) {
           return {
-            conversation,
+            conversation: currentConversation(),
             elapsedMs: Date.now() - startMs,
             completionStatus: "error",
             error: "empty conversation transcript (no session JSONL turns parsed)",
@@ -1626,7 +2023,7 @@ export async function dispatchTask(
         }
         log(`  CLI completed successfully`);
         return {
-          conversation,
+          conversation: currentConversation(),
           elapsedMs: Date.now() - startMs,
           completionStatus: "completed",
           sessionJsonlPath: jsonlPath,
@@ -1648,7 +2045,7 @@ export async function dispatchTask(
           await killChild(`task done via idle (${Math.round(realIdle / 1000)}s no JSONL/stdio)`);
           log(`  Task completed (idle ${Math.round(realIdle / 1000)}s)`);
           return {
-            conversation,
+            conversation: currentConversation(),
             elapsedMs: Date.now() - startMs,
             completionStatus: "completed",
             sessionJsonlPath: jsonlPath,
@@ -1852,6 +2249,21 @@ export async function runAgentBenchmark(
         );
       }
       log(`  openai-codex OAuth profiles available: ${Object.keys(codexProfiles).length}`);
+    } else if (config.backend === "google-gemini-cli") {
+      const geminiOauthPath = path.join(resolveGeminiHome(), "oauth_creds.json");
+      log(`Checking Gemini CLI OAuth at ${geminiOauthPath}...`);
+      if (!fs.existsSync(geminiOauthPath)) {
+        throw new Error(
+          `Gemini CLI OAuth auth file not found at ${geminiOauthPath}. Run gemini auth login first.`,
+        );
+      }
+      log("  Gemini CLI OAuth credentials available");
+    } else if (config.backend === "openrouter") {
+      log("Checking OpenRouter API key...");
+      if (!resolveOpenRouterApiKey()) {
+        throw new Error("OPENROUTER_API_KEY is required for openrouter benchmarks.");
+      }
+      log("  OpenRouter API key available");
     } else {
       const backendUrl = config.backend === "llama-cpp" ? config.llamaCppUrl : config.ollamaUrl;
       log(`Checking ${config.backend} at ${backendUrl}...`);

@@ -1,9 +1,10 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import OpenAI from "openai";
 import type { AgentTaskResult } from "./agent-runner.js";
 
-export type AgentJudgeProvider = "openai";
+export type AgentJudgeProvider = "openai" | "gemini-cli";
 
 export type AgentJudgeCriterionResult = {
   criterion: string;
@@ -402,7 +403,71 @@ export class OpenAIAgentJudgeClient implements AgentJudgeClient {
   }
 }
 
+export class GeminiCliAgentJudgeClient implements AgentJudgeClient {
+  private readonly model: string;
+  private readonly command: string;
+  private readonly timeoutMs: number;
+
+  constructor(
+    model: string,
+    command = process.env.GEMMACLAW_BENCH_GEMINI_CLI_BIN?.trim() || "gemini",
+    timeoutMs = 600_000,
+  ) {
+    this.model = model;
+    this.command = command;
+    this.timeoutMs = timeoutMs;
+  }
+
+  async judge(prompt: string): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+      const child = spawn(
+        this.command,
+        ["--model", this.model, "--prompt", JUDGE_SYSTEM_PROMPT, "--output-format", "text"],
+        {
+          stdio: ["pipe", "pipe", "pipe"],
+          env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: "true" },
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      const timer = setTimeout(() => {
+        child.kill("SIGTERM");
+        reject(new Error(`Gemini CLI judge timed out after ${this.timeoutMs}ms`));
+      }, this.timeoutMs);
+
+      child.stdout.setEncoding("utf-8");
+      child.stderr.setEncoding("utf-8");
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      child.on("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (code === 0) {
+          resolve(stdout);
+          return;
+        }
+        reject(
+          new Error(
+            `Gemini CLI judge failed with exit code ${code ?? 1}: ${stderr.trim() || stdout.trim()}`,
+          ),
+        );
+      });
+      child.stdin.end(prompt);
+    });
+  }
+}
+
 function makeJudgeClient(config: AgentEvaluationConfig): AgentJudgeClient {
+  if (config.provider === "gemini-cli") {
+    return new GeminiCliAgentJudgeClient(config.model);
+  }
   // Local Ollama: accepts any API key value, uses OpenAI-compatible /v1/ API.
   const apiKey = config.judgeBaseUrl ? "ollama" : process.env.OPENAI_API_KEY;
   return new OpenAIAgentJudgeClient(config.model, apiKey, config.judgeBaseUrl);
@@ -427,6 +492,9 @@ export function assertPublishableJudgeConfig(config: AgentEvaluationConfig): voi
         "Use CC ACP/Claude Code or Codex CLI to read transcripts directly, or pass " +
         "--exploratory-local-judge only for non-authoritative local smoke output.",
     );
+  }
+  if (config.provider === "gemini-cli" && config.judgeBaseUrl) {
+    throw new Error("--judge-base-url is not supported with --judge-provider gemini-cli.");
   }
 }
 

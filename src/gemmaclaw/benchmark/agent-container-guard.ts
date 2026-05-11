@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
 
-export const AGENT_BENCHMARK_DOCKER_IMAGE = "gemmaclaw-benchmark";
+export const AGENT_BENCHMARK_DOCKER_IMAGE =
+  process.env.GEMMACLAW_BENCHMARK_DOCKER_IMAGE?.trim() || "gemmaclaw-benchmark";
 export const AGENT_BENCHMARK_CONTAINER_ENV = "GEMMACLAW_BENCHMARK_CONTAINER";
 export const AGENT_BENCHMARK_MULTI_TASK_CONTAINER_ENV =
   "GEMMACLAW_BENCHMARK_ALLOW_MULTI_TASK_CONTAINER";

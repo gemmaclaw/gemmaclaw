@@ -91,6 +91,21 @@ cleanup_ollama() {
   fi
 }
 
+refresh_gateway_pid() {
+  local latest_pid
+  latest_pid="$(pgrep -f "gateway run --port 3001 --bind loopback" 2>/dev/null | tail -1 || true)"
+  if [ -n "$latest_pid" ]; then
+    GATEWAY_PID="$latest_pid"
+  fi
+}
+
+cleanup_gateway() {
+  refresh_gateway_pid
+  if [ -n "${GATEWAY_PID:-}" ]; then
+    kill "$GATEWAY_PID" 2>/dev/null || true
+  fi
+}
+
 fix_results_owner() {
   if [ -n "${GEMMACLAW_BENCHMARK_HOST_UID:-}" ] && [ -n "${GEMMACLAW_BENCHMARK_HOST_GID:-}" ]; then
     chown -R "$GEMMACLAW_BENCHMARK_HOST_UID:$GEMMACLAW_BENCHMARK_HOST_GID" /results 2>/dev/null || true
@@ -197,10 +212,17 @@ if [ "$IS_AGENT" = "1" ]; then
     openai-codex)   PROVIDER_PREFIX="openai-codex" ;;
     *)              PROVIDER_PREFIX="$BENCHMARK_BACKEND" ;;
   esac
+  case "$BENCHMARK_BACKEND" in
+    google-gemini-cli) PLUGIN_ALLOW_ID="google" ;;
+    llama-cpp)         PLUGIN_ALLOW_ID="openai" ;;
+    openai-codex)      PLUGIN_ALLOW_ID="codex" ;;
+    *)                 PLUGIN_ALLOW_ID="$BENCHMARK_BACKEND" ;;
+  esac
   EXPECTED_AGENT_MODEL="${PROVIDER_PREFIX}/${MODEL}"
 
   # Seed mock gog state
   echo "[agent] Seeding mock gog state..."
+  export GEMMACLAW_MOCK_GOG_STATE_DIR="${GEMMACLAW_FAKE_GOG_STATE_DIR:-/root/.config/gogcli/state}"
   python3 /app/scripts/benchmark/seed-mock-gog.py
 
   # Start gemmaclaw gateway in the background. The gemmaclaw binary resolves
@@ -256,6 +278,8 @@ if [ "$IS_AGENT" = "1" ]; then
       "model": {
         "primary": "${EXPECTED_AGENT_MODEL}"
       },
+      "memorySearch": { "enabled": false },
+      "heartbeat": { "every": "0m", "includeSystemPromptSection": false },
       "llm": { "idleTimeoutSeconds": 0 }
     }
   },
@@ -277,6 +301,9 @@ if [ "$IS_AGENT" = "1" ]; then
         ]
       }
     }
+  },
+  "plugins": {
+    "allow": ["${PLUGIN_ALLOW_ID}"]
   },
   "tools": { "exec": { "host": "gateway", "security": "full", "ask": "off" } }
 }
@@ -337,11 +364,13 @@ GCEOF
       echo "  [healthz probe] still waiting after ${i}s (curl rc!=0; last 5 gateway log lines):"
       tail -5 "$GATEWAY_LOG" 2>/dev/null | sed 's/^/    /'
       if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
-        echo "FAIL: Gateway PID $GATEWAY_PID is no longer alive after ${i}s"
-        echo "      Last 80 gateway log lines:"
-        tail -80 "$GATEWAY_LOG" 2>/dev/null | sed 's/^/    /'
-        cleanup_ollama
-        exit 1
+        OLD_GATEWAY_PID="$GATEWAY_PID"
+        refresh_gateway_pid
+        if [ "$GATEWAY_PID" != "$OLD_GATEWAY_PID" ] && kill -0 "$GATEWAY_PID" 2>/dev/null; then
+          echo "  [healthz probe] gateway restarted itself (old pid=$OLD_GATEWAY_PID, new pid=$GATEWAY_PID); continuing readiness probes"
+        else
+          echo "  [healthz probe] gateway pid $OLD_GATEWAY_PID exited and no replacement is visible yet; continuing until readiness deadline"
+        fi
       fi
     fi
     sleep 1
@@ -352,10 +381,11 @@ GCEOF
     echo "      Gateway PID: $GATEWAY_PID (alive=$(kill -0 "$GATEWAY_PID" 2>/dev/null && echo yes || echo no))"
     echo "      Last 120 gateway log lines:"
     tail -120 "$GATEWAY_LOG" 2>/dev/null | sed 's/^/    /'
-    kill "$GATEWAY_PID" 2>/dev/null || true
+    cleanup_gateway
     cleanup_ollama
     exit 1
   fi
+  refresh_gateway_pid
 
   # Verify gateway picked up our config: the most recent "agent model:" log
   # line must match EXPECTED_AGENT_MODEL. The gateway sometimes emits this
@@ -372,7 +402,7 @@ GCEOF
   if [ -z "$ACTUAL_AGENT_MODEL" ]; then
     echo "FAIL: Gateway did not log an 'agent model:' line within 30s. Gateway log:"
     tail -40 "$GATEWAY_LOG"
-    kill $GATEWAY_PID 2>/dev/null || true
+    cleanup_gateway
     cleanup_ollama
     exit 1
   fi
@@ -380,7 +410,7 @@ GCEOF
     echo "FAIL: gateway agent model is '$ACTUAL_AGENT_MODEL', expected '$EXPECTED_AGENT_MODEL'."
     echo "      Last 60 gateway log lines:"
     tail -60 "$GATEWAY_LOG"
-    kill $GATEWAY_PID 2>/dev/null || true
+    cleanup_gateway
     cleanup_ollama
     exit 1
   fi
@@ -402,7 +432,7 @@ GCEOF
         >/tmp/ollama-warmup.json 2>&1; then
       echo "FAIL: host Ollama warmup for $MODEL failed (curl bounded to ${WARMUP_MAX_TIME}s)."
       cat /tmp/ollama-warmup.json 2>/dev/null | tail -20
-      kill $GATEWAY_PID 2>/dev/null || true
+      cleanup_gateway
       cleanup_ollama
       exit 1
     fi
@@ -410,7 +440,7 @@ GCEOF
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(','.join(m.get('name','') for m in d.get('models',[])))" 2>/dev/null)"
     if ! echo "$LOADED_MODELS" | tr ',' '\n' | grep -Fxq "$MODEL"; then
       echo "FAIL: after warmup, host Ollama /api/ps does not show $MODEL loaded. Loaded: $LOADED_MODELS"
-      kill $GATEWAY_PID 2>/dev/null || true
+      cleanup_gateway
       cleanup_ollama
       exit 1
     fi
@@ -450,7 +480,7 @@ GCEOF
   fi
 
   # Cleanup
-  kill $GATEWAY_PID 2>/dev/null || true
+  cleanup_gateway
   cleanup_ollama
 
   exit ${EXIT_CODE:-0}

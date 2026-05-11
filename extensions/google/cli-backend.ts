@@ -6,7 +6,7 @@ import {
 
 const GEMINI_MODEL_ALIASES: Record<string, string> = {
   pro: "gemini-3.1-pro-preview",
-  flash: "gemini-3.1-flash-preview",
+  flash: "gemini-3-flash-preview",
   "flash-lite": "gemini-3.1-flash-lite-preview",
 };
 const GEMINI_CLI_DEFAULT_MODEL_REF = "google-gemini-cli/gemini-3-flash-preview";
@@ -27,8 +27,17 @@ export function buildGoogleGeminiCliBackend(): CliBackendPlugin {
     bundleMcpMode: "gemini-system-settings",
     config: {
       command: "gemini",
-      args: ["--output-format", "json", "--prompt", "{prompt}"],
-      resumeArgs: ["--resume", "{sessionId}", "--output-format", "json", "--prompt", "{prompt}"],
+      args: ["--skip-trust", "--yolo", "--output-format", "json", "--prompt", "{prompt}"],
+      resumeArgs: [
+        "--resume",
+        "{sessionId}",
+        "--skip-trust",
+        "--yolo",
+        "--output-format",
+        "json",
+        "--prompt",
+        "{prompt}",
+      ],
       output: "json",
       input: "arg",
       imageArg: "@",

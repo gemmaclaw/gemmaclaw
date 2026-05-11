@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { saveResults, type AgentBenchmarkResult } from "./agent-runner.js";
 import {
   AGENT_BENCHMARK_TASKS,
+  OPENCLAW_HARD_WORKFLOW_TASK_IDS,
+  type AgentTaskCategory,
   evaluateDeterministicAgentTaskConversation,
   evaluateDeterministicAgentTaskOutput,
   getTaskById,
@@ -12,7 +14,20 @@ import {
 } from "./agent-tasks.js";
 
 const EASY_TASK_IDS = ["gemma3n_json_extract", "gemma3n_tool_intent"];
-
+const AGENT_TASK_CATEGORIES: AgentTaskCategory[] = [
+  "email",
+  "calendar",
+  "task_management",
+  "multi_step",
+  "security",
+  "error_recovery",
+  "memory",
+  "ambiguous",
+  "data_analysis",
+  "coordination",
+  "structured_output",
+  "tool_intent",
+];
 describe("Gemma 3n easy agent benchmark tasks", () => {
   it("registers the two easy tasks in the agent benchmark list", () => {
     const easyTasks = getTasksByDifficulty("easy");
@@ -136,5 +151,42 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     );
     expect(evalStub.deterministicScorer).toMatchObject({ score: 5, passed: true });
     expect(evalStub.llmJudge).toBeNull();
+  });
+
+  it("registers the full hard OpenClaw-style workflow suite by default without private fixture terms", () => {
+    const newTaskCategories = new Set<AgentTaskCategory>();
+    const defaultTaskIds = AGENT_BENCHMARK_TASKS.map((task) => task.id);
+
+    for (const id of OPENCLAW_HARD_WORKFLOW_TASK_IDS) {
+      const task = getTaskById(id);
+
+      expect(task).toBeDefined();
+      expect(defaultTaskIds).toContain(id);
+      expect(task?.difficulty).toBe("very_hard");
+      expect(task?.grading.maxScore).toBeGreaterThanOrEqual(90);
+      newTaskCategories.add(task!.category);
+    }
+
+    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(19);
+    expect(newTaskCategories.size).toBeGreaterThanOrEqual(7);
+
+    const taskText = OPENCLAW_HARD_WORKFLOW_TASK_IDS.map((id) => {
+      const task = getTaskById(id)!;
+      return [task.id, task.name, task.description, task.prompt, ...task.grading.criteria].join(
+        "\n",
+      );
+    }).join("\n");
+
+    expect(taskText).not.toMatch(
+      /Frank|Charlotte|Doraemon|Doramon|lifrank|wsfccorp|Massachusetts|Markham/i,
+    );
+  });
+
+  it("keeps at least one agent benchmark task in every category", () => {
+    const categories = new Set(AGENT_BENCHMARK_TASKS.map((task) => task.category));
+
+    for (const category of AGENT_TASK_CATEGORIES) {
+      expect(categories.has(category), `missing category ${category}`).toBe(true);
+    }
   });
 });

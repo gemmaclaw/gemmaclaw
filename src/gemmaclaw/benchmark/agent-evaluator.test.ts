@@ -111,6 +111,47 @@ describe("agent evaluator", () => {
     ).toThrow(/--judge-base-url is exploratory only/);
   });
 
+  it("allows Gemini CLI OAuth judges for publishable benchmark evaluation", () => {
+    assertPublishableJudgeConfig({
+      outputDir: "/tmp/results",
+      runId: "run",
+      provider: "gemini-cli",
+      model: "gemini-3-flash-preview",
+    });
+
+    expect(() =>
+      assertPublishableJudgeConfig({
+        outputDir: "/tmp/results",
+        runId: "run",
+        provider: "gemini-cli",
+        model: "gemini-3-flash-preview",
+        judgeBaseUrl: "http://127.0.0.1:11434/v1/",
+      }),
+    ).toThrow(/judge-base-url/);
+  });
+
+  it("records Gemini CLI as the judge provider", () => {
+    const parsed = parseAgentJudgeResponse(
+      JSON.stringify({
+        score: 7,
+        confidence: "medium",
+        criteria: [{ status: "partial", pointsAwarded: 7, reasoning: "some evidence" }],
+        reasoning: "usable",
+        issues: [],
+      }),
+      10,
+      {
+        provider: "gemini-cli",
+        model: "gemini-3-flash-preview",
+        judgedAt: "2026-05-08T00:00:00.000Z",
+        criteria: ["Must read inbox"],
+      },
+    );
+
+    expect(parsed.provider).toBe("gemini-cli");
+    expect(parsed.authoritative).toBe(true);
+  });
+
   it("allows explicit exploratory local judge output but labels it non-authoritative", () => {
     const parsed = parseAgentJudgeResponse(
       JSON.stringify({

@@ -18,6 +18,7 @@ import {
   readOpenAICodexAuthProfilesFromStore,
   resolveOpenAICodexAuthProfileStoreCandidates,
   resolveTimeoutBudgets,
+  resolveGeminiHome,
   runAgentBenchmark,
   writeTaskArtifact,
   writeBenchmarkWorkspaceFiles,
@@ -217,12 +218,16 @@ describe("benchmark backend resolution", () => {
     expect(resolveAgentProviderPrefix("ollama")).toBe("ollama");
     expect(resolveAgentProviderPrefix("llama-cpp")).toBe("openai");
     expect(resolveAgentProviderPrefix("openai-codex")).toBe("openai-codex");
+    expect(resolveAgentProviderPrefix("google-gemini-cli")).toBe("google-gemini-cli");
+    expect(resolveAgentProviderPrefix("openrouter")).toBe("openrouter");
   });
 
   it("validates supported benchmark backend names", () => {
     expect(isAgentBackendType("ollama")).toBe(true);
     expect(isAgentBackendType("llama-cpp")).toBe(true);
     expect(isAgentBackendType("openai-codex")).toBe(true);
+    expect(isAgentBackendType("google-gemini-cli")).toBe(true);
+    expect(isAgentBackendType("openrouter")).toBe(true);
     expect(isAgentBackendType("openai")).toBe(false);
   });
 
@@ -233,6 +238,11 @@ describe("benchmark backend resolution", () => {
   it("uses CODEX_HOME when present for Codex OAuth lookup", () => {
     expect(resolveCodexHome({ CODEX_HOME: "/tmp/codex-home" })).toBe("/tmp/codex-home");
     expect(resolveCodexHome({ CODEX_HOME: "  " })).toContain(".codex");
+  });
+
+  it("uses GEMINI_CONFIG_HOME when present for Gemini CLI OAuth lookup", () => {
+    expect(resolveGeminiHome({ GEMINI_CONFIG_HOME: "/tmp/gemini-home" })).toBe("/tmp/gemini-home");
+    expect(resolveGeminiHome({ GEMINI_CONFIG_HOME: "  " })).toContain(".gemini");
   });
 
   it("allows explicit openai-codex auth profile stores for isolated benchmarks", () => {

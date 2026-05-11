@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Dockerfile.benchmark
 # Self-contained benchmark runner: installs Ollama, pulls a model, runs
 # gemmaclaw benchmark with any CLI flags forwarded from the host.
@@ -22,11 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g @google/gemini-cli
 
 WORKDIR /app
 COPY . .
 
-RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
+RUN --mount=type=cache,id=gemmaclaw-pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
 RUN pnpm build 2>/dev/null || echo "Build completed with warnings"
 
 RUN mkdir -p /workspace /results

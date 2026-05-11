@@ -2316,11 +2316,10 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
         return page_template("Benchmarks", body, active_page="benchmarks.html")
 
     leaderboard_html = generate_benchmarks_landing_rows(results)
-
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
     <section id="benchmarks">
       <h2>Benchmark Results</h2>
-      <p>All models are tested on the same 28-task agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, and data analysis. Models are grouped by size class. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
+      <p>All models are tested on the same published agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, data analysis, and hard OpenClaw-style operations workflows. Models are grouped by size class, quantization level, and thinking level. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
       {leaderboard_html}
     </section>
     {agent_preview_html}
@@ -2331,7 +2330,7 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
     </section>
     <section id="methodology">
       <h2>Methodology</h2>
-      <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full 28-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
+      <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full agent suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
     </section>"""
     return page_template("Benchmark Results", body, active_page="benchmarks.html")
 
@@ -2439,7 +2438,7 @@ def generate_benchmarking_page():
     body = """<div class="breadcrumb"><a href="index.html">Home</a> / Run Benchmarks</div>
     <section>
       <h2>Running Gemmaclaw Benchmarks</h2>
-      <p>Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as AI agents with real tool use. The harness dispatches 28 complex agent tasks, captures full conversations including tool calls, and saves structured results ready for PR submission.</p>
+      <p>Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as AI agents with real tool use. The harness dispatches the full agent task suite, captures full conversations including tool calls, and saves structured results ready for PR submission.</p>
       <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). Results are saved after every task, so an interrupted run can resume without losing completed tests.</p>
 
       <h3>Quick Start</h3>
@@ -2449,7 +2448,7 @@ gemmaclaw setup
 # 2. List all benchmark tasks
 pnpm benchmark agent list
 
-# 3. Run all 28 agentic tasks (model auto-selected from your hardware)
+# 3. Run the full agentic task suite (model auto-selected from your hardware)
 pnpm benchmark agent
 
 # 4. Run with a specific model
@@ -2506,16 +2505,15 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <tr><td><code>--mock</code></td><td>off</td><td>Mock mode: no model, instant pass</td></tr>
       </table></div>
 
-      <h3>The 28 Agent Tasks</h3>
+      <h3>The Agent Task Suite</h3>
       <p>Tasks evaluate Gemma models as AI agents. Each task sends a natural language request, the agent decides which tools to call, interprets results, and takes follow-up actions. The full conversation is captured for review.</p>
 
       <div class="table-wrap"><table>
-        <tr><th>Difficulty</th><th>Tasks</th><th>Points</th><th>Categories</th></tr>
-        <tr><td>Easy</td><td>2</td><td>10</td><td>Local smoke tests and basic tool use</td></tr>
-        <tr><td>Medium</td><td>5</td><td>53</td><td>Email, calendar, task management, memory</td></tr>
-        <tr><td>Hard</td><td>5</td><td>110</td><td>Email triage, multi-meeting scheduling, client logistics, event coordination</td></tr>
-        <tr><td>Very Hard</td><td>16</td><td>475</td><td>Phishing detection, prompt injection, tool-result exfiltration, error recovery, data reconciliation, multi-person coordination, financial synthesis, context chaining</td></tr>
-        <tr><td><strong>Total</strong></td><td><strong>28</strong></td><td><strong>648</strong></td><td></td></tr>
+        <tr><th>Difficulty</th><th>What It Covers</th><th>Representative Categories</th></tr>
+        <tr><td>Easy</td><td>Local smoke tests and basic tool intent</td><td>Structured output, tool intent</td></tr>
+        <tr><td>Medium</td><td>Single-workflow office tasks with concrete side effects</td><td>Email, calendar, task management, memory</td></tr>
+        <tr><td>Hard</td><td>Multi-step scheduling, coordination, and reconciliation</td><td>Email triage, meeting scheduling, client logistics, event coordination</td></tr>
+        <tr><td>Very Hard</td><td>Security, recovery, prompt-injection resistance, benchmark operations, durable guidance updates, and cross-source reconciliation</td><td>Security, error recovery, data analysis, coordination, ambiguous requests, OpenClaw operations</td></tr>
       </table></div>
 
       <h3>How It Works</h3>
@@ -2548,7 +2546,7 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
     &lt;task-id&gt;.json       # Grading criteria + evaluation scores</code></pre></div>
 
       <h3>Crash Recovery and Targeted Reruns</h3>
-      <p>The harness treats each task as an independent artifact. If a process dies halfway through a 22-task run, keep the same <code>--run-id</code> and run the command again. Completed task artifacts with the same config hash are skipped, while missing tasks continue. If a task has a harness error or suspicious transcript, rerun just that task with <code>--task &lt;id&gt; --rerun</code>. If several tasks failed, use <code>--rerun-failed</code>.</p>
+      <p>The harness treats each task as an independent artifact. If a process dies halfway through a suite run, keep the same <code>--run-id</code> and run the command again. Completed task artifacts with the same config hash are skipped, while missing tasks continue. If a task has a harness error or suspicious transcript, rerun just that task with <code>--task &lt;id&gt; --rerun</code>. If several tasks failed, use <code>--rerun-failed</code>.</p>
       <div class="code-block"><pre><code># First full Q4 run
 pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1
 

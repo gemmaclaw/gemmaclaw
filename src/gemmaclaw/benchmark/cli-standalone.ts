@@ -13,7 +13,7 @@
  *   pnpm benchmark sandbox --file tasks.json   # Sandbox with custom file
  *
  * Agent mode (E2E agentic benchmarks):
- *   pnpm benchmark agent                    # Run all 24 agentic tasks
+ *   pnpm benchmark agent                    # Run the full agentic task suite
  *   pnpm benchmark agent --model gemma4:31b # Specific model
  *   pnpm benchmark agent --filter email     # Filter by task id/name
  *   pnpm benchmark agent --mock             # Mock mode (no real model)
@@ -25,6 +25,7 @@
 
 import { execSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { benchmarkGemmaCommand, benchmarkSandboxCommand } from "../../commands/benchmark-gemma.js";
@@ -270,6 +271,15 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
   const manifestConfig = { ...buildAgentBenchmarkConfig(opts, hostOutputDir), runId };
   const artifactConfigHash =
     existingRunArtifactConfigHash(hostOutputDir, runId) ?? computeConfigHash(manifestConfig);
+  const benchmarkBackend = String(opts.backend ?? "").trim();
+  const isOpenAICodexBenchmark = benchmarkBackend === "openai-codex";
+  const isGeminiCliBenchmark = benchmarkBackend === "google-gemini-cli";
+  const isOpenRouterBenchmark = benchmarkBackend === "openrouter";
+  const hostCodexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
+  const hostCodexAuthPath = path.join(hostCodexHome, "auth.json");
+  const hostGeminiHome =
+    process.env.GEMINI_CONFIG_HOME?.trim() || path.join(os.homedir(), ".gemini");
+  const hostGeminiAuthPath = path.join(hostGeminiHome, "oauth_creds.json");
 
   console.log("========================================");
   console.log("  Gemmaclaw Agent Benchmark Containers");
@@ -315,9 +325,22 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
       `GEMMACLAW_BENCHMARK_HOST_GID=${process.getgid?.() ?? 0}`,
       "-v",
       `${hostOutputDir}:${containerOutputDir}`,
-      AGENT_BENCHMARK_DOCKER_IMAGE,
-      ...forwardedArgs,
     ];
+    if (isOpenAICodexBenchmark && fs.existsSync(hostCodexAuthPath)) {
+      dockerArgs.push("-e", "CODEX_HOME=/root/.codex", "-v", `${hostCodexHome}:/root/.codex:ro`);
+    }
+    if (isGeminiCliBenchmark && fs.existsSync(hostGeminiAuthPath)) {
+      dockerArgs.push(
+        "-e",
+        "GEMINI_CONFIG_HOME=/root/.gemini",
+        "-v",
+        `${hostGeminiHome}:/root/.gemini:ro`,
+      );
+    }
+    if (isOpenRouterBenchmark && process.env.OPENROUTER_API_KEY) {
+      dockerArgs.push("-e", `OPENROUTER_API_KEY=${process.env.OPENROUTER_API_KEY}`);
+    }
+    dockerArgs.push(AGENT_BENCHMARK_DOCKER_IMAGE, ...forwardedArgs);
 
     console.log(`\n[container ${index + 1}/${selectedTaskIds.length}] ${taskId}`);
     await new Promise<void>((resolve, reject) => {
@@ -384,7 +407,7 @@ Commands:
 Agent Mode Options:
   --model <name>         Model to test (default: gemma3:4b)
   --quant <level>        Quantization level to record (e.g. Q4_K_M, Q8_0, FP16)
-  --backend <type>       Backend to test (ollama, llama-cpp, openai-codex)
+  --backend <type>       Backend to test (ollama, llama-cpp, openai-codex, google-gemini-cli, openrouter)
   --thinking <level>     Thinking/reasoning level (off, low, medium, high, xhigh)
   --gateway-url <url>    Gemmaclaw gateway URL (default: http://localhost:3001)
   --ollama-url <url>     Ollama API URL (default: http://127.0.0.1:11434)
@@ -398,7 +421,7 @@ Agent Mode Options:
   --assemble             Rebuild aggregate results from saved per-task artifacts
   --evaluate             Run LLM judge scoring for a saved run id
   --force-evaluate       Replace existing LLM judge scores for that run
-  --judge-provider <id>  Judge provider (openai)
+  --judge-provider <id>  Judge provider (openai, gemini-cli)
   --judge-base-url <url> Exploratory local judge API base URL. Requires --exploratory-local-judge and is not publishable.
   --exploratory-local-judge  Mark local/Qwen judge output non-authoritative. Never use for publication scoring.
   --task-timeout <sec>   Legacy alias for --hard-cap (default: 600). Activity-based timeout is the normal "stuck" signal.
@@ -476,11 +499,13 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
       throw new Error("--run-id is required with --evaluate");
     }
     const judgeProviderInput = (opts.judgeProvider as string | undefined) ?? "openai";
-    if (judgeProviderInput !== "openai") {
+    if (judgeProviderInput !== "openai" && judgeProviderInput !== "gemini-cli") {
       throw new Error(`Unsupported judge provider: ${judgeProviderInput}`);
     }
     const provider: AgentJudgeProvider = judgeProviderInput;
-    const model = (opts.judgeModel as string | undefined) ?? "gpt-5.5";
+    const model =
+      (opts.judgeModel as string | undefined) ??
+      (provider === "gemini-cli" ? "gemini-3-flash-preview" : "gpt-5.5");
     const outputDir = (opts.outputDir as string) ?? "benchmark-results";
     const judgeBaseUrl = opts.judgeBaseUrl as string | undefined;
     await evaluateAgentBenchmarkRun({
@@ -529,6 +554,10 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   console.log(`Gateway:  ${config.gatewayUrl}`);
   if (config.backend === "openai-codex") {
     console.log(`Codex:    OAuth app-server`);
+  } else if (config.backend === "google-gemini-cli") {
+    console.log(`Gemini:   CLI OAuth`);
+  } else if (config.backend === "openrouter") {
+    console.log(`OpenRouter: API`);
   } else if (config.backend === "llama-cpp") {
     console.log(`llama.cpp: ${config.llamaCppUrl}`);
   } else {
