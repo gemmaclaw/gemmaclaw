@@ -2593,9 +2593,6 @@ pnpm benchmark --mock</code></pre></div>
 def generate_site():
     results = load_benchmark_results()
     best = best_results(results)
-    benchmark_rows = generate_benchmark_table_rows(best)
-    model_details = generate_model_detail_sections(best)
-    size_class_html = generate_size_class_sections(best)
     task_explanations_html = generate_task_explanations(best)
     hw_cards = generate_hardware_guide_cards(results)
     community_configs = load_community_configs()
@@ -2609,7 +2606,7 @@ def generate_site():
         "index.html": generate_index_page(),
         "setup.html": generate_setup_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
-        "benchmarks.html": generate_benchmarks_page(benchmark_rows, model_details, size_class_html, task_explanations_html, agent_preview_html),
+        "benchmarks.html": generate_benchmarks_page(best, task_explanations_html, agent_preview_html),
         "benchmarking.html": generate_benchmarking_page(),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
         "goals.html": generate_goals_page(),
@@ -2617,9 +2614,24 @@ def generate_site():
     for filename, html in pages.items():
         with open(SITE_DIR / filename, "w") as f:
             f.write(html)
+
+    # Generate static detail pages for each public benchmark result.
+    detail_dir = SITE_DIR / "benchmark-results"
+    detail_dir.mkdir(exist_ok=True)
+    detail_count = 0
+    for r in best:
+        run_id = r.get("runId") or r.get("_dir", "")
+        if not run_id:
+            continue
+        detail_html = generate_benchmark_detail_page(r)
+        with open(detail_dir / f"{run_id}.html", "w") as f:
+            f.write(detail_html)
+        detail_count += 1
+
     print(f"Site generated at {SITE_DIR}/")
     print(f"  {len(pages)} pages generated: {', '.join(pages.keys())}")
-    print(f"  {len(results)} benchmark results loaded")
+    print(f"  {detail_count} benchmark detail pages generated in {detail_dir}/")
+    print(f"  {len(results)} benchmark results loaded ({len(PUBLIC_BENCHMARK_RUNS)} public)")
     print(f"  {len(best)} unique model/backend combos")
     print(f"  {community_count} community hardware reports loaded")
     print(f"  {len(agent_results)} agent benchmark results loaded")
@@ -3289,6 +3301,13 @@ CSS = """
     .diff-easy { background: #e6f4ea; color: #1a7f37; }
     .diff-medium { background: #fff3cd; color: #856404; }
     .diff-hard { background: #fce8e6; color: #c93c37; }
+
+    /* Benchmark landing page detail link */
+    .detail-link {
+      color: var(--accent); text-decoration: none; font-weight: 500;
+      font-size: 0.88rem; white-space: nowrap;
+    }
+    .detail-link:hover { text-decoration: underline; }
 """
 
 
