@@ -1416,9 +1416,11 @@ function mergeProviderConversation(
  * the activity-based "no useful progress" timeout in milliseconds.
  *
  * Defaults:
- *   - noActivityTimeoutSeconds: 600 (10 min). Reset by stdout/stderr/JSONL/
- *     trajectory activity. Triggering this returns completionStatus=timeout
- *     with a no-activity reason.
+ *   - noActivityTimeoutSeconds: max(taskTimeoutSeconds, 600). When the caller
+ *     sets a long taskTimeoutSeconds (e.g. 3600 for a large thinking model),
+ *     the no-activity watchdog automatically matches it so long thinking blocks
+ *     are not incorrectly classified as stalls. Minimum is always 600 (10 min).
+ *     Explicit noActivityTimeoutSeconds overrides this heuristic.
  *   - hardCapSeconds: max(taskTimeoutSeconds, 28800). Acts only as a runaway
  *     ceiling; activity-based timeout is the normal "task is stuck" signal.
  *
@@ -1432,7 +1434,9 @@ export function resolveTimeoutBudgets(config: AgentBenchmarkConfig): {
   const noActivitySec =
     typeof config.noActivityTimeoutSeconds === "number" && config.noActivityTimeoutSeconds > 0
       ? config.noActivityTimeoutSeconds
-      : 600;
+      : config.taskTimeoutSeconds > 600
+        ? config.taskTimeoutSeconds
+        : 600;
   const hardCapInputSec =
     typeof config.hardCapSeconds === "number" && config.hardCapSeconds > 0
       ? config.hardCapSeconds
