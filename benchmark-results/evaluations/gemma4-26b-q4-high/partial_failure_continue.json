@@ -1,0 +1,88 @@
+{
+  "taskId": "partial_failure_continue",
+  "taskName": "Partial Failure and Continue",
+  "gradingCriteria": [
+    "Must attempt the email send (step 1, expected to fail)",
+    "Must handle the email failure gracefully",
+    "Must continue to step 2 (calendar check) despite step 1 failure",
+    "Must successfully check Friday calendar",
+    "Must continue to step 3 (create task) despite step 1 failure",
+    "Must report clearly what succeeded and what failed"
+  ],
+  "maxScore": 25,
+  "toolCallCount": 3,
+  "toolsUsed": ["exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 72619,
+  "conversationTurns": 8,
+  "transcriptFile": "transcripts/partial_failure_continue.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "score": 22,
+    "maxScore": 25,
+    "percentage": 88.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must attempt the email send (step 1, expected to fail)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent called the gmail send command with correct recipient and subject.",
+        "evidence": "tool_call: exec gog gmail send --to feedback@nonexistent.invalid",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must handle the email failure gracefully",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Email returned exit code 64 and error; agent did not halt and continued to next steps.",
+        "evidence": "Tool result shows status:failed; agent continued immediately to calendar check.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Despite email failure, agent issued the calendar list command as the very next action.",
+        "evidence": "tool_call: exec gog calendar list --start 2025-05-23T00:00:00 --end 2025-05-23T23:59:59",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must successfully check Friday calendar",
+        "status": "partial",
+        "pointsAwarded": 3,
+        "reasoning": "Calendar API was called and returned data, but the date parameter was wrong: the agent queried 2025-05-23 when today is 2026-05-11 (next Friday should be 2026-05-15). The agent also incorrectly reported the date as 'May 22, 2026' in its summary.",
+        "evidence": "Query used --start 2025-05-23T00:00:00 (year is 2025, not 2026; also not the correct next-Friday date). Agent told user 'May 22, 2026' which is neither the queried date nor next Friday.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "After email failure and calendar check, agent proceeded to create the task without hesitation.",
+        "evidence": "tool_call: exec gog tasks create --title 'Review Q3 numbers'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must report clearly what succeeded and what failed",
+        "status": "partial",
+        "pointsAwarded": 3,
+        "reasoning": "Final response clearly lists email as failed (with reason), calendar as succeeded, and task creation as succeeded. However, the date reported for the calendar check ('May 22, 2026') is incorrect, introducing a factual error into the report.",
+        "evidence": "Assistant message: \u274c Failed email, \u2705 calendar for 'May 22, 2026' (wrong date), \u2705 task created.",
+        "turnRefs": []
+      }
+    ],
+    "reasoning": "The agent correctly handled all three steps with graceful degradation: it attempted the email (expected to fail), handled the failure, and continued to both remaining steps. Task creation was fully correct. The main deduction is for the calendar step, where the agent queried the wrong date (2025-05-23 instead of 2026-05-15) and then reported the wrong date ('May 22, 2026') in its summary, indicating a date-calculation error.",
+    "issues": [
+      "Calendar query used wrong date: 2025-05-23 instead of next Friday from 2026-05-11 (should be 2026-05-15)",
+      "Agent reported 'May 22, 2026' in summary, which is neither the queried date nor the correct next Friday"
+    ],
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T12:13:48.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "taskId": "data_reconciliation",
+  "taskName": "Multi-Source Data Reconciliation",
+  "gradingCriteria": [
+    "Must read finance email with expense data",
+    "Must calculate total per category (cloud: $9,800; SaaS: $1,400; travel/events: $2,550; supplies: $300)",
+    "Must compare against budget allocations",
+    "Must flag cloud hosting as nearly at limit ($9,800 vs $10,000)",
+    "Must note travel/events under budget ($2,550 vs $3,000)",
+    "Must write report to memory/q2-expense-report.md",
+    "Must create follow-up tasks for over/near-budget categories"
+  ],
+  "maxScore": 30,
+  "toolCallCount": 4,
+  "toolsUsed": ["exec", "write"],
+  "completionStatus": "completed",
+  "elapsedMs": 124659,
+  "conversationTurns": 10,
+  "transcriptFile": "transcripts/data_reconciliation.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "score": 17,
+    "maxScore": 30,
+    "percentage": 56.7,
+    "passed": false,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must read finance email with expense data",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent listed all emails, identified msg_finance_001 as the finance email, and retrieved the full body with expense data.",
+        "evidence": "tool_call: gog gmail get msg_finance_001 returned full email body with all monthly line items",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must calculate total per category (cloud: $9,800; SaaS: $1,400; travel/events: $2,550; supplies: $300)",
+        "status": "partial",
+        "pointsAwarded": 3,
+        "reasoning": "Cloud ($9,800), SaaS ($1,400), and Supplies ($300) are correct. Travel/Events is miscalculated as $2,450 instead of the correct $2,550 ($450+$1,200+$900=$2,550).",
+        "evidence": "Report states Travel/Events total as $2,450; itemized breakdown shows $450+$1,200+$900 which sums to $2,550 not $2,450.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must compare against budget allocations",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent produced a table comparing all four categories against their respective budget allocations.",
+        "evidence": "write tool content shows table with Category, Total Q2 Spend, Budget Allocation, Status columns for all four categories.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must flag cloud hosting as nearly at limit ($9,800 vs $10,000)",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Agent correctly calculated cloud hosting at $9,800 vs $10,000 budget but only labeled it 'Under Budget' with no near-limit flag or warning. At 98% of budget this should have been flagged as a concern.",
+        "evidence": "Report table shows Cloud Hosting status as 'Under Budget'. Conclusion states 'No over-budget flags were identified for this period.'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must note travel/events under budget ($2,550 vs $3,000)",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "Agent correctly identified travel/events as under budget but used the wrong total ($2,450 vs actual $2,550), so the comparison figures are inaccurate.",
+        "evidence": "Report shows Travel/Events $2,450 vs $3,000 Under Budget; correct total should be $2,550.",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must write report to memory/q2-expense-report.md",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent wrote the report to the exact required path using the write tool, confirmed by success message.",
+        "evidence": "write tool call with path='memory/q2-expense-report.md'; tool result: 'Successfully wrote 820 bytes to memory/q2-expense-report.md'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must create follow-up tasks for over/near-budget categories",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Agent explicitly decided no follow-up tasks were needed because no categories were over budget, ignoring that cloud hosting at 98% of budget is a near-budget category requiring follow-up. The task list check returned empty and no tasks were created.",
+        "evidence": "Assistant response: 'No over-budget categories were found, so no follow-up tasks were required.' No create-task tool call was made.",
+        "turnRefs": []
+      }
+    ],
+    "reasoning": "The agent successfully read the finance email, compared against budget allocations, and wrote the report to the correct file. However, it made an arithmetic error on travel/events ($2,450 vs $2,550), critically failed to flag cloud hosting as nearly at limit despite it being at 98% of budget, and consequently created no follow-up tasks when cloud hosting clearly warranted one. These three failures (one arithmetic error, one analytical miss, one missing action) prevent a passing score.",
+    "issues": [
+      "Arithmetic error: travel/events total calculated as $2,450 instead of correct $2,550",
+      "Failed to flag cloud hosting as nearly at limit (98% of $10,000 budget used)",
+      "No follow-up tasks created despite cloud hosting being a near-budget concern"
+    ],
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T12:13:48.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct"
+  }
+}

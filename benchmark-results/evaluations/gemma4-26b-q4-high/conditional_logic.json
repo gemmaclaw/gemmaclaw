@@ -1,0 +1,87 @@
+{
+  "taskId": "conditional_logic",
+  "taskName": "Conditional Logic Chain",
+  "gradingCriteria": [
+    "Must check Monday's calendar",
+    "Must detect Monday All-Hands conflict (9 AM - 12 PM)",
+    "Must fall through to Tuesday afternoon",
+    "Must create calendar event on Tuesday (not Monday)",
+    "Must create a task for material preparation",
+    "Must explain the reasoning (Monday busy, using Tuesday instead)"
+  ],
+  "maxScore": 25,
+  "toolCallCount": 157,
+  "toolsUsed": ["exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 870401,
+  "conversationTurns": 317,
+  "transcriptFile": "transcripts/conditional_logic.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "score": 25,
+    "maxScore": 25,
+    "percentage": 100.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must check Monday's calendar",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent explicitly called gog calendar list --date 2026-05-18 (Monday May 18)",
+        "evidence": "tool_call: exec {\"command\":\"gog calendar list --date 2026-05-18\"}",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must detect Monday All-Hands conflict (9 AM - 12 PM)",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "Calendar result shows evt_busy_monday from 2026-05-18T09:00:00 to 2026-05-18T12:00:00, and agent explicitly named this conflict in its final message",
+        "evidence": "\"Monday morning was busy due to the 'Monday All-Hands' event.\"",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must fall through to Tuesday afternoon",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "After checking Monday and finding the conflict, agent checked Tuesday 2026-05-19 and selected the afternoon slot (14:00-17:00)",
+        "evidence": "gog calendar list --date 2026-05-19 followed by calendar create at 14:00",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must create calendar event on Tuesday (not Monday)",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "Calendar event was created on 2026-05-19T14:00:00 - 2026-05-19T17:00:00, confirmed by tool result with id evt_0e2364f6d6",
+        "evidence": "gog calendar create --start 2026-05-19T14:00:00 --end 2026-05-19T17:00:00 --summary 'Workshop'",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must create a task for material preparation",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Task created via gog tasks create with title 'Prepare workshop materials', confirmed with id task_07a94b82",
+        "evidence": "gog tasks create --title 'Prepare workshop materials' \u2192 {\"id\": \"task_07a94b82\", \"title\": \"Prepare workshop materials\"}",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must explain the reasoning (Monday busy, using Tuesday instead)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Final assistant message explicitly explained that Monday was busy due to All-Hands and Tuesday afternoon was used instead",
+        "evidence": "\"Monday morning was busy due to the 'Monday All-Hands' event. I've successfully scheduled the 3-hour workshop for Tuesday afternoon\"",
+        "turnRefs": []
+      }
+    ],
+    "reasoning": "All 6 criteria were fully met. The agent checked Monday's calendar, detected the All-Hands conflict blocking 9 AM-12 PM, fell through to Tuesday afternoon, created the workshop event on Tuesday (not Monday) at 14:00-17:00, created the materials preparation task, and clearly explained the conditional reasoning. Score is 25/25.",
+    "issues": [
+      "Severe looping behavior: agent called gog calendar list --date 2026-05-19 approximately 10+ times in the first batch without making progress, consuming 157 tool calls total for a simple 3-step task. The user had to repeat the request to get correct behavior. This indicates a tool-call loop failure in the first pass, though correctness was ultimately achieved."
+    ],
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T12:13:48.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct"
+  }
+}
