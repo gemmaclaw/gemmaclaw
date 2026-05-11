@@ -10,100 +10,105 @@
     "Must explain the reasoning (Monday busy, using Tuesday instead)"
   ],
   "maxScore": 25,
-  "toolCallCount": 7,
-  "toolsUsed": ["session_status", "exec", "read", "write"],
+  "toolCallCount": 4,
+  "toolsUsed": ["exec"],
   "completionStatus": "completed",
-  "elapsedMs": 2095609,
-  "conversationTurns": 22,
+  "elapsedMs": 230800,
+  "conversationTurns": 10,
   "transcriptFile": "transcripts/conditional_logic.txt",
   "deterministicScorer": null,
   "llmJudge": {
-    "judgedBy": "claude-sonnet-4-6 (CC ACP direct transcript review)",
-    "judgedAt": "2026-05-11T00:55:39Z",
+    "judgedBy": "claude-sonnet-4-6 (CC ACP direct transcript review, clean fixture rerun 2026-05-11)",
+    "judgedAt": "2026-05-11T09:59:27Z",
     "authoritative": true,
     "evaluationMode": "cc-acp-direct",
-    "score": 10,
+    "score": 25,
     "maxScore": 25,
-    "scorePercent": 40,
-    "qualityBand": "fail",
-    "rationale": "Harness fixture failure: fake-gog was not intercepting gog calendar list calls, so Frank's real personal Google Calendar was served instead of the fixture (which should have shown Monday 9AM-12PM All-Hands making Monday busy). Real calendar showed Monday May 11 only had Frank workout (6-7:20AM) and walk kids to school (7:30-8:50AM), so Monday 9AM was free. Model correctly read the data it received and booked Monday 9AM-12PM for the workshop. Model cannot be faulted for following correct conditional logic given the data it saw. Score reflects points for gathering calendar data and executing conditional booking — not for the intended test which was never administered.",
+    "scorePercent": 100,
+    "percentage": 100,
+    "qualityBand": "pass",
+    "passed": true,
+    "confidence": "high",
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgeRuntime": "cc-acp/claude-code",
+    "judgeMethod": "manual_transcript_read",
+    "rationale": "Clean fixture rerun (2026-05-11): fake-gog correctly served fixture data with evt_busy_monday (Monday All-Hands 9AM-12PM on May 18). Model called gog calendar list twice (this-week and next-week), both returned the fixture. Model correctly detected the All-Hands conflict at 9AM-12PM on Monday, applied conditional logic to fall through to Tuesday, created Workshop on Tuesday May 19 2-5PM (not Monday), created a preparation task, and explicitly explained the reasoning. All 6 criteria fully met. Previous score of 10/25 was due to harness fixture failure in the contaminated May-9 host-mode run.",
+    "reasoning": "Clean fixture rerun (2026-05-11): fake-gog correctly served fixture data with evt_busy_monday (Monday All-Hands 9AM-12PM on May 18). Model called gog calendar list twice (this-week and next-week), both returned the fixture. Model correctly detected the All-Hands conflict at 9AM-12PM on Monday, applied conditional logic to fall through to Tuesday, created Workshop on Tuesday May 19 2-5PM (not Monday), created a preparation task, and explicitly explained the reasoning. All 6 criteria fully met. Previous score of 10/25 was due to harness fixture failure in the contaminated May-9 host-mode run.",
     "criterionEvidence": [
       {
         "criterion": "Must check Monday morning availability before scheduling",
         "met": true,
         "score": 5,
         "maxScore": 5,
-        "evidence": "Turn 6: date command confirmed May 9 2026. Turn 12: gog calendar list for May 11 (next Monday). Calendar returned Frank real data: workout 6-7:20AM, walk kids 7:30-8:50AM. Monday 9AM appeared free.",
-        "turnRefs": [5, 6, 11, 12]
+        "evidence": "Turns 2-5: model called gog calendar list --this-week and --next-week. Fixture returned evt_busy_monday (Monday All-Hands 9AM-12PM May 18). Monday was correctly shown as busy.",
+        "turnRefs": [2, 3, 4, 5]
       },
       {
         "criterion": "Must correctly apply conditional logic (if Monday busy, use Tuesday)",
-        "met": false,
-        "score": 0,
+        "met": true,
+        "score": 8,
         "maxScore": 8,
-        "evidence": "Fixture should have shown All-Hands 9AM-12PM making Monday busy. Instead real Frank calendar was served showing Monday free. Model booked Monday (correct conditional given input, but test was not administered). Fixture failure.",
-        "turnRefs": [12]
+        "evidence": "Model detected evt_busy_monday (All-Hands 9AM-12PM) and correctly concluded Monday was busy. Created Workshop on Tuesday May 19 (not Monday). Turn 10 assistant explicitly states: 'Monday morning is busy (Monday All-Hands from 9 AM to 12 PM), so I've scheduled the 3-hour workshop for Tuesday afternoon instead.'",
+        "turnRefs": [3, 5, 6, 7, 10]
       },
       {
         "criterion": "Must book at the correct slot (fixture-determined)",
-        "met": false,
-        "score": 0,
+        "met": true,
+        "score": 7,
         "maxScore": 7,
-        "evidence": "Model booked Workshop Monday May 11 9AM-12PM (evt created at turn 19). With working fixture, should have detected All-Hands and booked Tuesday instead. Fixture failure prevented correct testing.",
-        "turnRefs": [19]
+        "evidence": "Turn 6: gog calendar create --start 2026-05-19T14:00:00 --end 2026-05-19T17:00:00 --summary 'Workshop'. May 19 is Tuesday. 2-5PM is afternoon. Event created successfully (evt_580361f11e). Correctly avoided Monday booking.",
+        "turnRefs": [6, 8]
       },
       {
         "criterion": "Must create task to prepare materials regardless of which day",
         "met": true,
         "score": 5,
         "maxScore": 5,
-        "evidence": "Model created preparation materials task. Conditional logic for task creation (always create) was correctly followed.",
-        "turnRefs": []
+        "evidence": "Turn 7: gog tasks create --title 'Prepare materials for workshop'. Task created successfully (task_48148886).",
+        "turnRefs": [7, 9]
       }
     ],
-    "partialCreditNotes": "Test could not be fairly administered due to fixture failure. Model behavior was correct given the data it received. failureClassification=harness_fixture_bug not model_miss.",
-    "failureClassification": "harness_fixture_bug",
-    "provider": "cc-acp",
-    "model": "claude-code-acp",
-    "judgeRuntime": "cc-acp/claude-code",
-    "judgeMethod": "manual_transcript_read",
-    "reasoning": "Harness fixture failure: fake-gog was not intercepting gog calendar list calls, so Frank's real personal Google Calendar was served instead of the fixture (which should have shown Monday 9AM-12PM All-Hands making Monday busy). Real calendar showed Monday May 11 only had Frank workout (6-7:20AM) and walk kids to school (7:30-8:50AM), so Monday 9AM was free. Model correctly read the data it received and booked Monday 9AM-12PM for the workshop. Model cannot be faulted for following correct conditional logic given the data it saw. Score reflects points for gathering calendar data and executing conditional booking — not for the intended test which was never administered.",
     "criteria": [
       {
         "criterion": "Must check Monday morning availability before scheduling",
-        "met": true,
-        "score": 5,
-        "maxScore": 5,
-        "evidence": "Turn 6: date command confirmed May 9 2026. Turn 12: gog calendar list for May 11 (next Monday). Calendar returned Frank real data: workout 6-7:20AM, walk kids 7:30-8:50AM. Monday 9AM appeared free.",
-        "turnRefs": [5, 6, 11, 12]
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "Model called gog calendar list --this-week and --next-week. Fixture returned evt_busy_monday (Monday All-Hands 9AM-12PM May 18).",
+        "evidence": "Turns 2-5: both calendar list calls returned fixture with Monday All-Hands.",
+        "turnRefs": [2, 3, 4, 5]
       },
       {
         "criterion": "Must correctly apply conditional logic (if Monday busy, use Tuesday)",
-        "met": false,
-        "score": 0,
-        "maxScore": 8,
-        "evidence": "Fixture should have shown All-Hands 9AM-12PM making Monday busy. Instead real Frank calendar was served showing Monday free. Model booked Monday (correct conditional given input, but test was not administered). Fixture failure.",
-        "turnRefs": [12]
+        "status": "met",
+        "pointsAwarded": 8,
+        "reasoning": "Model detected Monday All-Hands conflict and correctly chose Tuesday. Explicitly stated reasoning in final response.",
+        "evidence": "Turn 10: 'Monday morning is busy (Monday All-Hands from 9 AM to 12 PM), so I've scheduled the 3-hour workshop for Tuesday afternoon instead.'",
+        "turnRefs": [3, 5, 10]
       },
       {
         "criterion": "Must book at the correct slot (fixture-determined)",
-        "met": false,
-        "score": 0,
-        "maxScore": 7,
-        "evidence": "Model booked Workshop Monday May 11 9AM-12PM (evt created at turn 19). With working fixture, should have detected All-Hands and booked Tuesday instead. Fixture failure prevented correct testing.",
-        "turnRefs": [19]
+        "status": "met",
+        "pointsAwarded": 7,
+        "reasoning": "Workshop created on Tuesday May 19 at 2-5PM. Correct day (Tuesday, not Monday) and afternoon time slot.",
+        "evidence": "Turn 6: gog calendar create --start 2026-05-19T14:00:00 --end 2026-05-19T17:00:00",
+        "turnRefs": [6, 8]
       },
       {
         "criterion": "Must create task to prepare materials regardless of which day",
-        "met": true,
-        "score": 5,
-        "maxScore": 5,
-        "evidence": "Model created preparation materials task. Conditional logic for task creation (always create) was correctly followed.",
-        "turnRefs": []
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "Task 'Prepare materials for workshop' created successfully.",
+        "evidence": "Turn 7: gog tasks create --title 'Prepare materials for workshop'",
+        "turnRefs": [7, 9]
       }
     ],
-    "percentage": 40,
-    "passed": false,
-    "confidence": "high"
+    "partialCreditNotes": "Perfect score. All criteria met. Clean rerun with proper fake-gog fixture isolation replaces contaminated May-9 host-mode result.",
+    "failureClassification": null,
+    "previousContaminatedScore": {
+      "score": 10,
+      "maxScore": 25,
+      "reason": "harness_fixture_bug: real Frank Google Calendar served instead of fake-gog fixture in May-9 host-mode run"
+    }
   }
 }

@@ -567,8 +567,10 @@ def generate_task_detail_rows(tasks, model_id=""):
         if criterion_evidence:
             ce_rows = []
             for ce in criterion_evidence:
-                status = ce.get("status", "")
-                pts = ce.get("pointsAwarded", 0)
+                # Support both legacy {status, pointsAwarded} and new {met, score} formats
+                met_bool = ce.get("met")
+                status = ce.get("status", "met" if met_bool is True else ("not_met" if met_bool is False else ""))
+                pts = ce.get("pointsAwarded") if ce.get("pointsAwarded") is not None else ce.get("score", 0)
                 criterion = ce.get("criterion", "")
                 reasoning = ce.get("reasoning") or ce.get("evidence", "")
                 icon = "&#10003;" if status == "met" else "&#10007;"
