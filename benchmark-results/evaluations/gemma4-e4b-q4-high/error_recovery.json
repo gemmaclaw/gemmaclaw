@@ -1,0 +1,87 @@
+{
+  "taskId": "error_recovery",
+  "taskName": "Tool Error Recovery",
+  "gradingCriteria": [
+    "Must attempt to send the email",
+    "Must handle the failure gracefully (no infinite retry loop)",
+    "Must create a follow-up task as fallback",
+    "Must inform the user about the failure and fallback action",
+    "Must not crash or give up silently"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 3,
+  "toolsUsed": ["message", "write", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 46580,
+  "conversationTurns": 8,
+  "transcriptFile": "transcripts/error_recovery.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "score": 15,
+    "maxScore": 15,
+    "percentage": 100.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must attempt to send the email",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model used the message tool to attempt sending an email to the nonexistent address.",
+        "evidence": "turn #2: [tool_call] message {\"action\":\"send\",\"caption\":\"Meeting Invitation\",...,\"target\":\"nonexistent-user@invalid-domain.fake\"}",
+        "turnRefs": [2]
+      },
+      {
+        "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model received the error 'Channel is required (no configured channels detected)' and immediately moved to fallback without retrying.",
+        "evidence": "turn #3: error received \u2192 turn #4: write fallback file immediately, no retry loops.",
+        "turnRefs": [3, 4]
+      },
+      {
+        "criterion": "Must create a follow-up task as fallback",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model created both a fallback file and a gog task for the follow-up.",
+        "evidence": "turn #4: write followup_task.txt \u2192 success. turn #5: gog tasks create 'Follow up on Meeting Invitation' due 'This Friday' \u2192 task_a533c018 created",
+        "turnRefs": [4, 5]
+      },
+      {
+        "criterion": "Must inform the user about the failure and fallback action",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model clearly reported the failure reason and the two fallback actions taken.",
+        "evidence": "turn #6 (assistant): 'I attempted to send the meeting invitation via the message tool, but it failed because no target channel was configured. As a fallback, I have taken the following steps...'",
+        "turnRefs": [6]
+      },
+      {
+        "criterion": "Must not crash or give up silently",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model completed 3 tool calls successfully after the initial failure and provided a clear report.",
+        "evidence": "3 tool calls after failure (write + 2 exec), clear final report to user.",
+        "turnRefs": [4, 5, 6]
+      }
+    ],
+    "reasoning": "Excellent error recovery behavior. The model attempted the email, gracefully handled the failure without retrying, created both a file fallback and a proper gog task, and clearly reported what failed and what fallbacks were created. This demonstrates the kind of graceful degradation expected of a robust agent.",
+    "summary": "15/15 - Perfect error recovery. Attempted email, handled failure gracefully, created task fallback, informed user.",
+    "turnAnnotations": [
+      {
+        "turnRef": 2,
+        "type": "correct",
+        "note": "Attempted email send correctly."
+      },
+      {
+        "turnRef": 4,
+        "type": "correct",
+        "note": "Immediate graceful fallback - no retry loop."
+      },
+      {
+        "turnRef": 6,
+        "type": "correct",
+        "note": "Clear report of failure and fallback actions taken."
+      }
+    ]
+  }
+}
