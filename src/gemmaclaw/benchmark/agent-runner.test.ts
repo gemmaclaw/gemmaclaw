@@ -192,6 +192,16 @@ describe("resolveTimeoutBudgets", () => {
     expect(bigCap).toBe(50_000_000);
   });
 
+  it("defaults activity timeout to taskTimeoutSeconds when it exceeds 600s", () => {
+    const { noActivityMs } = resolveTimeoutBudgets({ ...base, taskTimeoutSeconds: 3600 });
+    expect(noActivityMs).toBe(3_600_000);
+    const { noActivityMs: noActivity600 } = resolveTimeoutBudgets({
+      ...base,
+      taskTimeoutSeconds: 600,
+    });
+    expect(noActivity600).toBe(600_000);
+  });
+
   it("respects explicit hardCapSeconds and noActivityTimeoutSeconds", () => {
     const { hardCapMs, noActivityMs } = resolveTimeoutBudgets({
       ...base,
