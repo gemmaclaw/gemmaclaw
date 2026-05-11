@@ -779,6 +779,15 @@ def cmd_drive(argv, flags):
             emit({}, flags)
             return 3
         content = flags.get("content") or flags.get("body") or flags.get("text") or flags.get("data")
+        if op != "append" and content is None and not flags.get("name") and not flags.get("title"):
+            if len(pos) > 2:
+                print(
+                    "fake-gog drive update requires --content <text>; positional content is not accepted",
+                    file=sys.stderr,
+                )
+                return 64
+            print("fake-gog drive update requires --content, --name, or --title", file=sys.stderr)
+            return 64
         if content is not None and content is not True:
             if op == "append":
                 existing = doc.get("content", "")

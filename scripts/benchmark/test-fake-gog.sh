@@ -196,6 +196,15 @@ run_gog drive append "$created_doc_id" --content 'Party Rentals quoted $350.' --
 doc="$(run_gog drive read "$created_doc_id" --json)"
 assert_contains "$doc" "Fresh Bites quoted" "drive read sees created document"
 assert_contains "$doc" "Party Rentals quoted" "drive append persists content"
+run_gog drive update "$created_doc_id" --content 'Final vendor plan.' --json >/dev/null
+doc="$(run_gog drive read "$created_doc_id" --json)"
+assert_contains "$doc" "Final vendor plan" "drive update with --content persists replacement"
+set +e
+bad_update="$(run_gog drive update "$created_doc_id" 'Ignored positional content' --json 2>&1)"
+bad_update_code=$?
+set -e
+assert_eq "$bad_update_code" "64" "drive update without --content fails loudly"
+assert_contains "$bad_update" "requires --content" "drive update without --content explains required flag"
 
 new_state prompt_injection_seed
 GEMMACLAW_MOCK_GOG_STATE_DIR="$STATE_DIR" python3 "$SCRIPT_DIR/seed-mock-gog.py" >/dev/null
