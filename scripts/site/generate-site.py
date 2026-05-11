@@ -139,7 +139,7 @@ def normalize_agentic_benchmark_result(data, run_id):
             "percentage": pct,
             "passed": status == "completed" and (not max_score or pct >= 60),
             "method": "LLM judge" if judge else "pending judge",
-            "details": judge.get("reasoning", "No judge evaluation recorded yet."),
+            "details": judge.get("reasoning") or judge.get("rationale", "No judge evaluation recorded yet."),
             "tokensPerSecond": speed,
             "elapsedMs": elapsed,
             "failureMode": "" if status == "completed" else status,
@@ -377,6 +377,8 @@ def generate_size_class_sections(results):
                 quant = '<span class="quant-badge">Q5_K_M</span>'
             elif "q6k" in model_name.lower() or "q6_k" in model_name.lower():
                 quant = '<span class="quant-badge">Q6_K</span>'
+            elif "q4km" in model_name.lower() or "q4_k_m" in model_name.lower():
+                quant = '<span class="quant-badge">Q4_K_M</span>'
             model_rows.append(f"""<tr>
   <td><strong>{model_name}</strong> {quant}</td>
   <td>{r['backend']}</td>
@@ -1891,7 +1893,7 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
     # the new benchmark results. The old results had wrong GPU detection and
     # incomplete test explanations. PR #69 added this, PR #71 removed it.
     # Frank directive: keep coming soon until proper benchmarks are ready.
-    _BENCHMARKS_COMING_SOON = True  # Set to False when new benchmarks are approved
+    _BENCHMARKS_COMING_SOON = False
     if _BENCHMARKS_COMING_SOON:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
         <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
@@ -1926,6 +1928,19 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
       <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full 28-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
     </section>"""
     scripts = """
+    function openModelDetail(id, scroll) {
+      const detail = document.getElementById('detail-' + id);
+      if (!detail) return;
+      const isVisible = detail.style.display !== 'none';
+      document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+      if (!isVisible) {
+        detail.style.display = 'block';
+        history.replaceState(null, '', '#detail-' + id);
+        if (scroll) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
     document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {
       if (row.classList.contains('task-row') || row.classList.contains('task-detail')) return;
       row.style.cursor = 'pointer';
@@ -1933,16 +1948,15 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
         const model = this.querySelector('td strong')?.textContent || '';
         const backend = this.querySelectorAll('td')[1]?.textContent || '';
         const id = (model + '-' + backend).toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const detail = document.getElementById('detail-' + id);
-        if (detail) {
-          const isVisible = detail.style.display !== 'none';
-          document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
-          detail.style.display = isVisible ? 'none' : 'block';
-          if (!isVisible) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        openModelDetail(id, true);
       });
     });
     document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+    // Deep-link: open detail from URL hash on page load
+    if (window.location.hash.startsWith('#detail-')) {
+      const id = window.location.hash.slice(1).replace('detail-', '');
+      requestAnimationFrame(() => openModelDetail(id, true));
+    }
 
     document.querySelectorAll('tr.task-row').forEach(row => {
       row.style.cursor = 'pointer';
