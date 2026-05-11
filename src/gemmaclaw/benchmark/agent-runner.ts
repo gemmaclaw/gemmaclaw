@@ -781,8 +781,13 @@ const BENCHMARK_WORKSPACE_FILES: Record<string, string> = {
   "TOOLS.md": [
     "# Benchmark Tools",
     "",
-    "Use `gog` for mock Gmail, Calendar, Drive, Contacts, People, and Tasks data.",
-    "The benchmark harness places a fake gog executable first on PATH.",
+    "Use the `exec` tool to run `gog` CLI commands for mock Gmail, Calendar, Drive, Contacts, People, and Tasks data.",
+    "The benchmark harness places a fake gog executable first on PATH. Call it via exec, not as a direct function name.",
+    "Examples:",
+    '  exec command="gog gmail list"',
+    '  exec command="gog calendar list --this-week"',
+    "  exec command=\"gog calendar create --start 2025-05-14T10:00:00 --end 2025-05-14T12:00:00 --summary 'Meeting' --location 'Room B'\"",
+    '  exec command="gog contacts list"',
     "",
   ].join("\n"),
   "MEMORY.md": [
