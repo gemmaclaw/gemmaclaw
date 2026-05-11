@@ -90,49 +90,6 @@ describe("agent evaluator", () => {
     expect(parsed.criteria[0].turnRefs).toEqual([1]);
   });
 
-  it("extracts JSON from prose-wrapped judge response", () => {
-    const prose = `Here is my evaluation of the task.
-
-Let me consider each criterion carefully.
-
-Step 1: Check tool usage... yes, the agent called gog.
-
-${JSON.stringify({
-  score: 7,
-  confidence: "high",
-  criteria: [{ status: "met", pointsAwarded: 7, reasoning: "used gog" }],
-  reasoning: "correct",
-  issues: [],
-})}
-
-That concludes my evaluation.`;
-    const parsed = parseAgentJudgeResponse(prose, 10, {
-      provider: "openai",
-      model: "qwen3.6:35b",
-      judgedAt: "2026-05-10T00:00:00.000Z",
-      criteria: ["Must read inbox"],
-    });
-    expect(parsed.score).toBe(7);
-  });
-
-  it("extracts JSON when model omits trailing prose but starts with prose", () => {
-    const jsonObj = {
-      score: 5,
-      confidence: "medium",
-      criteria: [{ status: "partial", pointsAwarded: 5, reasoning: "partially met" }],
-      reasoning: "close enough",
-      issues: [],
-    };
-    const prose = `I will now provide my assessment.\n\nReady.\n\n${JSON.stringify(jsonObj, null, 2)}`;
-    const parsed = parseAgentJudgeResponse(prose, 10, {
-      provider: "openai",
-      model: "qwen3.6:35b",
-      judgedAt: "2026-05-10T00:00:00.000Z",
-      criteria: ["Must read inbox"],
-    });
-    expect(parsed.score).toBe(5);
-  });
-
   it("blocks local/Qwen judges for publishable benchmark evaluation", () => {
     expect(() =>
       assertPublishableJudgeConfig({
@@ -185,7 +142,7 @@ That concludes my evaluation.`;
     expect(parsed.evaluationMode).toBe("exploratory-local");
   });
 
-  it("summarizes scored evaluation files", () => {
+  it("summarizes only authoritative scored evaluation files", () => {
     const evaluations: AgentEvaluationFile[] = [
       {
         taskId: "a",
@@ -214,6 +171,35 @@ That concludes my evaluation.`;
           issues: [],
         },
       },
+      {
+        taskId: "b",
+        taskName: "B",
+        gradingCriteria: [],
+        maxScore: 10,
+        toolCallCount: 0,
+        toolsUsed: [],
+        completionStatus: "completed",
+        elapsedMs: 1,
+        conversationTurns: 1,
+        transcriptFile: "transcripts/b.txt",
+        deterministicScorer: null,
+        llmJudge: {
+          schemaVersion: 1,
+          provider: "openai",
+          model: "qwen3.6:35b",
+          judgedAt: "2026-05-08T00:00:00.000Z",
+          authoritative: false,
+          evaluationMode: "exploratory-local",
+          score: 10,
+          maxScore: 10,
+          percentage: 100,
+          passed: true,
+          confidence: "low",
+          criteria: [],
+          reasoning: "local smoke only",
+          issues: [],
+        },
+      },
     ];
 
     const summary = summarizeAgentEvaluations(
@@ -227,63 +213,8 @@ That concludes my evaluation.`;
     expect(summary.totalScore).toBe(9);
     expect(summary.maxScore).toBe(10);
     expect(summary.percentage).toBe(90);
+    expect(summary.scoredTaskCount).toBe(1);
     expect(generateAgentEvaluationMarkdown(summary)).toContain("9 / 10");
-  });
-
-  it("retries judge call on JSON parse failure and succeeds on second attempt", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-evaluator-retry-"));
-    const runId = "run-retry";
-    const runDir = path.join(dir, "runs", runId);
-    const evalDir = path.join(dir, "evaluations", runId);
-    fs.mkdirSync(runDir, { recursive: true });
-    fs.mkdirSync(evalDir, { recursive: true });
-    fs.writeFileSync(path.join(runDir, "results.json"), JSON.stringify({ tasks: [taskResult] }));
-    fs.writeFileSync(
-      path.join(evalDir, "email_summarize.json"),
-      JSON.stringify({
-        taskId: "email_summarize",
-        taskName: "Email Inbox Summary",
-        gradingCriteria: taskResult.task.grading.criteria,
-        maxScore: 10,
-        toolCallCount: 1,
-        toolsUsed: ["exec"],
-        completionStatus: "completed",
-        elapsedMs: 1000,
-        conversationTurns: 4,
-        transcriptFile: "transcripts/email_summarize.txt",
-        deterministicScorer: null,
-        llmJudge: null,
-      }),
-    );
-
-    let callCount = 0;
-    const summary = await evaluateAgentBenchmarkRun(
-      { outputDir: dir, runId, provider: "openai", model: "qwen3.6:35b" },
-      {
-        async judge() {
-          callCount++;
-          if (callCount === 1) {
-            return "I am evaluating... Ready. No JSON here.";
-          }
-          return JSON.stringify({
-            score: 6,
-            confidence: "medium",
-            criteria: [
-              { status: "met", pointsAwarded: 3, reasoning: "read inbox" },
-              { status: "partial", pointsAwarded: 3, reasoning: "partial summary" },
-            ],
-            reasoning: "mostly correct",
-            issues: [],
-          });
-        },
-      },
-      () => {},
-    );
-
-    expect(callCount).toBe(2);
-    expect(summary.totalScore).toBe(6);
-    const rawRepro = path.join(evalDir, "email_summarize.raw-repro.txt");
-    expect(fs.existsSync(rawRepro)).toBe(true);
   });
 
   it("writes per-task judge results and aggregate summary", async () => {

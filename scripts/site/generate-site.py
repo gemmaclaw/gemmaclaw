@@ -100,6 +100,8 @@ def normalize_agentic_benchmark_result(data, run_id):
             except (json.JSONDecodeError, OSError):
                 evaluation = {}
         judge = evaluation.get("llmJudge") or {}
+        if judge.get("authoritative") is False:
+            judge = {}
         max_score = int(
             judge.get("maxScore")
             or evaluation.get("maxScore")
