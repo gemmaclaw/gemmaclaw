@@ -21,6 +21,8 @@ export type AgentLlmJudgeResult = {
   provider: AgentJudgeProvider;
   model: string;
   judgedAt: string;
+  authoritative?: boolean;
+  evaluationMode?: "publishable" | "exploratory-local";
   score: number;
   maxScore: number;
   percentage: number;
@@ -76,8 +78,9 @@ export type AgentEvaluationConfig = {
   runId: string;
   provider: AgentJudgeProvider;
   model: string;
-  /** Optional base URL for the judge API (e.g. http://127.0.0.1:11434/v1/ for local Ollama). */
+  /** Optional base URL for exploratory local judge API calls. Never allowed for publishable scoring. */
   judgeBaseUrl?: string;
+  exploratoryLocalJudge?: boolean;
   force?: boolean;
   includeRaw?: boolean;
 };
@@ -159,29 +162,14 @@ function extractJsonObject(text: string): unknown {
     try {
       return JSON.parse(fenced[1]);
     } catch {
-      // Continue to brace-scanning extraction.
+      // Continue to first-object extraction.
     }
   }
 
-  // Scan all `}` positions from right to left; for each, scan left for matching `{`
-  // and try parsing the slice. This handles models that emit prose before/after JSON.
+  const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (end >= 0) {
-    let depth = 0;
-    for (let i = end; i >= 0; i--) {
-      if (text[i] === "}") {
-        depth++;
-      } else if (text[i] === "{") {
-        depth--;
-        if (depth === 0) {
-          try {
-            return JSON.parse(text.slice(i, end + 1));
-          } catch {
-            // This slice is not valid JSON, keep scanning.
-          }
-        }
-      }
-    }
+  if (start >= 0 && end > start) {
+    return JSON.parse(text.slice(start, end + 1));
   }
 
   throw new Error("judge response did not contain a JSON object");
@@ -195,6 +183,7 @@ export function parseAgentJudgeResponse(
     model: string;
     judgedAt: string;
     criteria: string[];
+    exploratoryLocalJudge?: boolean;
     includeRaw?: boolean;
   },
 ): AgentLlmJudgeResult {
@@ -221,6 +210,8 @@ export function parseAgentJudgeResponse(
     provider: options.provider,
     model: options.model,
     judgedAt: options.judgedAt,
+    authoritative: !options.exploratoryLocalJudge,
+    evaluationMode: options.exploratoryLocalJudge ? "exploratory-local" : "publishable",
     score,
     maxScore,
     percentage: percentage(score, maxScore),
@@ -320,7 +311,9 @@ export function summarizeAgentEvaluations(
   judgedAt: string,
   evaluations: AgentEvaluationFile[],
 ): AgentEvaluationSummary {
-  const scored = evaluations.filter((evaluation) => evaluation.llmJudge);
+  const scored = evaluations.filter(
+    (evaluation) => evaluation.llmJudge && evaluation.llmJudge.authoritative !== false,
+  );
   const tasks = scored.map((evaluation) => {
     const judge = evaluation.llmJudge!;
     return {
@@ -397,19 +390,15 @@ export class OpenAIAgentJudgeClient implements AgentJudgeClient {
   }
 
   async judge(prompt: string): Promise<string> {
-    // Prepend /no_think so thinking models (qwen3, deepseek-r1) emit content directly
-    // rather than spending all max_tokens on internal reasoning.
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [
         { role: "system", content: JUDGE_SYSTEM_PROMPT },
-        { role: "user", content: `/no_think\n${prompt}` },
+        { role: "user", content: prompt },
       ],
-      max_tokens: 8192,
+      max_tokens: 4096,
     });
-    const msg = response.choices[0]?.message;
-    // Fallback: some thinking models put output in .reasoning when content is empty.
-    return msg?.content || (msg as unknown as Record<string, string>)?.reasoning || "";
+    return response.choices[0]?.message?.content ?? "";
   }
 }
 
@@ -419,11 +408,36 @@ function makeJudgeClient(config: AgentEvaluationConfig): AgentJudgeClient {
   return new OpenAIAgentJudgeClient(config.model, apiKey, config.judgeBaseUrl);
 }
 
+export function assertPublishableJudgeConfig(config: AgentEvaluationConfig): void {
+  if (config.exploratoryLocalJudge) {
+    return;
+  }
+
+  const model = config.model.toLowerCase();
+  if (config.judgeBaseUrl) {
+    throw new Error(
+      "--judge-base-url is exploratory only and cannot be used for publishable benchmark judging. " +
+        "Use CC ACP/Claude Code or Codex CLI to read transcripts directly, or pass " +
+        "--exploratory-local-judge only for non-authoritative local smoke output.",
+    );
+  }
+  if (model.includes("qwen")) {
+    throw new Error(
+      "--judge-model qwen is exploratory only and cannot be used for publishable benchmark judging. " +
+        "Use CC ACP/Claude Code or Codex CLI to read transcripts directly, or pass " +
+        "--exploratory-local-judge only for non-authoritative local smoke output.",
+    );
+  }
+}
+
 export async function evaluateAgentBenchmarkRun(
   config: AgentEvaluationConfig,
-  judgeClient: AgentJudgeClient = makeJudgeClient(config),
+  judgeClient?: AgentJudgeClient,
   log: (message: string) => void = console.log,
 ): Promise<AgentEvaluationSummary> {
+  assertPublishableJudgeConfig(config);
+  const client = judgeClient ?? makeJudgeClient(config);
+
   const runDir = path.join(config.outputDir, "runs", config.runId);
   const evalDir = path.join(config.outputDir, "evaluations", config.runId);
   const resultsPath = path.join(runDir, "results.json");
@@ -449,49 +463,15 @@ export async function evaluateAgentBenchmarkRun(
 
     log(`judge ${taskResult.task.id} (${taskResult.task.grading.maxScore} pts)`);
     const prompt = buildAgentJudgePrompt(taskResult);
-    let judge: AgentLlmJudgeResult | null = null;
-    const MAX_RETRIES = 3;
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const retryPrompt =
-        attempt === 0
-          ? prompt
-          : `Output ONLY a JSON object. No prose. No markdown. No explanation before or after.\n\n${prompt}`;
-      let response: string;
-      try {
-        response = await judgeClient.judge(retryPrompt);
-      } catch (err) {
-        log(`  judge call failed (attempt ${attempt + 1}/${MAX_RETRIES}): ${String(err)}`);
-        if (attempt === MAX_RETRIES - 1) {
-          throw err;
-        }
-        continue;
-      }
-      try {
-        judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
-          provider: config.provider,
-          model: config.model,
-          judgedAt,
-          criteria: taskResult.task.grading.criteria,
-          includeRaw: config.includeRaw,
-        });
-        break;
-      } catch (parseErr) {
-        const rawPath = path.join(evalDir, `${taskResult.task.id}.raw-repro.txt`);
-        fs.writeFileSync(rawPath, response);
-        log(
-          `  JSON parse failed (attempt ${attempt + 1}/${MAX_RETRIES}): ${String(parseErr)}. Raw saved to ${rawPath}`,
-        );
-        if (attempt === MAX_RETRIES - 1) {
-          throw new Error(
-            `judge returned non-JSON for ${taskResult.task.id} after ${MAX_RETRIES} attempts: ${String(parseErr)}`,
-            { cause: parseErr },
-          );
-        }
-      }
-    }
-    if (!judge) {
-      throw new Error(`judge unexpectedly null for ${taskResult.task.id}`);
-    }
+    const response = await client.judge(prompt);
+    const judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
+      provider: config.provider,
+      model: config.model,
+      judgedAt,
+      criteria: taskResult.task.grading.criteria,
+      exploratoryLocalJudge: config.exploratoryLocalJudge,
+      includeRaw: config.includeRaw,
+    });
     const updated: AgentEvaluationFile = {
       ...evaluation,
       maxScore: taskResult.task.grading.maxScore,
