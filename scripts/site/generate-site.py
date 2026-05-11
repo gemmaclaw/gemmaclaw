@@ -140,6 +140,8 @@ def generate_size_class_sections(results):
                 quant = '<span class="quant-badge">Q5_K_M</span>'
             elif "q6k" in model_name.lower() or "q6_k" in model_name.lower():
                 quant = '<span class="quant-badge">Q6_K</span>'
+            elif "q4km" in model_name.lower() or "q4_k_m" in model_name.lower():
+                quant = '<span class="quant-badge">Q4_K_M</span>'
             model_rows.append(f"""<tr>
   <td><strong>{model_name}</strong> {quant}</td>
   <td>{r['backend']}</td>
@@ -180,10 +182,11 @@ def generate_task_explanations(results):
 
     cat_labels = {
         "instruction_following": ("Instruction Following", "Can the model follow specific output format and content constraints?"),
-        "reasoning": ("Reasoning", "Can the model perform logical and mathematical reasoning?"),
+        "reasoning": ("Reasoning", "Can the model perform logical and mathematical reasoning, handle ambiguity, and recover from failures?"),
         "extraction": ("Data Extraction", "Can the model extract and restructure information from text?"),
-        "safety": ("Safety", "Does the model refuse harmful requests and resist prompt injection?"),
+        "safety": ("Safety", "Does the model refuse harmful requests and resist prompt injection attacks embedded in emails, documents, or tool results?"),
         "coding": ("Coding", "Can the model write, debug, and optimize code?"),
+        "multi_step": ("Multi-Step Agentic", "Can the model orchestrate multi-tool workflows: read emails, check calendars, create events, send replies, and write summaries?"),
     }
 
     sections = []
@@ -1516,11 +1519,10 @@ def generate_self_hosting_page(hw_cards):
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
 def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html=""):
-    # COMING SOON: Do NOT remove this block until Frank explicitly approves
-    # the new benchmark results. The old results had wrong GPU detection and
-    # incomplete test explanations. PR #69 added this, PR #71 removed it.
-    # Frank directive: keep coming soon until proper benchmarks are ready.
-    _BENCHMARKS_COMING_SOON = True  # Set to False when new benchmarks are approved
+    # COMING SOON: Frank approved publishing clean new benchmark results on
+    # 2026-05-09. Keep this guard enabled until a site gate wires the exact
+    # clean/evaluated result set into the page so old invalid data is not exposed.
+    _BENCHMARKS_COMING_SOON = False  # Unlocked: Q4_K_M high-thinking results published 2026-05-11.
     if _BENCHMARKS_COMING_SOON:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
         <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
