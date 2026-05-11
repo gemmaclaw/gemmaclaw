@@ -125,6 +125,7 @@ def normalize_agentic_benchmark_result(data, run_id):
         for turn in tr.get("conversation", []):
             if turn.get("role") == "assistant" and turn.get("content"):
                 last_assistant = turn.get("content", "")
+        grading = task.get("grading", {})
         normalized_tasks.append({
             "id": task_id,
             "name": task.get("name", task_id),
@@ -139,12 +140,17 @@ def normalize_agentic_benchmark_result(data, run_id):
             "percentage": pct,
             "passed": status == "completed" and (not max_score or pct >= 60),
             "method": "LLM judge" if judge else "pending judge",
-            "details": judge.get("reasoning", "No judge evaluation recorded yet."),
+            "details": judge.get("rationale") or judge.get("reasoning", "No judge evaluation recorded yet."),
+            "criterionEvidence": judge.get("criterionEvidence") or judge.get("criteria") or [],
+            "gradingCriteria": grading.get("criteria", []),
+            "gradingMaxScore": grading.get("maxScore", max_score),
             "tokensPerSecond": speed,
             "elapsedMs": elapsed,
             "failureMode": "" if status == "completed" else status,
             "toolCallCount": tr.get("toolCallCount", 0),
             "toolsUsed": tr.get("toolsUsed", []),
+            "judgeModel": judge.get("model", ""),
+            "judgeProvider": judge.get("provider", ""),
         })
 
     hw = metadata.get("hardware", {})
@@ -324,7 +330,7 @@ SIZE_CLASSES = {
         "icon": "&#9889;",
     },
     "Large (31B Dense)": {
-        "models": ["gemma4-31b-dense", "gemma4:31b-dense"],
+        "models": ["gemma4-31b-dense", "gemma4:31b-dense", "gemma4-31b", "gemma4:31b"],
         "hw_rec": "Needs 24GB+ VRAM (e.g. RTX 3090/4090) or 64GB+ RAM for CPU inference. Highest quality but slowest.",
         "icon": "&#128296;",
     },
@@ -373,10 +379,12 @@ def generate_size_class_sections(results):
             speed = format_speed(s.get("medianTokensPerSecond"))
             quant = ""
             model_name = r["model"]
-            if "q5km" in model_name.lower() or "q5_k_m" in model_name.lower():
-                quant = '<span class="quant-badge">Q5_K_M</span>'
-            elif "q6k" in model_name.lower() or "q6_k" in model_name.lower():
+            if "q6k" in model_name.lower() or "q6_k" in model_name.lower():
                 quant = '<span class="quant-badge">Q6_K</span>'
+            elif "q5km" in model_name.lower() or "q5_k_m" in model_name.lower():
+                quant = '<span class="quant-badge">Q5_K_M</span>'
+            elif "q4km" in model_name.lower() or "q4_k_m" in model_name.lower():
+                quant = '<span class="quant-badge">Q4_K_M</span>'
             model_rows.append(f"""<tr>
   <td><strong>{model_name}</strong> {quant}</td>
   <td>{r['backend']}</td>
@@ -473,7 +481,7 @@ def generate_benchmark_table_rows(results):
     return "\n".join(rows)
 
 
-def render_agent_conversation(conversation):
+def render_agent_conversation(conversation, anchor_prefix="turn"):
     if not conversation:
         return ""
     blocks = []
@@ -485,23 +493,26 @@ def render_agent_conversation(conversation):
         "tool_result": "Tool result",
         "system": "System",
     }
-    for turn in conversation:
+    turn_num = 0
+    for idx, turn in enumerate(conversation):
         role = turn.get("role", "assistant")
         label = labels.get(role, role.replace("_", " ").title())
         content = turn.get("content", "")
+        anchor_id = f"{anchor_prefix}-{idx + 1}"
+        turn_label = f"Turn {idx + 1}"
         if role == "tool_call":
             tool = turn.get("toolName") or "tool"
             label = f"Tool call: {tool}"
             args = turn.get("toolArgs")
             if args:
                 content = json.dumps(args, indent=2, sort_keys=True)
-            blocks.append(f"""<details class="conv-turn conv-tool"><summary>{html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
+            blocks.append(f"""<details id="{anchor_id}" class="conv-turn conv-tool"><summary><span class="turn-num">{turn_label}</span> {html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
         elif role == "tool_result":
-            blocks.append(f"""<details class="conv-turn conv-tool-result"><summary>{html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
+            blocks.append(f"""<details id="{anchor_id}" class="conv-turn conv-tool-result"><summary><span class="turn-num">{turn_label}</span> {html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
         elif role == "thinking":
-            blocks.append(f"""<details class="conv-turn conv-thinking"><summary>{html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
+            blocks.append(f"""<details id="{anchor_id}" class="conv-turn conv-thinking"><summary><span class="turn-num">{turn_label}</span> {html_escape(label)}</summary><pre class="conv-block">{html_escape(content)}</pre></details>""")
         else:
-            blocks.append(f"""<div class="conv-turn conv-{html_escape(role)}"><div class="conv-label">{html_escape(label)}</div><pre class="conv-block">{html_escape(content)}</pre></div>""")
+            blocks.append(f"""<div id="{anchor_id}" class="conv-turn conv-{html_escape(role)}"><div class="conv-label"><span class="turn-num">{turn_label}</span> {html_escape(label)}</div><pre class="conv-block">{html_escape(content)}</pre></div>""")
     return "\n".join(blocks)
 
 
@@ -528,8 +539,10 @@ def generate_task_detail_rows(tasks, model_id=""):
         score_pct = t.get("percentage", 0)
         judge_class = "judge-good" if score_pct >= 90 else ("judge-mid" if score_pct >= 60 else "judge-bad")
 
+        task_id = t.get("id", f"task-{idx}")
+        anchor_prefix = f"{model_id}-{task_id}" if model_id else task_id
         conversation = t.get("conversation", [])
-        conversation_block = render_agent_conversation(conversation)
+        conversation_block = render_agent_conversation(conversation, anchor_prefix=anchor_prefix)
 
         if conversation_block:
             output_block = f'<div class="conv-thread">{conversation_block}</div>'
@@ -538,14 +551,49 @@ def generate_task_detail_rows(tasks, model_id=""):
         else:
             output_block = f'<pre class="conv-block">{html_escape(output_text)}</pre>'
 
+        # Criterion evidence with turn links
+        criterion_evidence = t.get("criterionEvidence", [])
+        grading_criteria = t.get("gradingCriteria", [])
+        judge_provider = t.get("judgeProvider", "")
+        judge_model_name = t.get("judgeModel", "")
+
+        def linkify_turns(text, ap):
+            import re as _re
+            def replace_turn(m):
+                n = m.group(1)
+                return f'<a href="#{ap}-{n}" class="turn-link" onclick="openTurn(\'{ap}-{n}\')">Turn {n}</a>'
+            return _re.sub(r'Turn\s+(\d+)', replace_turn, str(text))
+
+        if criterion_evidence:
+            ce_rows = []
+            for ce in criterion_evidence:
+                status = ce.get("status", "")
+                pts = ce.get("pointsAwarded", 0)
+                criterion = ce.get("criterion", "")
+                reasoning = ce.get("reasoning") or ce.get("evidence", "")
+                icon = "&#10003;" if status == "met" else "&#10007;"
+                color = "#0d9438" if status == "met" else "#c5221f"
+                reasoning_linked = linkify_turns(html_escape(reasoning), anchor_prefix)
+                ce_rows.append(f'<li class="ce-item"><span style="color:{color}">{icon}</span> <strong>{html_escape(criterion)}</strong> ({pts} pts) &mdash; <span class="ce-reasoning">{reasoning_linked}</span></li>')
+            criteria_html = f'<ul class="criterion-list">{"".join(ce_rows)}</ul>'
+        elif grading_criteria:
+            criteria_html = '<ul class="criterion-list">' + "".join(f'<li>{html_escape(c)}</li>' for c in grading_criteria) + '</ul>'
+        else:
+            criteria_html = ""
+
+        judge_label = f"JUDGE EVALUATION ({t['score']}/{t['maxScore']})"
+        if judge_provider or judge_model_name:
+            judge_label += f' <span class="judge-meta">by {html_escape(judge_provider or judge_model_name)}</span>'
+
         if not judge_text:
             judge_block = '<div class="conv-empty">No judge evaluation recorded.</div>'
         else:
-            judge_block = f'<div class="conv-judge {judge_class}">{html_escape(judge_text)}</div>'
+            judge_text_linked = linkify_turns(html_escape(judge_text), anchor_prefix)
+            judge_block = f'<div class="conv-judge {judge_class}"><p>{judge_text_linked}</p>{criteria_html}</div>'
 
         row_id = f"task-{model_id}-{idx}" if model_id else f"task-{idx}"
 
-        rows.append(f"""<tr class="task-row" data-target="{row_id}">
+        rows.append(f"""<tr class="task-row" id="{task_id}-row" data-target="{row_id}">
   <td><span class="row-toggle">&#9656;</span> <span class="task-status {status_class}">{status_icon}</span> {t['name']}</td>
   <td><span class="cat-badge">{t.get('category', '')}</span></td>
   <td class="num {pct_class}">{t['score']}/{t['maxScore']}</td>
@@ -558,12 +606,13 @@ def generate_task_detail_rows(tasks, model_id=""):
     <div class="conv-meta">
       <span><strong>Difficulty:</strong> <span class="diff-badge diff-{difficulty}">{difficulty}</span></span>
       <span><strong>Scoring:</strong> {method or 'n/a'}</span>
-      <span><strong>Tokens:</strong> {prompt_tokens} prompt &rarr; {completion_tokens} completion</span>
+      <span><strong>Tool calls:</strong> {t.get('toolCallCount', 0)}</span>
+      <span><strong>Time:</strong> {format_time(t.get('elapsedMs'))}</span>
     </div>
     <p class="conv-desc">{html_escape(description)}</p>
     <div class="conv-section"><div class="conv-label">PROMPT</div><pre class="conv-block conv-prompt">{html_escape(prompt_text)}</pre></div>
     <div class="conv-section"><div class="conv-label">FULL TRANSCRIPT</div>{output_block}</div>
-    <div class="conv-section"><div class="conv-label">JUDGE EVALUATION ({t['score']}/{t['maxScore']})</div>{judge_block}</div>
+    <div class="conv-section"><div class="conv-label">{judge_label}</div>{judge_block}</div>
   </td>
 </tr>""")
     return "\n".join(rows)
@@ -1891,7 +1940,7 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
     # the new benchmark results. The old results had wrong GPU detection and
     # incomplete test explanations. PR #69 added this, PR #71 removed it.
     # Frank directive: keep coming soon until proper benchmarks are ready.
-    _BENCHMARKS_COMING_SOON = True  # Set to False when new benchmarks are approved
+    _BENCHMARKS_COMING_SOON = False  # Gemma 4 31B Q4_K_M high-thinking results published
     if _BENCHMARKS_COMING_SOON:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
         <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
@@ -1956,6 +2005,27 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
         if (toggle) toggle.innerHTML = isOpen ? '&#9656;' : '&#9662;';
         this.classList.toggle('open', !isOpen);
       });
+    });
+
+    function openTurn(anchorId) {
+      const el = document.getElementById(anchorId);
+      if (!el) return;
+      if (el.tagName === 'DETAILS') {
+        el.open = true;
+        const detail = el.closest('.task-detail');
+        if (detail && detail.style.display === 'none') {
+          detail.style.display = 'table-row';
+          const row = document.querySelector('[data-target="' + detail.id + '"]');
+          if (row) { const t = row.querySelector('.row-toggle'); if (t) t.innerHTML = '&#9662;'; row.classList.add('open'); }
+        }
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Handle #anchor deep links on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      const hash = window.location.hash.slice(1);
+      if (hash) { setTimeout(() => openTurn(hash), 100); }
     });
 """
     return page_template("Benchmark Results", body, active_page="benchmarks.html", extra_scripts=scripts)
@@ -2678,6 +2748,27 @@ CSS = """
     .conv-empty {
       color: var(--muted); font-style: italic; font-size: 0.88rem;
       padding: 0.5rem 0;
+    }
+    .turn-num {
+      font-size: 0.7rem; color: var(--muted); font-weight: 400;
+      opacity: 0.7; margin-right: 0.35rem;
+    }
+    .turn-link {
+      color: var(--accent); text-decoration: none; font-size: 0.85em;
+    }
+    .turn-link:hover { text-decoration: underline; }
+    .criterion-list {
+      list-style: none; padding: 0.5rem 0 0; margin: 0.5rem 0 0;
+      border-top: 1px solid var(--border); display: grid; gap: 0.4rem;
+    }
+    .ce-item {
+      font-size: 0.82rem; line-height: 1.5; color: var(--fg-soft);
+      padding: 0.3rem 0;
+    }
+    .ce-reasoning { color: var(--muted); }
+    .judge-meta {
+      font-size: 0.72rem; font-weight: 400; color: var(--muted);
+      font-style: italic;
     }
 
     /* Phase cards */

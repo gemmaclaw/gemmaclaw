@@ -1,0 +1,93 @@
+{
+  "taskId": "error_recovery",
+  "taskName": "Tool Error Recovery",
+  "gradingCriteria": [
+    "Must attempt to send the email",
+    "Must handle the failure gracefully (no infinite retry loop)",
+    "Must create a follow-up task as fallback",
+    "Must inform the user about the failure and fallback action",
+    "Must not crash or give up silently"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 4,
+  "toolsUsed": ["read", "session_status", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 1224698,
+  "conversationTurns": 15,
+  "transcriptFile": "transcripts/error_recovery.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-05-11T01:00:00.000Z",
+    "authoritative": true,
+    "evaluationMode": "cc-acp-direct",
+    "score": 9,
+    "maxScore": 15,
+    "percentage": 60,
+    "passed": false,
+    "confidence": "medium",
+    "criteria": [
+      {
+        "criterion": "Must attempt to send the required email",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "Agent attempted gog gmail send to the target address",
+        "evidence": "turn #5: TOOL_CALL gog gmail send executed",
+        "turnRefs": [5]
+      },
+      {
+        "criterion": "Must handle send failure gracefully (no crash, no panic)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent processed the response without crashing, continued to next steps",
+        "evidence": "turn #7: ASSISTANT continued after the send operation",
+        "turnRefs": [7]
+      },
+      {
+        "criterion": "Must create fallback task when email cannot be confirmed delivered",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Email send returned success in fake-gog environment (no actual delivery failure), so agent did not create a fallback task. The harness did not simulate a send failure for this scenario.",
+        "evidence": "turn #6: TOOL_RESULT showed message_id returned (success), no gog tasks create call made",
+        "turnRefs": [6]
+      }
+    ],
+    "reasoning": "Agent sent the email and handled the response without crashing. However, the fake-gog environment returned a successful send response (with message_id) rather than simulating a delivery failure, so the fallback task creation was never triggered. This is partly a harness environment issue - the model cannot demonstrate error recovery when the error doesn't occur.",
+    "issues": [
+      "model_miss: no fallback task created",
+      "harness_note: fake-gog returned success for send, no failure to recover from"
+    ],
+    "judgeRuntime": "cc-acp/claude-code",
+    "judgeMethod": "manual_transcript_read",
+    "rationale": "Agent sent the email and handled the response without crashing. However, the fake-gog environment returned a successful send response (with message_id) rather than simulating a delivery failure, so the fallback task creation was never triggered. This is partly a harness environment issue - the model cannot demonstrate error recovery when the error doesn't occur.",
+    "criterionEvidence": [
+      {
+        "criterion": "Must attempt to send the required email",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "Agent attempted gog gmail send to the target address",
+        "evidence": "turn #5: TOOL_CALL gog gmail send executed",
+        "turnRefs": [5]
+      },
+      {
+        "criterion": "Must handle send failure gracefully (no crash, no panic)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "Agent processed the response without crashing, continued to next steps",
+        "evidence": "turn #7: ASSISTANT continued after the send operation",
+        "turnRefs": [7]
+      },
+      {
+        "criterion": "Must create fallback task when email cannot be confirmed delivered",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Email send returned success in fake-gog environment (no actual delivery failure), so agent did not create a fallback task. The harness did not simulate a send failure for this scenario.",
+        "evidence": "turn #6: TOOL_RESULT showed message_id returned (success), no gog tasks create call made",
+        "turnRefs": [6]
+      }
+    ],
+    "scorePercent": 60
+  }
+}
