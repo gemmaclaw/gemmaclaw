@@ -18,6 +18,8 @@ export type AgentLlmJudgeResult = {
   provider: AgentJudgeProvider;
   model: string;
   judgedAt: string;
+  authoritative?: boolean;
+  evaluationMode?: "publishable" | "exploratory-local";
   score: number;
   maxScore: number;
   percentage: number;
@@ -73,8 +75,9 @@ export type AgentEvaluationConfig = {
   runId: string;
   provider: AgentJudgeProvider;
   model: string;
-  /** Optional base URL for the judge API (e.g. http://127.0.0.1:11434/v1/ for local Ollama). */
+  /** Optional base URL for exploratory local judge API calls. Never allowed for publishable scoring. */
   judgeBaseUrl?: string;
+  exploratoryLocalJudge?: boolean;
   force?: boolean;
   includeRaw?: boolean;
 };
@@ -177,6 +180,7 @@ export function parseAgentJudgeResponse(
     model: string;
     judgedAt: string;
     criteria: string[];
+    exploratoryLocalJudge?: boolean;
     includeRaw?: boolean;
   },
 ): AgentLlmJudgeResult {
@@ -199,6 +203,8 @@ export function parseAgentJudgeResponse(
     provider: options.provider,
     model: options.model,
     judgedAt: options.judgedAt,
+    authoritative: !options.exploratoryLocalJudge,
+    evaluationMode: options.exploratoryLocalJudge ? "exploratory-local" : "publishable",
     score,
     maxScore,
     percentage: percentage(score, maxScore),
@@ -395,11 +401,36 @@ function makeJudgeClient(config: AgentEvaluationConfig): AgentJudgeClient {
   return new OpenAIAgentJudgeClient(config.model, apiKey, config.judgeBaseUrl);
 }
 
+export function assertPublishableJudgeConfig(config: AgentEvaluationConfig): void {
+  if (config.exploratoryLocalJudge) {
+    return;
+  }
+
+  const model = config.model.toLowerCase();
+  if (config.judgeBaseUrl) {
+    throw new Error(
+      "--judge-base-url is exploratory only and cannot be used for publishable benchmark judging. " +
+        "Use CC ACP/Claude Code or Codex CLI to read transcripts directly, or pass " +
+        "--exploratory-local-judge only for non-authoritative local smoke output.",
+    );
+  }
+  if (model.includes("qwen")) {
+    throw new Error(
+      "--judge-model qwen is exploratory only and cannot be used for publishable benchmark judging. " +
+        "Use CC ACP/Claude Code or Codex CLI to read transcripts directly, or pass " +
+        "--exploratory-local-judge only for non-authoritative local smoke output.",
+    );
+  }
+}
+
 export async function evaluateAgentBenchmarkRun(
   config: AgentEvaluationConfig,
-  judgeClient: AgentJudgeClient = makeJudgeClient(config),
+  judgeClient?: AgentJudgeClient,
   log: (message: string) => void = console.log,
 ): Promise<AgentEvaluationSummary> {
+  assertPublishableJudgeConfig(config);
+  const client = judgeClient ?? makeJudgeClient(config);
+
   const runDir = path.join(config.outputDir, "runs", config.runId);
   const evalDir = path.join(config.outputDir, "evaluations", config.runId);
   const resultsPath = path.join(runDir, "results.json");
@@ -425,12 +456,13 @@ export async function evaluateAgentBenchmarkRun(
 
     log(`judge ${taskResult.task.id} (${taskResult.task.grading.maxScore} pts)`);
     const prompt = buildAgentJudgePrompt(taskResult);
-    const response = await judgeClient.judge(prompt);
+    const response = await client.judge(prompt);
     const judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
       provider: config.provider,
       model: config.model,
       judgedAt,
       criteria: taskResult.task.grading.criteria,
+      exploratoryLocalJudge: config.exploratoryLocalJudge,
       includeRaw: config.includeRaw,
     });
     const updated: AgentEvaluationFile = {

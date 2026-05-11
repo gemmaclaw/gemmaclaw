@@ -90,6 +90,8 @@ function parseArgs(argv: string[]) {
       opts.forceEvaluate = true;
     } else if (arg === "--include-raw-judge-response") {
       opts.includeRawJudgeResponse = true;
+    } else if (arg === "--exploratory-local-judge") {
+      opts.exploratoryLocalJudge = true;
     } else if (arg === "--judge-provider" && args[i + 1]) {
       opts.judgeProvider = args[++i]!;
     } else if (arg === "--judge-base-url" && args[i + 1]) {
@@ -397,7 +399,8 @@ Agent Mode Options:
   --evaluate             Run LLM judge scoring for a saved run id
   --force-evaluate       Replace existing LLM judge scores for that run
   --judge-provider <id>  Judge provider (openai)
-  --judge-base-url <url> Judge API base URL (e.g. http://127.0.0.1:11434/v1/ for local Ollama)
+  --judge-base-url <url> Exploratory local judge API base URL. Requires --exploratory-local-judge and is not publishable.
+  --exploratory-local-judge  Mark local/Qwen judge output non-authoritative. Never use for publication scoring.
   --task-timeout <sec>   Legacy alias for --hard-cap (default: 600). Activity-based timeout is the normal "stuck" signal.
   --idle-timeout <sec>   Seconds of idle before task considered done (default: 30)
   --no-activity-timeout <sec>  Kill the task if no useful agent activity (stdout/stderr/JSONL/trajectory) for N seconds (default: 600)
@@ -486,6 +489,7 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
       provider,
       model,
       judgeBaseUrl,
+      exploratoryLocalJudge: Boolean(opts.exploratoryLocalJudge),
       force: Boolean(opts.forceEvaluate),
       includeRaw: Boolean(opts.includeRawJudgeResponse),
     });

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  assertPublishableJudgeConfig,
   buildAgentJudgePrompt,
   evaluateAgentBenchmarkRun,
   generateAgentEvaluationMarkdown,
@@ -77,7 +78,61 @@ describe("agent evaluator", () => {
     expect(parsed.score).toBe(8.5);
     expect(parsed.percentage).toBe(85);
     expect(parsed.passed).toBe(true);
+    expect(parsed.authoritative).toBe(true);
+    expect(parsed.evaluationMode).toBe("publishable");
     expect(parsed.criteria[0]).toMatchObject({ status: "met", pointsAwarded: 5 });
+  });
+
+  it("blocks local/Qwen judges for publishable benchmark evaluation", () => {
+    expect(() =>
+      assertPublishableJudgeConfig({
+        outputDir: "/tmp/results",
+        runId: "run",
+        provider: "openai",
+        model: "qwen3.6:35b",
+      }),
+    ).toThrow(/publishable benchmark judging/);
+
+    expect(() =>
+      assertPublishableJudgeConfig({
+        outputDir: "/tmp/results",
+        runId: "run",
+        provider: "openai",
+        model: "gpt-5.5",
+        judgeBaseUrl: "http://127.0.0.1:11434/v1/",
+      }),
+    ).toThrow(/--judge-base-url is exploratory only/);
+  });
+
+  it("allows explicit exploratory local judge output but labels it non-authoritative", () => {
+    const parsed = parseAgentJudgeResponse(
+      JSON.stringify({
+        score: 2,
+        confidence: "low",
+        criteria: [{ status: "partial", pointsAwarded: 2, reasoning: "smoke only" }],
+        reasoning: "local smoke",
+        issues: [],
+      }),
+      10,
+      {
+        provider: "openai",
+        model: "qwen3.6:35b",
+        judgedAt: "2026-05-08T00:00:00.000Z",
+        criteria: ["Must read inbox"],
+        exploratoryLocalJudge: true,
+      },
+    );
+
+    assertPublishableJudgeConfig({
+      outputDir: "/tmp/results",
+      runId: "run",
+      provider: "openai",
+      model: "qwen3.6:35b",
+      judgeBaseUrl: "http://127.0.0.1:11434/v1/",
+      exploratoryLocalJudge: true,
+    });
+    expect(parsed.authoritative).toBe(false);
+    expect(parsed.evaluationMode).toBe("exploratory-local");
   });
 
   it("summarizes scored evaluation files", () => {
