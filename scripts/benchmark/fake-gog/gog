@@ -278,7 +278,14 @@ def cmd_gmail_messages(argv, flags):
         return emit_help("gmail messages")
     emails = load_json("emails.json", [])
     if op in ("search", "find", "query", "ls", "list"):
-        query = " ".join(pos[1:]) if len(pos) > 1 else ""
+        # Prefer explicit --query flag; otherwise use positionals, filtering category nouns
+        _GMAIL_NOUNS = {"emails", "email", "mail", "messages", "message", "inbox", "msgs", "msg"}
+        if flags.get("query"):
+            query = str(flags["query"])
+        elif len(pos) > 1:
+            query = " ".join(p for p in pos[1:] if p.lower() not in _GMAIL_NOUNS)
+        else:
+            query = ""
         results = []
         for e in emails:
             if _email_matches_query(e, query):
@@ -822,7 +829,10 @@ def main(argv):
             return cmd_tasks(["list"] + rest, flags)
         if "contact" in text or "person" in text or "people" in text:
             return cmd_contacts(["list"] + rest, flags)
-        return cmd_gmail(["search"] + rest, flags)
+        # Filter out category nouns so "gog list emails --query X" works correctly
+        _NOUNS = {"emails", "email", "mail", "messages", "message", "inbox", "msgs", "msg"}
+        filtered_rest = [r for r in rest if r.lower() not in _NOUNS]
+        return cmd_gmail(["search"] + filtered_rest, flags)
     if sub == "send":
         return cmd_gmail(["send"] + rest, flags)
     if sub in ("--version", "version"):
