@@ -10,7 +10,10 @@ export type AgentJudgeCriterionResult = {
   status: "met" | "partial" | "not_met";
   pointsAwarded: number;
   reasoning: string;
+  /** Brief text evidence from transcript, e.g. "turn #3: gog calendar create..." */
   evidence?: string;
+  /** Transcript turn index(es) where the issue/evidence was observed (0-based) */
+  turnRefs?: number[];
 };
 
 export type AgentLlmJudgeResult = {
@@ -156,14 +159,29 @@ function extractJsonObject(text: string): unknown {
     try {
       return JSON.parse(fenced[1]);
     } catch {
-      // Continue to first-object extraction.
+      // Continue to brace-scanning extraction.
     }
   }
 
-  const start = text.indexOf("{");
+  // Scan all `}` positions from right to left; for each, scan left for matching `{`
+  // and try parsing the slice. This handles models that emit prose before/after JSON.
   const end = text.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    return JSON.parse(text.slice(start, end + 1));
+  if (end >= 0) {
+    let depth = 0;
+    for (let i = end; i >= 0; i--) {
+      if (text[i] === "}") {
+        depth++;
+      } else if (text[i] === "{") {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(i, end + 1));
+          } catch {
+            // This slice is not valid JSON, keep scanning.
+          }
+        }
+      }
+    }
   }
 
   throw new Error("judge response did not contain a JSON object");
@@ -185,12 +203,16 @@ export function parseAgentJudgeResponse(
   const criteriaInput = Array.isArray(parsed.criteria) ? parsed.criteria : [];
   const criteria = options.criteria.map((criterion, index) => {
     const item = (criteriaInput[index] ?? {}) as Record<string, unknown>;
+    const turnRefs = Array.isArray(item.turnRefs)
+      ? (item.turnRefs as unknown[]).filter((v) => Number.isInteger(v)).map(Number)
+      : undefined;
     return {
       criterion,
       status: normalizeStatus(item.status),
       pointsAwarded: roundScore(clampScore(Number(item.pointsAwarded), maxScore)),
       reasoning: stringFromUnknown(item.reasoning),
       ...(item.evidence ? { evidence: stringFromUnknown(item.evidence) } : {}),
+      ...(turnRefs && turnRefs.length > 0 ? { turnRefs } : {}),
     };
   });
 
@@ -266,7 +288,7 @@ export function buildAgentJudgePrompt(result: AgentTaskResult): string {
     "Full transcript:",
     transcript,
     "",
-    "Return ONLY this JSON shape:",
+    "Return ONLY this JSON shape (no prose before or after, no markdown fences):",
     JSON.stringify(
       {
         score: 0,
@@ -276,7 +298,9 @@ export function buildAgentJudgePrompt(result: AgentTaskResult): string {
           status: "met | partial | not_met",
           pointsAwarded: 0,
           reasoning: "short reason",
-          evidence: "brief transcript evidence",
+          evidence:
+            "brief transcript quote or turn reference, e.g. turn #3: gog calendar create ...",
+          turnRefs: [0],
         })),
         reasoning: "overall scoring rationale",
         issues: ["important misses or risks, empty if none"],
@@ -425,14 +449,49 @@ export async function evaluateAgentBenchmarkRun(
 
     log(`judge ${taskResult.task.id} (${taskResult.task.grading.maxScore} pts)`);
     const prompt = buildAgentJudgePrompt(taskResult);
-    const response = await judgeClient.judge(prompt);
-    const judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
-      provider: config.provider,
-      model: config.model,
-      judgedAt,
-      criteria: taskResult.task.grading.criteria,
-      includeRaw: config.includeRaw,
-    });
+    let judge: AgentLlmJudgeResult | null = null;
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const retryPrompt =
+        attempt === 0
+          ? prompt
+          : `Output ONLY a JSON object. No prose. No markdown. No explanation before or after.\n\n${prompt}`;
+      let response: string;
+      try {
+        response = await judgeClient.judge(retryPrompt);
+      } catch (err) {
+        log(`  judge call failed (attempt ${attempt + 1}/${MAX_RETRIES}): ${String(err)}`);
+        if (attempt === MAX_RETRIES - 1) {
+          throw err;
+        }
+        continue;
+      }
+      try {
+        judge = parseAgentJudgeResponse(response, taskResult.task.grading.maxScore, {
+          provider: config.provider,
+          model: config.model,
+          judgedAt,
+          criteria: taskResult.task.grading.criteria,
+          includeRaw: config.includeRaw,
+        });
+        break;
+      } catch (parseErr) {
+        const rawPath = path.join(evalDir, `${taskResult.task.id}.raw-repro.txt`);
+        fs.writeFileSync(rawPath, response);
+        log(
+          `  JSON parse failed (attempt ${attempt + 1}/${MAX_RETRIES}): ${String(parseErr)}. Raw saved to ${rawPath}`,
+        );
+        if (attempt === MAX_RETRIES - 1) {
+          throw new Error(
+            `judge returned non-JSON for ${taskResult.task.id} after ${MAX_RETRIES} attempts: ${String(parseErr)}`,
+            { cause: parseErr },
+          );
+        }
+      }
+    }
+    if (!judge) {
+      throw new Error(`judge unexpectedly null for ${taskResult.task.id}`);
+    }
     const updated: AgentEvaluationFile = {
       ...evaluation,
       maxScore: taskResult.task.grading.maxScore,
