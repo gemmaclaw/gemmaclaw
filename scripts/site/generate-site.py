@@ -15,6 +15,14 @@ from datetime import datetime
 REPO_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = REPO_DIR / "benchmark-results"
 SITE_DIR = REPO_DIR / "site"
+
+# Explicit allowlist of run IDs published on the public benchmark site.
+# Runs not in this set remain in the repo as raw artifacts but are not shown
+# on any generated page. Add a run ID here only when it has been reviewed and
+# approved for public display.
+PUBLIC_BENCHMARK_RUNS = {
+    "gemma4-31b-q4-high",
+}
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
 # Workspace knowledge directory for Reddit post files (set via env or default).
@@ -45,9 +53,12 @@ def load_benchmark_results():
         return results
 
     # New agentic benchmark schema: benchmark-results/runs/<run-id>/results.json
+    # Only runs listed in PUBLIC_BENCHMARK_RUNS are loaded for the public site.
     runs_dir = RESULTS_DIR / "runs"
     if runs_dir.exists():
         for d in sorted(runs_dir.iterdir()):
+            if d.name not in PUBLIC_BENCHMARK_RUNS:
+                continue
             rfile = d / "results.json"
             if not rfile.exists():
                 continue
@@ -171,6 +182,9 @@ def normalize_agentic_benchmark_result(data, run_id):
         "model": metadata.get("model") or config.get("model") or "unknown",
         "backend": config.get("backend", "ollama"),
         "timestamp": metadata.get("startedAt", ""),
+        "quant": metadata.get("quant") or config.get("quant") or "",
+        "thinkingLevel": metadata.get("thinkingLevel") or config.get("thinkingLevel") or "",
+        "runId": run_id,
         "hardware": {
             "cpu": cpu.get("model", "Unknown"),
             "ram": ram_label,
@@ -296,7 +310,7 @@ def best_results(results):
         return (1 if has_output(r) else 0, r["summary"]["percentage"], r.get("timestamp", ""))
     seen = {}
     for r in results:
-        key = f"{r['model']}_{r['backend']}"
+        key = f"{r['model']}_{r.get('quant', '')}_{r.get('thinkingLevel', '')}_{r['backend']}"
         if key not in seen or rank(r) > rank(seen[key]):
             seen[key] = r
     return sorted(seen.values(), key=lambda x: -x["summary"]["percentage"])
@@ -377,17 +391,32 @@ def generate_size_class_sections(results):
             pct = s["percentage"]
             pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
             speed = format_speed(s.get("medianTokensPerSecond"))
-            quant = ""
             model_name = r["model"]
-            if "q6k" in model_name.lower() or "q6_k" in model_name.lower():
-                quant = '<span class="quant-badge">Q6_K</span>'
+            # Quant badge — prefer metadata field, fall back to model name parsing
+            quant_val = r.get("quant", "")
+            if quant_val:
+                quant_badge = f'<span class="quant-badge">{quant_val}</span>'
+            elif "q6k" in model_name.lower() or "q6_k" in model_name.lower():
+                quant_badge = '<span class="quant-badge">Q6_K</span>'
             elif "q5km" in model_name.lower() or "q5_k_m" in model_name.lower():
-                quant = '<span class="quant-badge">Q5_K_M</span>'
+                quant_badge = '<span class="quant-badge">Q5_K_M</span>'
             elif "q4km" in model_name.lower() or "q4_k_m" in model_name.lower():
-                quant = '<span class="quant-badge">Q4_K_M</span>'
+                quant_badge = '<span class="quant-badge">Q4_K_M</span>'
+            else:
+                quant_badge = ""
+            # Thinking badge
+            thinking_val = r.get("thinkingLevel", "")
+            thinking_badges = {
+                "high": '<span class="quant-badge thinking-high">High ❆</span>',
+                "medium": '<span class="quant-badge thinking-med">Med</span>',
+                "low": '<span class="quant-badge thinking-low">Low</span>',
+                "off": '<span class="quant-badge thinking-off">Off</span>',
+            }
+            thinking_badge = thinking_badges.get(thinking_val, "")
+            model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r.get('quant','')}-{r.get('thinkingLevel','')}-{r['backend']}".lower())
             model_rows.append(f"""<tr>
-  <td><strong>{model_name}</strong> {quant}</td>
-  <td>{r['backend']}</td>
+  <td><a href="#detail-{model_id}" onclick="expand('{model_id}')"><strong>{model_name}</strong></a> {quant_badge}</td>
+  <td>{thinking_badge}</td>
   <td>{gpu}</td>
   <td class="num {pct_class}">{pct}%</td>
   <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
@@ -401,7 +430,7 @@ def generate_size_class_sections(results):
   <h3>{cls_info.get('icon', '')} {cls_name}</h3>
   <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
   <div class="table-wrap"><table class="benchmark-table">
-    <thead><tr><th>Model</th><th>Backend</th><th>GPU</th><th>Quality</th><th>Pass Rate</th><th>Speed</th><th>Total Time</th></tr></thead>
+    <thead><tr><th>Model</th><th>Thinking</th><th>GPU</th><th>Quality</th><th>Pass Rate</th><th>Speed</th><th>Total Time</th></tr></thead>
     <tbody>{rows_html}</tbody>
   </table></div>
 </div>""")
@@ -469,8 +498,10 @@ def generate_benchmark_table_rows(results):
         pct = s["percentage"]
         pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
         speed = format_speed(s.get("medianTokensPerSecond"))
+        quant_val = r.get("quant", "")
+        quant_badge = f'<span class="quant-badge">{quant_val}</span>' if quant_val else ""
         rows.append(f"""<tr>
-  <td><strong>{r['model']}</strong></td>
+  <td><strong>{r['model']}</strong> {quant_badge}</td>
   <td>{r['backend']}</td>
   <td>{gpu}</td>
   <td class="num {pct_class}">{pct}%</td>
@@ -623,7 +654,7 @@ def generate_task_detail_rows(tasks, model_id=""):
 def generate_model_detail_sections(results):
     sections = []
     for r in results:
-        model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r['backend']}".lower())
+        model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r.get('quant','')}-{r.get('thinkingLevel','')}-{r['backend']}".lower())
         s = r["summary"]
         hw = r.get("hardware", {})
         tasks_html = generate_task_detail_rows(r.get("tasks", []), model_id=model_id)
@@ -631,10 +662,19 @@ def generate_model_detail_sections(results):
         fm_items = ", ".join(f"{k}: {v}" for k, v in failure_modes.items() if k != "none")
         if not fm_items:
             fm_items = "None"
+        thinking_label = {"high": "High Thinking ✦", "medium": "Medium Thinking", "low": "Low Thinking", "off": "No Thinking"}.get(r.get("thinkingLevel", ""), r.get("thinkingLevel", ""))
+        quant = r.get("quant", "")
+        heading_parts = [r["model"]]
+        if quant:
+            heading_parts.append(quant)
+        if thinking_label:
+            heading_parts.append(f"— {thinking_label}")
+        heading_parts.append(f"({r['backend']})")
+        heading = " ".join(heading_parts)
 
         sections.append(f"""
 <div class="model-detail" id="detail-{model_id}">
-  <h3>{r['model']} ({r['backend']})</h3>
+  <h3>{heading}</h3>
   <div class="detail-meta">
     <span>CPU: {hw.get('cpu', 'Unknown')}</span>
     <span>RAM: {hw.get('ram', 'Unknown')}</span>
@@ -652,6 +692,260 @@ def generate_model_detail_sections(results):
   </div>
 </div>""")
     return "\n".join(sections)
+
+
+def detail_page_template(title, body_content, extra_scripts=""):
+    """Page template for benchmark detail pages located under site/benchmark-results/.
+    All nav and asset hrefs are prefixed with ../ to resolve correctly from the subdirectory."""
+    page_title = f"Gemmaclaw - {title}" if title else "Gemmaclaw"
+    nav_links = []
+    for label, href, is_external in NAV_ITEMS:
+        active_class = ' class="active"' if href == "benchmarks.html" and "Benchmark" in label else ""
+        target = ' target="_blank" rel="noopener"' if is_external else ""
+        adjusted_href = href if is_external else f"../{href}"
+        nav_links.append(f'<a href="{adjusted_href}"{active_class}{target}>{label}</a>')
+    nav_html = "\n        ".join(nav_links)
+    script_tag = f'<script>{extra_scripts}</script>' if extra_scripts else ''
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{page_title}</title>
+  <meta name="description" content="Gemmaclaw benchmark result detail.">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+  <link rel="alternate icon" href="../favicon.ico">
+  <style>
+{CSS}
+    .back-bar {{
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0.55rem 0;
+    }}
+    .back-bar .back-btn {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.3rem 0;
+      transition: color 0.15s;
+    }}
+    .back-bar .back-btn:hover {{ color: var(--fg); }}
+    .back-bar .back-btn svg {{ flex-shrink: 0; }}
+    .detail-hero {{
+      padding: 1.5rem 0 1rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }}
+    .detail-hero h1 {{
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      line-height: 1.3;
+    }}
+    .detail-tags {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.6rem 0;
+    }}
+    .tag {{
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 0.2rem 0.55rem;
+      border-radius: 20px;
+      background: var(--bg-elev-2);
+      color: var(--fg-soft);
+      border: 1px solid var(--border);
+    }}
+    .tag-accent {{
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent);
+    }}
+    .score-hero {{
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin: 0.75rem 0 0;
+    }}
+    .score-big {{
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }}
+    .score-label {{
+      font-size: 0.9rem;
+      color: var(--muted);
+    }}
+    .meta-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem 1.5rem;
+      font-size: 0.88rem;
+      margin: 1rem 0;
+    }}
+    .meta-grid span {{ color: var(--fg-soft); }}
+    .meta-grid strong {{ color: var(--fg); }}
+    @media (max-width: 640px) {{
+      .detail-hero h1 {{ font-size: 1.25rem; }}
+      .score-big {{ font-size: 1.8rem; }}
+      .meta-grid {{ grid-template-columns: 1fr 1fr; }}
+    }}
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <div class="nav-inner">
+      <a href="../index.html" class="logo"><img src="../assets/gemmaclaw-logo.svg" alt="" width="28" height="28"> <span>Gemmaclaw</span></a>
+      <div class="nav-links">
+        {nav_html}
+      </div>
+    </div>
+  </nav>
+  <div class="back-bar">
+    <div class="wrap" style="padding-top:0;padding-bottom:0">
+      <a href="../benchmarks.html" class="back-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Benchmarks
+      </a>
+    </div>
+  </div>
+  <div class="wrap">
+    {body_content}
+  </div>
+  <footer>
+    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
+    <p class="footer-sub">Not an official Google product.</p>
+  </footer>
+  {script_tag}
+</body>
+</html>"""
+
+
+def generate_benchmark_detail_page(result):
+    """Generate a full detail page for a single benchmark result."""
+    model_id = re.sub(r"[^a-z0-9]+", "-", f"{result['model']}-{result['backend']}".lower())
+    s = result["summary"]
+    hw = result.get("hardware", {})
+
+    pct = s["percentage"]
+    passed = s["passedCount"]
+    total = passed + s["failedCount"]
+    pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
+
+    gpu = hw.get("gpu", "None detected")
+    if gpu == "None detected":
+        gpu = "CPU only"
+
+    model_display = result["model"]
+    backend = result["backend"]
+    quant = result.get("quant", "")
+    thinking = result.get("thinkingLevel", "")
+    ts = result.get("timestamp", "")
+    run_date = ts[:10] if ts else ""
+
+    size_class = classify_model_size(model_display)
+
+    arch_tag = "MoE" if "moe" in model_display.lower() or "26b" in model_display.lower() else "Dense"
+
+    tags_html = ""
+    tag_list = [size_class]
+    if arch_tag:
+        tag_list.append(arch_tag)
+    if quant:
+        tag_list.append(quant)
+    if thinking:
+        tag_list.append(f"Thinking: {thinking}")
+    if run_date:
+        tag_list.append(run_date)
+    tags_html = "".join(f'<span class="tag{"tag-accent" if i == 0 else ""}">{html_escape(t)}</span>' for i, t in enumerate(tag_list))
+
+    failure_modes = s.get("failureModes", {})
+    fm_items = ", ".join(f"{k}: {v}" for k, v in failure_modes.items() if k != "none")
+    if not fm_items:
+        fm_items = "None"
+
+    tasks_html = generate_task_detail_rows(result.get("tasks", []), model_id=model_id)
+
+    scripts = f"""
+    document.querySelectorAll('tr.task-row').forEach(row => {{
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function(ev) {{
+        ev.stopPropagation();
+        const target = document.getElementById(this.getAttribute('data-target'));
+        if (!target) return;
+        const isOpen = target.style.display !== 'none';
+        target.style.display = isOpen ? 'none' : 'table-row';
+        const toggle = this.querySelector('.row-toggle');
+        if (toggle) toggle.innerHTML = isOpen ? '&#9656;' : '&#9662;';
+        this.classList.toggle('open', !isOpen);
+      }});
+    }});
+
+    function openTurn(anchorId) {{
+      const el = document.getElementById(anchorId);
+      if (!el) return;
+      if (el.tagName === 'DETAILS') {{
+        el.open = true;
+        const detail = el.closest('.task-detail');
+        if (detail && detail.style.display === 'none') {{
+          detail.style.display = 'table-row';
+          const row = document.querySelector('[data-target="' + detail.id + '"]');
+          if (row) {{ const t = row.querySelector('.row-toggle'); if (t) t.innerHTML = '&#9662;'; row.classList.add('open'); }}
+        }}
+      }}
+      el.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+    }}
+
+    window.addEventListener('DOMContentLoaded', function() {{
+      const hash = window.location.hash.slice(1);
+      if (hash) {{ setTimeout(() => openTurn(hash), 100); }}
+    }});
+"""
+
+    body = f"""<section class="detail-hero">
+  <h1>{html_escape(model_display)} <small style="font-weight:400;font-size:1rem;color:var(--muted)">({html_escape(backend)})</small></h1>
+  <div class="detail-tags">{tags_html}</div>
+  <div class="score-hero">
+    <span class="score-big {pct_class}">{pct}%</span>
+    <span class="score-label">{passed}/{total} tasks passed</span>
+  </div>
+  <div class="meta-grid">
+    <span><strong>GPU:</strong> {html_escape(gpu)}</span>
+    <span><strong>CPU:</strong> {html_escape(hw.get('cpu', 'Unknown'))}</span>
+    <span><strong>RAM:</strong> {html_escape(hw.get('ram', 'Unknown'))}</span>
+    <span><strong>Speed:</strong> {format_speed(s.get('medianTokensPerSecond'))} tok/s</span>
+    <span><strong>Total time:</strong> {format_time(s.get('totalTimeMs'))}</span>
+    <span><strong>Failure modes:</strong> {html_escape(fm_items)}</span>
+  </div>
+</section>
+<section id="tasks">
+  <h2>Task Results</h2>
+  <p>Click any task row to expand the full prompt, conversation transcript, and judge evaluation.</p>
+  <div class="table-wrap">
+    <table class="benchmark-table">
+      <thead><tr><th>Task</th><th>Category</th><th>Score</th><th>Speed</th><th>Time</th><th>Failure</th></tr></thead>
+      <tbody>{tasks_html}</tbody>
+    </table>
+  </div>
+</section>
+<section id="methodology" style="margin-top:2rem">
+  <h2>Methodology</h2>
+  <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available. Hardware is auto-detected including WSL2 GPU detection.</p>
+</section>"""
+
+    return detail_page_template(f"{model_display} Benchmark Results", body, extra_scripts=scripts)
 
 
 def generate_hardware_guide_cards(results):
@@ -1937,13 +2231,68 @@ def generate_self_hosting_page(hw_cards):
 """
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
-def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", task_explanations_html="", agent_preview_html=""):
-    # COMING SOON: Do NOT remove this block until Frank explicitly approves
-    # the new benchmark results. The old results had wrong GPU detection and
-    # incomplete test explanations. PR #69 added this, PR #71 removed it.
-    # Frank directive: keep coming soon until proper benchmarks are ready.
-    _BENCHMARKS_COMING_SOON = False  # Gemma 4 31B Q4_K_M high-thinking results published
-    if _BENCHMARKS_COMING_SOON:
+def generate_benchmarks_landing_rows(results):
+    """Generate compact leaderboard rows for the benchmarks landing page.
+    Each row links to a dedicated detail page at benchmark-results/<run_id>.html."""
+    grouped = {}
+    for r in results:
+        cls = classify_model_size(r["model"])
+        if cls not in grouped:
+            grouped[cls] = []
+        grouped[cls].append(r)
+
+    sections = []
+    for cls_name in list(SIZE_CLASSES.keys()) + ["Other"]:
+        if cls_name not in grouped:
+            continue
+        cls_results = sorted(grouped[cls_name], key=lambda x: -x["summary"]["percentage"])
+        cls_info = SIZE_CLASSES.get(cls_name, {"hw_rec": "", "icon": "&#128300;"})
+
+        rows = []
+        for r in cls_results:
+            s = r["summary"]
+            hw = r.get("hardware", {})
+            gpu = hw.get("gpu", "None detected")
+            if gpu == "None detected":
+                gpu = "CPU only"
+            pct = s["percentage"]
+            pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
+            speed = format_speed(s.get("medianTokensPerSecond"))
+            quant = r.get("quant", "")
+            thinking = r.get("thinkingLevel", "")
+            run_id = r.get("runId") or r.get("_dir", "")
+            detail_url = f"benchmark-results/{run_id}.html" if run_id else "#"
+            quant_badge = f'<span class="quant-badge">{html_escape(quant)}</span>' if quant else ""
+            thinking_badge = (
+                f'<span class="quant-badge" style="background:var(--accent-soft);color:var(--accent)">'
+                f'{html_escape(thinking)}</span>'
+            ) if thinking else ""
+            rows.append(f"""<tr>
+  <td><strong>{html_escape(r['model'])}</strong> {quant_badge} {thinking_badge}</td>
+  <td>{html_escape(r['backend'])}</td>
+  <td>{html_escape(gpu)}</td>
+  <td class="num {pct_class}">{pct}%</td>
+  <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
+  <td class="num">{speed}</td>
+  <td class="num"><a href="{detail_url}" class="detail-link">View results &#8594;</a></td>
+</tr>""")
+
+        rows_html = "\n".join(rows)
+        sections.append(f"""
+<div class="size-class-group">
+  <h3>{cls_info.get('icon', '')} {cls_name}</h3>
+  <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
+  <div class="table-wrap"><table class="benchmark-table">
+    <thead><tr><th>Model</th><th>Backend</th><th>GPU</th><th>Score</th><th>Pass Rate</th><th>Speed (tok/s)</th><th>Detail</th></tr></thead>
+    <tbody>{rows_html}</tbody>
+  </table></div>
+</div>""")
+    return "\n".join(sections)
+
+
+def generate_benchmarks_page(results, task_explanations_html="", agent_preview_html=""):
+    """Compact benchmark landing page. Each result links to a dedicated detail page."""
+    if not results:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
         <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
           <div style="border:2px dashed var(--border);border-radius:16px;background:var(--bg-elev);padding:4rem 2rem;max-width:700px;margin:0 auto">
@@ -1960,13 +2309,15 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
         </section>""" + agent_preview_html
         return page_template("Benchmarks", body, active_page="benchmarks.html")
 
+    leaderboard_html = generate_benchmarks_landing_rows(results)
+
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
     <section id="benchmarks">
-      <h2>Benchmark Results by Size Class</h2>
-      <p>All models are tested on the same 28-task agent suite covering email, calendar, memory, security, prompt injection, error recovery, coordination, and data analysis workflows. Models are grouped by size class with hardware requirements per tier. Click any model to expand its task breakdown, then click any task row to see the full prompt, full transcript, inline collapsed tool calls, inline collapsed thinking, and LLM judge evaluation.</p>
-      {size_class_html}
-      <div id="model-details">{model_details}</div>
+      <h2>Benchmark Results</h2>
+      <p>All models are tested on the same 28-task agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, and data analysis. Models are grouped by size class. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
+      {leaderboard_html}
     </section>
+    {agent_preview_html}
     <section id="task-explanations">
       <h2>What We Test</h2>
       <p>Each benchmark run evaluates the model on the same agentic task set. Here is what each task measures and an example prompt.</p>
@@ -1976,61 +2327,8 @@ def generate_benchmarks_page(benchmark_rows, model_details, size_class_html="", 
       <h2>Methodology</h2>
       <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full 28-task suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
     </section>"""
-    scripts = """
-    document.querySelectorAll('.benchmark-table tbody tr').forEach(row => {
-      if (row.classList.contains('task-row') || row.classList.contains('task-detail')) return;
-      row.style.cursor = 'pointer';
-      row.addEventListener('click', function() {
-        const model = this.querySelector('td strong')?.textContent || '';
-        const backend = this.querySelectorAll('td')[1]?.textContent || '';
-        const id = (model + '-' + backend).toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const detail = document.getElementById('detail-' + id);
-        if (detail) {
-          const isVisible = detail.style.display !== 'none';
-          document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
-          detail.style.display = isVisible ? 'none' : 'block';
-          if (!isVisible) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      });
-    });
-    document.querySelectorAll('.model-detail').forEach(d => d.style.display = 'none');
+    return page_template("Benchmark Results", body, active_page="benchmarks.html")
 
-    document.querySelectorAll('tr.task-row').forEach(row => {
-      row.style.cursor = 'pointer';
-      row.addEventListener('click', function(ev) {
-        ev.stopPropagation();
-        const target = document.getElementById(this.getAttribute('data-target'));
-        if (!target) return;
-        const isOpen = target.style.display !== 'none';
-        target.style.display = isOpen ? 'none' : 'table-row';
-        const toggle = this.querySelector('.row-toggle');
-        if (toggle) toggle.innerHTML = isOpen ? '&#9656;' : '&#9662;';
-        this.classList.toggle('open', !isOpen);
-      });
-    });
-
-    function openTurn(anchorId) {
-      const el = document.getElementById(anchorId);
-      if (!el) return;
-      if (el.tagName === 'DETAILS') {
-        el.open = true;
-        const detail = el.closest('.task-detail');
-        if (detail && detail.style.display === 'none') {
-          detail.style.display = 'table-row';
-          const row = document.querySelector('[data-target="' + detail.id + '"]');
-          if (row) { const t = row.querySelector('.row-toggle'); if (t) t.innerHTML = '&#9662;'; row.classList.add('open'); }
-        }
-      }
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    // Handle #anchor deep links on page load
-    window.addEventListener('DOMContentLoaded', function() {
-      const hash = window.location.hash.slice(1);
-      if (hash) { setTimeout(() => openTurn(hash), 100); }
-    });
-"""
-    return page_template("Benchmark Results", body, active_page="benchmarks.html", extra_scripts=scripts)
 
 def generate_community_page(community_cards, community_count, field_notes_html):
     field_notes_section = f'<section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p>{field_notes_html}</section>' if field_notes_html else ""
@@ -2972,6 +3270,10 @@ CSS = """
     .size-class-group h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
     .hw-recommendation { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.8rem; padding: 0.5rem 0.8rem; background: var(--bg-elev); border-radius: 8px; border-left: 3px solid var(--accent); }
     .quant-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; background: var(--bg-elev-2); color: var(--muted); font-weight: 500; vertical-align: middle; margin-left: 4px; }
+    .thinking-high { background:#e8f0fe; color:#1a73e8; }
+    .thinking-med { background:#fef9e7; color:#9a6700; }
+    .thinking-low { background:#fff3e0; color:#e37400; }
+    .thinking-off { background:#f5f5f5; color:#666; }
 
     /* Task explanations */
     #task-explanations { margin-top: 2.5rem; }
