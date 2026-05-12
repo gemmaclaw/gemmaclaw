@@ -1694,17 +1694,20 @@ def generate_setup_page():
       </ul>
 
       <h3 id="install">Install Gemmaclaw</h3>
-      <p>Until the first npm release is published, install from source. This is the supported setup path for now.</p>
-      <p>Docker is recommended for sandboxed tool execution but not required.</p>
+      <p>Install from npm. Requires Node 22+. Docker is recommended for sandboxed tool execution but not required.</p>
+      <div class="code-block"><pre><code>npm install -g gemmaclaw
+gemmaclaw setup</code></pre></div>
+      <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
+
+      <h4 id="install-from-source">Installing from source (contributors)</h4>
+      <p>Contributors who need to modify the codebase use pnpm, which is required by this workspace:</p>
       <div class="code-block"><pre><code>git clone https://github.com/gemmaclaw/gemmaclaw.git
 cd gemmaclaw
 corepack enable
 pnpm install
 pnpm build
-npm install -g .  # or: npm link
+npm install -g .
 gemmaclaw setup</code></pre></div>
-      <p>After npm publishing is enabled, this section will switch to the registry install command. Contributors use pnpm because this repository is developed as a pnpm workspace.</p>
-      <p><strong>Shared files:</strong> When Docker sandbox is enabled, <code>~/.gemmaclaw/shared/</code> on your machine is automatically mounted at <code>/shared</code> inside the container. Drop files there for the agent to use, or find agent output there after a task completes. Created automatically on first run.</p>
 
       <h3 id="release-automation">Release Automation</h3>
       <p>Gemmaclaw releases use the <code>Gemmaclaw npm Release</code> GitHub Action. Trigger it manually to create or update the release PR. After that PR merges to <code>main</code>, the same workflow creates the GitHub release and publishes the tagged package to npm.</p>
