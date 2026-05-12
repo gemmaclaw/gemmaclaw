@@ -162,6 +162,12 @@ export type AgentTaskResult = {
   elapsedMs: number;
   /** Tokens per second (generation speed). */
   tokensPerSecond?: number;
+  /**
+   * Source of tokensPerSecond. "measured" comes from provider usage metadata.
+   * "estimated-output" is tokenizer-independent legacy/fallback speed computed
+   * from assistant/thinking text length and elapsed wall time.
+   */
+  tokensPerSecondSource?: "measured" | "estimated-output";
   /** Number of tool calls the agent made. */
   toolCallCount: number;
   /** List of tools the agent called. */
@@ -457,6 +463,30 @@ function writeTranscript(filePath: string, result: AgentTaskResult): void {
     })
     .join("\n\n");
   fs.writeFileSync(filePath, transcript);
+}
+
+export function estimateConversationOutputTokens(conversation: ConversationTurn[]): number {
+  let charCount = 0;
+  for (const turn of conversation) {
+    if (turn.role === "assistant" || turn.role === "thinking") {
+      charCount += turn.content.length;
+    }
+  }
+  return charCount > 0 ? Math.max(1, Math.round(charCount / 4)) : 0;
+}
+
+export function estimateConversationTokensPerSecond(
+  conversation: ConversationTurn[],
+  elapsedMs: number,
+): number | undefined {
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) {
+    return undefined;
+  }
+  const outputTokens = estimateConversationOutputTokens(conversation);
+  if (outputTokens <= 0) {
+    return undefined;
+  }
+  return outputTokens / (elapsedMs / 1000);
 }
 
 export function writeTaskArtifact(
@@ -2523,13 +2553,17 @@ export async function runAgentBenchmark(
     const toolCalls = conversation.filter((t) => t.role === "tool_call");
     const toolCallCount = toolCalls.length;
     const toolsUsed = [...new Set(toolCalls.map((t) => t.toolName).filter(Boolean))] as string[];
+    const tokensPerSecond = estimateConversationTokensPerSecond(conversation, elapsedMs);
     log(
-      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${error ? ` | ${error}` : ""}`,
+      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${tokensPerSecond ? ` | ${tokensPerSecond.toFixed(1)} tok/s est` : ""}${error ? ` | ${error}` : ""}`,
     );
     const taskResult: AgentTaskResult = {
       task,
       conversation,
       elapsedMs,
+      ...(tokensPerSecond
+        ? { tokensPerSecond, tokensPerSecondSource: "estimated-output" as const }
+        : {}),
       toolCallCount,
       toolsUsed,
       completionStatus,
