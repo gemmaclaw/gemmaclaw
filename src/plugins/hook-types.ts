@@ -380,6 +380,8 @@ export type PluginHookSessionEndReason =
   | "daily"
   | "compaction"
   | "deleted"
+  | "shutdown"
+  | "restart"
   | "unknown";
 
 export type PluginHookSessionEndEvent = {
