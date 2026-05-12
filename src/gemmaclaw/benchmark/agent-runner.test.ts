@@ -8,6 +8,7 @@ import {
   clearTaskStartedMarker,
   computeConfigHash,
   extractAssistantResponseFromStdout,
+  estimateConversationEffectiveTokensPerSecond,
   estimateConversationOutputTokens,
   estimateConversationTokensPerSecond,
   extractSessionProviderError,
@@ -173,6 +174,50 @@ describe("parseSessionEntry", () => {
 });
 
 describe("estimated agent benchmark speed", () => {
+  it("preserves provider output tokens on assistant tool-call turns", () => {
+    const turns = parseSessionEntry({
+      timestamp: "2026-05-12T10:00:03.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            name: "exec",
+            arguments: { command: "gog gmail list" },
+          },
+        ],
+        usage: { output: 42 },
+      },
+    });
+    expect(turns).toHaveLength(1);
+    expect(turns[0].role).toBe("tool_call");
+    expect(turns[0].outputTokens).toBe(42);
+  });
+
+  it("computes effective response speed from provider output tokens and timestamps", () => {
+    const conversation = [
+      { role: "user" as const, content: "prompt", timestamp: "2026-05-12T10:00:00.000Z" },
+      {
+        role: "tool_call" as const,
+        content: "{}",
+        timestamp: "2026-05-12T10:00:03.000Z",
+        outputTokens: 60,
+      },
+      {
+        role: "tool_result" as const,
+        content: "ok",
+        timestamp: "2026-05-12T10:00:03.100Z",
+      },
+      {
+        role: "assistant" as const,
+        content: "done",
+        timestamp: "2026-05-12T10:00:05.100Z",
+        outputTokens: 20,
+      },
+    ];
+    expect(estimateConversationEffectiveTokensPerSecond(conversation)).toBe(16);
+  });
+
   it("estimates output tokens from assistant and thinking text only", () => {
     const conversation = [
       { role: "user" as const, content: "x".repeat(400) },
