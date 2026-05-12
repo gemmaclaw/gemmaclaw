@@ -317,7 +317,7 @@ describe("tool-loop-detection", () => {
       }
     });
 
-    it("keeps generic loops warn-only below global breaker threshold", () => {
+    it("blocks generic repeated no-progress calls at critical threshold", () => {
       const fixture = createReadNoProgressFixture();
       const loopResult = detectLoopAfterRepeatedCalls({
         toolName: fixture.toolName,
@@ -327,7 +327,7 @@ describe("tool-loop-detection", () => {
       });
       expect(loopResult.stuck).toBe(true);
       if (loopResult.stuck) {
-        expect(loopResult.level).toBe("warning");
+        expect(loopResult.level).toBe("critical");
       }
     });
 

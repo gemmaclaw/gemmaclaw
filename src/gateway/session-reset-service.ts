@@ -35,6 +35,11 @@ import {
   normalizeAgentId,
   parseAgentSessionKey,
 } from "../routing/session-key.js";
+import {
+  forgetActiveSessionForShutdown,
+  listActiveSessionsForShutdown,
+  noteActiveSessionForShutdown,
+} from "./active-sessions-shutdown-tracker.js";
 import { ErrorCodes, errorShape } from "./protocol/index.js";
 import {
   archiveSessionTranscriptsDetailed,
@@ -50,6 +55,83 @@ import {
 } from "./session-utils.js";
 
 const ACP_RUNTIME_CLEANUP_TIMEOUT_MS = 15_000;
+const SHUTDOWN_DRAIN_DEFAULT_TOTAL_TIMEOUT_MS = 2_000;
+
+export type DrainActiveSessionsForShutdownResult = {
+  emittedSessionIds: string[];
+  timedOut: boolean;
+};
+
+/**
+ * Drain all tracked active sessions by emitting `session_end` for each one.
+ * Called by the gateway close handler on SIGTERM/SIGINT to ensure downstream
+ * session_end plugins (e.g. claude-mem) finalize ghost sessions.
+ */
+export async function drainActiveSessionsForShutdown(params: {
+  reason: "shutdown" | "restart";
+  totalTimeoutMs?: number;
+}): Promise<DrainActiveSessionsForShutdownResult> {
+  const tracked = listActiveSessionsForShutdown();
+  if (tracked.length === 0) {
+    return { emittedSessionIds: [], timedOut: false };
+  }
+  const totalTimeoutMs = Math.max(
+    100,
+    Math.floor(params.totalTimeoutMs ?? SHUTDOWN_DRAIN_DEFAULT_TOTAL_TIMEOUT_MS),
+  );
+  const emittedSessionIds: string[] = [];
+  const hookRunner = getGlobalHookRunner();
+  let settledEmissions = 0;
+  const drain = Promise.allSettled(
+    tracked.map(async (entry) => {
+      try {
+        forgetActiveSessionForShutdown(entry.sessionId);
+        emittedSessionIds.push(entry.sessionId);
+        if (!hookRunner?.hasHooks("session_end")) {
+          return;
+        }
+        const transcript = resolveStableSessionEndTranscript({
+          sessionId: entry.sessionId,
+          storePath: entry.storePath,
+          sessionFile: entry.sessionFile,
+          agentId: entry.agentId,
+        });
+        const payload = buildSessionEndHookPayload({
+          sessionId: entry.sessionId,
+          sessionKey: entry.sessionKey,
+          cfg: entry.cfg,
+          reason: params.reason,
+          sessionFile: transcript.sessionFile,
+          transcriptArchived: transcript.transcriptArchived,
+        });
+        await hookRunner.runSessionEnd(payload.event, payload.context);
+      } catch (err) {
+        logVerbose(`session_end hook failed during shutdown drain: ${String(err)}`);
+      } finally {
+        settledEmissions++;
+      }
+    }),
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), totalTimeoutMs);
+    timer.unref?.();
+  });
+  try {
+    const result = await Promise.race([drain.then(() => "ok" as const), timeout]);
+    if (result === "timeout") {
+      logVerbose(
+        `shutdown session-end drain timed out after ${totalTimeoutMs}ms with ${tracked.length - settledEmissions} session_end handler(s) still pending`,
+      );
+      return { emittedSessionIds, timedOut: true };
+    }
+    return { emittedSessionIds, timedOut: false };
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
 
 function stripRuntimeModelState(entry?: SessionEntry): SessionEntry | undefined {
   if (!entry) {
@@ -100,7 +182,16 @@ export function emitGatewaySessionEndPluginHook(params: {
   storePath: string;
   sessionFile?: string;
   agentId?: string;
-  reason: "new" | "reset" | "idle" | "daily" | "compaction" | "deleted" | "unknown";
+  reason:
+    | "new"
+    | "reset"
+    | "idle"
+    | "daily"
+    | "compaction"
+    | "deleted"
+    | "shutdown"
+    | "restart"
+    | "unknown";
   archivedTranscripts?: ArchivedSessionTranscript[];
   nextSessionId?: string;
   nextSessionKey?: string;
@@ -108,6 +199,10 @@ export function emitGatewaySessionEndPluginHook(params: {
   if (!params.sessionId) {
     return;
   }
+  // Drop this session from the shutdown finalizer's tracked set unconditionally
+  // -- even when no plugin hooks are registered for `session_end`, the session
+  // is being closed here and must not be re-finalized by a later shutdown drain.
+  forgetActiveSessionForShutdown(params.sessionId);
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("session_end")) {
     return;
@@ -139,10 +234,24 @@ export function emitGatewaySessionStartPluginHook(params: {
   sessionKey: string;
   sessionId?: string;
   resumedFrom?: string;
+  storePath?: string;
+  sessionFile?: string;
+  agentId?: string;
 }): void {
   if (!params.sessionId) {
     return;
   }
+  // Track the session for the shutdown finalizer even when no plugin hooks are
+  // registered locally, so a later restart still emits a typed `session_end`
+  // for sessions that opened while a `session_end` plugin was attached.
+  noteActiveSessionForShutdown({
+    cfg: params.cfg,
+    sessionKey: params.sessionKey,
+    sessionId: params.sessionId,
+    storePath: params.storePath ?? "",
+    sessionFile: params.sessionFile,
+    agentId: params.agentId,
+  });
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("session_start")) {
     return;
