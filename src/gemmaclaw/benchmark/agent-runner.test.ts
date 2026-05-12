@@ -11,6 +11,7 @@ import {
   isAgentBackendType,
   loadTaskArtifacts,
   parseSessionEntry,
+  providerErrorRecoveryWindowMs,
   readTaskStartedMarker,
   resolveAgentProviderPrefix,
   resolveCodexHome,
@@ -681,5 +682,13 @@ describe("extractSessionProviderError", () => {
     expect(parseSessionEntry(successEntry).some((t) => t.role === "assistant")).toBe(true);
     // Error entry produces no conversation turns.
     expect(parseSessionEntry(errorEntry)).toEqual([]);
+  });
+});
+
+describe("providerErrorRecoveryWindowMs", () => {
+  it("uses at least the 10 minute activity timeout for provider recovery", () => {
+    expect(providerErrorRecoveryWindowMs(120_000)).toBe(600_000);
+    expect(providerErrorRecoveryWindowMs(600_000)).toBe(600_000);
+    expect(providerErrorRecoveryWindowMs(900_000)).toBe(900_000);
   });
 });

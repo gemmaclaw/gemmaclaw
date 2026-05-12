@@ -1101,6 +1101,10 @@ export function extractSessionProviderError(entry: unknown): string | undefined 
   return undefined;
 }
 
+export function providerErrorRecoveryWindowMs(noActivityMs: number): number {
+  return Math.max(noActivityMs, 600_000);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1777,11 +1781,13 @@ export async function dispatchTask(
     // Timeout Error"), the embedded agent may keep running and emitting stderr
     // retries that prevent the no-activity watchdog from firing. Track the
     // first such error so we can enforce a bounded recovery window.
-    // Grace period: 3 minutes (180 s). If no new successful assistant turn
-    // appears within that window after a provider error, we kill the child.
+    // Grace period follows the same minimum as the activity watchdog. Provider
+    // retries should not be killed sooner than a normal "no useful activity"
+    // timeout, otherwise slow-but-recoverable local Ollama calls become
+    // artificial benchmark failures.
     let lastProviderErrorMs: number | null = null;
     let lastProviderErrorMsg = "";
-    const providerErrorRecoveryMs = 180_000; // 3 min
+    const providerErrorRecoveryMs = providerErrorRecoveryWindowMs(noActivityMs);
 
     const parseJsonl = () => {
       if (!fs.existsSync(jsonlPath)) {
