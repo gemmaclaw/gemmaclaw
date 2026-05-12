@@ -8,6 +8,8 @@ import {
   clearTaskStartedMarker,
   computeConfigHash,
   extractAssistantResponseFromStdout,
+  estimateConversationOutputTokens,
+  estimateConversationTokensPerSecond,
   extractSessionProviderError,
   isAgentBackendType,
   isOllamaModelActive,
@@ -167,6 +169,26 @@ describe("parseSessionEntry", () => {
     expect(extractAssistantResponseFromStdout(stdout)).toBe(
       '{"person":"Maya Chen","date":"2026-05-08"}',
     );
+  });
+});
+
+describe("estimated agent benchmark speed", () => {
+  it("estimates output tokens from assistant and thinking text only", () => {
+    const conversation = [
+      { role: "user" as const, content: "x".repeat(400) },
+      { role: "thinking" as const, content: "a".repeat(20) },
+      { role: "tool_result" as const, content: "x".repeat(400) },
+      { role: "assistant" as const, content: "b".repeat(20) },
+    ];
+    expect(estimateConversationOutputTokens(conversation)).toBe(10);
+    expect(estimateConversationTokensPerSecond(conversation, 2000)).toBe(5);
+  });
+
+  it("does not invent speed when there is no generated output", () => {
+    const conversation = [{ role: "user" as const, content: "only prompt" }];
+    expect(estimateConversationOutputTokens(conversation)).toBe(0);
+    expect(estimateConversationTokensPerSecond(conversation, 2000)).toBeUndefined();
+    expect(estimateConversationTokensPerSecond(conversation, 0)).toBeUndefined();
   });
 });
 

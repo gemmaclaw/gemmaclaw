@@ -105,6 +105,25 @@ for page in "${!SECTION_CHECKS[@]}"; do
   fi
 done
 
+# Benchmark page must use result cards and show speed on each published result.
+BENCHMARKS_HTML="$SITE_DIR/benchmarks.html"
+if [ -f "$BENCHMARKS_HTML" ]; then
+  card_count=$(grep -c 'class="benchmark-result-card"' "$BENCHMARKS_HTML" 2>/dev/null || true)
+  if [ "$card_count" -gt 0 ]; then
+    echo "PASS: $card_count benchmark result cards found"
+    missing_card_speed=$(grep -c '<strong>N/A</strong><small>median speed</small>' "$BENCHMARKS_HTML" 2>/dev/null || true)
+    if [ "$missing_card_speed" -gt 0 ]; then
+      echo "FAIL: Benchmark result cards missing median tokens/sec ($missing_card_speed)"
+      FAILURES=$((FAILURES + 1))
+    else
+      echo "PASS: Benchmark result cards include median tokens/sec"
+    fi
+  elif ! grep -q 'Benchmarks Coming Soon' "$BENCHMARKS_HTML"; then
+    echo "FAIL: benchmarks.html has neither benchmark cards nor Coming Soon state"
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+
 # All pages must have shared nav and brand metadata
 echo ""
 echo "--- Navigation and brand checks ---"

@@ -133,6 +133,10 @@ def normalize_agentic_benchmark_result(data, run_id):
         if isinstance(elapsed, (int, float)):
             elapsed_values.append(elapsed)
         speed = tr.get("tokensPerSecond")
+        speed_source = "measured"
+        if not (isinstance(speed, (int, float)) and speed > 0):
+            speed = estimate_output_tokens_per_second(tr.get("conversation", []), elapsed)
+            speed_source = "estimated-output" if speed else ""
         if isinstance(speed, (int, float)) and speed > 0:
             speed_values.append(speed)
         total_score += score
@@ -174,6 +178,7 @@ def normalize_agentic_benchmark_result(data, run_id):
             "gradingCriteria": grading.get("criteria", []),
             "gradingMaxScore": grading.get("maxScore", max_score),
             "tokensPerSecond": speed,
+            "tokensPerSecondSource": speed_source,
             "elapsedMs": elapsed,
             "failureMode": "" if status == "completed" else (tr.get("error") or status),
             "toolCallCount": tr.get("toolCallCount", 0),
@@ -213,6 +218,7 @@ def normalize_agentic_benchmark_result(data, run_id):
             "passedCount": completed,
             "failedCount": max(0, len(normalized_tasks) - completed),
             "medianTokensPerSecond": median_speed,
+            "medianTokensPerSecondSource": summarize_speed_source(normalized_tasks),
             "totalTimeMs": total_time,
             "failureModes": {},
         },
@@ -334,10 +340,46 @@ def best_results(results):
     return sorted(seen.values(), key=lambda x: -x["summary"]["percentage"])
 
 
-def format_speed(tok_s):
+def estimate_text_tokens(text):
+    if not isinstance(text, str) or not text.strip():
+        return 0
+    # Approximate tokenizer-independent output tokens for legacy artifacts that
+    # did not persist provider usage. This is labeled as estimated in the UI.
+    return max(1, round(len(text) / 4))
+
+
+def estimate_output_tokens_per_second(conversation, elapsed_ms):
+    if not isinstance(elapsed_ms, (int, float)) or elapsed_ms <= 0:
+        return None
+    if not isinstance(conversation, list):
+        return None
+    token_count = 0
+    for turn in conversation:
+        if not isinstance(turn, dict):
+            continue
+        if turn.get("role") in {"assistant", "thinking"}:
+            token_count += estimate_text_tokens(turn.get("content", ""))
+    if token_count <= 0:
+        return None
+    return token_count / (elapsed_ms / 1000)
+
+
+def summarize_speed_source(tasks):
+    sources = {t.get("tokensPerSecondSource") for t in tasks if t.get("tokensPerSecond")}
+    if not sources:
+        return ""
+    if sources == {"measured"}:
+        return "measured"
+    if sources == {"estimated-output"}:
+        return "estimated-output"
+    return "mixed"
+
+
+def format_speed(tok_s, source=""):
     if tok_s is None or tok_s == 0:
         return "N/A"
-    return f"{tok_s:.1f}"
+    suffix = " est" if source in {"estimated-output", "mixed"} else ""
+    return f"{tok_s:.1f} tok/s{suffix}"
 
 
 def format_time(ms):
@@ -408,7 +450,7 @@ def generate_size_class_sections(results):
                 gpu = "CPU only"
             pct = s["percentage"]
             pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-            speed = format_speed(s.get("medianTokensPerSecond"))
+            speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
             model_name = r["model"]
             # Quant badge — prefer metadata field, fall back to model name parsing
             quant_val = r.get("quant", "")
@@ -438,7 +480,7 @@ def generate_size_class_sections(results):
   <td>{gpu}</td>
   <td class="num {pct_class}">{pct}%</td>
   <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
-  <td class="num">{speed} tok/s</td>
+  <td class="num">{speed}</td>
   <td class="num">{format_time(s.get('totalTimeMs'))}</td>
 </tr>""")
 
@@ -515,7 +557,7 @@ def generate_benchmark_table_rows(results):
             gpu = "CPU only"
         pct = s["percentage"]
         pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-        speed = format_speed(s.get("medianTokensPerSecond"))
+        speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
         quant_val = r.get("quant", "")
         quant_badge = f'<span class="quant-badge">{quant_val}</span>' if quant_val else ""
         rows.append(f"""<tr>
@@ -524,7 +566,7 @@ def generate_benchmark_table_rows(results):
   <td>{gpu}</td>
   <td class="num {pct_class}">{pct}%</td>
   <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
-  <td class="num">{speed} tok/s</td>
+  <td class="num">{speed}</td>
   <td class="num">{format_time(s.get('totalTimeMs'))}</td>
 </tr>""")
     return "\n".join(rows)
@@ -570,7 +612,7 @@ def generate_task_detail_rows(tasks, model_id=""):
     for idx, t in enumerate(tasks):
         pct = t.get("percentage", 0)
         pct_class = "win" if pct >= 90 else ("" if pct >= 60 else "bad")
-        speed = format_speed(t.get("tokensPerSecond"))
+        speed = format_speed(t.get("tokensPerSecond"), t.get("tokensPerSecondSource", ""))
         failure = t.get("failureMode", "none")
         if failure == "none":
             failure = ""
@@ -653,7 +695,7 @@ def generate_task_detail_rows(tasks, model_id=""):
   <td><span class="row-toggle">&#9656;</span> <span class="task-status {status_class}">{status_icon}</span> {t['name']}</td>
   <td><span class="cat-badge">{t.get('category', '')}</span></td>
   <td class="num {pct_class}">{t['score']}/{t['maxScore']}</td>
-  <td class="num">{speed} tok/s</td>
+  <td class="num">{speed}</td>
   <td class="num">{format_time(t.get('elapsedMs'))}</td>
   <td>{failure}</td>
 </tr>
@@ -703,7 +745,7 @@ def generate_model_detail_sections(results):
     <span>RAM: {hw.get('ram', 'Unknown')}</span>
     <span>GPU: {hw.get('gpu', 'None detected')}</span>
     <span>Score: {s['percentage']}% ({s['passedCount']}/{s['passedCount'] + s['failedCount']} passed)</span>
-    <span>Median speed: {format_speed(s.get('medianTokensPerSecond'))} tok/s</span>
+    <span>Median speed: {format_speed(s.get('medianTokensPerSecond'), s.get('medianTokensPerSecondSource', ''))}</span>
     <span>Total time: {format_time(s.get('totalTimeMs'))}</span>
     <span>Failure modes: {fm_items}</span>
   </div>
@@ -948,7 +990,7 @@ def generate_benchmark_detail_page(result):
     <span><strong>GPU:</strong> {html_escape(gpu)}</span>
     <span><strong>CPU:</strong> {html_escape(hw.get('cpu', 'Unknown'))}</span>
     <span><strong>RAM:</strong> {html_escape(hw.get('ram', 'Unknown'))}</span>
-    <span><strong>Speed:</strong> {format_speed(s.get('medianTokensPerSecond'))} tok/s</span>
+    <span><strong>Speed:</strong> {format_speed(s.get('medianTokensPerSecond'), s.get('medianTokensPerSecondSource', ''))}</span>
     <span><strong>Total time:</strong> {format_time(s.get('totalTimeMs'))}</span>
     <span><strong>Failure modes:</strong> {html_escape(fm_items)}</span>
   </div>
@@ -990,6 +1032,7 @@ def generate_hardware_guide_cards(results):
             "backend": r["backend"],
             "score": s["percentage"],
             "speed": s.get("medianTokensPerSecond", 0),
+            "speed_source": s.get("medianTokensPerSecondSource", ""),
             "pass_rate": s.get("passRate", 0),
         })
 
@@ -1003,7 +1046,7 @@ def generate_hardware_guide_cards(results):
   <span class="hw-model-name">{m['model']}</span>
   <span class="hw-model-backend">{m['backend']}</span>
   <span class="hw-model-score">{m['score']}%</span>
-  <span class="hw-model-speed">{format_speed(m['speed'])} tok/s</span>
+  <span class="hw-model-speed">{format_speed(m['speed'], m.get('speed_source', ''))}</span>
 </div>\n"""
 
         gpu_display = cfg["gpu"] if cfg["gpu"] != "None detected" else "CPU only"
@@ -1015,7 +1058,7 @@ def generate_hardware_guide_cards(results):
       <div class="hw-spec"><strong>RAM:</strong> {cfg['ram']}</div>
       <div class="hw-spec"><strong>GPU:</strong> {gpu_display}</div>
     </div>
-    <div class="hw-best">Best: {best['model']} ({best['score']}% at {format_speed(best['speed'])} tok/s)</div>
+    <div class="hw-best">Best: {best['model']} ({best['score']}% at {format_speed(best['speed'], best.get('speed_source', ''))})</div>
   </div>
   <div class="hw-models">{model_rows}</div>
 </div>""")
@@ -2259,7 +2302,7 @@ def generate_self_hosting_page(hw_cards):
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
 def generate_benchmarks_landing_rows(results):
-    """Generate compact leaderboard rows for the benchmarks landing page.
+    """Generate responsive benchmark result cards for the benchmarks landing page.
     Each row links to a dedicated detail page at benchmark-results/<run_id>.html."""
     grouped = {}
     for r in results:
@@ -2275,7 +2318,7 @@ def generate_benchmarks_landing_rows(results):
         cls_results = sorted(grouped[cls_name], key=lambda x: -x["summary"]["percentage"])
         cls_info = SIZE_CLASSES.get(cls_name, {"hw_rec": "", "icon": "&#128300;"})
 
-        rows = []
+        cards = []
         for r in cls_results:
             s = r["summary"]
             hw = r.get("hardware", {})
@@ -2284,35 +2327,45 @@ def generate_benchmarks_landing_rows(results):
                 gpu = "CPU only"
             pct = s["percentage"]
             pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-            speed = format_speed(s.get("medianTokensPerSecond"))
+            speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
             quant = r.get("quant", "")
             thinking = r.get("thinkingLevel", "")
             run_id = r.get("runId") or r.get("_dir", "")
             detail_url = f"benchmark-results/{run_id}.html" if run_id else "#"
+            arch = "MoE" if "moe" in r["model"].lower() or "26b" in r["model"].lower() else "Dense"
             quant_badge = f'<span class="quant-badge">{html_escape(quant)}</span>' if quant else ""
             thinking_badge = (
                 f'<span class="quant-badge" style="background:var(--accent-soft);color:var(--accent)">'
                 f'{html_escape(thinking)}</span>'
             ) if thinking else ""
-            rows.append(f"""<tr>
-  <td><strong>{html_escape(r['model'])}</strong> {quant_badge} {thinking_badge}</td>
-  <td>{html_escape(r['backend'])}</td>
-  <td>{html_escape(gpu)}</td>
-  <td class="num {pct_class}">{pct}%</td>
-  <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
-  <td class="num">{speed}</td>
-  <td class="num"><a href="{detail_url}" class="detail-link">View results &#8594;</a></td>
-</tr>""")
+            cards.append(f"""<a class="benchmark-result-card" href="{detail_url}">
+  <div class="benchmark-card-head">
+    <div>
+      <h4>{html_escape(r['model'])}</h4>
+      <div class="benchmark-card-tags">
+        <span class="quant-badge">{html_escape(arch)}</span>
+        {quant_badge}
+        {thinking_badge}
+        <span class="quant-badge">{html_escape(r['backend'])}</span>
+      </div>
+    </div>
+    <div class="benchmark-score {pct_class}">{pct}%</div>
+  </div>
+  <div class="benchmark-card-metrics">
+    <span><strong>{s['passedCount']}/{s['passedCount'] + s['failedCount']}</strong><small>tasks passed</small></span>
+    <span><strong>{speed}</strong><small>median speed</small></span>
+    <span><strong>{format_time(s.get('totalTimeMs'))}</strong><small>total time</small></span>
+  </div>
+  <div class="benchmark-card-hw">{html_escape(gpu)}</div>
+  <div class="benchmark-card-link">View transcripts and judge breakdown &#8594;</div>
+</a>""")
 
-        rows_html = "\n".join(rows)
+        cards_html = "\n".join(cards)
         sections.append(f"""
 <div class="size-class-group">
   <h3>{cls_info.get('icon', '')} {cls_name}</h3>
   <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
-  <div class="table-wrap"><table class="benchmark-table">
-    <thead><tr><th>Model</th><th>Backend</th><th>GPU</th><th>Score</th><th>Pass Rate</th><th>Speed (tok/s)</th><th>Detail</th></tr></thead>
-    <tbody>{rows_html}</tbody>
-  </table></div>
+  <div class="benchmark-card-grid">{cards_html}</div>
 </div>""")
     return "\n".join(sections)
 
@@ -3300,12 +3353,105 @@ CSS = """
       .conv-meta { display: grid; gap: 0.35rem; }
       .conv-block { font-size: 0.76rem; padding: 0.75rem 0.8rem; }
       .conv-judge { font-size: 0.84rem; padding: 0.75rem 0.8rem; }
+      .benchmark-card-grid { grid-template-columns: 1fr; }
+      .benchmark-card-metrics { grid-template-columns: 1fr; }
+      .benchmark-card-head { align-items: flex-start; }
+      .benchmark-score { font-size: 1.35rem; }
     }
 
     /* Size class grouping */
     .size-class-group { margin-bottom: 2rem; }
     .size-class-group h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
     .hw-recommendation { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.8rem; padding: 0.5rem 0.8rem; background: var(--bg-elev); border-radius: 8px; border-left: 3px solid var(--accent); }
+    .benchmark-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 0.9rem;
+      min-width: 0;
+    }
+    .benchmark-result-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      min-width: 0;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-elev);
+      color: var(--fg);
+      text-decoration: none;
+      transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    }
+    .benchmark-result-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 22px rgba(66, 133, 244, 0.10);
+    }
+    .benchmark-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+    .benchmark-card-head h4 {
+      margin: 0 0 0.35rem;
+      font-size: 1rem;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .benchmark-card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      min-width: 0;
+    }
+    .benchmark-score {
+      flex: 0 0 auto;
+      font-size: 1.55rem;
+      line-height: 1;
+      font-weight: 800;
+      color: var(--accent);
+    }
+    .benchmark-score.win { color: var(--good); }
+    .benchmark-score.bad { color: #d14545; }
+    .benchmark-card-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem;
+      min-width: 0;
+    }
+    .benchmark-card-metrics span {
+      min-width: 0;
+      padding: 0.55rem;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+    .benchmark-card-metrics strong {
+      display: block;
+      font-size: 0.92rem;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .benchmark-card-metrics small {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.2;
+    }
+    .benchmark-card-hw {
+      color: var(--muted);
+      font-size: 0.84rem;
+      overflow-wrap: anywhere;
+    }
+    .benchmark-card-link {
+      margin-top: auto;
+      color: var(--accent);
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
     .quant-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; background: var(--bg-elev-2); color: var(--muted); font-weight: 500; vertical-align: middle; margin-left: 4px; }
     .thinking-high { background:#e8f0fe; color:#1a73e8; }
     .thinking-med { background:#fef9e7; color:#9a6700; }
