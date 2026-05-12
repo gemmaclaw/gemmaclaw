@@ -1,7 +1,8 @@
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   assembleAgentBenchmarkRun,
   clearTaskStartedMarker,
@@ -9,6 +10,7 @@ import {
   extractAssistantResponseFromStdout,
   extractSessionProviderError,
   isAgentBackendType,
+  isOllamaModelActive,
   loadTaskArtifacts,
   parseSessionEntry,
   providerErrorRecoveryWindowMs,
@@ -785,5 +787,67 @@ describe("updateProviderErrorRecoveryStateForEntries", () => {
       startedMs: 2_000,
       message: "fetch failed | Headers Timeout Error",
     });
+  });
+});
+
+describe("isOllamaModelActive", () => {
+  let server: http.Server;
+  let port: number;
+  let mockPsResponse: object;
+
+  beforeAll(async () => {
+    mockPsResponse = { models: [] };
+    server = http.createServer((_req, res) => {
+      const body = JSON.stringify(mockPsResponse);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(body);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    port = (server.address() as { port: number }).port;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  });
+
+  it("returns false when /api/ps has no models", async () => {
+    mockPsResponse = { models: [] };
+    const result = await isOllamaModelActive(`http://127.0.0.1:${port}`, "gemma4-31b-q5km:latest");
+    expect(result).toBe(false);
+  });
+
+  it("returns true when the target model has non-zero size_vram", async () => {
+    mockPsResponse = {
+      models: [
+        { name: "gemma4-31b-q5km:latest", size_vram: 23_000_000_000 },
+        { name: "other-model:latest", size_vram: 5_000_000_000 },
+      ],
+    };
+    const result = await isOllamaModelActive(`http://127.0.0.1:${port}`, "gemma4-31b-q5km:latest");
+    expect(result).toBe(true);
+  });
+
+  it("returns false when the target model has size_vram 0 (CPU-only)", async () => {
+    mockPsResponse = {
+      models: [{ name: "gemma4-31b-q5km:latest", size_vram: 0 }],
+    };
+    const result = await isOllamaModelActive(`http://127.0.0.1:${port}`, "gemma4-31b-q5km:latest");
+    expect(result).toBe(false);
+  });
+
+  it("returns false when a different model is loaded but not the target", async () => {
+    mockPsResponse = {
+      models: [{ name: "other-model:latest", size_vram: 5_000_000_000 }],
+    };
+    const result = await isOllamaModelActive(`http://127.0.0.1:${port}`, "gemma4-31b-q5km:latest");
+    expect(result).toBe(false);
+  });
+
+  it("returns false when Ollama is unreachable", async () => {
+    // Use a port that nothing is listening on
+    const result = await isOllamaModelActive("http://127.0.0.1:1", "gemma4-31b-q5km:latest", 500);
+    expect(result).toBe(false);
   });
 });

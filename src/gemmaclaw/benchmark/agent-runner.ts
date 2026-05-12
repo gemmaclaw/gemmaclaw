@@ -1105,6 +1105,31 @@ export function providerErrorRecoveryWindowMs(noActivityMs: number): number {
   return Math.max(noActivityMs, 600_000);
 }
 
+/**
+ * Check whether a specific Ollama model is currently loaded in VRAM (i.e.
+ * actively serving a request or freshly loaded after one).  Returns `true`
+ * when `/api/ps` reports the model with a non-zero `size_vram`; `false`
+ * on any error or when the model is not listed.
+ *
+ * Exported for unit testing — call via `scheduleOllamaActiveCheck` in
+ * `dispatchTask` to avoid blocking the polling loop.
+ */
+export async function isOllamaModelActive(
+  ollamaUrl: string,
+  model: string,
+  timeoutMs = 5_000,
+): Promise<boolean> {
+  try {
+    const resp = await httpGet(`${ollamaUrl}/api/ps`, timeoutMs);
+    const ps = JSON.parse(resp) as {
+      models?: Array<{ name: string; size_vram?: number }>;
+    };
+    return (ps.models ?? []).some((m) => m.name === model && (m.size_vram ?? 0) > 0);
+  } catch {
+    return false;
+  }
+}
+
 export interface ProviderErrorRecoveryState {
   lineIndex: number | null;
   startedMs: number | null;
@@ -1910,6 +1935,35 @@ export async function dispatchTask(
         isGeminiCli ? readGeminiCliConversation(benchHome) : [],
       );
 
+    // Ollama active-generation monitoring: poll /api/ps every 30s and reset
+    // the noActivity timer when the model is loaded and using VRAM. This
+    // prevents false timeouts during extended thinking phases (e.g. Q5_K_M/
+    // Q6_K with thinking=high can generate 40+ min thinking traces with no
+    // JSONL/trajectory/stdout output while Ollama is actively generating).
+    let ollamaCheckInFlight = false;
+    let lastOllamaCheckMs = 0;
+    const OLLAMA_CHECK_INTERVAL_MS = 30_000;
+    const scheduleOllamaActiveCheck = () => {
+      if (config.backend !== "ollama" || ollamaCheckInFlight) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastOllamaCheckMs < OLLAMA_CHECK_INTERVAL_MS) {
+        return;
+      }
+      lastOllamaCheckMs = now;
+      ollamaCheckInFlight = true;
+      void isOllamaModelActive(config.ollamaUrl, config.model)
+        .then((active) => {
+          if (active) {
+            lastActivityMs = Date.now();
+          }
+        })
+        .finally(() => {
+          ollamaCheckInFlight = false;
+        });
+    };
+
     // Make stdout/stderr handlers also reset the activity clock. The runner
     // already pushed handlers earlier that update lastIoMs; here we wire the
     // activity clock alongside them by re-attaching listeners. The original
@@ -1961,6 +2015,7 @@ export async function dispatchTask(
       parseJsonl();
       checkTrajectoryActivity();
       checkProviderActivity();
+      scheduleOllamaActiveCheck();
 
       // (1) Activity-based timeout: kill if no useful activity for
       // noActivityMs. Resets on stdout/stderr/JSONL/trajectory.
