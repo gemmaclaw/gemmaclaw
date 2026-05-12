@@ -152,6 +152,8 @@ export type ConversationTurn = {
   toolArgs?: Record<string, unknown>;
   /** Timestamp of this turn. */
   timestamp?: string;
+  /** Provider-reported output tokens for the assistant response that produced this turn. */
+  outputTokens?: number;
 };
 
 export type AgentTaskResult = {
@@ -163,11 +165,12 @@ export type AgentTaskResult = {
   /** Tokens per second (generation speed). */
   tokensPerSecond?: number;
   /**
-   * Source of tokensPerSecond. "measured" comes from provider usage metadata.
-   * "estimated-output" is tokenizer-independent legacy/fallback speed computed
-   * from assistant/thinking text length and elapsed wall time.
+   * Source of tokensPerSecond. "measured" comes from generation-only provider
+   * timing. "effective-output" is provider output tokens over response interval,
+   * which can include prompt evaluation but excludes tool execution time.
+   * "estimated-output" is tokenizer-independent fallback speed.
    */
-  tokensPerSecondSource?: "measured" | "estimated-output";
+  tokensPerSecondSource?: "measured" | "effective-output" | "estimated-output";
   /** Number of tool calls the agent made. */
   toolCallCount: number;
   /** List of tools the agent called. */
@@ -487,6 +490,44 @@ export function estimateConversationTokensPerSecond(
     return undefined;
   }
   return outputTokens / (elapsedMs / 1000);
+}
+
+function timestampMs(timestamp: string | undefined): number | undefined {
+  if (!timestamp) {
+    return undefined;
+  }
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function estimateConversationEffectiveTokensPerSecond(
+  conversation: ConversationTurn[],
+): number | undefined {
+  let previousTimestampMs: number | undefined;
+  let outputTokens = 0;
+  let responseMs = 0;
+  for (const turn of conversation) {
+    const currentTimestampMs = timestampMs(turn.timestamp);
+    if (
+      typeof turn.outputTokens === "number" &&
+      turn.outputTokens > 0 &&
+      currentTimestampMs !== undefined &&
+      previousTimestampMs !== undefined
+    ) {
+      const deltaMs = currentTimestampMs - previousTimestampMs;
+      if (deltaMs > 0 && deltaMs < 600_000) {
+        outputTokens += turn.outputTokens;
+        responseMs += deltaMs;
+      }
+    }
+    if (currentTimestampMs !== undefined) {
+      previousTimestampMs = currentTimestampMs;
+    }
+  }
+  if (outputTokens <= 0 || responseMs <= 0) {
+    return undefined;
+  }
+  return outputTokens / (responseMs / 1000);
 }
 
 export function writeTaskArtifact(
@@ -1011,10 +1052,12 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
     return turns;
   }
   const e = entry as { message?: unknown; timestamp?: string };
-  const msg = (e.message ?? entry) as { role?: string; content?: unknown };
+  const msg = (e.message ?? entry) as { role?: string; content?: unknown; usage?: unknown };
   const role = msg?.role;
   const content = msg?.content;
   const ts = e.timestamp;
+  const usage = isRecord(msg.usage) ? msg.usage : undefined;
+  const outputTokens = typeof usage?.output === "number" ? usage.output : undefined;
 
   const blockText = (b: { content?: unknown }): string => {
     if (typeof b.content === "string") {
@@ -1039,8 +1082,9 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
       }
     }
   } else if (role === "assistant") {
+    const assistantTurns: ConversationTurn[] = [];
     if (typeof content === "string") {
-      turns.push({ role: "assistant", content, timestamp: ts });
+      assistantTurns.push({ role: "assistant", content, timestamp: ts });
     } else if (Array.isArray(content)) {
       for (const block of content as Array<{
         type?: string;
@@ -1053,15 +1097,15 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
         content?: unknown;
       }>) {
         if (block.type === "text" && block.text) {
-          turns.push({ role: "assistant", content: block.text, timestamp: ts });
+          assistantTurns.push({ role: "assistant", content: block.text, timestamp: ts });
         } else if (block.type === "thinking" || block.type === "reasoning") {
           const thinking = block.thinking ?? block.reasoning ?? block.text;
           if (thinking) {
-            turns.push({ role: "thinking", content: thinking, timestamp: ts });
+            assistantTurns.push({ role: "thinking", content: thinking, timestamp: ts });
           }
         } else if (block.type === "tool_use" || block.type === "toolCall") {
           const toolArgs = (block.input ?? block.arguments ?? {}) as Record<string, unknown>;
-          turns.push({
+          assistantTurns.push({
             role: "tool_call",
             content: JSON.stringify(toolArgs),
             toolName: block.name,
@@ -1069,10 +1113,14 @@ export function parseSessionEntry(entry: unknown): ConversationTurn[] {
             timestamp: ts,
           });
         } else if (block.type === "tool_result" || block.type === "toolResult") {
-          turns.push({ role: "tool_result", content: blockText(block), timestamp: ts });
+          assistantTurns.push({ role: "tool_result", content: blockText(block), timestamp: ts });
         }
       }
     }
+    if (assistantTurns.length > 0 && outputTokens && outputTokens > 0) {
+      assistantTurns[0] = { ...assistantTurns[0], outputTokens };
+    }
+    turns.push(...assistantTurns);
   } else if (role === "toolResult" || role === "tool_result") {
     if (typeof content === "string") {
       turns.push({ role: "tool_result", content, timestamp: ts });
@@ -2553,17 +2601,20 @@ export async function runAgentBenchmark(
     const toolCalls = conversation.filter((t) => t.role === "tool_call");
     const toolCallCount = toolCalls.length;
     const toolsUsed = [...new Set(toolCalls.map((t) => t.toolName).filter(Boolean))] as string[];
-    const tokensPerSecond = estimateConversationTokensPerSecond(conversation, elapsedMs);
+    const effectiveTokensPerSecond = estimateConversationEffectiveTokensPerSecond(conversation);
+    const fallbackTokensPerSecond = estimateConversationTokensPerSecond(conversation, elapsedMs);
+    const tokensPerSecond = effectiveTokensPerSecond ?? fallbackTokensPerSecond;
+    const tokensPerSecondSource = effectiveTokensPerSecond
+      ? "effective-output"
+      : "estimated-output";
     log(
-      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${tokensPerSecond ? ` | ${tokensPerSecond.toFixed(1)} tok/s est` : ""}${error ? ` | ${error}` : ""}`,
+      `  ${completionStatus.toUpperCase()} | ${toolCallCount} tool calls | ${(elapsedMs / 1000).toFixed(1)}s${tokensPerSecond ? ` | ${tokensPerSecond.toFixed(1)} tok/s ${tokensPerSecondSource === "effective-output" ? "effective" : "est"}` : ""}${error ? ` | ${error}` : ""}`,
     );
     const taskResult: AgentTaskResult = {
       task,
       conversation,
       elapsedMs,
-      ...(tokensPerSecond
-        ? { tokensPerSecond, tokensPerSecondSource: "estimated-output" as const }
-        : {}),
+      ...(tokensPerSecond ? { tokensPerSecond, tokensPerSecondSource } : {}),
       toolCallCount,
       toolsUsed,
       completionStatus,

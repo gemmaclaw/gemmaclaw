@@ -133,10 +133,10 @@ def normalize_agentic_benchmark_result(data, run_id):
         if isinstance(elapsed, (int, float)):
             elapsed_values.append(elapsed)
         speed = tr.get("tokensPerSecond")
-        speed_source = "measured"
+        speed_source = tr.get("tokensPerSecondSource") or ("measured" if speed else "")
         if not (isinstance(speed, (int, float)) and speed > 0):
-            speed = estimate_output_tokens_per_second(tr.get("conversation", []), elapsed)
-            speed_source = "estimated-output" if speed else ""
+            speed = None
+            speed_source = ""
         if isinstance(speed, (int, float)) and speed > 0:
             speed_values.append(speed)
         total_score += score
@@ -370,6 +370,8 @@ def summarize_speed_source(tasks):
         return ""
     if sources == {"measured"}:
         return "measured"
+    if sources == {"effective-output"}:
+        return "effective-output"
     if sources == {"estimated-output"}:
         return "estimated-output"
     return "mixed"
@@ -378,7 +380,11 @@ def summarize_speed_source(tasks):
 def format_speed(tok_s, source=""):
     if tok_s is None or tok_s == 0:
         return "N/A"
-    suffix = " est" if source in {"estimated-output", "mixed"} else ""
+    suffix = ""
+    if source == "effective-output":
+        suffix = " effective"
+    elif source in {"estimated-output", "mixed"}:
+        suffix = " est"
     return f"{tok_s:.1f} tok/s{suffix}"
 
 
@@ -424,6 +430,15 @@ def classify_model_size(model_name):
     if "31b" in name_lower or "dense" in name_lower:
         return "Large (31B Dense)"
     return "Other"
+
+
+def model_architecture(model_name):
+    name_lower = model_name.lower()
+    if "moe" in name_lower or "26b" in name_lower or "27b" in name_lower:
+        return "MoE"
+    if "dense" in name_lower or "31b" in name_lower or "4b" in name_lower:
+        return "Dense"
+    return "Unknown"
 
 
 def generate_size_class_sections(results):
@@ -922,7 +937,7 @@ def generate_benchmark_detail_page(result):
 
     size_class = classify_model_size(model_display)
 
-    arch_tag = "MoE" if "moe" in model_display.lower() or "26b" in model_display.lower() else "Dense"
+    arch_tag = model_architecture(model_display)
 
     tags_html = ""
     tag_list = [size_class]
@@ -934,7 +949,7 @@ def generate_benchmark_detail_page(result):
         tag_list.append(f"Thinking: {thinking}")
     if run_date:
         tag_list.append(run_date)
-    tags_html = "".join(f'<span class="tag{"tag-accent" if i == 0 else ""}">{html_escape(t)}</span>' for i, t in enumerate(tag_list))
+    tags_html = "".join(f'<span class="tag{" tag-accent" if i == 0 else ""}">{html_escape(t)}</span>' for i, t in enumerate(tag_list))
 
     failure_modes = s.get("failureModes", {})
     fm_items = ", ".join(f"{k}: {v}" for k, v in failure_modes.items() if k != "none")
@@ -987,6 +1002,11 @@ def generate_benchmark_detail_page(result):
     <span class="score-label">{passed}/{total} tasks passed</span>
   </div>
   <div class="meta-grid">
+    <span><strong>Model class:</strong> {html_escape(size_class)}</span>
+    <span><strong>Architecture:</strong> {html_escape(arch_tag)}</span>
+    <span><strong>Quantization:</strong> {html_escape(quant or 'unquantized / not reported')}</span>
+    <span><strong>Thinking:</strong> {html_escape(thinking or 'not reported')}</span>
+    <span><strong>Backend:</strong> {html_escape(backend)}</span>
     <span><strong>GPU:</strong> {html_escape(gpu)}</span>
     <span><strong>CPU:</strong> {html_escape(hw.get('cpu', 'Unknown'))}</span>
     <span><strong>RAM:</strong> {html_escape(hw.get('ram', 'Unknown'))}</span>
@@ -2332,16 +2352,25 @@ def generate_benchmarks_landing_rows(results):
             thinking = r.get("thinkingLevel", "")
             run_id = r.get("runId") or r.get("_dir", "")
             detail_url = f"benchmark-results/{run_id}.html" if run_id else "#"
-            arch = "MoE" if "moe" in r["model"].lower() or "26b" in r["model"].lower() else "Dense"
+            size_class = classify_model_size(r["model"])
+            arch = model_architecture(r["model"])
             quant_badge = f'<span class="quant-badge">{html_escape(quant)}</span>' if quant else ""
             thinking_badge = (
                 f'<span class="quant-badge" style="background:var(--accent-soft);color:var(--accent)">'
                 f'{html_escape(thinking)}</span>'
             ) if thinking else ""
+            spec_bits = [
+                f"Size: {size_class}",
+                f"Arch: {arch}",
+                f"Quant: {quant or 'unquantized / not reported'}",
+                f"Thinking: {thinking or 'not reported'}",
+                f"Backend: {r['backend']}",
+            ]
             cards.append(f"""<a class="benchmark-result-card" href="{detail_url}">
   <div class="benchmark-card-head">
     <div>
       <h4>{html_escape(r['model'])}</h4>
+      <div class="benchmark-card-spec">{html_escape(' · '.join(spec_bits))}</div>
       <div class="benchmark-card-tags">
         <span class="quant-badge">{html_escape(arch)}</span>
         {quant_badge}
@@ -3398,6 +3427,13 @@ CSS = """
       margin: 0 0 0.35rem;
       font-size: 1rem;
       line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .benchmark-card-spec {
+      margin: 0 0 0.45rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
       overflow-wrap: anywhere;
     }
     .benchmark-card-tags {
