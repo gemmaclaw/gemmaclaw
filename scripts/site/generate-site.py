@@ -104,9 +104,13 @@ def normalize_agentic_benchmark_result(data, run_id):
     for tr in data.get("tasks", []):
         task = tr.get("task", {})
         task_id = task.get("id", "unknown")
+        status = tr.get("completionStatus", "error")
+        validation = tr.get("validation") or {}
+        validation_valid = validation.get("valid")
+        publishable_for_judge = status == "completed" and validation_valid is not False
         evaluation = {}
         efile = eval_dir / f"{task_id}.json"
-        if efile.exists():
+        if publishable_for_judge and efile.exists():
             try:
                 with open(efile) as f:
                     evaluation = json.load(f)
@@ -123,7 +127,6 @@ def normalize_agentic_benchmark_result(data, run_id):
         )
         score = int(judge.get("score") or 0)
         pct = round((score / max_score) * 100) if max_score else 0
-        status = tr.get("completionStatus", "error")
         if status == "completed":
             completed += 1
         elapsed = tr.get("elapsedMs")
@@ -139,6 +142,19 @@ def normalize_agentic_benchmark_result(data, run_id):
             if turn.get("role") == "assistant" and turn.get("content"):
                 last_assistant = turn.get("content", "")
         grading = task.get("grading", {})
+        validation_issues = validation.get("issues") or []
+        validation_summary = "; ".join(
+            issue.get("message", "") for issue in validation_issues if isinstance(issue, dict)
+        )
+        failure_details = (
+            judge.get("rationale")
+            or judge.get("reasoning")
+            or tr.get("error")
+            or validation_summary
+            or "No judge evaluation recorded yet."
+        )
+        if not publishable_for_judge and validation_summary:
+            failure_details = f"{failure_details} Validation: {validation_summary}"
         normalized_tasks.append({
             "id": task_id,
             "name": task.get("name", task_id),
@@ -152,14 +168,14 @@ def normalize_agentic_benchmark_result(data, run_id):
             "maxScore": max_score,
             "percentage": pct,
             "passed": status == "completed" and (not max_score or pct >= 60),
-            "method": "LLM judge" if judge else "pending judge",
-            "details": judge.get("rationale") or judge.get("reasoning", "No judge evaluation recorded yet."),
+            "method": "LLM judge" if judge else ("not evaluated" if not publishable_for_judge else "pending judge"),
+            "details": failure_details,
             "criterionEvidence": judge.get("criterionEvidence") or judge.get("criteria") or [],
             "gradingCriteria": grading.get("criteria", []),
             "gradingMaxScore": grading.get("maxScore", max_score),
             "tokensPerSecond": speed,
             "elapsedMs": elapsed,
-            "failureMode": "" if status == "completed" else status,
+            "failureMode": "" if status == "completed" else (tr.get("error") or status),
             "toolCallCount": tr.get("toolCallCount", 0),
             "toolsUsed": tr.get("toolsUsed", []),
             "judgeModel": judge.get("model", ""),
@@ -616,7 +632,12 @@ def generate_task_detail_rows(tasks, model_id=""):
         else:
             criteria_html = ""
 
-        judge_label = f"JUDGE EVALUATION ({t['score']}/{t['maxScore']})"
+        if method == "not evaluated":
+            judge_label = f"VALIDATION FAILURE ({t['score']}/{t['maxScore']})"
+        elif method == "pending judge":
+            judge_label = f"PENDING JUDGE ({t['score']}/{t['maxScore']})"
+        else:
+            judge_label = f"JUDGE EVALUATION ({t['score']}/{t['maxScore']})"
         if judge_provider or judge_model_name:
             judge_label += f' <span class="judge-meta">by {html_escape(judge_provider or judge_model_name)}</span>'
 
