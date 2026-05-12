@@ -21,6 +21,7 @@ import {
   resolveTimeoutBudgets,
   resolveGeminiHome,
   runAgentBenchmark,
+  updateProviderErrorRecoveryStateForEntries,
   writeTaskArtifact,
   writeBenchmarkWorkspaceFiles,
   writeTaskStartedMarker,
@@ -690,5 +691,99 @@ describe("providerErrorRecoveryWindowMs", () => {
     expect(providerErrorRecoveryWindowMs(120_000)).toBe(600_000);
     expect(providerErrorRecoveryWindowMs(600_000)).toBe(600_000);
     expect(providerErrorRecoveryWindowMs(900_000)).toBe(900_000);
+  });
+});
+
+describe("updateProviderErrorRecoveryStateForEntries", () => {
+  const userEntry = {
+    type: "message",
+    message: { role: "user", content: [{ type: "text", text: "run the task" }] },
+  };
+  const assistantEntry = {
+    type: "message",
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "Recovered response." }],
+      stopReason: "end_turn",
+    },
+  };
+  const toolCallEntry = {
+    type: "message",
+    message: {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", name: "exec", arguments: { command: "date" } }],
+      stopReason: "toolUse",
+    },
+  };
+  const providerErrorEntry = (message: string) => ({
+    type: "message",
+    message: {
+      role: "assistant",
+      content: [],
+      stopReason: "error",
+      errorMessage: message,
+    },
+  });
+
+  it("keeps the first unresolved provider error timestamp across repeated provider errors", () => {
+    const first = updateProviderErrorRecoveryStateForEntries(
+      [userEntry, toolCallEntry, providerErrorEntry("fetch failed | Headers Timeout Error")],
+      { lineIndex: null, startedMs: null, message: "" },
+      1_000,
+    );
+    expect(first).toEqual({
+      lineIndex: 2,
+      startedMs: 1_000,
+      message: "fetch failed | Headers Timeout Error",
+    });
+
+    const repeated = updateProviderErrorRecoveryStateForEntries(
+      [
+        userEntry,
+        toolCallEntry,
+        providerErrorEntry("fetch failed | Headers Timeout Error"),
+        providerErrorEntry("fetch failed | Headers Timeout Error"),
+      ],
+      first,
+      2_000,
+    );
+    expect(repeated).toEqual(first);
+  });
+
+  it("clears provider error state after a later successful assistant turn", () => {
+    const first = updateProviderErrorRecoveryStateForEntries(
+      [userEntry, providerErrorEntry("connection reset")],
+      { lineIndex: null, startedMs: null, message: "" },
+      1_000,
+    );
+    const recovered = updateProviderErrorRecoveryStateForEntries(
+      [userEntry, providerErrorEntry("connection reset"), assistantEntry],
+      first,
+      2_000,
+    );
+    expect(recovered).toEqual({ lineIndex: null, startedMs: null, message: "" });
+  });
+
+  it("starts a new recovery window for a provider error after recovery", () => {
+    const first = updateProviderErrorRecoveryStateForEntries(
+      [userEntry, providerErrorEntry("connection reset")],
+      { lineIndex: null, startedMs: null, message: "" },
+      1_000,
+    );
+    const second = updateProviderErrorRecoveryStateForEntries(
+      [
+        userEntry,
+        providerErrorEntry("connection reset"),
+        assistantEntry,
+        providerErrorEntry("fetch failed | Headers Timeout Error"),
+      ],
+      first,
+      2_000,
+    );
+    expect(second).toEqual({
+      lineIndex: 3,
+      startedMs: 2_000,
+      message: "fetch failed | Headers Timeout Error",
+    });
   });
 });

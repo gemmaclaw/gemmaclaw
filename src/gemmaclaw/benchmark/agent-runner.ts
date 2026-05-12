@@ -1105,6 +1105,56 @@ export function providerErrorRecoveryWindowMs(noActivityMs: number): number {
   return Math.max(noActivityMs, 600_000);
 }
 
+export interface ProviderErrorRecoveryState {
+  lineIndex: number | null;
+  startedMs: number | null;
+  message: string;
+}
+
+export function updateProviderErrorRecoveryStateForEntries(
+  entries: unknown[],
+  previous: ProviderErrorRecoveryState,
+  nowMs: number = Date.now(),
+): ProviderErrorRecoveryState {
+  let latestRecoveryIndex = -1;
+  for (let index = 0; index < entries.length; index += 1) {
+    const turns = parseSessionEntry(entries[index]);
+    if (turns.some((t) => t.role === "assistant" || t.role === "tool_call")) {
+      latestRecoveryIndex = index;
+    }
+  }
+
+  let firstUnresolvedProviderErrorIndex = -1;
+  let firstUnresolvedProviderErrorMsg = "";
+  for (let index = latestRecoveryIndex + 1; index < entries.length; index += 1) {
+    const providerErr = extractSessionProviderError(entries[index]);
+    if (providerErr) {
+      firstUnresolvedProviderErrorIndex = index;
+      firstUnresolvedProviderErrorMsg = providerErr;
+      break;
+    }
+  }
+
+  if (firstUnresolvedProviderErrorIndex < 0) {
+    return { lineIndex: null, startedMs: null, message: "" };
+  }
+
+  if (
+    previous.lineIndex !== null &&
+    previous.startedMs !== null &&
+    previous.lineIndex >= latestRecoveryIndex + 1 &&
+    previous.lineIndex <= firstUnresolvedProviderErrorIndex
+  ) {
+    return previous;
+  }
+
+  return {
+    lineIndex: firstUnresolvedProviderErrorIndex,
+    startedMs: nowMs,
+    message: firstUnresolvedProviderErrorMsg,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1785,7 +1835,11 @@ export async function dispatchTask(
     // retries should not be killed sooner than a normal "no useful activity"
     // timeout, otherwise slow-but-recoverable local Ollama calls become
     // artificial benchmark failures.
-    let lastProviderErrorMs: number | null = null;
+    let providerErrorState: ProviderErrorRecoveryState = {
+      lineIndex: null,
+      startedMs: null,
+      message: "",
+    };
     let lastProviderErrorMsg = "";
     const providerErrorRecoveryMs = providerErrorRecoveryWindowMs(noActivityMs);
 
@@ -1801,34 +1855,24 @@ export async function dispatchTask(
           lastIoMs = Date.now();
           lastActivityMs = Date.now();
           conversation.length = 0;
-          let latestProviderError: string | undefined;
+          const entries: unknown[] = [];
           for (const line of lines) {
             try {
               const entry = JSON.parse(line);
+              entries.push(entry);
               const turns = parseSessionEntry(entry);
               if (turns.length > 0) {
                 conversation.push(...turns);
-                // A new successful assistant turn clears the provider-error
-                // recovery window — the agent recovered.
-                if (turns.some((t) => t.role === "assistant" || t.role === "tool_call")) {
-                  lastProviderErrorMs = null;
-                  lastProviderErrorMsg = "";
-                  latestProviderError = undefined;
-                }
-              } else {
-                const providerErr = extractSessionProviderError(entry);
-                if (providerErr) {
-                  latestProviderError = providerErr;
-                }
               }
             } catch {
               // Skip unparseable lines
             }
           }
-          if (latestProviderError && lastProviderErrorMs === null) {
-            lastProviderErrorMs = Date.now();
-            lastProviderErrorMsg = latestProviderError;
-          }
+          providerErrorState = updateProviderErrorRecoveryStateForEntries(
+            entries,
+            providerErrorState,
+          );
+          lastProviderErrorMsg = providerErrorState.message;
         }
       } catch {
         // File might be mid-write
@@ -1959,8 +2003,8 @@ export async function dispatchTask(
       // provider) and emit stderr that continuously resets the activity timer.
       // If no new successful assistant or tool-call turn arrives within the
       // recovery window, treat the task as a provider error and kill the child.
-      if (lastProviderErrorMs !== null) {
-        const sinceProviderError = Date.now() - lastProviderErrorMs;
+      if (providerErrorState.startedMs !== null) {
+        const sinceProviderError = Date.now() - providerErrorState.startedMs;
         if (sinceProviderError > providerErrorRecoveryMs) {
           await killChild(
             `provider-error-no-recovery: ${lastProviderErrorMsg.slice(0, 100)} (${Math.round(sinceProviderError / 1000)}s since error, no recovery)`,
