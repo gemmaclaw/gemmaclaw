@@ -24,6 +24,7 @@ PUBLIC_BENCHMARK_RUNS = {
     "gemma4-31b-q4-high",
     "gemma4-26b-q4-high",
     "gemma4-e4b-q4-high",
+    "functiongemma-270m-high",
 }
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"

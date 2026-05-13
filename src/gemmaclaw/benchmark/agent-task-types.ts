@@ -66,4 +66,11 @@ export type AgentBenchmarkTask = {
   mock?: {
     finalResponse: string;
   };
+  /**
+   * When true, the benchmark harness skips gog tool injection for this task.
+   * Use for models that reject tool-augmented API calls (e.g. Ollama models
+   * that return 400 "does not support tools"). Tasks with this flag must not
+   * rely on gog commands; they receive a plain text conversation only.
+   */
+  noToolsMode?: boolean;
 };

@@ -26,6 +26,7 @@ import {
   resolveTimeoutBudgets,
   resolveGeminiHome,
   runAgentBenchmark,
+  startOllamaNoToolsProxy,
   updateProviderErrorRecoveryStateForEntries,
   writeTaskArtifact,
   writeBenchmarkWorkspaceFiles,
@@ -916,5 +917,129 @@ describe("isOllamaModelActive", () => {
     // Use a port that nothing is listening on
     const result = await isOllamaModelActive("http://127.0.0.1:1", "gemma4-31b-q5km:latest", 500);
     expect(result).toBe(false);
+  });
+});
+
+describe("startOllamaNoToolsProxy", () => {
+  let fakeOllamaServer: http.Server;
+  let fakeOllamaPort: number;
+  let lastReceivedBody: Record<string, unknown> | null = null;
+
+  beforeAll(
+    () =>
+      new Promise<void>((resolve) => {
+        fakeOllamaServer = http.createServer((req, res) => {
+          const chunks: Buffer[] = [];
+          req.on("data", (c: Buffer) => chunks.push(c));
+          req.on("end", () => {
+            try {
+              lastReceivedBody = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+            } catch {
+              lastReceivedBody = null;
+            }
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true }));
+          });
+        });
+        fakeOllamaServer.listen(0, "127.0.0.1", () => {
+          fakeOllamaPort = (fakeOllamaServer.address() as { port: number }).port;
+          resolve();
+        });
+      }),
+  );
+
+  afterAll(() => new Promise<void>((resolve) => fakeOllamaServer.close(() => resolve())));
+
+  it("forwards requests to the real Ollama URL", async () => {
+    const { url, server } = await startOllamaNoToolsProxy(`http://127.0.0.1:${fakeOllamaPort}`);
+    try {
+      const body = JSON.stringify({ model: "gemma4", messages: [{ role: "user", content: "hi" }] });
+      await new Promise<void>((resolve, reject) => {
+        const proxyUrl = new URL(url);
+        const req = http.request(
+          {
+            hostname: proxyUrl.hostname,
+            port: Number(proxyUrl.port),
+            path: "/api/chat",
+            method: "POST",
+            headers: { "content-type": "application/json", "content-length": body.length },
+          },
+          (res) => {
+            res.resume();
+            res.on("end", resolve);
+          },
+        );
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+      expect(lastReceivedBody).toMatchObject({ model: "gemma4" });
+    } finally {
+      server.close();
+    }
+  });
+
+  it("strips tools array from JSON requests", async () => {
+    const { url, server } = await startOllamaNoToolsProxy(`http://127.0.0.1:${fakeOllamaPort}`);
+    try {
+      const body = JSON.stringify({
+        model: "functiongemma-270m",
+        messages: [{ role: "user", content: "extract json" }],
+        tools: [{ type: "function", function: { name: "exec", parameters: {} } }],
+      });
+      await new Promise<void>((resolve, reject) => {
+        const proxyUrl = new URL(url);
+        const req = http.request(
+          {
+            hostname: proxyUrl.hostname,
+            port: Number(proxyUrl.port),
+            path: "/api/chat",
+            method: "POST",
+            headers: { "content-type": "application/json", "content-length": body.length },
+          },
+          (res) => {
+            res.resume();
+            res.on("end", resolve);
+          },
+        );
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+      expect(lastReceivedBody).not.toHaveProperty("tools");
+      expect(lastReceivedBody).toMatchObject({ model: "functiongemma-270m" });
+    } finally {
+      server.close();
+    }
+  });
+
+  it("preserves non-JSON requests unchanged", async () => {
+    const { url, server } = await startOllamaNoToolsProxy(`http://127.0.0.1:${fakeOllamaPort}`);
+    try {
+      const body = "plain text body";
+      await new Promise<void>((resolve, reject) => {
+        const proxyUrl = new URL(url);
+        const req = http.request(
+          {
+            hostname: proxyUrl.hostname,
+            port: Number(proxyUrl.port),
+            path: "/api/tags",
+            method: "GET",
+            headers: { "content-length": body.length },
+          },
+          (res) => {
+            res.resume();
+            res.on("end", resolve);
+          },
+        );
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+      // Non-JSON body was forwarded but not parsed as tools JSON.
+      expect(lastReceivedBody).toBeNull();
+    } finally {
+      server.close();
+    }
   });
 });

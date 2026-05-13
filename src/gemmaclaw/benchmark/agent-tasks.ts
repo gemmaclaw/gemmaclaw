@@ -8,16 +8,16 @@
  * Fixture data comes from scripts/benchmark/seed-mock-gog.py.
  */
 
-import {
-  BENCHMARK_TEST_TEMPLATE_TARGETS,
-  GENERATED_AGENT_VARIATION_TASKS,
-} from "./agent-variation-templates.js";
 import type {
   AgentBenchmarkTask,
   AgentDeterministicGrading,
   AgentDeterministicScore,
   DeterministicExpectedValue,
 } from "./agent-task-types.js";
+import {
+  BENCHMARK_TEST_TEMPLATE_TARGETS,
+  GENERATED_AGENT_VARIATION_TASKS,
+} from "./agent-variation-templates.js";
 import { EXPANDED_AGENT_BENCHMARK_TASKS } from "./expanded-agent-benchmark-tasks.js";
 
 export {
@@ -103,6 +103,7 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
       finalResponse:
         '{"person":"Maya Chen","date":"2026-05-08","time":"15:00","action":"send the revised launch checklist","priority":"high"}',
     },
+    noToolsMode: true,
   },
 
   {
@@ -151,6 +152,7 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
       finalResponse:
         '{"action":"create_task","arguments":{"title":"Send the Q2 forecast to Priya","due":"Friday 3 PM","priority":"high"}}',
     },
+    noToolsMode: true,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

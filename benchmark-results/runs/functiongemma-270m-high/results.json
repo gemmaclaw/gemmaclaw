@@ -1,0 +1,243 @@
+{
+  "metadata": {
+    "model": "functiongemma-270m:latest",
+    "thinkingLevel": "high",
+    "hardware": {
+      "cpu": {
+        "arch": "x64",
+        "cores": 12,
+        "model": "AMD Ryzen 9 5900X 12-Core Processor"
+      },
+      "ram": {
+        "totalBytes": 129787633664,
+        "availableBytes": 121636569088
+      },
+      "gpu": {
+        "detected": true,
+        "nvidia": true,
+        "apple": false,
+        "name": "GPU (via Ollama host)",
+        "vramBytes": 579534336
+      }
+    },
+    "gatewayUrl": "http://127.0.0.1:3001",
+    "ollamaUrl": "http://host.docker.internal:11434",
+    "ollamaModelInfo": {
+      "family": "gemma3",
+      "parameterSize": "268.10M",
+      "quantizationLevel": "Q4_K_M",
+      "format": "gguf"
+    },
+    "startedAt": "2026-05-13T21:44:45.664Z",
+    "platform": "linux x64",
+    "nodeVersion": "v22.22.2",
+    "finishedAt": "2026-05-13T21:53:54.246Z"
+  },
+  "config": {
+    "gatewayUrl": "http://localhost:3001",
+    "backend": "ollama",
+    "ollamaUrl": "http://127.0.0.1:11434",
+    "llamaCppUrl": "http://127.0.0.1:8080",
+    "model": "functiongemma-270m:latest",
+    "thinkingLevel": "high",
+    "taskTimeoutSeconds": 300,
+    "idleTimeoutSeconds": 300,
+    "validatePerTask": true,
+    "qualityInspectPerTask": true,
+    "validationRerunOnFail": true,
+    "filter": "gemma3n_json_extract",
+    "mock": false,
+    "outputDir": "/home/frank/gemmaclaw-benchmarks/functiongemma-results",
+    "runId": "functiongemma-270m-high",
+    "rerun": true,
+    "rerunFailed": false
+  },
+  "tasks": [
+    {
+      "task": {
+        "id": "gemma3n_json_extract",
+        "name": "Easy JSON Fact Extraction",
+        "description": "Tests whether a small on-device model can extract explicit facts from one short workplace message into a fixed JSON schema without extra text.",
+        "category": "structured_output",
+        "difficulty": "easy",
+        "prompt": "Extract the facts from this message. Return ONLY valid JSON with exactly these keys: person, date, time, action, priority. Use ISO date YYYY-MM-DD and 24-hour time HH:MM.\n\nMessage: Maya Chen needs me to send the revised launch checklist on 2026-05-08 at 15:00. She marked it high priority.",
+        "grading": {
+          "type": "conversation_check",
+          "criteria": [
+            "Must return valid JSON and no surrounding explanation",
+            "Must include exactly the keys person, date, time, action, priority",
+            "person must be Maya Chen",
+            "date must be 2026-05-08 and time must be 15:00",
+            "action must preserve the revised launch checklist request",
+            "priority must be high"
+          ],
+          "deterministic": {
+            "type": "json_fields",
+            "requiredKeys": ["person", "date", "time", "action", "priority"],
+            "expectedFields": {
+              "person": "Maya Chen",
+              "date": "2026-05-08",
+              "time": "15:00",
+              "action": ["send", "revised launch checklist"],
+              "priority": "high"
+            },
+            "allowExtraKeys": false
+          },
+          "maxScore": 5
+        },
+        "mock": {
+          "finalResponse": "{\"person\":\"Maya Chen\",\"date\":\"2026-05-08\",\"time\":\"15:00\",\"action\":\"send the revised launch checklist\",\"priority\":\"high\"}"
+        },
+        "noToolsMode": true
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "content": "Extract the facts from this message. Return ONLY valid JSON with exactly these keys: person, date, time, action, priority. Use ISO date YYYY-MM-DD and 24-hour time HH:MM.\n\nMessage: Maya Chen needs me to send the revised launch checklist on 2026-05-08 at 15:00. She marked it high priority.",
+          "timestamp": "2026-05-13T21:45:04.100Z"
+        },
+        {
+          "role": "assistant",
+          "content": "\nThe original report indicates the report was submitted to the department.\n\nCould you provide the revised launch checklist on 24-hour time HH:MM. Maya Chen needs me to send it.",
+          "timestamp": "2026-05-13T21:45:06.136Z",
+          "outputTokens": 41
+        }
+      ],
+      "elapsedMs": 23614,
+      "tokensPerSecond": 20.137524557956777,
+      "tokensPerSecondSource": "effective-output",
+      "toolCallCount": 0,
+      "toolsUsed": [],
+      "completionStatus": "completed",
+      "validation": {
+        "valid": true,
+        "issues": [],
+        "deterministicScore": {
+          "taskId": "gemma3n_json_extract",
+          "score": 0,
+          "maxScore": 5,
+          "percentage": 0,
+          "passed": false,
+          "method": "deterministic",
+          "details": "Output was not a JSON object"
+        }
+      },
+      "validationRerunCount": 0,
+      "qualityInspection": {
+        "schemaVersion": 1,
+        "inspectedAt": "2026-05-13T21:45:09.339Z",
+        "publishable": false,
+        "issues": [
+          {
+            "kind": "llm_judge_missing",
+            "severity": "info",
+            "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+          },
+          {
+            "kind": "deterministic_score_low",
+            "severity": "warn",
+            "message": "Deterministic scorer failed: 0/5.",
+            "evidence": "Output was not a JSON object"
+          }
+        ]
+      }
+    },
+    {
+      "task": {
+        "id": "gemma3n_tool_intent",
+        "name": "Easy Single-Step Tool Intent",
+        "description": "Tests whether a small on-device model can choose one safe tool-like intent and produce valid arguments without performing side effects.",
+        "category": "tool_intent",
+        "difficulty": "easy",
+        "prompt": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+        "grading": {
+          "type": "conversation_check",
+          "criteria": [
+            "Must return valid JSON and no surrounding explanation",
+            "Must choose exactly one top-level action",
+            "Action must be create_task, not send_email or create_calendar_event",
+            "Arguments must include title, due, and priority",
+            "Title must mention sending the Q2 forecast to Priya",
+            "Due must mention Friday at 3 PM",
+            "Priority must be high"
+          ],
+          "deterministic": {
+            "type": "tool_intent",
+            "allowedActions": ["create_task", "create_calendar_event", "send_email"],
+            "expectedAction": "create_task",
+            "expectedArguments": {
+              "title": ["send", "q2 forecast", "priya"],
+              "due": ["friday", "3"],
+              "priority": "high"
+            },
+            "allowExtraTopLevelKeys": false,
+            "allowExtraArgumentKeys": false
+          },
+          "maxScore": 5
+        },
+        "mock": {
+          "finalResponse": "{\"action\":\"create_task\",\"arguments\":{\"title\":\"Send the Q2 forecast to Priya\",\"due\":\"Friday 3 PM\",\"priority\":\"high\"}}"
+        },
+        "noToolsMode": true
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "content": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+          "timestamp": "2026-05-13T21:42:50.759Z"
+        }
+      ],
+      "elapsedMs": 23630,
+      "toolCallCount": 0,
+      "toolsUsed": [],
+      "completionStatus": "completed",
+      "validation": {
+        "valid": true,
+        "issues": [
+          {
+            "kind": "no_assistant_turn",
+            "severity": "warn",
+            "message": "Task marked completed but conversation has no assistant turn with content."
+          }
+        ],
+        "deterministicScore": {
+          "taskId": "gemma3n_tool_intent",
+          "score": 0,
+          "maxScore": 5,
+          "percentage": 0,
+          "passed": false,
+          "method": "deterministic",
+          "details": "No assistant response found"
+        }
+      },
+      "validationRerunCount": 0,
+      "qualityInspection": {
+        "schemaVersion": 1,
+        "inspectedAt": "2026-05-13T21:42:56.314Z",
+        "publishable": false,
+        "issues": [
+          {
+            "kind": "llm_judge_missing",
+            "severity": "info",
+            "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+          },
+          {
+            "kind": "deterministic_score_low",
+            "severity": "warn",
+            "message": "Deterministic scorer failed: 0/5.",
+            "evidence": "No assistant response found"
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "totalTasks": 2,
+    "completedCount": 2,
+    "errorCount": 0,
+    "timeoutCount": 0,
+    "totalTimeMs": 548583,
+    "totalToolCalls": 0,
+    "avgToolCallsPerTask": 0
+  }
+}
