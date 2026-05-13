@@ -943,9 +943,55 @@ const BENCHMARK_WORKSPACE_FILES: Record<string, string> = {
   "HEARTBEAT.md": "HEARTBEAT_OK\n",
 };
 
-export function writeBenchmarkWorkspaceFiles(workspaceDir: string): void {
+/** Workspace files for no-tools tasks (e.g. FunctionGemma structured-output tasks). */
+const BENCHMARK_WORKSPACE_FILES_NO_TOOLS: Record<string, string> = {
+  "AGENTS.md": [
+    "# Gemmaclaw Benchmark Workspace",
+    "",
+    "You are running in an isolated benchmark workspace.",
+    "Answer the user request using only the information given in the prompt.",
+    "Return only the output format the prompt specifies — no extra text.",
+    "",
+  ].join("\n"),
+  "SOUL.md": [
+    "# Benchmark Assistant",
+    "",
+    "Be concise and accurate.",
+    "Return exactly the format requested and nothing else.",
+    "",
+  ].join("\n"),
+  "USER.md": [
+    "# Benchmark User",
+    "",
+    "The benchmark user is Alex at Acme Corp.",
+    "Answer using only the information provided in the prompt.",
+    "",
+  ].join("\n"),
+  "IDENTITY.md": [
+    "# Benchmark Identity",
+    "",
+    "You are the benchmark assistant for this isolated Gemmaclaw run.",
+    "",
+  ].join("\n"),
+  "TOOLS.md": [
+    "# Benchmark Tools",
+    "",
+    "No tools are available for this task. Answer using only the prompt text.",
+    "",
+  ].join("\n"),
+  "MEMORY.md": [
+    "# Benchmark Memory",
+    "",
+    "No private user memory is available in this isolated benchmark.",
+    "",
+  ].join("\n"),
+  "HEARTBEAT.md": "HEARTBEAT_OK\n",
+};
+
+export function writeBenchmarkWorkspaceFiles(workspaceDir: string, noToolsMode?: boolean): void {
   fs.mkdirSync(path.join(workspaceDir, "memory"), { recursive: true });
-  for (const [name, content] of Object.entries(BENCHMARK_WORKSPACE_FILES)) {
+  const files = noToolsMode ? BENCHMARK_WORKSPACE_FILES_NO_TOOLS : BENCHMARK_WORKSPACE_FILES;
+  for (const [name, content] of Object.entries(files)) {
     fs.writeFileSync(path.join(workspaceDir, name), content);
   }
 }
@@ -1677,7 +1723,7 @@ export async function dispatchTask(
     fs.mkdirSync(path.join(ocDir, "agent"), { recursive: true });
     fs.mkdirSync(path.join(ocDir, "agents/main/agent"), { recursive: true });
     const workspaceDir = path.join(ocDir, "workspace");
-    writeBenchmarkWorkspaceFiles(workspaceDir);
+    writeBenchmarkWorkspaceFiles(workspaceDir, task.noToolsMode);
     const gogStateDir = path.join(benchHome, ".config/gogcli/state");
     const fakeGogBinDir = resolveFakeGogBinDir();
     const fakeGogLogPath = path.join(benchHome, "fake-gog.log");
@@ -1720,14 +1766,21 @@ export async function dispatchTask(
         XDG_CONFIG_HOME: benchHome,
         HOME: benchHome,
       },
-      tools: {
-        exec: {
-          host: "gateway",
-          security: "full",
-          ask: "off",
-          pathPrepend: [fakeGogBinDir],
-        },
-      },
+      // When noToolsMode is set on the task (e.g. FunctionGemma 270M which
+      // rejects tool-augmented Ollama requests), omit the exec tool so the
+      // inner agent sends a plain text conversation without any tool schema.
+      ...(task.noToolsMode
+        ? {}
+        : {
+            tools: {
+              exec: {
+                host: "gateway",
+                security: "full",
+                ask: "off",
+                pathPrepend: [fakeGogBinDir],
+              },
+            },
+          }),
       plugins: {
         allow: resolveAgentPluginAllowIds(config.backend),
       },

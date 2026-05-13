@@ -258,7 +258,7 @@ if [ "$IS_AGENT" = "1" ]; then
   # different model silently.
   if [ "$BENCHMARK_BACKEND" = "ollama" ]; then
     if ! probe_curl_fail "$OLLAMA_TARGET/api/tags" \
-        | python3 -c "import json,sys; tags=json.load(sys.stdin).get('models',[]); names=[m.get('name','') for m in tags]; sys.exit(0 if '$MODEL' in names else 1)"; then
+        | python3 -c "import json,sys; m='$MODEL'; m_tagged=m if ':' in m else m+':latest'; tags=json.load(sys.stdin).get('models',[]); names=[t.get('name','') for t in tags]; sys.exit(0 if m in names or m_tagged in names else 1)"; then
       echo "FAIL: model $MODEL is not present on host Ollama at $OLLAMA_TARGET. Run 'ollama pull $MODEL' on the host before running benchmarks."
       echo "      (api/tags probe bounded to ${HEALTH_MAX_TIME}s)"
       exit 1
