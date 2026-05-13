@@ -73,7 +73,7 @@ export async function ensurePiAuthJsonFromAuthProfiles(agentDir: string): Promis
     return { wrote: false, authPath };
   }
 
-  await fs.mkdir(agentDir, { recursive: true, mode: 0o700 });
+  await fs.mkdir(agentDir, { recursive: true, mode: 0o755 });
   await fs.writeFile(authPath, `${JSON.stringify(existing, null, 2)}\n`, { mode: 0o600 });
 
   return { wrote: true, authPath };

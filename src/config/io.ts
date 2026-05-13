@@ -26,7 +26,6 @@ import { maintainConfigBackups } from "./backup-rotation.js";
 import { restoreEnvVarRefs } from "./env-preserve.js";
 import {
   type EnvSubstitutionWarning,
-  MissingEnvVarError,
   containsEnvVarReference,
   resolveConfigEnvVars,
 } from "./env-substitution.js";
@@ -211,7 +210,8 @@ async function tightenStateDirPermissionsIfNeeded(params: {
     if ((mode & 0o077) === 0) {
       return;
     }
-    await params.fsModule.promises.chmod(configDir, 0o700);
+    const isLinux = process.platform === "linux";
+    await params.fsModule.promises.chmod(configDir, isLinux ? 0o755 : 0o700);
   } catch {
     // Best-effort hardening only; callers still need the config write to proceed.
   }
