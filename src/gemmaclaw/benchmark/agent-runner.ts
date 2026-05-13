@@ -2018,9 +2018,19 @@ export async function dispatchTask(
     // prevents false timeouts during extended thinking phases (e.g. Q5_K_M/
     // Q6_K with thinking=high can generate 40+ min thinking traces with no
     // JSONL/trajectory/stdout output while Ollama is actively generating).
+    //
+    // Extension cap: limit total Ollama-active extensions to 90 minutes per
+    // task. Q5_K_M/Q6_K thinking=high can enter pathological thinking loops
+    // where the model continuously generates thinking tokens for hours with no
+    // useful output. Without the cap, `lastActivityMs` resets indefinitely and
+    // the task only terminates at the hard cap (28800s). With the cap, after
+    // 90 min of continuous "Ollama active" extensions the no-activity timer
+    // resumes and kills the stuck task within noActivityMs.
     let ollamaCheckInFlight = false;
     let lastOllamaCheckMs = 0;
+    let ollamaActiveFirstExtensionMs: number | null = null;
     const OLLAMA_CHECK_INTERVAL_MS = 30_000;
+    const OLLAMA_ACTIVE_EXTENSION_CAP_MS = 90 * 60 * 1000; // 90 min per task
     const scheduleOllamaActiveCheck = () => {
       if (config.backend !== "ollama" || ollamaCheckInFlight) {
         return;
@@ -2034,7 +2044,19 @@ export async function dispatchTask(
       void isOllamaModelActive(config.ollamaUrl, config.model)
         .then((active) => {
           if (active) {
-            lastActivityMs = Date.now();
+            const nowMs = Date.now();
+            if (ollamaActiveFirstExtensionMs === null) {
+              ollamaActiveFirstExtensionMs = nowMs;
+            }
+            const extensionMs = nowMs - ollamaActiveFirstExtensionMs;
+            if (extensionMs < OLLAMA_ACTIVE_EXTENSION_CAP_MS) {
+              lastActivityMs = nowMs;
+            }
+            // else: cap exceeded — stop extending so noActivity timer fires
+          } else {
+            // Model no longer in VRAM; reset so a fresh generation gets a
+            // full 90-min window
+            ollamaActiveFirstExtensionMs = null;
           }
         })
         .finally(() => {
