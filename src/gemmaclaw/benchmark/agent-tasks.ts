@@ -8,6 +8,18 @@
  * Fixture data comes from scripts/benchmark/seed-mock-gog.py.
  */
 
+import {
+  BENCHMARK_TEST_TEMPLATE_TARGETS,
+  GENERATED_AGENT_VARIATION_TASKS,
+} from "./agent-variation-templates.js";
+import { EXPANDED_AGENT_BENCHMARK_TASKS } from "./expanded-agent-benchmark-tasks.js";
+
+export {
+  BENCHMARK_TEST_TEMPLATE_TARGETS,
+  EXPANDED_AGENT_BENCHMARK_TASKS,
+  GENERATED_AGENT_VARIATION_TASKS,
+};
+
 export type AgentGradingType = "conversation_check" | "artifact_check" | "tool_sequence_check";
 
 export type AgentTaskCategory =
@@ -22,7 +34,9 @@ export type AgentTaskCategory =
   | "data_analysis"
   | "coordination"
   | "structured_output"
-  | "tool_intent";
+  | "tool_intent"
+  | `expanded_${string}`
+  | `variant_${string}`;
 
 export type AgentTaskDifficulty = "easy" | "medium" | "hard" | "very_hard";
 
@@ -1596,6 +1610,12 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
   },
 ];
 
+export const ALL_AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
+  ...AGENT_BENCHMARK_TASKS,
+  ...EXPANDED_AGENT_BENCHMARK_TASKS,
+  ...GENERATED_AGENT_VARIATION_TASKS,
+];
+
 function normalizeForDeterministicMatch(value: unknown): string {
   const text =
     value === null || value === undefined
@@ -1803,17 +1823,32 @@ export function evaluateDeterministicAgentTaskConversation(
   return evaluateDeterministicAgentTaskOutput(task, finalAssistant.content);
 }
 
-// Helper for task lookup
-export function getTaskById(id: string): AgentBenchmarkTask | undefined {
-  return AGENT_BENCHMARK_TASKS.find((t) => t.id === id);
+type AgentTaskLookupOptions = {
+  includeExpanded?: boolean;
+};
+
+function agentBenchmarkCatalog(options?: AgentTaskLookupOptions): AgentBenchmarkTask[] {
+  return options?.includeExpanded ? ALL_AGENT_BENCHMARK_TASKS : AGENT_BENCHMARK_TASKS;
 }
 
-export function getTasksByCategory(category: AgentBenchmarkTask["category"]): AgentBenchmarkTask[] {
-  return AGENT_BENCHMARK_TASKS.filter((t) => t.category === category);
+// Helper for task lookup. Default lookups intentionally preserve the comparable 47-task suite.
+export function getTaskById(
+  id: string,
+  options?: AgentTaskLookupOptions,
+): AgentBenchmarkTask | undefined {
+  return agentBenchmarkCatalog(options).find((t) => t.id === id);
+}
+
+export function getTasksByCategory(
+  category: AgentBenchmarkTask["category"],
+  options?: AgentTaskLookupOptions,
+): AgentBenchmarkTask[] {
+  return agentBenchmarkCatalog(options).filter((t) => t.category === category);
 }
 
 export function getTasksByDifficulty(
   difficulty: AgentBenchmarkTask["difficulty"],
+  options?: AgentTaskLookupOptions,
 ): AgentBenchmarkTask[] {
-  return AGENT_BENCHMARK_TASKS.filter((t) => t.difficulty === difficulty);
+  return agentBenchmarkCatalog(options).filter((t) => t.difficulty === difficulty);
 }
