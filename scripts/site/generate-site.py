@@ -1090,6 +1090,11 @@ def html_escape(text):
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+def slugify(text):
+    """Create a stable lowercase anchor id."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
 def clean_generated_html(text):
     """Normalize generated HTML so committed site output passes whitespace checks."""
     return "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
@@ -2485,8 +2490,243 @@ def generate_benchmark_suite_variations():
 </section>"""
 
 
+def load_expanded_agent_task_catalog():
+    """Load public task metadata from the expanded benchmark TypeScript source."""
+    src = REPO_DIR / "src" / "gemmaclaw" / "benchmark" / "expanded-agent-benchmark-tasks.ts"
+    if not src.exists():
+        return []
+    text = src.read_text()
+    task_re = re.compile(
+        r'\{\s*id: "([^"]+)",\s*'
+        r'name: "([^"]+)",\s*'
+        r'description:\s*(?:"([^"]+)"|\(\s*"([^"]+)"\s*\)),\s*'
+        r'category: "([^"]+)",\s*'
+        r'difficulty: "([^"]+)",',
+        re.S,
+    )
+    tasks = []
+    for match in task_re.finditer(text):
+        task_id, name, desc_a, desc_b, category, difficulty = match.groups()
+        category_key = category.lower()
+        tasks.append({
+            "id": task_id,
+            "name": name,
+            "description": (desc_a or desc_b or "").replace("\n", " ").strip(),
+            "category": category_key,
+            "difficulty": difficulty,
+            "variations": [f"variant_{task_id}_{i:02d}" for i in range(1, 51)],
+        })
+    return tasks
+
+
+def load_default_agent_task_catalog():
+    """Load public task metadata from the default benchmark TypeScript source."""
+    src = REPO_DIR / "src" / "gemmaclaw" / "benchmark" / "agent-tasks.ts"
+    if not src.exists():
+        return []
+    text = src.read_text()
+    start = text.find("export const AGENT_BENCHMARK_TASKS")
+    end = text.find("export const ALL_AGENT_BENCHMARK_TASKS")
+    if start < 0:
+        return []
+    block = text[start:end if end > start else len(text)]
+    starts = [m.start() for m in re.finditer(r'\{\s*id: "', block)]
+    tasks = []
+    for idx, pos in enumerate(starts):
+        next_pos = starts[idx + 1] if idx + 1 < len(starts) else len(block)
+        segment = block[pos:next_pos]
+        id_match = re.search(r'id: "([^"]+)"', segment)
+        name_match = re.search(r'name: "([^"]+)"', segment)
+        category_match = re.search(r'category: "([^"]+)"', segment)
+        difficulty_match = re.search(r'difficulty: "([^"]+)"', segment)
+        if not (id_match and name_match and category_match and difficulty_match):
+            continue
+        desc_text = ""
+        desc_start = segment.find("description:")
+        desc_end = segment.find("category:")
+        if desc_start >= 0 and desc_end > desc_start:
+            desc_segment = segment[desc_start:desc_end]
+            desc_text = " ".join(part.strip() for part in re.findall(r'"([^"]+)"', desc_segment))
+        tasks.append({
+            "id": id_match.group(1),
+            "name": name_match.group(1),
+            "description": desc_text.replace("\n", " ").strip(),
+            "category": category_match.group(1),
+            "difficulty": difficulty_match.group(1),
+            "variations": [],
+        })
+    return tasks
+
+
+def benchmark_category_label(category):
+    labels = {
+        "default": "Default Published Benchmark Suite",
+        "expanded_productivity": "Productivity and Office Work",
+        "expanded_research": "Research and Source Synthesis",
+        "expanded_writing": "Writing and Editing",
+        "expanded_coding": "Coding and Code Review",
+        "expanded_analysis": "Analytical Reasoning",
+        "expanded_csv_analysis": "CSV and Table Analysis",
+        "expanded_log_analysis": "Log and Incident Analysis",
+        "expanded_meeting_analysis": "Meeting and Transcript Analysis",
+        "expanded_memory": "Memory and State Recovery",
+        "expanded_skills": "Skill and Workflow Composition",
+        "expanded_integrations": "Safe Integration Simulation",
+    }
+    return labels.get(category, category.replace("expanded_", "").replace("_", " ").title())
+
+
+def generate_benchmark_test_catalog():
+    """Render a clickable catalog of every expanded task template and generated variation."""
+    default_tasks = load_default_agent_task_catalog()
+    expanded_tasks = load_expanded_agent_task_catalog()
+    if not expanded_tasks:
+        return ""
+
+    category_order = [
+        "expanded_productivity",
+        "expanded_research",
+        "expanded_writing",
+        "expanded_coding",
+        "expanded_analysis",
+        "expanded_csv_analysis",
+        "expanded_log_analysis",
+        "expanded_meeting_analysis",
+        "expanded_memory",
+        "expanded_skills",
+        "expanded_integrations",
+    ]
+    grouped = {}
+    for task in expanded_tasks:
+        grouped.setdefault(task["category"], []).append(task)
+    ordered_categories = [cat for cat in category_order if cat in grouped] + sorted(
+        cat for cat in grouped if cat not in category_order
+    )
+
+    total_default = len(default_tasks)
+    total_templates = len(expanded_tasks)
+    total_variations = sum(len(task["variations"]) for task in expanded_tasks)
+    difficulty_counts = {}
+    for task in default_tasks + expanded_tasks:
+        difficulty_counts[task["difficulty"]] = difficulty_counts.get(task["difficulty"], 0) + 1
+
+    stat_cards = [
+        ("Published baseline", str(total_default or 47), "Default comparable task suite"),
+        ("Expanded templates", str(total_templates), "Every template listed below"),
+        ("Generated variations", f"{total_variations:,}", "50 variants under each template"),
+        ("All registered tests", f"{(total_default or 47) + total_templates + total_variations:,}", "Default + expanded + variants"),
+    ]
+    stat_html = "".join(
+        f"""<div class="suite-stat-card">
+  <span>{html_escape(label)}</span>
+  <strong>{html_escape(value)}</strong>
+  <small>{html_escape(note)}</small>
+</div>"""
+        for label, value, note in stat_cards
+    )
+
+    difficulty_html = "".join(
+        f'<span class="suite-pill">{html_escape(name.title())}: {count}</span>'
+        for name, count in sorted(difficulty_counts.items())
+    )
+
+    category_cards = []
+    if default_tasks:
+        category_cards.append(f"""<a class="suite-category-card suite-category-card-primary" href="#suite-cat-default">
+  <strong>Default Published Benchmark Suite</strong>
+  <span>{len(default_tasks)} scored tasks</span>
+  <small>The comparable scorecard baseline</small>
+</a>""")
+    for category in ordered_categories:
+        cat_tasks = grouped[category]
+        cat_anchor = f"suite-cat-{slugify(category)}"
+        category_cards.append(f"""<a class="suite-category-card" href="#{cat_anchor}">
+  <strong>{html_escape(benchmark_category_label(category))}</strong>
+  <span>{len(cat_tasks)} templates</span>
+  <small>{len(cat_tasks) * 50:,} generated variations</small>
+</a>""")
+
+    category_sections = []
+    if default_tasks:
+        default_cards = []
+        for task in sorted(default_tasks, key=lambda item: item["name"]):
+            template_anchor = f"default-template-{slugify(task['id'])}"
+            default_cards.append(f"""<details id="{template_anchor}" class="test-template-card">
+  <summary>
+    <span class="template-title">{html_escape(task["name"])}</span>
+    <span class="template-meta"><code>{html_escape(task["id"])}</code> · {html_escape(task["category"])} · {html_escape(task["difficulty"])}</span>
+  </summary>
+  <p>{html_escape(task["description"] or "Default comparable benchmark task used for published model scorecards.")}</p>
+  <div class="template-command"><code>pnpm benchmark agent --suite default --task {html_escape(task["id"])}</code></div>
+</details>""")
+        category_sections.append(f"""<section id="suite-cat-default" class="suite-category-section">
+  <div class="suite-category-heading">
+    <h3>Default Published Benchmark Suite</h3>
+    <a href="#benchmark-test-catalog">Back to catalog</a>
+  </div>
+  <p>{len(default_tasks)} scored tasks used for public model comparisons. These are shown before scorecards so readers can inspect what the numbers mean.</p>
+  <div class="test-template-list">{''.join(default_cards)}</div>
+</section>""")
+
+    for category in ordered_categories:
+        cat_tasks = sorted(grouped[category], key=lambda task: task["name"])
+        cat_anchor = f"suite-cat-{slugify(category)}"
+        template_cards = []
+        for task in cat_tasks:
+            template_anchor = f"template-{slugify(task['id'])}"
+            variation_links = "".join(
+                f'<a id="{html_escape(variation_id)}" class="variation-chip" href="#{html_escape(variation_id)}" '
+                f'title="pnpm benchmark agent --suite variants --task {html_escape(variation_id)}">'
+                f'{html_escape(variation_id.replace("variant_", ""))}</a>'
+                for variation_id in task["variations"]
+            )
+            template_cards.append(f"""<details id="{template_anchor}" class="test-template-card">
+  <summary>
+    <span class="template-title">{html_escape(task["name"])}</span>
+    <span class="template-meta"><code>{html_escape(task["id"])}</code> · {html_escape(task["difficulty"])} · 50 variations</span>
+  </summary>
+  <p>{html_escape(task["description"])}</p>
+  <div class="template-command"><code>pnpm benchmark agent --suite expanded --task {html_escape(task["id"])}</code></div>
+  <div class="variation-list" aria-label="Generated variations for {html_escape(task['name'])}">
+    {variation_links}
+  </div>
+</details>""")
+        category_sections.append(f"""<section id="{cat_anchor}" class="suite-category-section">
+  <div class="suite-category-heading">
+    <h3>{html_escape(benchmark_category_label(category))}</h3>
+    <a href="#benchmark-test-catalog">Back to catalog</a>
+  </div>
+  <p>{len(cat_tasks)} test templates, {len(cat_tasks) * 50:,} generated variations.</p>
+  <div class="test-template-list">{''.join(template_cards)}</div>
+</section>""")
+
+    return f"""
+<section id="benchmark-test-catalog" class="benchmark-test-catalog">
+  <h2>All Tests and Variations</h2>
+  <p>Gemmaclaw exposes the benchmark surface before the scorecards: the default published suite, 147 expanded test templates, and every generated variation underneath those templates. Click a category, open a test template, then click any variation id to deep-link to that exact generated case. Every variation chip is a runnable <code>pnpm benchmark agent --suite variants --task ...</code> target.</p>
+  <p class="suite-catalog-lede">Coverage spans office workflows, source-backed research, writing, coding, security, prompt-injection defense, logs, CSV analysis, meeting synthesis, memory recovery, skill composition, and safe integration simulation.</p>
+  <div class="suite-stat-grid">{stat_html}</div>
+  <div class="suite-pill-row">{difficulty_html}</div>
+  <div class="suite-category-grid">{''.join(category_cards)}</div>
+</section>
+{''.join(category_sections)}"""
+
+
 def generate_benchmarks_page(results, task_explanations_html="", agent_preview_html=""):
     """Compact benchmark landing page. Each result links to a dedicated detail page."""
+    test_catalog_html = generate_benchmark_test_catalog()
+    catalog_scripts = """
+    function openBenchmarkHashTarget() {
+      if (!window.location.hash) return;
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (!target) return;
+      const parentDetails = target.closest('details.test-template-card');
+      if (parentDetails) parentDetails.open = true;
+      target.scrollIntoView({ block: 'center' });
+    }
+    window.addEventListener('hashchange', openBenchmarkHashTarget);
+    window.addEventListener('DOMContentLoaded', openBenchmarkHashTarget);
+"""
     if not results:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
         <section id="benchmarks" style="text-align:center;padding:4rem 2rem">
@@ -2501,11 +2741,17 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
               <div style="padding:0.5rem 0;color:var(--fg-soft)">Speed benchmarks alongside quality scores</div>
             </div>
           </div>
-        </section>""" + agent_preview_html
-        return page_template("Benchmarks", body, active_page="benchmarks.html")
+        </section>""" + test_catalog_html + agent_preview_html
+        return page_template(
+            "Benchmarks",
+            body,
+            active_page="benchmarks.html",
+            extra_scripts=catalog_scripts,
+        )
 
     leaderboard_html = generate_benchmarks_landing_rows(results)
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
+    {test_catalog_html}
     <section id="benchmarks">
       <h2>Benchmark Results</h2>
       <p>All models are tested on the same published agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, data analysis, and hard OpenClaw-style operations workflows. Models are grouped by size class, quantization level, and thinking level. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
@@ -2522,7 +2768,12 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
       <h2>Methodology</h2>
       <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full agent suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
     </section>"""
-    return page_template("Benchmark Results", body, active_page="benchmarks.html")
+    return page_template(
+        "Benchmark Results",
+        body,
+        active_page="benchmarks.html",
+        extra_scripts=catalog_scripts,
+    )
 
 
 def generate_community_page(community_cards, community_count, field_notes_html):
@@ -3148,6 +3399,193 @@ CSS = """
       font-family: 'SF Mono', Menlo, Consolas, monospace;
       font-size: 0.85rem; background: var(--bg-elev-2);
       padding: 0.15rem 0.4rem; border-radius: 4px;
+    }
+
+    /* Benchmark test catalog */
+    .benchmark-test-catalog {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-elev);
+      padding: 1.25rem;
+    }
+    .suite-catalog-lede {
+      color: var(--fg-soft);
+      font-size: 1rem;
+      max-width: 980px;
+    }
+    .suite-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+    }
+    .suite-stat-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      padding: 1rem;
+      min-height: 112px;
+    }
+    .suite-stat-card span,
+    .suite-stat-card small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .suite-stat-card strong {
+      display: block;
+      margin: 0.2rem 0;
+      font-size: clamp(1.8rem, 5vw, 2.6rem);
+      line-height: 1;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+    .suite-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0.5rem 0 1.25rem;
+    }
+    .suite-pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-elev-2);
+      color: var(--fg-soft);
+      padding: 0.35rem 0.7rem;
+      font-size: 0.82rem;
+    }
+    .suite-category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.75rem;
+    }
+    .suite-category-card {
+      display: block;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      padding: 0.85rem;
+      color: var(--fg);
+      text-decoration: none;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .suite-category-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .suite-category-card-primary {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .suite-category-card strong,
+    .suite-category-card span,
+    .suite-category-card small {
+      display: block;
+    }
+    .suite-category-card span {
+      margin-top: 0.25rem;
+      color: var(--fg-soft);
+      font-size: 0.9rem;
+    }
+    .suite-category-card small {
+      margin-top: 0.15rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .suite-category-section {
+      scroll-margin-top: 96px;
+    }
+    .suite-category-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.35rem;
+    }
+    .suite-category-heading h3 {
+      margin: 0;
+    }
+    .suite-category-heading a {
+      color: var(--accent);
+      font-size: 0.88rem;
+      text-decoration: none;
+    }
+    .test-template-list {
+      display: grid;
+      gap: 0.65rem;
+      margin-top: 1rem;
+    }
+    .test-template-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-elev);
+      scroll-margin-top: 96px;
+    }
+    .test-template-card:target,
+    .variation-chip:target {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .test-template-card summary {
+      cursor: pointer;
+      padding: 0.8rem 1rem;
+      list-style: none;
+    }
+    .test-template-card summary::-webkit-details-marker {
+      display: none;
+    }
+    .template-title {
+      display: block;
+      color: var(--fg);
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .template-meta {
+      display: block;
+      margin-top: 0.25rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    .test-template-card p {
+      margin: 0;
+      padding: 0 1rem 0.75rem;
+      color: var(--fg-soft);
+      font-size: 0.9rem;
+    }
+    .template-command {
+      padding: 0 1rem 0.75rem;
+      color: var(--muted);
+      overflow-x: auto;
+    }
+    .template-command code {
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+    .variation-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.4rem;
+      padding: 0 1rem 1rem;
+    }
+    .variation-chip {
+      display: block;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      padding: 0.38rem 0.5rem;
+      color: var(--fg-soft);
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .variation-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
     }
 
     /* Search */
