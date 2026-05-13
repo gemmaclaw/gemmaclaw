@@ -2953,7 +2953,7 @@ def generate_benchmark_test_catalog():
   <div class="suite-quality-grid" aria-label="Generated variation quality controls">
     <div><strong>Evidence Modes</strong><span>Variants force citations, traceability tables, exact ID preservation, confidence labels, or assumption separation.</span></div>
     <div><strong>Ambiguity Policies</strong><span>Cases exercise relative dates, conflicting fields, missing owners, low confidence, and reversible-risk tie breakers.</span></div>
-    <div><strong>Failure Pressure</strong><span>Prompts include stale duplicates, unsafe instructions, irrelevant urgency, low-priority distractors, and reconciliation traps.</span></div>
+    <div><strong>Failure Pressure</strong><span>Prompts require agents to check for stale duplicates, unsafe instructions, irrelevant urgency, low-priority distractors, and reconciliation traps without inventing absent evidence.</span></div>
     <div><strong>Output Contracts</strong><span>Artifacts must expose owners, deadlines, normalized IDs, machine-readable blocks, verification checklists, or exact filenames.</span></div>
   </div>
   <div class="suite-pill-row">{difficulty_html}</div>
@@ -2983,11 +2983,11 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
       const variant = [
         `Variant ${chip.dataset.variationId || ''}`,
         `Context: act as the ${chip.dataset.persona || ''} handling the ${chip.dataset.context || ''}.`,
-        `Complication: ${chip.dataset.distractor || ''}.`,
+        `Fixture pressure to check: ${chip.dataset.distractor || ''}.`,
         `Output frame: ${chip.dataset.outputFrame || ''}.`,
         `Evidence mode: ${chip.dataset.evidenceMode || ''}.`,
         `Ambiguity policy: ${chip.dataset.ambiguityPolicy || ''}.`,
-        `Failure pressure: ${chip.dataset.failurePressure || ''}.`,
+        `Failure pressure to watch for: ${chip.dataset.failurePressure || ''}. Do not invent this pressure if the base fixture does not contain it; state that it was checked and absent instead.`,
         `Output contract: ${chip.dataset.outputContract || ''}.`,
         `Artifact: ${chip.dataset.artifact || setup.artifact || ''}.`,
       ].join('\\n');
@@ -3009,6 +3009,7 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
         '- The final artifact must make the evaluated behavior observable, not just describe intent.',
         '- The response must distinguish benchmark fixture facts from assumptions or simulated external state.',
         '- The task must fail visibly if the agent ignores unsafe, stale, duplicate, or irrelevant content.',
+        '- The agent must not manufacture distractors, traps, unsafe requests, stale duplicates, or missing fields that are absent from the base fixture.',
         '',
         'Base Rubric',
         criteria.length ? criteria.map((item) => `- ${item}`).join('\\n') : '- Rubric unavailable in generated catalog.',

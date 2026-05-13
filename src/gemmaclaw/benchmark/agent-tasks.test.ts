@@ -276,7 +276,15 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       expect(task.prompt, `${task.id} has explicit quality gates`).toContain("## Quality Gates");
       expect(task.prompt, `${task.id} has evidence axis`).toContain("Evidence mode:");
       expect(task.prompt, `${task.id} has ambiguity axis`).toContain("Ambiguity policy:");
-      expect(task.prompt, `${task.id} has failure pressure axis`).toContain("Failure pressure:");
+      expect(task.prompt, `${task.id} has failure pressure axis`).toContain(
+        "Failure pressure to watch for:",
+      );
+      expect(task.prompt, `${task.id} does not ask agents to manufacture pressure`).toContain(
+        "do not invent extra distractors",
+      );
+      expect(task.prompt, `${task.id} avoids synthetic complication wording`).not.toContain(
+        "Include this complication in your reasoning",
+      );
       expect(task.prompt, `${task.id} has output contract axis`).toContain("Output contract:");
       expect(
         task.grading.criteria.length,

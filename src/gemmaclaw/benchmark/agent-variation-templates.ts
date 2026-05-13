@@ -481,11 +481,11 @@ function variantInstruction(template: VariationTemplate, index: number): string 
   const caseNo = String(index + 1).padStart(2, "0");
   return [
     `Variant ${caseNo} context: act as the ${persona} handling the ${context}.`,
-    `Include this complication in your reasoning: ${distractor}.`,
+    `The benchmark fixture may contain or imply this complication: ${distractor}.`,
     `Shape the final response as a ${outputFrame}.`,
     `Evidence mode: ${evidenceMode}.`,
     `Ambiguity policy: ${ambiguityPolicy}.`,
-    `Failure pressure: ${failurePressure}.`,
+    `Failure pressure to watch for: ${failurePressure}. Do not invent this pressure if the base fixture does not contain it; state that it was checked and absent instead.`,
     `Output contract: ${outputContract}.`,
     `Write the final artifact to ${template.artifact}.`,
   ].join("\n");
@@ -515,6 +515,8 @@ export function generateTemplateVariationTasks(): AgentBenchmarkTask[] {
           "## Constraints",
           ...template.constraints.map((constraint) => `- ${constraint}`),
           "- follow the variant evidence mode, ambiguity policy, failure pressure, and output contract",
+          "- do not invent extra distractors, traps, unsafe requests, stale duplicates, or missing fields that are not present in the base fixture",
+          "- when a variant axis describes pressure that is absent from the base fixture, say it was checked and absent rather than creating artificial evidence",
           "- if the variant pressure conflicts with the base template, preserve the base benchmark goal and document the conflict",
           "",
           "## Required Output",
