@@ -22,6 +22,7 @@ import { execSync, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import type { HardwareInfo } from "../provision/hardware.js";
@@ -1629,7 +1630,69 @@ function mergeProviderConversation(
  *
  * `taskTimeoutSeconds` remains a backward-compat alias: when callers pass it
  * but no `hardCapSeconds`, we treat it as the hard cap.
+
+/**
+ * Start a thin HTTP proxy that strips the tools array from all Ollama API
+ * requests. Used for models that reject tool-augmented API calls
+ * (e.g. FunctionGemma 270M returns 400 "does not support tools").
+ * The proxy listens on 127.0.0.1 on a randomly assigned port and forwards
+ * every other request to the real Ollama URL unchanged.
  */
+export async function startOllamaNoToolsProxy(
+  realOllamaUrl: string,
+): Promise<{ url: string; server: http.Server }> {
+  const target = new URL(realOllamaUrl);
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        let body = Buffer.concat(chunks);
+        const contentType = req.headers["content-type"] ?? "";
+        if (contentType.includes("application/json") && body.length > 0) {
+          try {
+            const parsed: Record<string, unknown> = JSON.parse(body.toString("utf-8"));
+            if ("tools" in parsed) {
+              delete parsed.tools;
+              body = Buffer.from(JSON.stringify(parsed), "utf-8");
+            }
+          } catch {
+            // Unparseable body — forward as-is.
+          }
+        }
+        const options: http.RequestOptions = {
+          hostname: target.hostname,
+          port: target.port ? Number(target.port) : 11434,
+          path: req.url,
+          method: req.method,
+          headers: {
+            ...req.headers,
+            host: target.host,
+            "content-length": String(body.length),
+          },
+        };
+        const proxyReq = http.request(options, (proxyRes) => {
+          res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+          proxyRes.pipe(res, { end: true });
+        });
+        proxyReq.on("error", (err) => {
+          if (!res.headersSent) {
+            res.writeHead(502);
+          }
+          res.end(`Proxy error: ${err.message}`);
+        });
+        proxyReq.write(body);
+        proxyReq.end();
+      });
+    });
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address() as AddressInfo;
+      resolve({ url: `http://127.0.0.1:${addr.port}`, server });
+    });
+  });
+}
+
 export function resolveTimeoutBudgets(config: AgentBenchmarkConfig): {
   hardCapMs: number;
   noActivityMs: number;
@@ -1715,6 +1778,7 @@ export async function dispatchTask(
   fs.appendFileSync(logFile, `Command: ${args.join(" ")}\n`);
   fs.appendFileSync(logFile, `Prompt: ${task.prompt}\n\n`);
 
+  let noToolsProxyServer: http.Server | undefined;
   try {
     // Create isolated benchmark home using gemmaclaw setup --non-interactive.
     // This properly configures model, auth, workspace, and all gemmaclaw internals.
@@ -1735,6 +1799,17 @@ export async function dispatchTask(
     const isGeminiCli = config.backend === "google-gemini-cli";
     const isOpenRouter = config.backend === "openrouter";
     const providerPrefix = resolveAgentProviderPrefix(config.backend);
+
+    // For models that reject tool-augmented Ollama requests (noToolsMode), start
+    // a local proxy that strips the tools array before forwarding to real Ollama.
+    // This prevents built-in OpenClaw tools (memory_search, session_status, etc.)
+    // from triggering 400 "does not support tools" errors at the API level.
+    let effectiveOllamaUrl = config.ollamaUrl;
+    if (task.noToolsMode && !isLlamaCpp && !isOpenAICodex && !isGeminiCli && !isOpenRouter) {
+      const proxy = await startOllamaNoToolsProxy(config.ollamaUrl);
+      noToolsProxyServer = proxy.server;
+      effectiveOllamaUrl = proxy.url;
+    }
     const benchConfigData: Record<string, unknown> = {
       agents: {
         defaults: {
@@ -1825,7 +1900,7 @@ export async function dispatchTask(
       benchConfigData.models = {
         providers: {
           ollama: {
-            baseUrl: config.ollamaUrl,
+            baseUrl: effectiveOllamaUrl,
             api: "ollama",
             models: [
               {
@@ -1904,7 +1979,7 @@ export async function dispatchTask(
         GEMMACLAW_FAKE_GOG_STATE_DIR: gogStateDir,
         GEMMACLAW_FAKE_GOG_WRITES_DIR: path.join(gogStateDir, "_writes"),
         GEMMACLAW_FAKE_GOG_LOG: fakeGogLog,
-        OLLAMA_HOST: config.ollamaUrl,
+        OLLAMA_HOST: effectiveOllamaUrl,
         XDG_CONFIG_HOME: benchHome,
         HOME: benchHome,
         PATH: `${fakeGogBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
@@ -2328,6 +2403,8 @@ export async function dispatchTask(
       completionStatus: "error",
       error: errMsg,
     };
+  } finally {
+    noToolsProxyServer?.close();
   }
 }
 
