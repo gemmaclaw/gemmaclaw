@@ -1,4 +1,8 @@
-import type { AgentBenchmarkTask, AgentTaskCategory, AgentTaskDifficulty } from "./agent-tasks.js";
+import type {
+  AgentBenchmarkTask,
+  AgentTaskCategory,
+  AgentTaskDifficulty,
+} from "./agent-task-types.js";
 
 type VariationTemplate = {
   id: string;

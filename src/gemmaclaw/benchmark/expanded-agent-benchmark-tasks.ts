@@ -7,7 +7,7 @@
  * The default OpenClaw/Gemma benchmark suite remains separate.
  */
 
-import type { AgentBenchmarkTask } from "./agent-tasks.js";
+import type { AgentBenchmarkTask } from "./agent-task-types.js";
 
 export const EXPANDED_AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
   {
