@@ -343,20 +343,23 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
     dockerArgs.push(AGENT_BENCHMARK_DOCKER_IMAGE, ...forwardedArgs);
 
     console.log(`\n[container ${index + 1}/${selectedTaskIds.length}] ${taskId}`);
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       const child = spawn("docker", dockerArgs, { cwd: repoRoot, stdio: "inherit" });
-      child.on("error", reject);
+      child.on("error", (err) => {
+        console.error(
+          `\n[container ${index + 1}/${selectedTaskIds.length}] ${taskId}: SPAWN ERROR: ${err.message} — task skipped, continuing to next`,
+        );
+        restoreHostOutputOwnership(hostOutputDir);
+        resolve();
+      });
       child.on("close", (code) => {
         restoreHostOutputOwnership(hostOutputDir);
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(
-            new Error(
-              `containerized agent benchmark task ${taskId} failed with exit code ${code ?? 1}`,
-            ),
+        if (code !== 0) {
+          console.error(
+            `\n[container ${index + 1}/${selectedTaskIds.length}] ${taskId}: CONTAINER FAILED (exit ${code ?? 1}) — task skipped, continuing to next`,
           );
         }
+        resolve();
       });
     });
   }
