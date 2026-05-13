@@ -500,7 +500,7 @@ Examples:
   pnpm benchmark agent --filter security             # Run only security tasks
   pnpm benchmark agent --suite expanded --filter coding  # Run expanded coding tasks
   pnpm benchmark agent --suite variants --filter security  # Run generated template variations
-  pnpm benchmark agent --suite variants --sample-per-template 10 --backend google-gemini-cli --model gemini-3-flash-preview
+  pnpm benchmark agent --suite variants --sample-per-template 2 --backend google-gemini-cli --model gemini-3-flash-preview
   pnpm benchmark agent --gateway-url http://192.168.1.50:3001  # Remote gateway
   pnpm benchmark agent list                          # List all tasks
   pnpm benchmark agent --mock                        # Smoke test without a model

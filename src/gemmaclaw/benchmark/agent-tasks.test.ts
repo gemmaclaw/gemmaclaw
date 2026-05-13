@@ -273,6 +273,11 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       expect(task.prompt, `${task.id} has required artifact instruction`).toContain(
         "## Required Output",
       );
+      expect(task.prompt, `${task.id} has explicit quality gates`).toContain("## Quality Gates");
+      expect(task.prompt, `${task.id} has evidence axis`).toContain("Evidence mode:");
+      expect(task.prompt, `${task.id} has ambiguity axis`).toContain("Ambiguity policy:");
+      expect(task.prompt, `${task.id} has failure pressure axis`).toContain("Failure pressure:");
+      expect(task.prompt, `${task.id} has output contract axis`).toContain("Output contract:");
       expect(
         task.grading.criteria.length,
         `${task.id} has grading criteria`,
@@ -294,5 +299,11 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
 
     expect(countsByTemplate.size).toBe(EXPANDED_AGENT_BENCHMARK_TASKS.length);
     expect([...countsByTemplate.values()].every((count) => count === 200)).toBe(true);
+    expect(
+      GENERATED_AGENT_VARIATION_TASKS.find((task) => task.id === "variant_expanded_calendar_100")
+        ?.grading.criteria,
+    ).toContain(
+      "Applies the variant evidence mode, ambiguity policy, failure pressure, and output contract",
+    );
   });
 });
