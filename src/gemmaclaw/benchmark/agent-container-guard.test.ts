@@ -12,6 +12,7 @@ import {
   selectAgentBenchmarkTaskIds,
 } from "./agent-container-guard.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
+import { resolveAgentBenchmarkTasks } from "./cli-standalone.js";
 
 describe("agent benchmark container guard", () => {
   it("detects the benchmark container marker only when explicitly set", () => {
@@ -123,5 +124,16 @@ describe("agent benchmark container guard", () => {
     fs.mkdirSync(nested, { recursive: true });
     fs.writeFileSync(path.join(root, "Dockerfile.benchmark"), "FROM scratch\n");
     expect(findBenchmarkRepoRoot(nested)).toBe(root);
+  });
+
+  it("resolves benchmark suite variations without mixing default and expanded suites", () => {
+    expect(resolveAgentBenchmarkTasks({}).length).toBe(47);
+    expect(resolveAgentBenchmarkTasks({ suite: "default" }).length).toBe(47);
+    expect(resolveAgentBenchmarkTasks({ suite: "expanded" }).length).toBe(147);
+    expect(resolveAgentBenchmarkTasks({ suite: "variants" }).length).toBe(7350);
+    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(7544);
+    expect(() => resolveAgentBenchmarkTasks({ suite: "missing" })).toThrow(
+      /Unsupported agent benchmark suite/,
+    );
   });
 });

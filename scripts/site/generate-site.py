@@ -1090,6 +1090,11 @@ def html_escape(text):
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+def clean_generated_html(text):
+    """Normalize generated HTML so committed site output passes whitespace checks."""
+    return "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
+
+
 def clean_markdown(text):
     """Strip markdown syntax to plain text for display in HTML cards."""
     # Remove markdown links where the text is itself a URL: [url](url) -> empty
@@ -2402,6 +2407,84 @@ def generate_benchmarks_landing_rows(results):
     return "\n".join(sections)
 
 
+def generate_benchmark_suite_variations():
+    """Render the benchmark suite variations currently available or tracked."""
+    suites = [
+        {
+            "name": "Default Gemmaclaw Agent Suite",
+            "status": "Published results available",
+            "tasks": "47 tasks",
+            "command": "pnpm benchmark agent --suite default",
+            "description": (
+                "The primary Gemmaclaw suite for model comparisons: email, calendar, task "
+                "management, memory, security, prompt-injection resistance, recovery, "
+                "coordination, data analysis, and hard OpenClaw operations workflows."
+            ),
+        },
+        {
+            "name": "Expanded Agent Coverage Suite",
+            "status": "Imported internally, reference validation pending",
+            "tasks": "147 tasks",
+            "command": "pnpm benchmark agent --suite expanded",
+            "description": (
+                "A Gemmaclaw-owned expanded task family with internal source provenance. "
+                "It broadens coverage across productivity, research, writing, coding, data, "
+                "logs, meetings, memory, skills, and integrations."
+            ),
+        },
+        {
+            "name": "Generated Template Variation Suite",
+            "status": "Runnable, reference validation pending",
+            "tasks": "7350 generated tests",
+            "command": "pnpm benchmark agent --suite variants",
+            "description": (
+                "Each of the 147 expanded Gemmaclaw tasks is treated as a reusable template "
+                "and generates 50 controlled fixture and wording variants. Use this suite "
+                "for scale testing before model score publication."
+            ),
+        },
+        {
+            "name": "Combined Research Suite",
+            "status": "For development sweeps only",
+            "tasks": "7544 tasks",
+            "command": "pnpm benchmark agent --suite all",
+            "description": (
+                "Runs the default Gemmaclaw suite, expanded coverage tasks, and generated "
+                "template variations. Use this for harness and coverage work before publishing."
+            ),
+        },
+        {
+            "name": "Watchlist Suites",
+            "status": "Tracked for future imports",
+            "tasks": "Internal watchlist",
+            "command": "tracked in the recurring Gemmaclaw ops template",
+            "description": (
+                "Known external suites are rechecked every recurrence for new commits, "
+                "new tasks, changed verifiers, license compatibility, and Gemmaclaw fit."
+            ),
+        },
+    ]
+    cards = []
+    for suite in suites:
+        cards.append(f"""<div class="benchmark-result-card">
+  <div class="benchmark-card-head">
+    <div>
+      <h4>{html_escape(suite["name"])}</h4>
+      <div class="benchmark-card-spec">{html_escape(suite["tasks"])}</div>
+      <div class="benchmark-card-tags"><span>{html_escape(suite["status"])}</span></div>
+    </div>
+  </div>
+  <p class="benchmark-card-hw">{html_escape(suite["description"])}</p>
+  <div class="code-block"><pre><code>{html_escape(suite["command"])}</code></pre></div>
+</div>""")
+    return f"""
+<section id="benchmark-suite-variations">
+  <h2>Benchmark Test Suites</h2>
+  <p>Gemmaclaw separates model variations from test-suite variations. Published scorecards stay on the default suite unless a result explicitly says otherwise. Expanded and generated suites are runnable, but require reference validation before their model results are published.</p>
+  <div class="benchmark-card-grid">{''.join(cards)}</div>
+</section>"""
+
+
 def generate_benchmarks_page(results, task_explanations_html="", agent_preview_html=""):
     """Compact benchmark landing page. Each result links to a dedicated detail page."""
     if not results:
@@ -2428,6 +2511,7 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
       <p>All models are tested on the same published agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, data analysis, and hard OpenClaw-style operations workflows. Models are grouped by size class, quantization level, and thinking level. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
       {leaderboard_html}
     </section>
+    {generate_benchmark_suite_variations()}
     {agent_preview_html}
     <section id="task-explanations">
       <h2>What We Test</h2>
@@ -2553,9 +2637,11 @@ gemmaclaw setup
 
 # 2. List all benchmark tasks
 pnpm benchmark agent list
+pnpm benchmark agent list --suite expanded
 
 # 3. Run the full agentic task suite (model auto-selected from your hardware)
 pnpm benchmark agent
+pnpm benchmark agent --suite expanded
 
 # 4. Run with a specific model
 pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high
@@ -2589,11 +2675,34 @@ llama-server -m /path/to/model.gguf --port 8080 --n-gpu-layers 99
 pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http://127.0.0.1:8080</code></pre></div>
       </div>
 
+      <h3>Benchmark Test Suites</h3>
+      <p>Use <code>--suite</code> to choose which task family to run. The default suite is the published comparison baseline. Expanded suites broaden coverage but need reference validation before their model results are published.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Suite</th><th>Tasks</th><th>Use</th><th>Command</th></tr>
+        <tr><td><code>default</code></td><td>47</td><td>Published Gemmaclaw model comparisons</td><td><code>pnpm benchmark agent --suite default</code></td></tr>
+        <tr><td><code>expanded</code></td><td>147</td><td>Gemmaclaw expanded productivity, research, writing, coding, analysis, log, meeting, memory, skill, and integration tasks</td><td><code>pnpm benchmark agent --suite expanded</code></td></tr>
+        <tr><td><code>variants</code></td><td>7350</td><td>147 Gemmaclaw-owned templates with 50 controlled variations each</td><td><code>pnpm benchmark agent --suite variants</code></td></tr>
+        <tr><td><code>all</code></td><td>7544</td><td>Development sweeps across every registered task family</td><td><code>pnpm benchmark agent --suite all</code></td></tr>
+      </table></div>
+
+      <h3>Template Variation Suite</h3>
+      <p>The benchmark now includes 7350 generated tests by turning every expanded Gemmaclaw task into a reusable template with 50 controlled variants underneath it. A template defines the skill being measured, fixture schema, expected behavior, and grading rubric. Variants alter role, context, distractors, wording, and artifact requirements while preserving the same core capability target.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Template Family</th><th>Variants</th><th>Capability</th></tr>
+        <tr><td>Expanded productivity</td><td>50 per task template</td><td>Calendar, inbox, task, and assistant workflow coverage</td></tr>
+        <tr><td>Expanded research and writing</td><td>50 per task template</td><td>Source synthesis, long-form reports, editing, and transformation</td></tr>
+        <tr><td>Expanded coding and skills</td><td>50 per task template</td><td>Code review, debugging, skill composition, and implementation planning</td></tr>
+        <tr><td>Expanded analysis and logs</td><td>50 per task template</td><td>CSV analysis, log triage, meeting extraction, and structured decisions</td></tr>
+        <tr><td>Expanded integrations</td><td>50 per task template</td><td>Safe simulated browser, calendar, email, and external-service workflows</td></tr>
+      </table></div>
+      <p>Generated variants are not publishable by default. They must pass reference e2e validation, harness-bug review, clean model runs, judge evaluation, and site QA before they appear as comparable results.</p>
+
       <h3>Configuration Options</h3>
       <div class="table-wrap"><table>
         <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
         <tr><td><code>--model &lt;name&gt;</code></td><td>(auto from hardware)</td><td>Model to test (e.g. gemma4:e4b, gemma4:31b)</td></tr>
         <tr><td><code>--backend &lt;type&gt;</code></td><td>ollama</td><td>Backend: ollama or llama-cpp</td></tr>
+        <tr><td><code>--suite &lt;name&gt;</code></td><td>default</td><td>Task suite: default, expanded, variants, or all</td></tr>
         <tr><td><code>--quant &lt;level&gt;</code></td><td>(auto-detected)</td><td>Quantization to record (Q4_K_M, Q8_0, FP16)</td></tr>
         <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking level (off, low, medium, high)</td></tr>
         <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name)</td></tr>
@@ -2723,7 +2832,7 @@ def generate_site():
     }
     for filename, html in pages.items():
         with open(SITE_DIR / filename, "w") as f:
-            f.write(html)
+            f.write(clean_generated_html(html))
 
     # Generate static detail pages for each public benchmark result.
     detail_dir = SITE_DIR / "benchmark-results"
@@ -2735,7 +2844,7 @@ def generate_site():
             continue
         detail_html = generate_benchmark_detail_page(r)
         with open(detail_dir / f"{run_id}.html", "w") as f:
-            f.write(detail_html)
+            f.write(clean_generated_html(detail_html))
         detail_count += 1
 
     print(f"Site generated at {SITE_DIR}/")

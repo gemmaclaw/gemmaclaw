@@ -8,73 +8,32 @@
  * Fixture data comes from scripts/benchmark/seed-mock-gog.py.
  */
 
-export type AgentGradingType = "conversation_check" | "artifact_check" | "tool_sequence_check";
+import {
+  BENCHMARK_TEST_TEMPLATE_TARGETS,
+  GENERATED_AGENT_VARIATION_TASKS,
+} from "./agent-variation-templates.js";
+import type {
+  AgentBenchmarkTask,
+  AgentDeterministicGrading,
+  AgentDeterministicScore,
+  DeterministicExpectedValue,
+} from "./agent-task-types.js";
+import { EXPANDED_AGENT_BENCHMARK_TASKS } from "./expanded-agent-benchmark-tasks.js";
 
-export type AgentTaskCategory =
-  | "email"
-  | "calendar"
-  | "task_management"
-  | "multi_step"
-  | "security"
-  | "error_recovery"
-  | "memory"
-  | "ambiguous"
-  | "data_analysis"
-  | "coordination"
-  | "structured_output"
-  | "tool_intent";
-
-export type AgentTaskDifficulty = "easy" | "medium" | "hard" | "very_hard";
-
-export type DeterministicExpectedValue = string | string[];
-
-export type AgentDeterministicGrading =
-  | {
-      type: "json_fields";
-      requiredKeys: string[];
-      expectedFields: Record<string, DeterministicExpectedValue>;
-      allowExtraKeys?: boolean;
-    }
-  | {
-      type: "tool_intent";
-      allowedActions: string[];
-      expectedAction: string;
-      expectedArguments: Record<string, DeterministicExpectedValue>;
-      allowExtraTopLevelKeys?: boolean;
-      allowExtraArgumentKeys?: boolean;
-    };
-
-export type AgentDeterministicScore = {
-  taskId: string;
-  score: number;
-  maxScore: number;
-  percentage: number;
-  passed: boolean;
-  method: "deterministic";
-  details: string;
+export {
+  BENCHMARK_TEST_TEMPLATE_TARGETS,
+  EXPANDED_AGENT_BENCHMARK_TASKS,
+  GENERATED_AGENT_VARIATION_TASKS,
 };
-
-export type AgentBenchmarkTask = {
-  id: string;
-  name: string;
-  description: string;
-  category: AgentTaskCategory;
-  difficulty: AgentTaskDifficulty;
-  /** The prompt sent to the agent. */
-  prompt: string;
-  grading: {
-    type: AgentGradingType;
-    /** What the LLM judge checks for in the full conversation. */
-    criteria: string[];
-    /** Deterministic scorer used for small schema/intent tasks. */
-    deterministic?: AgentDeterministicGrading;
-    maxScore: number;
-  };
-  /** Deterministic mock response used by --mock mode when present. */
-  mock?: {
-    finalResponse: string;
-  };
-};
+export type {
+  AgentBenchmarkTask,
+  AgentDeterministicGrading,
+  AgentDeterministicScore,
+  AgentGradingType,
+  AgentTaskCategory,
+  AgentTaskDifficulty,
+  DeterministicExpectedValue,
+} from "./agent-task-types.js";
 
 export const OPENCLAW_HARD_WORKFLOW_TASK_IDS = [
   "recurring_template_persistence",
@@ -1596,6 +1555,12 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
   },
 ];
 
+export const ALL_AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
+  ...AGENT_BENCHMARK_TASKS,
+  ...EXPANDED_AGENT_BENCHMARK_TASKS,
+  ...GENERATED_AGENT_VARIATION_TASKS,
+];
+
 function normalizeForDeterministicMatch(value: unknown): string {
   const text =
     value === null || value === undefined
@@ -1803,17 +1768,32 @@ export function evaluateDeterministicAgentTaskConversation(
   return evaluateDeterministicAgentTaskOutput(task, finalAssistant.content);
 }
 
-// Helper for task lookup
-export function getTaskById(id: string): AgentBenchmarkTask | undefined {
-  return AGENT_BENCHMARK_TASKS.find((t) => t.id === id);
+type AgentTaskLookupOptions = {
+  includeExpanded?: boolean;
+};
+
+function agentBenchmarkCatalog(options?: AgentTaskLookupOptions): AgentBenchmarkTask[] {
+  return options?.includeExpanded ? ALL_AGENT_BENCHMARK_TASKS : AGENT_BENCHMARK_TASKS;
 }
 
-export function getTasksByCategory(category: AgentBenchmarkTask["category"]): AgentBenchmarkTask[] {
-  return AGENT_BENCHMARK_TASKS.filter((t) => t.category === category);
+// Helper for task lookup. Default lookups intentionally preserve the comparable 47-task suite.
+export function getTaskById(
+  id: string,
+  options?: AgentTaskLookupOptions,
+): AgentBenchmarkTask | undefined {
+  return agentBenchmarkCatalog(options).find((t) => t.id === id);
+}
+
+export function getTasksByCategory(
+  category: AgentBenchmarkTask["category"],
+  options?: AgentTaskLookupOptions,
+): AgentBenchmarkTask[] {
+  return agentBenchmarkCatalog(options).filter((t) => t.category === category);
 }
 
 export function getTasksByDifficulty(
   difficulty: AgentBenchmarkTask["difficulty"],
+  options?: AgentTaskLookupOptions,
 ): AgentBenchmarkTask[] {
-  return AGENT_BENCHMARK_TASKS.filter((t) => t.difficulty === difficulty);
+  return agentBenchmarkCatalog(options).filter((t) => t.difficulty === difficulty);
 }

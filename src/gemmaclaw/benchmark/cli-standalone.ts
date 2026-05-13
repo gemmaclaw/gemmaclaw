@@ -49,7 +49,13 @@ import {
   runAgentBenchmark,
   type AgentBenchmarkConfig,
 } from "./agent-runner.js";
-import { AGENT_BENCHMARK_TASKS } from "./agent-tasks.js";
+import {
+  AGENT_BENCHMARK_TASKS,
+  ALL_AGENT_BENCHMARK_TASKS,
+  EXPANDED_AGENT_BENCHMARK_TASKS,
+  GENERATED_AGENT_VARIATION_TASKS,
+  type AgentBenchmarkTask,
+} from "./agent-tasks.js";
 
 function parseArgs(argv: string[]) {
   const args = argv.slice(2);
@@ -107,6 +113,8 @@ function parseArgs(argv: string[]) {
       opts.thinking = args[++i]!;
     } else if (arg === "--quant" && args[i + 1]) {
       opts.quant = args[++i]!;
+    } else if (arg === "--suite" && args[i + 1]) {
+      opts.suite = args[++i]!;
     } else if (arg === "--task-timeout" && args[i + 1]) {
       opts.taskTimeout = args[++i]!;
     } else if (arg === "--idle-timeout" && args[i + 1]) {
@@ -152,6 +160,25 @@ function parseArgs(argv: string[]) {
   }
 
   return opts;
+}
+
+export function resolveAgentBenchmarkTasks(
+  opts: Record<string, string | boolean>,
+): AgentBenchmarkTask[] {
+  const suite = String(opts.suite ?? "default").toLowerCase();
+  if (suite === "default" || suite === "gemmaclaw" || suite === "openclaw") {
+    return AGENT_BENCHMARK_TASKS;
+  }
+  if (suite === "expanded") {
+    return EXPANDED_AGENT_BENCHMARK_TASKS;
+  }
+  if (suite === "variants") {
+    return GENERATED_AGENT_VARIATION_TASKS;
+  }
+  if (suite === "all") {
+    return ALL_AGENT_BENCHMARK_TASKS;
+  }
+  throw new Error(`Unsupported agent benchmark suite: ${opts.suite}`);
 }
 
 function buildAgentBenchmarkConfig(
@@ -266,7 +293,8 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
   const repoRoot = findBenchmarkRepoRoot();
   const hostOutputDir = path.resolve((opts.outputDir as string | undefined) ?? "benchmark-results");
   const containerOutputDir = "/results";
-  const selectedTaskIds = selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts);
+  const tasks = resolveAgentBenchmarkTasks(opts);
+  const selectedTaskIds = selectAgentBenchmarkTaskIds(tasks, opts);
   const runId = defaultAgentBenchmarkRunId(opts);
   const manifestConfig = { ...buildAgentBenchmarkConfig(opts, hostOutputDir), runId };
   const artifactConfigHash =
@@ -366,7 +394,7 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
 
   console.log("\nAssembling aggregate results on host-mounted artifacts...");
   assembleAgentBenchmarkRun(
-    AGENT_BENCHMARK_TASKS,
+    tasks,
     {
       gatewayUrl: "containerized-per-task",
       backend: "ollama",
@@ -412,6 +440,7 @@ Agent Mode Options:
   --quant <level>        Quantization level to record (e.g. Q4_K_M, Q8_0, FP16)
   --backend <type>       Backend to test (ollama, llama-cpp, openai-codex, google-gemini-cli, openrouter)
   --thinking <level>     Thinking/reasoning level (off, low, medium, high, xhigh)
+  --suite <name>          Task suite: default, expanded, variants, all (default: default)
   --gateway-url <url>    Gemmaclaw gateway URL (default: http://localhost:3001)
   --ollama-url <url>     Ollama API URL (default: http://127.0.0.1:11434)
   --filter <text>        Run only tasks matching text (id, name, category, difficulty)
@@ -463,6 +492,8 @@ Examples:
   pnpm benchmark agent --run-id q6k-v1 --assemble    # Rebuild RESULTS.md/results.json
   pnpm benchmark agent --run-id q6k-v1 --evaluate --judge-model gpt-5.5
   pnpm benchmark agent --filter security             # Run only security tasks
+  pnpm benchmark agent --suite expanded --filter coding  # Run expanded coding tasks
+  pnpm benchmark agent --suite variants --filter security  # Run generated template variations
   pnpm benchmark agent --gateway-url http://192.168.1.50:3001  # Remote gateway
   pnpm benchmark agent list                          # List all tasks
   pnpm benchmark agent --mock                        # Smoke test without a model
@@ -471,15 +502,18 @@ Examples:
 `);
 }
 
-function listAgentTasks(): void {
+function listAgentTasks(opts: Record<string, string | boolean>): void {
+  const tasks = resolveAgentBenchmarkTasks(opts);
+  const suite = String(opts.suite ?? "default");
   console.log("\nAvailable Agent Benchmark Tasks:\n");
+  console.log(`Suite: ${suite}\n`);
   console.log(
     `${"ID".padEnd(30)} ${"Difficulty".padEnd(12)} ${"Pts".padStart(4)} ${"Category".padEnd(18)} Name`,
   );
   console.log("-".repeat(100));
 
   let totalPoints = 0;
-  for (const task of AGENT_BENCHMARK_TASKS) {
+  for (const task of tasks) {
     console.log(
       `${task.id.padEnd(30)} ${task.difficulty.padEnd(12)} ${String(task.grading.maxScore).padStart(4)} ${task.category.padEnd(18)} ${task.name}`,
     );
@@ -487,12 +521,14 @@ function listAgentTasks(): void {
   }
 
   console.log("-".repeat(100));
-  console.log(`${AGENT_BENCHMARK_TASKS.length} tasks, ${totalPoints} max points\n`);
+  console.log(`${tasks.length} tasks, ${totalPoints} max points\n`);
 }
 
 async function runAgentMode(opts: Record<string, string | boolean>): Promise<void> {
+  const tasks = resolveAgentBenchmarkTasks(opts);
+
   if (opts.list) {
-    listAgentTasks();
+    listAgentTasks(opts);
     return;
   }
 
@@ -516,7 +552,7 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
       runId,
       provider,
       model,
-      taskIds: selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts),
+      taskIds: selectAgentBenchmarkTaskIds(tasks, opts),
       judgeBaseUrl,
       exploratoryLocalJudge: Boolean(opts.exploratoryLocalJudge),
       force: Boolean(opts.forceEvaluate),
@@ -532,7 +568,7 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
 
   if (!opts.mock && !opts.assemble && isInsideAgentBenchmarkContainer()) {
     assertSingleAgentBenchmarkTaskInContainer({
-      taskIds: selectAgentBenchmarkTaskIds(AGENT_BENCHMARK_TASKS, opts),
+      taskIds: selectAgentBenchmarkTaskIds(tasks, opts),
     });
   }
 
@@ -555,6 +591,7 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   console.log(`Model:    ${config.model}${config.quant ? ` (${config.quant})` : ""}`);
   console.log(`Backend:  ${config.backend}`);
   console.log(`Thinking: ${config.thinkingLevel ?? "default"}`);
+  console.log(`Suite:    ${String(opts.suite ?? "default")}`);
   console.log(`Gateway:  ${config.gatewayUrl}`);
   if (config.backend === "openai-codex") {
     console.log(`Codex:    OAuth app-server`);
@@ -593,8 +630,8 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   console.log("");
 
   const result = opts.assemble
-    ? assembleAgentBenchmarkRun(AGENT_BENCHMARK_TASKS, config, outputDir)
-    : await runAgentBenchmark(AGENT_BENCHMARK_TASKS, config, hardware);
+    ? assembleAgentBenchmarkRun(tasks, config, outputDir)
+    : await runAgentBenchmark(tasks, config, hardware);
 
   // Print summary
   console.log("\n========================================");
@@ -615,52 +652,54 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
 
 // ── Main dispatch ───────────────────────────────────────────────────────────
 
-const opts = parseArgs(process.argv);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const opts = parseArgs(process.argv);
 
-if (opts.agent) {
-  runAgentMode(opts).catch((err) => {
-    console.error("Agent benchmark failed:", err);
-    process.exit(1);
-  });
-} else if (opts.sandbox) {
-  if (!opts.file) {
-    console.error("Error: --file is required for sandbox mode");
-    process.exit(1);
+  if (opts.agent) {
+    runAgentMode(opts).catch((err) => {
+      console.error("Agent benchmark failed:", err);
+      process.exit(1);
+    });
+  } else if (opts.sandbox) {
+    if (!opts.file) {
+      console.error("Error: --file is required for sandbox mode");
+      process.exit(1);
+    }
+    benchmarkSandboxCommand(
+      {
+        file: opts.file as string,
+        model: opts.model as string | undefined,
+        mock: Boolean(opts.mock),
+        keep: Boolean(opts.keep),
+        geminiApiKey: opts.geminiApiKey as string | undefined,
+        geminiModel: opts.geminiModel as string | undefined,
+      },
+      defaultRuntime,
+    ).catch((err) => {
+      console.error("Benchmark sandbox failed:", err);
+      process.exit(1);
+    });
+  } else {
+    benchmarkGemmaCommand(
+      {
+        mock: Boolean(opts.mock),
+        local: Boolean(opts.local),
+        model: opts.model as string | undefined,
+        ollamaUrl: opts.ollamaUrl as string | undefined,
+        filter: opts.filter as string | undefined,
+        outputDir: opts.outputDir as string | undefined,
+        contextLength: opts.contextLength
+          ? Number.parseInt(String(opts.contextLength), 10)
+          : undefined,
+        gpuLayers: opts.gpuLayers ? Number.parseInt(String(opts.gpuLayers), 10) : undefined,
+        batchSize: opts.batchSize ? Number.parseInt(String(opts.batchSize), 10) : undefined,
+        geminiApiKey: opts.geminiApiKey as string | undefined,
+        geminiModel: opts.geminiModel as string | undefined,
+      },
+      defaultRuntime,
+    ).catch((err) => {
+      console.error("Benchmark failed:", err);
+      process.exit(1);
+    });
   }
-  benchmarkSandboxCommand(
-    {
-      file: opts.file as string,
-      model: opts.model as string | undefined,
-      mock: Boolean(opts.mock),
-      keep: Boolean(opts.keep),
-      geminiApiKey: opts.geminiApiKey as string | undefined,
-      geminiModel: opts.geminiModel as string | undefined,
-    },
-    defaultRuntime,
-  ).catch((err) => {
-    console.error("Benchmark sandbox failed:", err);
-    process.exit(1);
-  });
-} else {
-  benchmarkGemmaCommand(
-    {
-      mock: Boolean(opts.mock),
-      local: Boolean(opts.local),
-      model: opts.model as string | undefined,
-      ollamaUrl: opts.ollamaUrl as string | undefined,
-      filter: opts.filter as string | undefined,
-      outputDir: opts.outputDir as string | undefined,
-      contextLength: opts.contextLength
-        ? Number.parseInt(String(opts.contextLength), 10)
-        : undefined,
-      gpuLayers: opts.gpuLayers ? Number.parseInt(String(opts.gpuLayers), 10) : undefined,
-      batchSize: opts.batchSize ? Number.parseInt(String(opts.batchSize), 10) : undefined,
-      geminiApiKey: opts.geminiApiKey as string | undefined,
-      geminiModel: opts.geminiModel as string | undefined,
-    },
-    defaultRuntime,
-  ).catch((err) => {
-    console.error("Benchmark failed:", err);
-    process.exit(1);
-  });
 }
