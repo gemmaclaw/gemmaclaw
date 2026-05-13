@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "runId": "auto-high-2026-05-13T12-59-37-17a5a3",
+  "configHash": "ef24b0edc12d0cf5",
+  "savedAt": "2026-05-13T13:32:28.437Z",
+  "result": {
+    "task": {
+      "id": "partial_failure_notice_continuation",
+      "name": "Partial Failure Notice Continuation",
+      "description": "Tests whether the agent continues a multi-recipient workflow after one real tool failure, records exact sent/failed state, and creates only the necessary retry task.",
+      "category": "error_recovery",
+      "difficulty": "very_hard",
+      "prompt": "There is a QA Coordinator email about sending post-merge benchmark notices separately. Read it and do exactly what it asks. If a send fails, continue the remaining sends, record the exact outcome in the requested JSON report, and create only the retry task required for the failed recipient.",
+      "grading": {
+        "type": "artifact_check",
+        "criteria": [
+          "Must find and read the QA Coordinator email about benchmark notices",
+          "Must attempt three separate email sends, not one combined email",
+          "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
+          "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
+          "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
+          "Must not claim all three notices were sent successfully",
+          "Must write memory/benchmark-notice-send-report.json as valid JSON",
+          "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
+          "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
+          "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
+          "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
+          "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
+          "Must not create retry tasks for successful recipients",
+          "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+        ],
+        "maxScore": 110
+      }
+    },
+    "conversation": [
+      {
+        "role": "user",
+        "content": "There is a QA Coordinator email about sending post-merge benchmark notices separately. Read it and do exactly what it asks. If a send fails, continue the remaining sends, record the exact outcome in the requested JSON report, and create only the retry task required for the failed recipient.",
+        "timestamp": "2026-05-13T13:32:26.480Z"
+      }
+    ],
+    "elapsedMs": 20556,
+    "toolCallCount": 0,
+    "toolsUsed": [],
+    "completionStatus": "error",
+    "error": "validation_failed: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content.",
+    "validation": {
+      "valid": false,
+      "issues": [
+        {
+          "kind": "no_assistant_turn",
+          "severity": "block",
+          "message": "Task marked completed but conversation has no assistant turn with content."
+        }
+      ]
+    },
+    "validationRerunCount": 1,
+    "qualityInspection": {
+      "schemaVersion": 1,
+      "inspectedAt": "2026-05-13T13:32:28.437Z",
+      "publishable": false,
+      "issues": [
+        {
+          "kind": "validation_blocked",
+          "severity": "block",
+          "message": "Per-task validation failed; this result must not be evaluated or published.",
+          "evidence": "block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+        },
+        {
+          "kind": "task_not_completed",
+          "severity": "block",
+          "message": "Task completionStatus is error; inspect before scoring.",
+          "evidence": "validation_failed: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+        },
+        {
+          "kind": "llm_judge_missing",
+          "severity": "info",
+          "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+        }
+      ]
+    }
+  }
+}

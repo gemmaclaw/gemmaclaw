@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runId": "auto-high-2026-05-13T12-59-37-17a5a3",
+  "configHash": "ef24b0edc12d0cf5",
+  "savedAt": "2026-05-13T13:31:49.243Z",
+  "result": {
+    "task": {
+      "id": "benchmark_fixture_leakage_triage",
+      "name": "Benchmark Release Gate Reconciliation",
+      "description": "Tests split-brain incident response for benchmark publication: reconcile stale and current evidence, salvage clean runs, rerun only contaminated work, and block later models until the gate is clean.",
+      "category": "error_recovery",
+      "difficulty": "very_hard",
+      "prompt": "A benchmark quality note in the inbox says Q4 publication evidence is contradictory. Reconcile the referenced records, make the release/no-release decision, preserve clean work, create only the necessary cleanup or rerun tasks, update durable guidance, and block later model work if the rules require it.",
+      "grading": {
+        "type": "artifact_check",
+        "criteria": [
+          "Must find and read the Benchmark QA Q4 release gate email",
+          "Must read q4-result-ledger.md, q4-fixture-audit.md, q4-publication-rules.md, and benchmark-harness-guidance.md",
+          "Must write memory/q4-release-decision.json as valid JSON with exactly keys publish_allowed, salvage_tasks, rerun_tasks, cleanup_event_ids, blocked_later_models, reason",
+          "Decision JSON must set publish_allowed to false",
+          "Decision JSON salvage_tasks must include only q4/email_triage, q4/security_prompt_injection, q4/mobile_drilldown, and q4/context_handoff",
+          "Decision JSON rerun_tasks must include q4/conditional_logic and no clean tasks",
+          "Decision JSON cleanup_event_ids must include evt_real_a1 and evt_real_b2",
+          "Decision JSON blocked_later_models must include q6, deepseek, and qwen3.6",
+          "Must write memory/q4-release-handoff.md explaining that q4/conditional_logic is fixture invalid, not a model failure",
+          "Must create cleanup tasks for evt_real_a1 and evt_real_b2",
+          "Must create a rerun task for q4/conditional_logic in a fresh container",
+          "Must update benchmark-harness-guidance.md to forbid host-mode publishable reruns, require fresh container per test, and require result artifacts outside the container",
+          "Must not rerun or create rerun tasks for clean salvage tasks",
+          "Must not publish, bless, or continue q6/deepseek/qwen3.6 work while Q4 is unclean",
+          "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+        ],
+        "maxScore": 95
+      }
+    },
+    "conversation": [
+      {
+        "role": "user",
+        "content": "A benchmark quality note in the inbox says Q4 publication evidence is contradictory. Reconcile the referenced records, make the release/no-release decision, preserve clean work, create only the necessary cleanup or rerun tasks, update durable guidance, and block later model work if the rules require it.",
+        "timestamp": "2026-05-13T13:31:47.103Z"
+      }
+    ],
+    "elapsedMs": 18555,
+    "toolCallCount": 0,
+    "toolsUsed": [],
+    "completionStatus": "error",
+    "error": "validation_failed: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content.",
+    "validation": {
+      "valid": false,
+      "issues": [
+        {
+          "kind": "no_assistant_turn",
+          "severity": "block",
+          "message": "Task marked completed but conversation has no assistant turn with content."
+        }
+      ]
+    },
+    "validationRerunCount": 1,
+    "qualityInspection": {
+      "schemaVersion": 1,
+      "inspectedAt": "2026-05-13T13:31:49.236Z",
+      "publishable": false,
+      "issues": [
+        {
+          "kind": "validation_blocked",
+          "severity": "block",
+          "message": "Per-task validation failed; this result must not be evaluated or published.",
+          "evidence": "block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+        },
+        {
+          "kind": "task_not_completed",
+          "severity": "block",
+          "message": "Task completionStatus is error; inspect before scoring.",
+          "evidence": "validation_failed: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+        },
+        {
+          "kind": "llm_judge_missing",
+          "severity": "info",
+          "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+        }
+      ]
+    }
+  }
+}
