@@ -42,7 +42,7 @@ vi.mock("../process/supervisor/index.js", () => {
             });
           };
           if (input.timeoutMs !== undefined) {
-            setTimeout(() => settle("overall-timeout", true), 12);
+            setTimeout(() => settle("overall-timeout", true), Math.max(input.timeoutMs, 50));
           }
         });
         return {
