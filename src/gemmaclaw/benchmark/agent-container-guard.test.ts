@@ -130,10 +130,27 @@ describe("agent benchmark container guard", () => {
     expect(resolveAgentBenchmarkTasks({}).length).toBe(47);
     expect(resolveAgentBenchmarkTasks({ suite: "default" }).length).toBe(47);
     expect(resolveAgentBenchmarkTasks({ suite: "expanded" }).length).toBe(147);
-    expect(resolveAgentBenchmarkTasks({ suite: "variants" }).length).toBe(7350);
-    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(7544);
+    expect(resolveAgentBenchmarkTasks({ suite: "variants" }).length).toBe(29400);
+    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(29594);
     expect(() => resolveAgentBenchmarkTasks({ suite: "missing" })).toThrow(
       /Unsupported agent benchmark suite/,
     );
+  });
+
+  it("samples generated variations per template with a stable seed", () => {
+    const tasks = resolveAgentBenchmarkTasks({ suite: "variants" });
+    const first = selectAgentBenchmarkTaskIds(tasks, {
+      samplePerTemplate: "10",
+      sampleSeed: "ci-sample",
+    });
+    const second = selectAgentBenchmarkTaskIds(tasks, {
+      samplePerTemplate: "10",
+      sampleSeed: "ci-sample",
+    });
+    expect(first).toHaveLength(1470);
+    expect(second).toEqual(first);
+    expect(
+      new Set(first.map((id) => id.replace(/^variant_/, "").replace(/_\d{2,3}$/, ""))).size,
+    ).toBe(147);
   });
 });

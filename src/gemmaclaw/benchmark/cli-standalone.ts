@@ -115,6 +115,10 @@ function parseArgs(argv: string[]) {
       opts.quant = args[++i]!;
     } else if (arg === "--suite" && args[i + 1]) {
       opts.suite = args[++i]!;
+    } else if (arg === "--sample-per-template" && args[i + 1]) {
+      opts.samplePerTemplate = args[++i]!;
+    } else if (arg === "--sample-seed" && args[i + 1]) {
+      opts.sampleSeed = args[++i]!;
     } else if (arg === "--task-timeout" && args[i + 1]) {
       opts.taskTimeout = args[++i]!;
     } else if (arg === "--idle-timeout" && args[i + 1]) {
@@ -441,6 +445,8 @@ Agent Mode Options:
   --backend <type>       Backend to test (ollama, llama-cpp, openai-codex, google-gemini-cli, openrouter)
   --thinking <level>     Thinking/reasoning level (off, low, medium, high, xhigh)
   --suite <name>          Task suite: default, expanded, variants, all (default: default)
+  --sample-per-template <n>  Deterministically sample N generated variations per template
+  --sample-seed <value>   Seed for --sample-per-template (default: gemmaclaw-benchmark-sample)
   --gateway-url <url>    Gemmaclaw gateway URL (default: http://localhost:3001)
   --ollama-url <url>     Ollama API URL (default: http://127.0.0.1:11434)
   --filter <text>        Run only tasks matching text (id, name, category, difficulty)
@@ -494,6 +500,7 @@ Examples:
   pnpm benchmark agent --filter security             # Run only security tasks
   pnpm benchmark agent --suite expanded --filter coding  # Run expanded coding tasks
   pnpm benchmark agent --suite variants --filter security  # Run generated template variations
+  pnpm benchmark agent --suite variants --sample-per-template 10 --backend google-gemini-cli --model gemini-3-flash-preview
   pnpm benchmark agent --gateway-url http://192.168.1.50:3001  # Remote gateway
   pnpm benchmark agent list                          # List all tasks
   pnpm benchmark agent --mock                        # Smoke test without a model
@@ -504,6 +511,8 @@ Examples:
 
 function listAgentTasks(opts: Record<string, string | boolean>): void {
   const tasks = resolveAgentBenchmarkTasks(opts);
+  const selectedTaskIds = new Set(selectAgentBenchmarkTaskIds(tasks, opts));
+  const selectedTasks = tasks.filter((task) => selectedTaskIds.has(task.id));
   const suite = String(opts.suite ?? "default");
   console.log("\nAvailable Agent Benchmark Tasks:\n");
   console.log(`Suite: ${suite}\n`);
@@ -513,7 +522,7 @@ function listAgentTasks(opts: Record<string, string | boolean>): void {
   console.log("-".repeat(100));
 
   let totalPoints = 0;
-  for (const task of tasks) {
+  for (const task of selectedTasks) {
     console.log(
       `${task.id.padEnd(30)} ${task.difficulty.padEnd(12)} ${String(task.grading.maxScore).padStart(4)} ${task.category.padEnd(18)} ${task.name}`,
     );
@@ -521,7 +530,7 @@ function listAgentTasks(opts: Record<string, string | boolean>): void {
   }
 
   console.log("-".repeat(100));
-  console.log(`${tasks.length} tasks, ${totalPoints} max points\n`);
+  console.log(`${selectedTasks.length} tasks, ${totalPoints} max points\n`);
 }
 
 async function runAgentMode(opts: Record<string, string | boolean>): Promise<void> {
@@ -617,6 +626,9 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   if (config.filter) {
     console.log(`Filter:   ${config.filter}`);
   }
+  if (opts.samplePerTemplate) {
+    console.log(`Sample:   ${opts.samplePerTemplate} per template`);
+  }
   if (config.runId) {
     console.log(`Run id:   ${config.runId}`);
   }
@@ -629,9 +641,11 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   }
   console.log("");
 
+  const selectedTaskIds = new Set(selectAgentBenchmarkTaskIds(tasks, opts));
+  const selectedTasks = tasks.filter((task) => selectedTaskIds.has(task.id));
   const result = opts.assemble
-    ? assembleAgentBenchmarkRun(tasks, config, outputDir)
-    : await runAgentBenchmark(tasks, config, hardware);
+    ? assembleAgentBenchmarkRun(selectedTasks, config, outputDir)
+    : await runAgentBenchmark(selectedTasks, config, hardware);
 
   // Print summary
   console.log("\n========================================");

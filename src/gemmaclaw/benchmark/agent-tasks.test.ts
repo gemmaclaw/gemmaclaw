@@ -201,8 +201,8 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
 
     expect(AGENT_BENCHMARK_TASKS).toHaveLength(47);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
-    expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(7350);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(7544);
+    expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(29400);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29594);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });
@@ -247,14 +247,14 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
   it("declares template targets for scaling toward 1000+ benchmark variations", () => {
     expect(BENCHMARK_TEST_TEMPLATE_TARGETS).toHaveLength(EXPANDED_AGENT_BENCHMARK_TASKS.length);
     expect(
-      BENCHMARK_TEST_TEMPLATE_TARGETS.every((template) => template.targetVariations === 50),
+      BENCHMARK_TEST_TEMPLATE_TARGETS.every((template) => template.targetVariations === 200),
     ).toBe(true);
     expect(
       BENCHMARK_TEST_TEMPLATE_TARGETS.reduce(
         (total, template) => total + template.targetVariations,
         0,
       ),
-    ).toBe(7350);
+    ).toBe(29400);
   });
 
   it("keeps all generated template variations high quality and public-safe", () => {
@@ -263,10 +263,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     for (const task of GENERATED_AGENT_VARIATION_TASKS) {
       expect(seenIds.has(task.id), `${task.id} is unique`).toBe(false);
       seenIds.add(task.id);
-      const templateId = task.id.replace(/^variant_/, "").replace(/_\d{2}$/, "");
+      const templateId = task.id.replace(/^variant_/, "").replace(/_\d{2,3}$/, "");
       countsByTemplate.set(templateId, (countsByTemplate.get(templateId) ?? 0) + 1);
 
-      expect(task.id, `${task.id} uses variant prefix`).toMatch(/^variant_[a-z0-9_]+_\d{2}$/);
+      expect(task.id, `${task.id} uses variant prefix`).toMatch(/^variant_[a-z0-9_]+_\d{2,3}$/);
       expect(task.category, `${task.id} uses variant category`).toMatch(/^variant_/);
       expect(task.name.trim().length, `${task.id} has a name`).toBeGreaterThan(10);
       expect(task.description.trim().length, `${task.id} has a description`).toBeGreaterThan(40);
@@ -293,6 +293,6 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     }
 
     expect(countsByTemplate.size).toBe(EXPANDED_AGENT_BENCHMARK_TASKS.length);
-    expect([...countsByTemplate.values()].every((count) => count === 50)).toBe(true);
+    expect([...countsByTemplate.values()].every((count) => count === 200)).toBe(true);
   });
 });

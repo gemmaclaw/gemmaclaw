@@ -65,22 +65,57 @@ export function selectAgentBenchmarkTaskIds(
     return [taskId];
   }
 
+  let selectedTasks = tasks;
+
   if (opts.filter) {
     const filter = String(opts.filter).toLowerCase();
-    const selected = tasks.filter(
+    selectedTasks = tasks.filter(
       (task) =>
         task.id.toLowerCase().includes(filter) ||
         task.name.toLowerCase().includes(filter) ||
         task.category.toLowerCase().includes(filter) ||
         task.difficulty.toLowerCase().includes(filter),
     );
-    if (selected.length === 0) {
+    if (selectedTasks.length === 0) {
       throw new Error(`No agent benchmark tasks match filter: ${opts.filter}`);
     }
-    return selected.map((task) => task.id);
   }
 
-  return tasks.map((task) => task.id);
+  if (opts.samplePerTemplate) {
+    const sampleSize = Number.parseInt(String(opts.samplePerTemplate), 10);
+    if (!Number.isInteger(sampleSize) || sampleSize <= 0) {
+      throw new Error(
+        `--sample-per-template must be a positive integer, got: ${opts.samplePerTemplate}`,
+      );
+    }
+    const seed = String(opts.sampleSeed ?? "gemmaclaw-benchmark-sample");
+    const grouped = new Map<string, AgentBenchmarkTask[]>();
+    for (const task of selectedTasks) {
+      const templateId = variationTemplateId(task.id);
+      grouped.set(templateId, [...(grouped.get(templateId) ?? []), task]);
+    }
+    selectedTasks = [...grouped.values()].flatMap((group) =>
+      seededSample(group, Math.min(sampleSize, group.length), seed),
+    );
+  }
+
+  return selectedTasks.map((task) => task.id);
+}
+
+function variationTemplateId(taskId: string): string {
+  return taskId.replace(/^variant_/, "").replace(/_\d{2,3}$/, "");
+}
+
+function seededSample<T extends { id: string }>(items: T[], count: number, seed: string): T[] {
+  return items
+    .map((item) => ({
+      item,
+      score: crypto.createHash("sha256").update(`${seed}:${item.id}`).digest("hex"),
+    }))
+    .toSorted((a, b) => a.score.localeCompare(b.score))
+    .slice(0, count)
+    .map(({ item }) => item)
+    .toSorted((a, b) => a.id.localeCompare(b.id));
 }
 
 export function assertSingleAgentBenchmarkTaskInContainer(params: {

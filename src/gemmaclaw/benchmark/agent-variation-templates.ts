@@ -10,7 +10,7 @@ type VariationTemplate = {
   name: string;
   category: AgentTaskCategory;
   difficulty: AgentTaskDifficulty;
-  targetVariations: 50;
+  targetVariations: number;
   description: string;
   capability: string;
   artifact: string;
@@ -60,6 +60,8 @@ const VARIANT_DISTRACTORS = [
   "an outdated status line",
   "a noisy log excerpt",
 ];
+
+const VARIANT_OUTPUT_FRAMES = ["concise operator handoff", "audit-ready reviewer packet"];
 
 export const CURATED_BENCHMARK_TEST_TEMPLATE_TARGETS: VariationTemplate[] = [
   {
@@ -394,7 +396,7 @@ export const BENCHMARK_TEST_TEMPLATE_TARGETS: VariationTemplate[] =
     name: task.name,
     category: task.category,
     difficulty: task.difficulty,
-    targetVariations: 50,
+    targetVariations: 200,
     description: task.description,
     capability: `${task.category.replace(/^expanded_/, "").replace(/_/g, " ")} agent workflow`,
     artifact: `${task.id}_variation_output.md`,
@@ -415,10 +417,12 @@ function variantInstruction(template: VariationTemplate, index: number): string 
   const context =
     VARIANT_CONTEXTS[Math.floor(index / VARIANT_PERSONAS.length) % VARIANT_CONTEXTS.length];
   const distractor = VARIANT_DISTRACTORS[(index * 7) % VARIANT_DISTRACTORS.length];
+  const outputFrame = VARIANT_OUTPUT_FRAMES[Math.floor(index / 100) % VARIANT_OUTPUT_FRAMES.length];
   const caseNo = String(index + 1).padStart(2, "0");
   return [
     `Variant ${caseNo} context: act as the ${persona} handling the ${context}.`,
     `Include this complication in your reasoning: ${distractor}.`,
+    `Shape the final response as a ${outputFrame}.`,
     `Write the final artifact to ${template.artifact}.`,
   ].join("\n");
 }
