@@ -263,11 +263,14 @@ export function validateTaskArtifact(input: ValidateTaskArtifactInput): Validati
   }
 
   // (2) Must contain a non-empty assistant turn.
+  // For noToolsMode tasks (edge models that cannot use tool schemas), the model
+  // may legitimately output nothing — treat this as a completed result with
+  // score 0 (model failure) rather than a harness error.
   const assistantTurn = findAssistantTurn(conversation);
   if (!assistantTurn && result.completionStatus === "completed") {
     issues.push({
       kind: "no_assistant_turn",
-      severity: "block",
+      severity: task.noToolsMode ? "warn" : "block",
       message: "Task marked completed but conversation has no assistant turn with content.",
     });
   }
