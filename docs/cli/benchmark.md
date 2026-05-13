@@ -32,6 +32,17 @@ openclaw benchmark sandbox --file tasks.json
 openclaw benchmark sandbox --file audit.txt --model gemma3:4b --gemini-api-key "$GEMINI_KEY"
 ```
 
+Gemmaclaw agent benchmark suites can also be run through the package script:
+
+```bash
+pnpm benchmark agent list --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513
+pnpm benchmark agent --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513 --backend google-gemini-cli --model gemini-3-flash-preview --run-id variants-gemini-flash-sample --idle-timeout 10 --no-activity-timeout 120 --hard-cap 600
+```
+
+Use the 10-per-template sample before a full variation sweep. It runs 1,470
+tasks, 10 sampled cases from each of the 147 generated templates, while still
+covering the whole template catalog.
+
 ## Modes
 
 ### Docker mode (default)
@@ -75,6 +86,21 @@ openclaw benchmark --mock
 | `--context-length <n>` | Context window size (`num_ctx`)                                   |
 | `--gpu-layers <n>`     | Number of GPU layers (`num_gpu`)                                  |
 | `--batch-size <n>`     | Batch size (`num_batch`)                                          |
+
+## Agent variation sampling
+
+The `variants` suite expands each Gemmaclaw-owned benchmark template into 200
+controlled cases. A full run is 29,400 tasks. For harness validation, use a
+deterministic sample before spending model quota on the full suite:
+
+```bash
+pnpm benchmark agent list --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513
+pnpm benchmark agent --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513 --backend google-gemini-cli --model gemini-3-flash-preview --run-id variants-gemini-flash-sample --idle-timeout 10 --no-activity-timeout 120 --hard-cap 600
+```
+
+`--sample-per-template` selects the same number of generated variations from
+each template. `--sample-seed` makes the selection stable, so failed sampled
+tasks can be reproduced, rerun, and compared across backends.
 
 ## Subcommands
 

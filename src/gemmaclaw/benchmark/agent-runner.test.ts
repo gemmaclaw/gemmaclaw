@@ -23,6 +23,7 @@ import {
   resolveFakeGogBinDir,
   readOpenAICodexAuthProfilesFromStore,
   resolveOpenAICodexAuthProfileStoreCandidates,
+  resolveIdleCompletionMs,
   resolveTimeoutBudgets,
   resolveGeminiHome,
   runAgentBenchmark,
@@ -291,6 +292,18 @@ describe("resolveTimeoutBudgets", () => {
     });
     expect(noActivityMs).toBe(600_000);
     expect(hardCapMs).toBe(28_800_000);
+  });
+});
+
+describe("resolveIdleCompletionMs", () => {
+  it("honors explicit short idle completion settings with a small safety floor", () => {
+    expect(resolveIdleCompletionMs(10)).toBe(10_000);
+    expect(resolveIdleCompletionMs(1)).toBe(5_000);
+  });
+
+  it("uses the default completion idle when the configured value is disabled or invalid", () => {
+    expect(resolveIdleCompletionMs(0)).toBe(30_000);
+    expect(resolveIdleCompletionMs(Number.NaN)).toBe(30_000);
   });
 });
 

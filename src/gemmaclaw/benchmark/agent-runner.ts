@@ -1606,6 +1606,12 @@ export function resolveTimeoutBudgets(config: AgentBenchmarkConfig): {
   };
 }
 
+export function resolveIdleCompletionMs(idleTimeoutSeconds: number): number {
+  const idleSec =
+    Number.isFinite(idleTimeoutSeconds) && idleTimeoutSeconds > 0 ? idleTimeoutSeconds : 30;
+  return Math.max(Math.round(idleSec * 1000), 5_000);
+}
+
 export async function dispatchTask(
   task: AgentBenchmarkTask,
   config: AgentBenchmarkConfig,
@@ -1622,7 +1628,6 @@ export async function dispatchTask(
 }> {
   const startMs = Date.now();
   const { hardCapMs, noActivityMs } = resolveTimeoutBudgets(config);
-  const idleMs = config.idleTimeoutSeconds * 1000;
 
   // Create isolated benchmark home for this task
   const benchHome = config.gemmaclawHome
@@ -2106,7 +2111,7 @@ export async function dispatchTask(
     // assistant turn: keep the legacy short threshold so a model that finishes
     // streaming and quietly waits is treated as done. Activity-based timeout
     // (below) handles the "stuck before any assistant turn" case.
-    const idleCompletionMs = Math.max(idleMs * 4, 120_000);
+    const idleCompletionMs = resolveIdleCompletionMs(config.idleTimeoutSeconds);
 
     // Polling loop concurrent with child execution
     while (true) {

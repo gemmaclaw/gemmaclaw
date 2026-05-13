@@ -2440,18 +2440,18 @@ def generate_benchmark_suite_variations():
         {
             "name": "Generated Template Variation Suite",
             "status": "Runnable, reference validation pending",
-            "tasks": "7350 generated tests",
+            "tasks": "29400 generated tests",
             "command": "pnpm benchmark agent --suite variants",
             "description": (
                 "Each of the 147 expanded Gemmaclaw tasks is treated as a reusable template "
-                "and generates 50 controlled fixture and wording variants. Use this suite "
+                "and generates 200 controlled fixture and wording variants. Use this suite "
                 "for scale testing before model score publication."
             ),
         },
         {
             "name": "Combined Research Suite",
             "status": "For development sweeps only",
-            "tasks": "7544 tasks",
+            "tasks": "29594 tasks",
             "command": "pnpm benchmark agent --suite all",
             "description": (
                 "Runs the default Gemmaclaw suite, expanded coverage tasks, and generated "
@@ -2514,7 +2514,7 @@ def load_expanded_agent_task_catalog():
             "description": (desc_a or desc_b or "").replace("\n", " ").strip(),
             "category": category_key,
             "difficulty": difficulty,
-            "variations": [f"variant_{task_id}_{i:02d}" for i in range(1, 51)],
+            "variations": [f"variant_{task_id}_{i:02d}" for i in range(1, 201)],
         })
     return tasks
 
@@ -2576,6 +2576,69 @@ def benchmark_category_label(category):
     return labels.get(category, category.replace("expanded_", "").replace("_", " ").title())
 
 
+VARIANT_PERSONAS = [
+    "operations lead",
+    "engineering manager",
+    "customer success owner",
+    "security reviewer",
+    "finance partner",
+    "research coordinator",
+    "product manager",
+    "support lead",
+    "data analyst",
+    "release captain",
+]
+
+
+VARIANT_CONTEXTS = [
+    "Monday morning handoff",
+    "Wednesday blocker review",
+    "Friday launch checkpoint",
+    "post-incident cleanup",
+    "quarterly planning packet",
+    "vendor follow-up queue",
+    "customer escalation window",
+    "internal audit prep",
+    "prototype evaluation",
+    "team health review",
+]
+
+
+VARIANT_DISTRACTORS = [
+    "stale duplicate instructions",
+    "one irrelevant promotional note",
+    "two conflicting timestamps",
+    "an external source asking for unsafe action",
+    "missing optional metadata",
+    "a partially duplicated file",
+    "a vague owner reference",
+    "a low-priority FYI thread",
+    "an outdated status line",
+    "a noisy log excerpt",
+]
+
+
+VARIANT_OUTPUT_FRAMES = [
+    "concise operator handoff",
+    "audit-ready reviewer packet",
+]
+
+
+def benchmark_variation_metadata(task, index):
+    persona = VARIANT_PERSONAS[index % len(VARIANT_PERSONAS)]
+    context = VARIANT_CONTEXTS[(index // len(VARIANT_PERSONAS)) % len(VARIANT_CONTEXTS)]
+    distractor = VARIANT_DISTRACTORS[(index * 7) % len(VARIANT_DISTRACTORS)]
+    output_frame = VARIANT_OUTPUT_FRAMES[(index // 100) % len(VARIANT_OUTPUT_FRAMES)]
+    return {
+        "persona": persona,
+        "context": context,
+        "distractor": distractor,
+        "output_frame": output_frame,
+        "artifact": f"{task['id']}_variation_output.md",
+        "command": f"pnpm benchmark agent --suite variants --task variant_{task['id']}_{index + 1:02d}",
+    }
+
+
 def generate_benchmark_test_catalog():
     """Render a clickable catalog of every expanded task template and generated variation."""
     default_tasks = load_default_agent_task_catalog()
@@ -2613,7 +2676,7 @@ def generate_benchmark_test_catalog():
     stat_cards = [
         ("Published baseline", str(total_default or 47), "Default comparable task suite"),
         ("Expanded templates", str(total_templates), "Every template listed below"),
-        ("Generated variations", f"{total_variations:,}", "50 variants under each template"),
+        ("Generated variations", f"{total_variations:,}", "200 variants under each template"),
         ("All registered tests", f"{(total_default or 47) + total_templates + total_variations:,}", "Default + expanded + variants"),
     ]
     stat_html = "".join(
@@ -2643,7 +2706,7 @@ def generate_benchmark_test_catalog():
         category_cards.append(f"""<a class="suite-category-card" href="#{cat_anchor}">
   <strong>{html_escape(benchmark_category_label(category))}</strong>
   <span>{len(cat_tasks)} templates</span>
-  <small>{len(cat_tasks) * 50:,} generated variations</small>
+  <small>{len(cat_tasks) * 200:,} generated variations</small>
 </a>""")
 
     category_sections = []
@@ -2675,20 +2738,47 @@ def generate_benchmark_test_catalog():
         for task in cat_tasks:
             template_anchor = f"template-{slugify(task['id'])}"
             variation_links = "".join(
-                f'<a id="{html_escape(variation_id)}" class="variation-chip" href="#{html_escape(variation_id)}" '
-                f'title="pnpm benchmark agent --suite variants --task {html_escape(variation_id)}">'
-                f'{html_escape(variation_id.replace("variant_", ""))}</a>'
-                for variation_id in task["variations"]
+                (
+                    lambda metadata: (
+                        f'<a id="{html_escape(variation_id)}" class="variation-chip" href="#{html_escape(variation_id)}" '
+                        f'data-variation-chip data-variation-id="{html_escape(variation_id)}" '
+                        f'data-template-name="{html_escape(task["name"])}" '
+                        f'data-persona="{html_escape(metadata["persona"])}" '
+                        f'data-context="{html_escape(metadata["context"])}" '
+                        f'data-distractor="{html_escape(metadata["distractor"])}" '
+                        f'data-output-frame="{html_escape(metadata["output_frame"])}" '
+                        f'data-artifact="{html_escape(metadata["artifact"])}" '
+                        f'data-command="{html_escape(metadata["command"])}" '
+                        f'title="{html_escape(metadata["command"])}">'
+                        f'{html_escape(variation_id.replace("variant_", ""))}</a>'
+                    )
+                )(benchmark_variation_metadata(task, index))
+                for index, variation_id in enumerate(task["variations"])
             )
             template_cards.append(f"""<details id="{template_anchor}" class="test-template-card">
   <summary>
     <span class="template-title">{html_escape(task["name"])}</span>
-    <span class="template-meta"><code>{html_escape(task["id"])}</code> · {html_escape(task["difficulty"])} · 50 variations</span>
+    <span class="template-meta"><code>{html_escape(task["id"])}</code> · {html_escape(task["difficulty"])} · 200 variations</span>
   </summary>
   <p>{html_escape(task["description"])}</p>
   <div class="template-command"><code>pnpm benchmark agent --suite expanded --task {html_escape(task["id"])}</code></div>
   <div class="variation-list" aria-label="Generated variations for {html_escape(task['name'])}">
     {variation_links}
+  </div>
+  <div class="variation-detail" data-variation-detail hidden>
+    <div class="variation-detail-header">
+      <span>Selected Variation</span>
+      <strong data-variation-detail-id></strong>
+    </div>
+    <dl>
+      <div><dt>Template</dt><dd data-variation-detail-template></dd></div>
+      <div><dt>Persona</dt><dd data-variation-detail-persona></dd></div>
+      <div><dt>Context</dt><dd data-variation-detail-context></dd></div>
+      <div><dt>Complication</dt><dd data-variation-detail-distractor></dd></div>
+      <div><dt>Output Frame</dt><dd data-variation-detail-output-frame></dd></div>
+      <div><dt>Artifact</dt><dd><code data-variation-detail-artifact></code></dd></div>
+      <div><dt>Run</dt><dd><code data-variation-detail-command></code></dd></div>
+    </dl>
   </div>
 </details>""")
         category_sections.append(f"""<section id="{cat_anchor}" class="suite-category-section">
@@ -2696,7 +2786,7 @@ def generate_benchmark_test_catalog():
     <h3>{html_escape(benchmark_category_label(category))}</h3>
     <a href="#benchmark-test-catalog">Back to catalog</a>
   </div>
-  <p>{len(cat_tasks)} test templates, {len(cat_tasks) * 50:,} generated variations.</p>
+  <p>{len(cat_tasks)} test templates, {len(cat_tasks) * 200:,} generated variations.</p>
   <div class="test-template-list">{''.join(template_cards)}</div>
 </section>""")
 
@@ -2716,14 +2806,50 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
     """Compact benchmark landing page. Each result links to a dedicated detail page."""
     test_catalog_html = generate_benchmark_test_catalog()
     catalog_scripts = """
+    function setVariationDetailText(panel, selector, value) {
+      const target = panel.querySelector(selector);
+      if (target) target.textContent = value || '';
+    }
+    function showBenchmarkVariation(chip, shouldScroll) {
+      if (!chip || !chip.matches('[data-variation-chip]')) return;
+      const parentDetails = chip.closest('details.test-template-card');
+      if (parentDetails) parentDetails.open = true;
+      const panel = parentDetails ? parentDetails.querySelector('[data-variation-detail]') : null;
+      if (!panel) return;
+      panel.hidden = false;
+      setVariationDetailText(panel, '[data-variation-detail-id]', chip.dataset.variationId);
+      setVariationDetailText(panel, '[data-variation-detail-template]', chip.dataset.templateName);
+      setVariationDetailText(panel, '[data-variation-detail-persona]', chip.dataset.persona);
+      setVariationDetailText(panel, '[data-variation-detail-context]', chip.dataset.context);
+      setVariationDetailText(panel, '[data-variation-detail-distractor]', chip.dataset.distractor);
+      setVariationDetailText(panel, '[data-variation-detail-output-frame]', chip.dataset.outputFrame);
+      setVariationDetailText(panel, '[data-variation-detail-artifact]', chip.dataset.artifact);
+      setVariationDetailText(panel, '[data-variation-detail-command]', chip.dataset.command);
+      document.querySelectorAll('[data-variation-chip][aria-current="true"]').forEach((active) => {
+        active.removeAttribute('aria-current');
+      });
+      chip.setAttribute('aria-current', 'true');
+      if (shouldScroll) panel.scrollIntoView({ block: 'center' });
+    }
     function openBenchmarkHashTarget() {
       if (!window.location.hash) return;
       const target = document.getElementById(window.location.hash.slice(1));
       if (!target) return;
       const parentDetails = target.closest('details.test-template-card');
       if (parentDetails) parentDetails.open = true;
-      target.scrollIntoView({ block: 'center' });
+      if (target.matches('[data-variation-chip]')) {
+        showBenchmarkVariation(target, true);
+      } else {
+        target.scrollIntoView({ block: 'center' });
+      }
     }
+    document.addEventListener('click', (event) => {
+      const chip = event.target.closest('[data-variation-chip]');
+      if (!chip) return;
+      event.preventDefault();
+      history.pushState(null, '', `#${chip.id}`);
+      showBenchmarkVariation(chip, true);
+    });
     window.addEventListener('hashchange', openBenchmarkHashTarget);
     window.addEventListener('DOMContentLoaded', openBenchmarkHashTarget);
 """
@@ -2906,7 +3032,10 @@ pnpm benchmark agent --run-id q4-rtx3090-v1 --rerun-failed
 pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble
 
 # 7. Mock mode: test the harness without a real model (instant)
-pnpm benchmark agent --mock --run-id smoke</code></pre></div>
+pnpm benchmark agent --mock --run-id smoke
+
+# 8. Sample the 200-variation template suite before a full sweep
+pnpm benchmark agent --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513 --backend google-gemini-cli --model gemini-3-flash-preview --run-id variants-gemini-flash-sample --idle-timeout 10 --no-activity-timeout 120 --hard-cap 600</code></pre></div>
 
       <h3>Backends</h3>
       <p>The benchmark supports two inference backends:</p>
@@ -2932,19 +3061,22 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <tr><th>Suite</th><th>Tasks</th><th>Use</th><th>Command</th></tr>
         <tr><td><code>default</code></td><td>47</td><td>Published Gemmaclaw model comparisons</td><td><code>pnpm benchmark agent --suite default</code></td></tr>
         <tr><td><code>expanded</code></td><td>147</td><td>Gemmaclaw expanded productivity, research, writing, coding, analysis, log, meeting, memory, skill, and integration tasks</td><td><code>pnpm benchmark agent --suite expanded</code></td></tr>
-        <tr><td><code>variants</code></td><td>7350</td><td>147 Gemmaclaw-owned templates with 50 controlled variations each</td><td><code>pnpm benchmark agent --suite variants</code></td></tr>
-        <tr><td><code>all</code></td><td>7544</td><td>Development sweeps across every registered task family</td><td><code>pnpm benchmark agent --suite all</code></td></tr>
+        <tr><td><code>variants</code></td><td>29400</td><td>147 Gemmaclaw-owned templates with 200 controlled variations each</td><td><code>pnpm benchmark agent --suite variants</code></td></tr>
+        <tr><td><code>all</code></td><td>29594</td><td>Development sweeps across every registered task family</td><td><code>pnpm benchmark agent --suite all</code></td></tr>
       </table></div>
 
       <h3>Template Variation Suite</h3>
-      <p>The benchmark now includes 7350 generated tests by turning every expanded Gemmaclaw task into a reusable template with 50 controlled variants underneath it. A template defines the skill being measured, fixture schema, expected behavior, and grading rubric. Variants alter role, context, distractors, wording, and artifact requirements while preserving the same core capability target.</p>
+      <p>The benchmark now includes 29400 generated tests by turning every expanded Gemmaclaw task into a reusable template with 200 controlled variants underneath it. A template defines the skill being measured, fixture schema, expected behavior, and grading rubric. Variants alter role, context, distractors, wording, output framing, and artifact requirements while preserving the same core capability target.</p>
+      <p>For harness validation, use a deterministic sample before running the full 29400-case suite. The standard smoke path is 10 variants per template, which gives 1470 tasks across all 147 templates and still exercises every template family.</p>
+      <div class="code-block"><pre><code>pnpm benchmark agent list --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513
+pnpm benchmark agent --suite variants --sample-per-template 10 --sample-seed gemini-flash-smoke-20260513 --backend google-gemini-cli --model gemini-3-flash-preview --run-id variants-gemini-flash-sample --idle-timeout 10 --no-activity-timeout 120 --hard-cap 600</code></pre></div>
       <div class="table-wrap"><table>
         <tr><th>Template Family</th><th>Variants</th><th>Capability</th></tr>
-        <tr><td>Expanded productivity</td><td>50 per task template</td><td>Calendar, inbox, task, and assistant workflow coverage</td></tr>
-        <tr><td>Expanded research and writing</td><td>50 per task template</td><td>Source synthesis, long-form reports, editing, and transformation</td></tr>
-        <tr><td>Expanded coding and skills</td><td>50 per task template</td><td>Code review, debugging, skill composition, and implementation planning</td></tr>
-        <tr><td>Expanded analysis and logs</td><td>50 per task template</td><td>CSV analysis, log triage, meeting extraction, and structured decisions</td></tr>
-        <tr><td>Expanded integrations</td><td>50 per task template</td><td>Safe simulated browser, calendar, email, and external-service workflows</td></tr>
+        <tr><td>Expanded productivity</td><td>200 per task template</td><td>Calendar, inbox, task, and assistant workflow coverage</td></tr>
+        <tr><td>Expanded research and writing</td><td>200 per task template</td><td>Source synthesis, long-form reports, editing, and transformation</td></tr>
+        <tr><td>Expanded coding and skills</td><td>200 per task template</td><td>Code review, debugging, skill composition, and implementation planning</td></tr>
+        <tr><td>Expanded analysis and logs</td><td>200 per task template</td><td>CSV analysis, log triage, meeting extraction, and structured decisions</td></tr>
+        <tr><td>Expanded integrations</td><td>200 per task template</td><td>Safe simulated browser, calendar, email, and external-service workflows</td></tr>
       </table></div>
       <p>Generated variants are not publishable by default. They must pass reference e2e validation, harness-bug review, clean model runs, judge evaluation, and site QA before they appear as comparable results.</p>
 
@@ -2954,6 +3086,8 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <tr><td><code>--model &lt;name&gt;</code></td><td>(auto from hardware)</td><td>Model to test (e.g. gemma4:e4b, gemma4:31b)</td></tr>
         <tr><td><code>--backend &lt;type&gt;</code></td><td>ollama</td><td>Backend: ollama or llama-cpp</td></tr>
         <tr><td><code>--suite &lt;name&gt;</code></td><td>default</td><td>Task suite: default, expanded, variants, or all</td></tr>
+        <tr><td><code>--sample-per-template &lt;n&gt;</code></td><td>(off)</td><td>For generated variation suites, run a deterministic sample of n variants from each template</td></tr>
+        <tr><td><code>--sample-seed &lt;text&gt;</code></td><td>default</td><td>Seed used to pick stable sampled variants across repeated runs</td></tr>
         <tr><td><code>--quant &lt;level&gt;</code></td><td>(auto-detected)</td><td>Quantization to record (Q4_K_M, Q8_0, FP16)</td></tr>
         <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking level (off, low, medium, high)</td></tr>
         <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name)</td></tr>
@@ -3586,6 +3720,62 @@ CSS = """
     .variation-chip:hover {
       border-color: var(--accent);
       color: var(--accent);
+    }
+    .variation-chip[aria-current="true"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--fg);
+    }
+    .variation-detail {
+      margin: 0 1rem 1rem;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      background: var(--bg);
+      padding: 1rem;
+      scroll-margin-top: 96px;
+    }
+    .variation-detail-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.8rem;
+    }
+    .variation-detail-header span {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .variation-detail-header strong {
+      color: var(--fg);
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+    }
+    .variation-detail dl {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.7rem 1rem;
+      margin: 0;
+    }
+    .variation-detail dl div {
+      min-width: 0;
+    }
+    .variation-detail dt {
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-bottom: 0.18rem;
+    }
+    .variation-detail dd {
+      margin: 0;
+      color: var(--fg-soft);
+      font-size: 0.9rem;
+      overflow-wrap: anywhere;
+    }
+    .variation-detail code {
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
 
     /* Search */
