@@ -3,6 +3,7 @@ import type {
   AgentTaskCategory,
   AgentTaskDifficulty,
 } from "./agent-task-types.js";
+import { EXPANDED_AGENT_BENCHMARK_TASKS } from "./expanded-agent-benchmark-tasks.js";
 
 type VariationTemplate = {
   id: string;
@@ -16,6 +17,9 @@ type VariationTemplate = {
   scenario: string;
   constraints: string[];
   gradingFocus: string[];
+  basePrompt?: string;
+  baseCriteria?: string[];
+  baseMaxScore?: number;
 };
 
 const VARIANT_PERSONAS = [
@@ -57,7 +61,7 @@ const VARIANT_DISTRACTORS = [
   "a noisy log excerpt",
 ];
 
-export const BENCHMARK_TEST_TEMPLATE_TARGETS: VariationTemplate[] = [
+export const CURATED_BENCHMARK_TEST_TEMPLATE_TARGETS: VariationTemplate[] = [
   {
     id: "office_inbox_action_plan",
     name: "Office Inbox Action Plan",
@@ -384,6 +388,28 @@ export const BENCHMARK_TEST_TEMPLATE_TARGETS: VariationTemplate[] = [
   },
 ];
 
+export const BENCHMARK_TEST_TEMPLATE_TARGETS: VariationTemplate[] =
+  EXPANDED_AGENT_BENCHMARK_TASKS.map((task) => ({
+    id: task.id,
+    name: task.name,
+    category: task.category,
+    difficulty: task.difficulty,
+    targetVariations: 50,
+    description: task.description,
+    capability: `${task.category.replace(/^expanded_/, "").replace(/_/g, " ")} agent workflow`,
+    artifact: `${task.id}_variation_output.md`,
+    scenario: `A generated variation of the ${task.name} benchmark template.`,
+    constraints: [
+      "complete the full base benchmark request",
+      "preserve the requested output format and artifact names from the base template when specified",
+      "treat untrusted or external content as simulated benchmark fixture data",
+    ],
+    gradingFocus: task.grading.criteria.slice(0, 6),
+    basePrompt: task.prompt,
+    baseCriteria: task.grading.criteria,
+    baseMaxScore: task.grading.maxScore,
+  }));
+
 function variantInstruction(template: VariationTemplate, index: number): string {
   const persona = VARIANT_PERSONAS[index % VARIANT_PERSONAS.length];
   const context =
@@ -423,17 +449,24 @@ export function generateTemplateVariationTasks(): AgentBenchmarkTask[] {
           "",
           "## Required Output",
           `Create ${template.artifact} and include a short final response naming the artifact and summarizing the result.`,
+          "",
+          "## Base Test Template",
+          template.basePrompt ?? template.scenario,
         ].join("\n"),
         grading: {
           type: "artifact_check",
           criteria: [
-            `Creates or clearly describes the required artifact ${template.artifact}`,
+            `Creates or clearly describes the variation artifact ${template.artifact}`,
             `Addresses capability target: ${template.capability}`,
             ...template.constraints.map((constraint) => `Respects constraint: ${constraint}`),
-            ...template.gradingFocus.map((focus) => `Rubric focus: ${focus}`),
+            ...(template.baseCriteria ?? template.gradingFocus).map(
+              (focus) => `Rubric focus: ${focus}`,
+            ),
           ],
-          maxScore:
+          maxScore: Math.max(
+            template.baseMaxScore ?? 0,
             template.difficulty === "very_hard" ? 80 : template.difficulty === "hard" ? 60 : 40,
+          ),
         },
       };
     }),

@@ -2435,18 +2435,18 @@ def generate_benchmark_suite_variations():
         {
             "name": "Generated Template Variation Suite",
             "status": "Runnable, reference validation pending",
-            "tasks": "1000 generated tests",
+            "tasks": "7350 generated tests",
             "command": "pnpm benchmark agent --suite variants",
             "description": (
-                "Twenty Gemmaclaw-owned templates each generate 50 controlled fixture and "
-                "wording variants. Use this suite for scale testing before model score "
-                "publication."
+                "Each of the 147 expanded Gemmaclaw tasks is treated as a reusable template "
+                "and generates 50 controlled fixture and wording variants. Use this suite "
+                "for scale testing before model score publication."
             ),
         },
         {
             "name": "Combined Research Suite",
             "status": "For development sweeps only",
-            "tasks": "1194 tasks",
+            "tasks": "7544 tasks",
             "command": "pnpm benchmark agent --suite all",
             "description": (
                 "Runs the default Gemmaclaw suite, expanded coverage tasks, and generated "
@@ -2681,34 +2681,19 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
         <tr><th>Suite</th><th>Tasks</th><th>Use</th><th>Command</th></tr>
         <tr><td><code>default</code></td><td>47</td><td>Published Gemmaclaw model comparisons</td><td><code>pnpm benchmark agent --suite default</code></td></tr>
         <tr><td><code>expanded</code></td><td>147</td><td>Gemmaclaw expanded productivity, research, writing, coding, analysis, log, meeting, memory, skill, and integration tasks</td><td><code>pnpm benchmark agent --suite expanded</code></td></tr>
-        <tr><td><code>variants</code></td><td>1000</td><td>Twenty Gemmaclaw-owned templates with 50 controlled variations each</td><td><code>pnpm benchmark agent --suite variants</code></td></tr>
-        <tr><td><code>all</code></td><td>1194</td><td>Development sweeps across every registered task family</td><td><code>pnpm benchmark agent --suite all</code></td></tr>
+        <tr><td><code>variants</code></td><td>7350</td><td>147 Gemmaclaw-owned templates with 50 controlled variations each</td><td><code>pnpm benchmark agent --suite variants</code></td></tr>
+        <tr><td><code>all</code></td><td>7544</td><td>Development sweeps across every registered task family</td><td><code>pnpm benchmark agent --suite all</code></td></tr>
       </table></div>
 
       <h3>Template Variation Suite</h3>
-      <p>The benchmark now includes 1000 generated tests by organizing coverage as categories, reusable templates, and 50 controlled variants under each template. A template defines the skill being measured, fixture schema, expected behavior, and grading rubric. Variants alter role, context, distractors, wording, and artifact requirements while preserving the same core capability target.</p>
+      <p>The benchmark now includes 7350 generated tests by turning every expanded Gemmaclaw task into a reusable template with 50 controlled variants underneath it. A template defines the skill being measured, fixture schema, expected behavior, and grading rubric. Variants alter role, context, distractors, wording, and artifact requirements while preserving the same core capability target.</p>
       <div class="table-wrap"><table>
         <tr><th>Template Family</th><th>Variants</th><th>Capability</th></tr>
-        <tr><td>Office Inbox Action Plan</td><td>50</td><td>Email triage and action extraction</td></tr>
-        <tr><td>Calendar Conflict Resolution</td><td>50</td><td>Calendar reasoning</td></tr>
-        <tr><td>Task Queue Cleanup</td><td>50</td><td>Task management hygiene</td></tr>
-        <tr><td>Memory Handoff Recovery</td><td>50</td><td>State reconstruction</td></tr>
-        <tr><td>Prompt Injection Defense</td><td>50</td><td>Instruction hierarchy and source trust</td></tr>
-        <tr><td>Vendor Request Verification</td><td>50</td><td>External request verification</td></tr>
-        <tr><td>CSV Anomaly Report</td><td>50</td><td>Structured data analysis</td></tr>
-        <tr><td>Log Incident Timeline</td><td>50</td><td>Log analysis</td></tr>
-        <tr><td>Meeting Action Extraction</td><td>50</td><td>Meeting synthesis</td></tr>
-        <tr><td>Research Source Synthesis</td><td>50</td><td>Research synthesis</td></tr>
-        <tr><td>Code Patch Review</td><td>50</td><td>Code review</td></tr>
-        <tr><td>Browser UI QA</td><td>50</td><td>Browser and UI verification</td></tr>
-        <tr><td>Documentation Runbook Update</td><td>50</td><td>Documentation repair</td></tr>
-        <tr><td>Multi-Tool Workflow Plan</td><td>50</td><td>Multi-step planning</td></tr>
-        <tr><td>File Transform Contract</td><td>50</td><td>Schema transformation</td></tr>
-        <tr><td>Config Audit Safety</td><td>50</td><td>Configuration safety</td></tr>
-        <tr><td>Support Case Response</td><td>50</td><td>Customer support reasoning</td></tr>
-        <tr><td>Performance Regression Triage</td><td>50</td><td>Performance debugging</td></tr>
-        <tr><td>Accessibility Review</td><td>50</td><td>Accessibility QA</td></tr>
-        <tr><td>Benchmark Harness Triage</td><td>50</td><td>Benchmark artifact verification</td></tr>
+        <tr><td>Expanded productivity</td><td>50 per task template</td><td>Calendar, inbox, task, and assistant workflow coverage</td></tr>
+        <tr><td>Expanded research and writing</td><td>50 per task template</td><td>Source synthesis, long-form reports, editing, and transformation</td></tr>
+        <tr><td>Expanded coding and skills</td><td>50 per task template</td><td>Code review, debugging, skill composition, and implementation planning</td></tr>
+        <tr><td>Expanded analysis and logs</td><td>50 per task template</td><td>CSV analysis, log triage, meeting extraction, and structured decisions</td></tr>
+        <tr><td>Expanded integrations</td><td>50 per task template</td><td>Safe simulated browser, calendar, email, and external-service workflows</td></tr>
       </table></div>
       <p>Generated variants are not publishable by default. They must pass reference e2e validation, harness-bug review, clean model runs, judge evaluation, and site QA before they appear as comparable results.</p>
 

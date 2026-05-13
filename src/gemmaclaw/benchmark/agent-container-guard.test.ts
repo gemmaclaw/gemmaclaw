@@ -130,8 +130,8 @@ describe("agent benchmark container guard", () => {
     expect(resolveAgentBenchmarkTasks({}).length).toBe(47);
     expect(resolveAgentBenchmarkTasks({ suite: "default" }).length).toBe(47);
     expect(resolveAgentBenchmarkTasks({ suite: "expanded" }).length).toBe(147);
-    expect(resolveAgentBenchmarkTasks({ suite: "variants" }).length).toBe(1000);
-    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(1194);
+    expect(resolveAgentBenchmarkTasks({ suite: "variants" }).length).toBe(7350);
+    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(7544);
     expect(() => resolveAgentBenchmarkTasks({ suite: "missing" })).toThrow(
       /Unsupported agent benchmark suite/,
     );

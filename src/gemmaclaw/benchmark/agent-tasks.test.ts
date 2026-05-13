@@ -201,8 +201,8 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
 
     expect(AGENT_BENCHMARK_TASKS).toHaveLength(47);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
-    expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(1000);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(1194);
+    expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(7350);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(7544);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });
@@ -245,7 +245,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
   });
 
   it("declares template targets for scaling toward 1000+ benchmark variations", () => {
-    expect(BENCHMARK_TEST_TEMPLATE_TARGETS).toHaveLength(20);
+    expect(BENCHMARK_TEST_TEMPLATE_TARGETS).toHaveLength(EXPANDED_AGENT_BENCHMARK_TASKS.length);
     expect(
       BENCHMARK_TEST_TEMPLATE_TARGETS.every((template) => template.targetVariations === 50),
     ).toBe(true);
@@ -254,7 +254,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
         (total, template) => total + template.targetVariations,
         0,
       ),
-    ).toBe(1000);
+    ).toBe(7350);
   });
 
   it("keeps all generated template variations high quality and public-safe", () => {
@@ -292,7 +292,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       );
     }
 
-    expect(countsByTemplate.size).toBe(20);
+    expect(countsByTemplate.size).toBe(EXPANDED_AGENT_BENCHMARK_TASKS.length);
     expect([...countsByTemplate.values()].every((count) => count === 50)).toBe(true);
   });
 });
