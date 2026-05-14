@@ -237,6 +237,16 @@ if [ "$IS_AGENT" = "1" ]; then
   unset OPENCLAW_HOME
   mkdir -p "$GEMMACLAW_HOME"
 
+  # Pre-seed a browser-control auth token so the browser plugin does not
+  # generate one at startup. Without this, the plugin writes gateway.auth.token
+  # to openclaw.json after the gateway is running, the config-reload watcher
+  # detects the change, and the gateway performs a full process restart (spawning
+  # a new PID) before the healthz probe succeeds. The probe loop tolerates this
+  # restart, but it adds 6+ seconds of latency and noisy log output to every
+  # container. Pre-seeding the token makes startup silent and instant.
+  BENCHMARK_BROWSER_AUTH_TOKEN="$(openssl rand -hex 32 2>/dev/null \
+    || python3 -c 'import secrets; print(secrets.token_hex(32))')"
+
   # Determine Ollama URL. Real agent benchmarks must use host Ollama so each
   # per-task container starts clean without downloading or serving models.
   OLLAMA_TARGET="${OLLAMA_URL:-}"
@@ -287,6 +297,11 @@ if [ "$IS_AGENT" = "1" ]; then
   "models": {
     "providers": {}
   },
+  "gateway": {
+    "auth": {
+      "token": "${BENCHMARK_BROWSER_AUTH_TOKEN}"
+    }
+  },
   "plugins": {
     "allow": ["${PLUGIN_ALLOW_ID}"]
   },
@@ -323,6 +338,11 @@ GCEOF
           }
         ]
       }
+    }
+  },
+  "gateway": {
+    "auth": {
+      "token": "${BENCHMARK_BROWSER_AUTH_TOKEN}"
     }
   },
   "plugins": {
