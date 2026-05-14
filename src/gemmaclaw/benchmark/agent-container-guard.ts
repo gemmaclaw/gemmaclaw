@@ -3,8 +3,31 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
 
-export const AGENT_BENCHMARK_DOCKER_IMAGE =
-  process.env.GEMMACLAW_BENCHMARK_DOCKER_IMAGE?.trim() || "gemmaclaw-benchmark";
+/**
+ * Computes the Docker image tag for the benchmark container.
+ *
+ * Uses a hash of the repo root path as a suffix to prevent concurrent runs
+ * from different worktrees (e.g. gemmaclaw vs gemmaclaw-main-bench) from
+ * overwriting each other's image mid-run and causing "Unknown agent benchmark
+ * task" failures. Override with GEMMACLAW_BENCHMARK_DOCKER_IMAGE env var.
+ */
+export function computeBenchmarkDockerImageTag(
+  params: {
+    env?: NodeJS.ProcessEnv;
+    repoRoot?: string;
+  } = {},
+): string {
+  const env = params.env ?? process.env;
+  const envOverride = env.GEMMACLAW_BENCHMARK_DOCKER_IMAGE?.trim();
+  if (envOverride) {
+    return envOverride;
+  }
+  const repoRoot = params.repoRoot ?? findBenchmarkRepoRoot();
+  const hash = crypto.createHash("sha256").update(repoRoot).digest("hex").slice(0, 8);
+  return `gemmaclaw-benchmark-${hash}`;
+}
+
+export const AGENT_BENCHMARK_DOCKER_IMAGE = computeBenchmarkDockerImageTag();
 export const AGENT_BENCHMARK_CONTAINER_ENV = "GEMMACLAW_BENCHMARK_CONTAINER";
 export const AGENT_BENCHMARK_MULTI_TASK_CONTAINER_ENV =
   "GEMMACLAW_BENCHMARK_ALLOW_MULTI_TASK_CONTAINER";
