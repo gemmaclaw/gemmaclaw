@@ -18,6 +18,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
+import { GCP_VERTEX_CREDENTIALS_MARKER } from "../../agents/model-auth-markers.js";
 
 export type VertexConfig = {
   project: string;
@@ -31,6 +32,12 @@ export type VertexConfig = {
   adcPath?: string;
   /** Path to service account JSON key file. */
   serviceAccountKeyPath?: string;
+  /** When true, use automated credentials marker for token refreshing. */
+  useAutomatedCredentials?: boolean;
+  /** Dedicated vLLM / Model Garden endpoint URL. */
+  dedicatedUrl?: string;
+  /** When true, disable Vertex safety filters. */
+  disableSafety?: boolean;
 };
 
 export type VertexSetupResult = {
@@ -80,7 +87,7 @@ export function getGcloudProject(): string | null {
 export function getGcloudAccessToken(): string | null {
   try {
     return (
-      execSync("gcloud auth print-access-token", {
+      execSync("gcloud auth application-default print-access-token", {
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
         timeout: 10_000,
@@ -134,11 +141,30 @@ export async function testVertexConnection(
 export function buildVertexConfig(vertex: VertexConfig): Record<string, unknown> {
   const isNative = vertex.apiFormat === "native";
 
-  const baseUrl = isNative
+  let baseUrl = isNative
     ? `https://${vertex.region}-aiplatform.googleapis.com/v1/projects/${vertex.project}/locations/${vertex.region}/publishers/google`
     : `https://${vertex.region}-aiplatform.googleapis.com/v1beta1/projects/${vertex.project}/locations/${vertex.region}/endpoints/openapi`;
 
-  const api = isNative ? "google-generative-ai" : "openai-responses";
+  if (vertex.dedicatedUrl) {
+    baseUrl = vertex.dedicatedUrl;
+  }
+
+  const api = isNative ? "google-generative-ai" : "openai-completions";
+
+  const providerConfig: Record<string, unknown> = {
+    baseUrl,
+    models: [
+      {
+        id: vertex.model,
+        name: vertex.model,
+        api,
+      },
+    ],
+  };
+
+  if (vertex.useAutomatedCredentials) {
+    providerConfig.apiKey = GCP_VERTEX_CREDENTIALS_MARKER;
+  }
 
   return {
     agents: {
@@ -150,16 +176,7 @@ export function buildVertexConfig(vertex: VertexConfig): Record<string, unknown>
     },
     models: {
       providers: {
-        "google-vertex": {
-          baseUrl,
-          models: [
-            {
-              id: vertex.model,
-              name: vertex.model,
-              api,
-            },
-          ],
-        },
+        "google-vertex": providerConfig,
       },
     },
   };
@@ -175,6 +192,8 @@ export async function interactiveVertexSetup(opts?: {
   model?: string;
   apiFormat?: "native" | "openai";
   nonInteractive?: boolean;
+  dedicatedUrl?: string;
+  disableSafety?: boolean;
 }): Promise<VertexSetupResult> {
   const log = console.log;
 
@@ -222,7 +241,7 @@ export async function interactiveVertexSetup(opts?: {
   if (!opts?.apiFormat && !opts?.nonInteractive) {
     log("\nSelect API Protocol:");
     log("  1) Native Gemini API (google-generative-ai)");
-    log("  2) OpenAI Compatible API (openai-responses)");
+    log("  2) OpenAI Compatible API (openai-completions)");
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     const choice = await rl.question("Choice [1-2] (default: 1): ");
     rl.close();
@@ -268,7 +287,21 @@ export async function interactiveVertexSetup(opts?: {
   }
   log("  Access token obtained");
 
-  // 5. Test connection
+  // 6. Automated refresh?
+  let useAutomatedCredentials = true;
+  if (!opts?.nonInteractive && !useServiceAccount) {
+    log("\nCredential Refresh:");
+    log("  1) Automated (refresh short-lived tokens per session)");
+    log("  2) Static (use current token, will expire in 1 hour)");
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const choice = await rl.question("Choice [1-2] (default: 1): ");
+    rl.close();
+    if (choice.trim() === "2") {
+      useAutomatedCredentials = false;
+    }
+  }
+
+  // 7. Test connection
   log("Testing Vertex AI connection...");
   const test = await testVertexConnection(project, region, accessToken);
   if (!test.ok) {
@@ -279,7 +312,7 @@ export async function interactiveVertexSetup(opts?: {
   }
   log("  Vertex AI connection OK");
 
-  // 6. Model selection
+  // 8. Model selection
   let model = opts?.model;
   if (!model) {
     if (opts?.nonInteractive) {
@@ -304,7 +337,7 @@ export async function interactiveVertexSetup(opts?: {
   }
   log(`  Model: ${model}`);
 
-  // 7. ADC path for Docker
+  // 9. ADC path for Docker
   const adcPath = getAdcPath();
   if (adcPath) {
     log(`  ADC: ${adcPath} (will be mounted in Docker mode)`);
@@ -319,6 +352,9 @@ export async function interactiveVertexSetup(opts?: {
       apiFormat,
       accessToken: accessToken ?? undefined,
       adcPath: adcPath ?? undefined,
+      useAutomatedCredentials,
+      dedicatedUrl: opts?.dedicatedUrl,
+      disableSafety: opts?.disableSafety,
     },
   };
 }
