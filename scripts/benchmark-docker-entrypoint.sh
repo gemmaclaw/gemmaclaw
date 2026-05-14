@@ -215,7 +215,7 @@ if [ "$IS_AGENT" = "1" ]; then
   case "$BENCHMARK_BACKEND" in
     google-gemini-cli) PLUGIN_ALLOW_ID="google" ;;
     llama-cpp)         PLUGIN_ALLOW_ID="openai" ;;
-    openai-codex)      PLUGIN_ALLOW_ID="codex" ;;
+    openai-codex)      PLUGIN_ALLOW_ID="openai" ;;
     *)                 PLUGIN_ALLOW_ID="$BENCHMARK_BACKEND" ;;
   esac
   EXPECTED_AGENT_MODEL="${PROVIDER_PREFIX}/${MODEL}"
@@ -271,7 +271,30 @@ if [ "$IS_AGENT" = "1" ]; then
   # configured agent model is also the diagnostic source of truth for
   # "what is this benchmark actually running?". Use the same schema the
   # benchmark agent-runner writes for its isolated per-task config.
-  cat > "$GEMMACLAW_HOME/openclaw.json" << GCEOF
+  if [ "$BENCHMARK_BACKEND" = "openai-codex" ]; then
+    cat > "$GEMMACLAW_HOME/openclaw.json" << GCEOF
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "${EXPECTED_AGENT_MODEL}"
+      },
+      "memorySearch": { "enabled": false },
+      "heartbeat": { "every": "0m", "includeSystemPromptSection": false },
+      "llm": { "idleTimeoutSeconds": 0 }
+    }
+  },
+  "models": {
+    "providers": {}
+  },
+  "plugins": {
+    "allow": ["${PLUGIN_ALLOW_ID}"]
+  },
+  "tools": { "exec": { "host": "gateway", "security": "full", "ask": "off" } }
+}
+GCEOF
+  else
+    cat > "$GEMMACLAW_HOME/openclaw.json" << GCEOF
 {
   "agents": {
     "defaults": {
@@ -308,11 +331,22 @@ if [ "$IS_AGENT" = "1" ]; then
   "tools": { "exec": { "host": "gateway", "security": "full", "ask": "off" } }
 }
 GCEOF
+  fi
 
   # Provide a minimal auth profile so the gateway can boot without prompting
   # (the inner per-task agent writes its own isolated profile).
   mkdir -p "$GEMMACLAW_HOME/agents/main/agent"
-  cat > "$GEMMACLAW_HOME/agents/main/agent/auth-profiles.json" << GCEOF
+  if [ "$BENCHMARK_BACKEND" = "openai-codex" ]; then
+    cat > "$GEMMACLAW_HOME/agents/main/agent/auth-profiles.json" << GCEOF
+{
+  "openai-codex:default": {
+    "provider": "openai-codex",
+    "mode": "oauth"
+  }
+}
+GCEOF
+  else
+    cat > "$GEMMACLAW_HOME/agents/main/agent/auth-profiles.json" << GCEOF
 {
   "ollama:default": {
     "type": "token",
@@ -321,6 +355,7 @@ GCEOF
   }
 }
 GCEOF
+  fi
 
   if [ -f /app/dist/entry.js ]; then
     GEMMACLAW_CMD="node /app/gemmaclaw.mjs"

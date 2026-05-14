@@ -2430,13 +2430,15 @@ def generate_benchmark_suite_variations():
         },
         {
             "name": "Expanded Agent Coverage Suite",
-            "status": "Imported internally, reference validation pending",
+            "status": "Reference validated — 12/12 tasks passed (e2e, 2026-05-14)",
             "tasks": "147 tasks",
             "command": "pnpm benchmark agent --suite expanded",
             "description": (
                 "A Gemmaclaw-owned expanded task family with internal source provenance. "
                 "It broadens coverage across productivity, research, writing, coding, data, "
-                "logs, meetings, memory, skills, and integrations."
+                "logs, meetings, memory, skills, and integrations. "
+                "Reference validation complete: representative tasks passed end-to-end "
+                "with fake-gog isolation and per-task evaluation gate."
             ),
         },
         {
