@@ -742,7 +742,9 @@ export function resolveAgentPluginAllowIds(backend: AgentBackendType): string[] 
     return ["google"];
   }
   if (backend === "openai-codex") {
-    return ["codex"];
+    // The "openai" plugin (not "codex") registers the "openai-codex" provider.
+    // The "codex" plugin registers under provider id "codex" only.
+    return ["openai"];
   }
   if (backend === "llama-cpp") {
     return ["openai"];
@@ -834,6 +836,25 @@ export function readOpenAICodexAuthProfilesFromStore(storePath: string): AuthPro
   return profiles;
 }
 
+function decodeJwtExpiresMs(token: string): number | undefined {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) {
+      return undefined;
+    }
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as {
+      exp?: unknown;
+    };
+    const exp = payload.exp;
+    if (typeof exp === "number" && Number.isFinite(exp) && exp > 0) {
+      return Math.trunc(exp) * 1000;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readOpenAICodexProfilesFromCodexHome(codexHome: string): AuthProfiles {
   const authPath = path.join(codexHome, "auth.json");
   if (!fs.existsSync(authPath)) {
@@ -856,12 +877,21 @@ function readOpenAICodexProfilesFromCodexHome(codexHome: string): AuthProfiles {
   ) {
     return {};
   }
+  // OAuthCredential requires `expires` (ms since epoch). Without it,
+  // hasUsableOAuthCredential returns false → triggers a proactive token
+  // refresh that fails if the refresh_token was already rotated by a
+  // prior container run. Decode the JWT exp from the access_token so
+  // OpenClaw can use it directly when it is still valid.
+  const expiresMs = decodeJwtExpiresMs(tokens.access_token);
   return {
     "openai-codex:default": {
       type: "oauth",
       provider: "openai-codex",
       access: tokens.access_token,
       refresh: tokens.refresh_token,
+      // Fall back to 1 hour from now if JWT decode fails so the caller
+      // can still attempt the access token rather than forcing a refresh.
+      expires: expiresMs ?? Date.now() + 60 * 60 * 1000,
       ...(typeof tokens.id_token === "string" ? { idToken: tokens.id_token } : {}),
       ...(typeof tokens.account_id === "string" ? { accountId: tokens.account_id } : {}),
     },
@@ -1901,7 +1931,11 @@ export async function dispatchTask(
           },
         },
       };
-    } else if (!isOpenAICodex) {
+    } else if (isOpenAICodex) {
+      // Empty providers so the config loader doesn't fall back to a default
+      // that lacks the openai-codex provider; the plugin handles model resolution.
+      benchConfigData.models = { providers: {} };
+    } else {
       benchConfigData.models = {
         providers: {
           ollama: {
