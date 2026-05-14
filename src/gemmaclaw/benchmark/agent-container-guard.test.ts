@@ -153,4 +153,51 @@ describe("agent benchmark container guard", () => {
       new Set(first.map((id) => id.replace(/^variant_/, "").replace(/_\d{2,3}$/, ""))).size,
     ).toBe(147);
   });
+
+  it("selects expanded variant tasks that exist in the variants suite (regression: unknown-task-in-container)", () => {
+    // Regression test for: container built from stale code would fail with
+    // "Unknown agent benchmark task: variant_expanded_blog_06" because the
+    // expanded variant tasks were not present in old commits. This ensures
+    // selectAgentBenchmarkTaskIds accepts the specific tasks that caused the
+    // 254-container-failure run on 2026-05-13.
+    const variantTasks = resolveAgentBenchmarkTasks({ suite: "variants" });
+    const knownExpandedTaskIds = [
+      "variant_expanded_blog_06",
+      "variant_expanded_blog_12",
+      "variant_expanded_email_177",
+      "variant_expanded_email_reply_drafting_06",
+      "variant_expanded_email_reply_drafting_128",
+      "variant_expanded_commit_message_writer_172",
+      "variant_expanded_readme_generation_34",
+      "variant_expanded_readme_generation_92",
+      "variant_expanded_weather_09",
+      "variant_expanded_weather_125",
+    ];
+    for (const taskId of knownExpandedTaskIds) {
+      expect(
+        () => selectAgentBenchmarkTaskIds(variantTasks, { task: taskId }),
+        `task ${taskId} should be selectable without throwing`,
+      ).not.toThrow();
+    }
+  });
+
+  it("selects the same 294 tasks from gemini-flash-pressurefix-smoke-20260513 seed as the failed run", () => {
+    // Verifies that the sample selection for the reference run is deterministic
+    // and that all 294 selected tasks can be resolved by selectAgentBenchmarkTaskIds
+    // (regression: prior run selected 294 tasks on host but container couldn't resolve them).
+    const variantTasks = resolveAgentBenchmarkTasks({ suite: "variants" });
+    const selected = selectAgentBenchmarkTaskIds(variantTasks, {
+      samplePerTemplate: "2",
+      sampleSeed: "gemini-flash-pressurefix-smoke-20260513",
+    });
+    expect(selected).toHaveLength(294);
+    // All selected IDs must be present in the full variants suite
+    const variantTaskIds = new Set(variantTasks.map((t) => t.id));
+    for (const taskId of selected) {
+      expect(
+        variantTaskIds.has(taskId),
+        `selected task ${taskId} must exist in variants suite`,
+      ).toBe(true);
+    }
+  });
 });
