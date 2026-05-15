@@ -5,6 +5,7 @@ import {
   normalizeLegacyMediaProviderOptions,
   normalizeLegacyMistralModelMaxTokens,
   normalizeLegacyNanoBananaSkill,
+  normalizeLegacyOllamaNativeNumCtxParams,
   normalizeLegacyTalkConfig,
   seedMissingDefaultAccountsFromSingleAccountBase,
 } from "./legacy-config-core-normalizers.js";
@@ -38,5 +39,6 @@ export function normalizeBaseCompatibilityConfigValues(
   next = normalizeLegacyTalkConfig(next, changes);
   next = normalizeLegacyCrossContextMessageConfig(next, changes);
   next = normalizeLegacyMediaProviderOptions(next, changes);
+  next = normalizeLegacyOllamaNativeNumCtxParams(next, changes);
   return normalizeLegacyMistralModelMaxTokens(next, changes);
 }

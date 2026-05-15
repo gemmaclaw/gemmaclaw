@@ -336,6 +336,8 @@ export const ModelDefinitionSchema = z
     contextWindow: z.number().positive().optional(),
     contextTokens: z.number().int().positive().optional(),
     maxTokens: z.number().positive().optional(),
+    /** Provider-specific request/runtime parameters passed through to provider plugins. */
+    params: z.record(z.string(), z.unknown()).optional(),
     headers: z.record(z.string(), z.string()).optional(),
     compat: ModelCompatSchema,
   })
@@ -350,6 +352,8 @@ export const ModelProviderSchema = z
       .optional(),
     api: ModelApiSchema.optional(),
     injectNumCtxForOpenAICompat: z.boolean().optional(),
+    /** Provider-specific runtime parameters interpreted by provider plugins. */
+    params: z.record(z.string(), z.unknown()).optional(),
     headers: z.record(z.string(), SecretInputSchema.register(sensitive)).optional(),
     authHeader: z.boolean().optional(),
     request: ConfiguredModelProviderRequestSchema,

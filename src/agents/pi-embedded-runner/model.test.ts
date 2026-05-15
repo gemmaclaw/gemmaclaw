@@ -160,6 +160,76 @@ describe("resolveModel", () => {
     expect(result.model?.id).toBe("missing-model");
   });
 
+  it("applies configured provider params to resolved models", () => {
+    mockDiscoveredModel(discoverModels, {
+      provider: "ollama",
+      modelId: "qwen3:32b",
+      templateModel: {
+        ...makeModel("qwen3:32b"),
+        provider: "ollama",
+        params: { keep_alive: "1m" },
+      },
+    });
+    const cfg = {
+      models: {
+        providers: {
+          ollama: {
+            baseUrl: "http://localhost:11434",
+            api: "ollama",
+            params: { num_ctx: 65536, top_p: 0.9 },
+            models: [],
+          },
+        },
+      },
+    } as unknown as OpenClawConfig;
+
+    const result = resolveModelForTest("ollama", "qwen3:32b", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect((result.model as { params?: Record<string, unknown> } | undefined)?.params).toEqual({
+      keep_alive: "1m",
+      num_ctx: 65536,
+      top_p: 0.9,
+    });
+  });
+
+  it("lets configured model params override provider params", () => {
+    mockDiscoveredModel(discoverModels, {
+      provider: "ollama",
+      modelId: "qwen3:32b",
+      templateModel: {
+        ...makeModel("qwen3:32b"),
+        provider: "ollama",
+        params: { keep_alive: "1m", num_ctx: 4096 },
+      },
+    });
+    const cfg = {
+      models: {
+        providers: {
+          ollama: {
+            baseUrl: "http://localhost:11434",
+            api: "ollama",
+            params: { num_ctx: 65536, top_p: 0.9 },
+            models: [
+              {
+                ...makeModel("qwen3:32b"),
+                params: { num_ctx: 16384 },
+              },
+            ],
+          },
+        },
+      },
+    } as unknown as OpenClawConfig;
+
+    const result = resolveModelForTest("ollama", "qwen3:32b", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect((result.model as { params?: Record<string, unknown> } | undefined)?.params).toEqual({
+      num_ctx: 16384,
+      top_p: 0.9,
+    });
+  });
+
   it("normalizes Google fallback baseUrls for custom providers", () => {
     const cfg = {
       models: {

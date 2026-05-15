@@ -61,7 +61,42 @@ describe("resolveRunFailoverDecision", () => {
     });
   });
 
-  it("treats classified assistant-side 429s as rotation candidates even without error stopReason", () => {
+  it("surfaces deterministic prompt format failures instead of rotating or falling back", () => {
+    expect(
+      resolveRunFailoverDecision({
+        stage: "prompt",
+        aborted: false,
+        externalAbort: false,
+        fallbackConfigured: true,
+        failoverFailure: true,
+        failoverReason: "format",
+        profileRotated: false,
+      }),
+    ).toEqual({
+      action: "surface_error",
+      reason: "format",
+    });
+  });
+
+  it("can still rotate explicitly retryable prompt format failures", () => {
+    expect(
+      resolveRunFailoverDecision({
+        stage: "prompt",
+        allowFormatRetry: true,
+        aborted: false,
+        externalAbort: false,
+        fallbackConfigured: true,
+        failoverFailure: true,
+        failoverReason: "format",
+        profileRotated: false,
+      }),
+    ).toEqual({
+      action: "rotate_profile",
+      reason: "format",
+    });
+  });
+
+  it("ignores stale classified assistant-side 429 text without error stopReason", () => {
     expect(
       resolveRunFailoverDecision({
         stage: "assistant",
@@ -75,8 +110,46 @@ describe("resolveRunFailoverDecision", () => {
         profileRotated: false,
       }),
     ).toEqual({
+      action: "continue_normal",
+    });
+  });
+
+  it("surfaces deterministic assistant format failures instead of rotating or falling back", () => {
+    expect(
+      resolveRunFailoverDecision({
+        stage: "assistant",
+        aborted: false,
+        externalAbort: false,
+        fallbackConfigured: true,
+        failoverFailure: true,
+        failoverReason: "format",
+        timedOut: false,
+        timedOutDuringCompaction: false,
+        profileRotated: false,
+      }),
+    ).toEqual({
+      action: "surface_error",
+      reason: "format",
+    });
+  });
+
+  it("can still rotate explicitly retryable assistant format failures", () => {
+    expect(
+      resolveRunFailoverDecision({
+        stage: "assistant",
+        allowFormatRetry: true,
+        aborted: false,
+        externalAbort: false,
+        fallbackConfigured: true,
+        failoverFailure: true,
+        failoverReason: "format",
+        timedOut: false,
+        timedOutDuringCompaction: false,
+        profileRotated: false,
+      }),
+    ).toEqual({
       action: "rotate_profile",
-      reason: "rate_limit",
+      reason: "format",
     });
   });
 
@@ -87,7 +160,7 @@ describe("resolveRunFailoverDecision", () => {
         aborted: false,
         externalAbort: false,
         fallbackConfigured: true,
-        failoverFailure: false,
+        failoverFailure: true,
         failoverReason: "rate_limit",
         timedOut: false,
         timedOutDuringCompaction: false,
@@ -96,6 +169,24 @@ describe("resolveRunFailoverDecision", () => {
     ).toEqual({
       action: "fallback_model",
       reason: "rate_limit",
+    });
+  });
+
+  it("does not fall back on stale classified assistant text after rotation is exhausted", () => {
+    expect(
+      resolveRunFailoverDecision({
+        stage: "assistant",
+        aborted: false,
+        externalAbort: false,
+        fallbackConfigured: true,
+        failoverFailure: false,
+        failoverReason: "billing",
+        timedOut: false,
+        timedOutDuringCompaction: false,
+        profileRotated: true,
+      }),
+    ).toEqual({
+      action: "continue_normal",
     });
   });
 

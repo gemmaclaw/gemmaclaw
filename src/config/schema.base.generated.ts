@@ -1405,6 +1405,13 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                   description:
                     "Controls whether OpenClaw injects `options.num_ctx` for Ollama providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
                 },
+                params: {
+                  type: "object",
+                  propertyNames: {
+                    type: "string",
+                  },
+                  additionalProperties: {},
+                },
                 headers: {
                   type: "object",
                   propertyNames: {
@@ -2831,6 +2838,13 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                       maxTokens: {
                         type: "number",
                         exclusiveMinimum: 0,
+                      },
+                      params: {
+                        type: "object",
+                        propertyNames: {
+                          type: "string",
+                        },
+                        additionalProperties: {},
                       },
                       headers: {
                         type: "object",

@@ -20,6 +20,7 @@ export type InlineProviderConfig = {
   baseUrl?: string;
   api?: ModelDefinitionConfig["api"];
   models?: ModelDefinitionConfig[];
+  params?: ModelProviderConfig["params"];
   headers?: unknown;
   authHeader?: boolean;
   request?: ModelProviderConfig["request"];

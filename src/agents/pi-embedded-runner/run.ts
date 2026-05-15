@@ -1367,6 +1367,7 @@ export async function runEmbeddedPiAgent(
             }
             let promptFailoverDecision = resolveRunFailoverDecision({
               stage: "prompt",
+              allowFormatRetry: false,
               aborted,
               externalAbort,
               fallbackConfigured,
@@ -1396,6 +1397,7 @@ export async function runEmbeddedPiAgent(
             if (promptFailoverDecision.action === "rotate_profile") {
               promptFailoverDecision = resolveRunFailoverDecision({
                 stage: "prompt",
+                allowFormatRetry: false,
                 aborted,
                 externalAbort,
                 fallbackConfigured,
@@ -1533,6 +1535,7 @@ export async function runEmbeddedPiAgent(
 
           const assistantFailoverDecision = resolveRunFailoverDecision({
             stage: "assistant",
+            allowFormatRetry: cloudCodeAssistFormatError,
             aborted,
             externalAbort,
             fallbackConfigured,

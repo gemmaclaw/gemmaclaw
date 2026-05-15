@@ -102,6 +102,7 @@ describe("ensureGlobalUndiciStreamTimeouts", () => {
     expect(next).toBeInstanceOf(Agent);
     expect(next.options?.bodyTimeout).toBe(DEFAULT_UNDICI_STREAM_TIMEOUT_MS);
     expect(next.options?.headersTimeout).toBe(DEFAULT_UNDICI_STREAM_TIMEOUT_MS);
+    expect(next.options?.allowH2).toBe(false);
     expect(next.options?.connect).toEqual({
       autoSelectFamily: true,
       autoSelectFamilyAttemptTimeout: 300,
@@ -119,6 +120,7 @@ describe("ensureGlobalUndiciStreamTimeouts", () => {
     expect(next).toBeInstanceOf(EnvHttpProxyAgent);
     expect(next.options?.bodyTimeout).toBe(DEFAULT_UNDICI_STREAM_TIMEOUT_MS);
     expect(next.options?.headersTimeout).toBe(DEFAULT_UNDICI_STREAM_TIMEOUT_MS);
+    expect(next.options?.allowH2).toBe(false);
     expect(next.options?.connect).toEqual({
       autoSelectFamily: false,
       autoSelectFamilyAttemptTimeout: 300,
@@ -187,7 +189,9 @@ describe("ensureGlobalUndiciEnvProxyDispatcher", () => {
     ensureGlobalUndiciEnvProxyDispatcher();
 
     expect(setGlobalDispatcher).toHaveBeenCalledTimes(1);
-    expect(getCurrentDispatcher()).toBeInstanceOf(EnvHttpProxyAgent);
+    const next = getCurrentDispatcher() as { options?: Record<string, unknown> };
+    expect(next).toBeInstanceOf(EnvHttpProxyAgent);
+    expect(next.options?.allowH2).toBe(false);
   });
 
   it("does not override unsupported custom proxy dispatcher types", () => {

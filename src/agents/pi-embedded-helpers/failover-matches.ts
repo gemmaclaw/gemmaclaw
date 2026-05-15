@@ -156,6 +156,10 @@ const ERROR_PATTERNS = {
     "messages.1.content.1.tool_use.id",
     "invalid request format",
     /tool call id was.*must be/i,
+    // Prefill-strict models reject requests that end with an assistant turn.
+    // Retrying the same payload on another profile repeats the same format error.
+    "does not support assistant message prefill",
+    "conversation must end with a user message",
   ],
 } as const;
 

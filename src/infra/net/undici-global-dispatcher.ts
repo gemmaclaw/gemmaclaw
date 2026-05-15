@@ -4,6 +4,9 @@ import { isWSL2Sync } from "../wsl.js";
 import { hasEnvHttpProxyConfigured } from "./proxy-env.js";
 
 export const DEFAULT_UNDICI_STREAM_TIMEOUT_MS = 30 * 60 * 1000;
+const HTTP1_ONLY_DISPATCHER_OPTIONS = Object.freeze({
+  allowH2: false as const,
+});
 
 const AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS = 300;
 
@@ -101,7 +104,7 @@ export function ensureGlobalUndiciEnvProxyDispatcher(): void {
     return;
   }
   try {
-    setGlobalDispatcher(new EnvHttpProxyAgent());
+    setGlobalDispatcher(new EnvHttpProxyAgent(HTTP1_ONLY_DISPATCHER_OPTIONS));
     lastAppliedProxyBootstrap = true;
   } catch {
     // Best-effort bootstrap only.
@@ -132,6 +135,7 @@ export function ensureGlobalUndiciStreamTimeouts(opts?: { timeoutMs?: number }):
         bodyTimeout: timeoutMs,
         headersTimeout: timeoutMs,
         ...(connect ? { connect } : {}),
+        ...HTTP1_ONLY_DISPATCHER_OPTIONS,
       } as ConstructorParameters<typeof EnvHttpProxyAgent>[0];
       setGlobalDispatcher(new EnvHttpProxyAgent(proxyOptions));
     } else {
@@ -140,6 +144,7 @@ export function ensureGlobalUndiciStreamTimeouts(opts?: { timeoutMs?: number }):
           bodyTimeout: timeoutMs,
           headersTimeout: timeoutMs,
           ...(connect ? { connect } : {}),
+          ...HTTP1_ONLY_DISPATCHER_OPTIONS,
         }),
       );
     }

@@ -192,6 +192,20 @@ describe("clawhub helpers", () => {
 
     await expect(searchClawHubSkills({ query: "calendar", fetchImpl })).resolves.toEqual([]);
   });
+
+  it("wraps malformed successful ClawHub JSON responses", async () => {
+    await expect(
+      searchClawHubSkills({
+        query: "calendar",
+        fetchImpl: async () =>
+          new Response("{not json", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      }),
+    ).rejects.toThrow("ClawHub /api/v1/search returned malformed JSON");
+  });
+
   it("downloads package archives to sanitized temp paths and cleans them up", async () => {
     const archive = await downloadClawHubPackageArchive({
       name: "@hyf/zai-external-alpha",

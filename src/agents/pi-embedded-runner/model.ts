@@ -275,6 +275,25 @@ function resolveConfiguredProviderConfig(
   return findNormalizedProviderValue(configuredProviders, provider);
 }
 
+function readModelParams(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function mergeModelParams(...values: Array<unknown>): Record<string, unknown> | undefined {
+  const merged: Record<string, unknown> = {};
+  for (const value of values) {
+    const params = readModelParams(value);
+    if (params) {
+      Object.assign(merged, params);
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
 function applyConfiguredProviderOverrides(params: {
   provider: string;
   discoveredModel: ProviderRuntimeModel;
@@ -306,15 +325,23 @@ function applyConfiguredProviderOverrides(params: {
   const configuredHeaders = sanitizeModelHeaders(configuredModel?.headers, {
     stripSecretRefMarkers: true,
   });
+  const providerParams = readModelParams(providerConfig.params);
+  const resolvedParams = mergeModelParams(
+    discoveredModel.params,
+    providerParams,
+    configuredModel?.params,
+  );
   if (
     !configuredModel &&
     !providerConfig.baseUrl &&
     !providerConfig.api &&
     !providerHeaders &&
-    !providerRequest
+    !providerRequest &&
+    !providerParams
   ) {
     return {
       ...discoveredModel,
+      ...(resolvedParams ? { params: resolvedParams } : {}),
       headers: discoveredHeaders,
     };
   }
@@ -359,6 +386,7 @@ function applyConfiguredProviderOverrides(params: {
       contextWindow: configuredModel?.contextWindow ?? discoveredModel.contextWindow,
       contextTokens: configuredModel?.contextTokens ?? discoveredModel.contextTokens,
       maxTokens: configuredModel?.maxTokens ?? discoveredModel.maxTokens,
+      ...(resolvedParams ? { params: resolvedParams } : {}),
       headers: requestConfig.headers,
       compat: configuredModel?.compat ?? discoveredModel.compat,
     },
@@ -391,13 +419,17 @@ function resolveExplicitModelWithRegistry(params: {
     modelId,
   });
   if (inlineMatch?.api) {
+    const resolvedParams = mergeModelParams(providerConfig?.params, inlineMatch.params);
     return {
       kind: "resolved",
       model: normalizeResolvedModel({
         provider,
         cfg,
         agentDir,
-        model: inlineMatch as Model<Api>,
+        model: {
+          ...inlineMatch,
+          ...(resolvedParams ? { params: resolvedParams } : {}),
+        } as Model<Api>,
         runtimeHooks,
       }),
     };
@@ -431,13 +463,17 @@ function resolveExplicitModelWithRegistry(params: {
     modelId,
   });
   if (fallbackInlineMatch?.api) {
+    const resolvedParams = mergeModelParams(providerConfig?.params, fallbackInlineMatch.params);
     return {
       kind: "resolved",
       model: normalizeResolvedModel({
         provider,
         cfg,
         agentDir,
-        model: fallbackInlineMatch as Model<Api>,
+        model: {
+          ...fallbackInlineMatch,
+          ...(resolvedParams ? { params: resolvedParams } : {}),
+        } as Model<Api>,
         runtimeHooks,
       }),
     };
@@ -508,6 +544,7 @@ function resolveConfiguredFallbackModel(params: {
   const modelHeaders = sanitizeModelHeaders(configuredModel?.headers, {
     stripSecretRefMarkers: true,
   });
+  const resolvedParams = mergeModelParams(providerConfig?.params, configuredModel?.params);
   if (!providerConfig && !modelId.startsWith("mock-")) {
     return undefined;
   }
@@ -557,6 +594,7 @@ function resolveConfiguredFallbackModel(params: {
           configuredModel?.maxTokens ??
           providerConfig?.models?.[0]?.maxTokens ??
           DEFAULT_CONTEXT_TOKENS,
+        ...(resolvedParams ? { params: resolvedParams } : {}),
         headers: requestConfig.headers,
       } as Model<Api>,
       providerRequest,
