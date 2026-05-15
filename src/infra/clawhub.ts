@@ -407,7 +407,11 @@ async function fetchJson<T>(params: ClawHubRequestParams): Promise<T> {
       body: await readErrorBody(response),
     });
   }
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch (cause) {
+    throw new Error(`ClawHub ${url.pathname} returned malformed JSON`, { cause });
+  }
 }
 
 export function resolveClawHubBaseUrl(baseUrl?: string): string {

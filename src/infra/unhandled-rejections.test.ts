@@ -157,6 +157,16 @@ describe("isTransientNetworkError", () => {
     expect(isTransientNetworkError(new Error("tlsv1 alert protocol version"))).toBe(true);
   });
 
+  it("returns true for HTTP2 invalid session teardown errors", () => {
+    const coded = Object.assign(new Error("HTTP2 session was torn down"), {
+      code: "ERR_HTTP2_INVALID_SESSION",
+    });
+    expect(isTransientNetworkError(coded)).toBe(true);
+    expect(isTransientNetworkError(new Error("Request failed: ERR_HTTP2_INVALID_SESSION"))).toBe(
+      true,
+    );
+  });
+
   it("returns false for regular errors without network codes", () => {
     expect(isTransientNetworkError(new Error("Something went wrong"))).toBe(false);
     expect(isTransientNetworkError(new TypeError("Cannot read property"))).toBe(false);

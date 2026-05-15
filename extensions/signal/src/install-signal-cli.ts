@@ -235,7 +235,15 @@ async function installSignalCliFromRelease(runtime: RuntimeEnv): Promise<SignalI
     };
   }
 
-  const payload = (await response.json()) as ReleaseResponse;
+  let payload: ReleaseResponse;
+  try {
+    payload = (await response.json()) as ReleaseResponse;
+  } catch {
+    return {
+      ok: false,
+      error: "Failed to parse signal-cli release info.",
+    };
+  }
   const version = payload.tag_name?.replace(/^v/, "") ?? "unknown";
   const assets = payload.assets ?? [];
   const asset = pickAsset(assets, process.platform, process.arch);

@@ -253,6 +253,7 @@ describe("isCloudCodeAssistFormatError", () => {
         "messages.1.content.1.tool_use.id",
         "tool_use.id should match pattern",
         "invalid request format",
+        "This model does not support assistant message prefill. The conversation must end with a user message.",
       ],
       true,
     );
@@ -1049,6 +1050,15 @@ describe("classifyFailoverReason", () => {
       ),
     ).toBe("timeout");
     expect(classifyFailoverReason("string should match pattern")).toBe("format");
+    expect(
+      classifyFailoverReason(
+        "This model does not support assistant message prefill. The conversation must end with a user message.",
+      ),
+    ).toBe("format");
+    expect(
+      classifyFailoverReason("LLM request rejected: does not support assistant message prefill"),
+    ).toBe("format");
+    expect(classifyFailoverReason("conversation must end with a user message")).toBe("format");
     expect(classifyFailoverReason("bad request")).toBeNull();
     expect(
       classifyFailoverReason(

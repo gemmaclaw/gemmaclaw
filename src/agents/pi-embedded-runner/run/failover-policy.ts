@@ -46,6 +46,7 @@ type RetryLimitDecisionParams = {
 
 type PromptDecisionParams = {
   stage: "prompt";
+  allowFormatRetry?: boolean;
   aborted: boolean;
   externalAbort: boolean;
   fallbackConfigured: boolean;
@@ -56,6 +57,7 @@ type PromptDecisionParams = {
 
 type AssistantDecisionParams = {
   stage: "assistant";
+  allowFormatRetry?: boolean;
   aborted: boolean;
   externalAbort: boolean;
   fallbackConfigured: boolean;
@@ -81,13 +83,30 @@ function shouldEscalateRetryLimit(reason: FailoverReason | null): boolean {
   );
 }
 
+function isTerminalFormatFailure(params: {
+  allowFormatRetry?: boolean;
+  failoverFailure: boolean;
+  failoverReason: FailoverReason | null;
+}): boolean {
+  return (
+    params.failoverFailure && params.failoverReason === "format" && params.allowFormatRetry !== true
+  );
+}
+
 function shouldRotatePrompt(params: PromptDecisionParams): boolean {
-  return params.failoverFailure && params.failoverReason !== "timeout";
+  return (
+    params.failoverFailure &&
+    params.failoverReason !== "timeout" &&
+    !isTerminalFormatFailure(params)
+  );
 }
 
 function shouldRotateAssistant(params: AssistantDecisionParams): boolean {
+  if (isTerminalFormatFailure(params)) {
+    return false;
+  }
   return (
-    (!params.aborted && (params.failoverFailure || params.failoverReason !== null)) ||
+    (!params.aborted && params.failoverFailure) ||
     (params.timedOut && !params.timedOutDuringCompaction)
   );
 }
@@ -134,7 +153,7 @@ export function resolveRunFailoverDecision(params: RunFailoverDecisionParams): R
         reason: params.failoverReason,
       };
     }
-    if (params.fallbackConfigured && params.failoverFailure) {
+    if (params.fallbackConfigured && params.failoverFailure && !isTerminalFormatFailure(params)) {
       return {
         action: "fallback_model",
         reason: params.failoverReason ?? "unknown",
@@ -147,6 +166,12 @@ export function resolveRunFailoverDecision(params: RunFailoverDecisionParams): R
   }
 
   if (params.externalAbort) {
+    return {
+      action: "surface_error",
+      reason: params.failoverReason,
+    };
+  }
+  if (isTerminalFormatFailure(params)) {
     return {
       action: "surface_error",
       reason: params.failoverReason,

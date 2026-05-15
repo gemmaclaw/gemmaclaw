@@ -6,7 +6,7 @@ import type {
 } from "openclaw/plugin-sdk/realtime-transcription";
 import { describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
-import { MediaStreamHandler, sanitizeLogText } from "./media-stream.js";
+import { MediaStreamHandler, parseTwilioMediaMessage, sanitizeLogText } from "./media-stream.js";
 import {
   connectWs,
   startUpgradeWsServer,
@@ -119,6 +119,20 @@ describe("MediaStreamHandler TTS queue", () => {
 });
 
 describe("MediaStreamHandler security hardening", () => {
+  it("wraps malformed Twilio media stream JSON with an owned parser error", () => {
+    let error: unknown;
+    try {
+      parseTwilioMediaMessage(Buffer.from("{not json"));
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Twilio media stream message was malformed JSON");
+    expect(error).not.toBeInstanceOf(SyntaxError);
+    expect((error as Error).cause).toBeInstanceOf(SyntaxError);
+  });
+
   it("fails sends and closes stream when buffered bytes already exceed the cap", () => {
     const handler = new MediaStreamHandler({
       transcriptionProvider: createStubSttProvider(),

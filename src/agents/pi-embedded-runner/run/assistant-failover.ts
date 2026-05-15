@@ -170,6 +170,7 @@ export async function handleAssistantFailover(params: {
 
     decision = resolveRunFailoverDecision({
       stage: "assistant",
+      allowFormatRetry: params.cloudCodeAssistFormatError,
       aborted: params.aborted,
       externalAbort: params.externalAbort,
       fallbackConfigured: params.fallbackConfigured,
