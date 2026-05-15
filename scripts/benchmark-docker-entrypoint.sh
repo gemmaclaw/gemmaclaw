@@ -196,7 +196,14 @@ if [ "$IS_AGENT" = "1" ]; then
   # prefix differs.
   BENCHMARK_BACKEND="ollama"
   prev_was_backend=0
+  LLAMA_CPP_TARGET="${LLAMA_CPP_URL:-}"
+  prev_was_llama_cpp_url=0
   for arg in "$@"; do
+    if [ "$prev_was_llama_cpp_url" = "1" ]; then
+      LLAMA_CPP_TARGET="$arg"
+      prev_was_llama_cpp_url=0
+      continue
+    fi
     if [ "$prev_was_backend" = "1" ]; then
       BENCHMARK_BACKEND="$arg"
       prev_was_backend=0
@@ -204,6 +211,8 @@ if [ "$IS_AGENT" = "1" ]; then
     fi
     if [ "$arg" = "--backend" ]; then
       prev_was_backend=1
+    elif [ "$arg" = "--llama-cpp-url" ]; then
+      prev_was_llama_cpp_url=1
     fi
   done
   case "$BENCHMARK_BACKEND" in
@@ -254,7 +263,25 @@ if [ "$IS_AGENT" = "1" ]; then
     OLLAMA_TARGET="http://host.docker.internal:11434"
   fi
 
-  if probe_curl_fail "$OLLAMA_TARGET/api/tags" >/dev/null 2>&1; then
+  if [ -z "$LLAMA_CPP_TARGET" ]; then
+    LLAMA_CPP_TARGET="http://host.docker.internal:8080"
+  fi
+  # Host-side orchestration often uses 127.0.0.1. Inside the benchmark
+  # container that would point back to the container itself, so rewrite it to
+  # Docker's host gateway alias for the inner gateway and per-task agents.
+  LLAMA_CPP_TARGET="${LLAMA_CPP_TARGET/127.0.0.1/host.docker.internal}"
+  LLAMA_CPP_TARGET="${LLAMA_CPP_TARGET/localhost/host.docker.internal}"
+
+  if [ "$BENCHMARK_BACKEND" = "llama-cpp" ]; then
+    if probe_curl_fail "$LLAMA_CPP_TARGET/health" >/dev/null 2>&1; then
+      echo "[agent] Using host/configured llama.cpp at $LLAMA_CPP_TARGET"
+    else
+      echo "FAIL: Agent benchmarks require a reachable host/configured llama.cpp at $LLAMA_CPP_TARGET"
+      echo "      Start host llama.cpp or pass --llama-cpp-url/LLAMA_CPP_URL."
+      echo "      (probe bounded to ${HEALTH_MAX_TIME}s per attempt)"
+      exit 1
+    fi
+  elif probe_curl_fail "$OLLAMA_TARGET/api/tags" >/dev/null 2>&1; then
     echo "[agent] Using host/configured Ollama at $OLLAMA_TARGET"
   else
     echo "FAIL: Agent benchmarks require a reachable host/configured Ollama at $OLLAMA_TARGET"
@@ -296,6 +323,49 @@ if [ "$IS_AGENT" = "1" ]; then
   },
   "models": {
     "providers": {}
+  },
+  "gateway": {
+    "auth": {
+      "token": "${BENCHMARK_BROWSER_AUTH_TOKEN}"
+    }
+  },
+  "plugins": {
+    "allow": ["${PLUGIN_ALLOW_ID}"]
+  },
+  "tools": { "exec": { "host": "gateway", "security": "full", "ask": "off" } }
+}
+GCEOF
+  elif [ "$BENCHMARK_BACKEND" = "llama-cpp" ]; then
+    cat > "$GEMMACLAW_HOME/openclaw.json" << GCEOF
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "${EXPECTED_AGENT_MODEL}"
+      },
+      "memorySearch": { "enabled": false },
+      "heartbeat": { "every": "0m", "includeSystemPromptSection": false },
+      "llm": { "idleTimeoutSeconds": 0 }
+    }
+  },
+  "models": {
+    "providers": {
+      "openai": {
+        "baseUrl": "${LLAMA_CPP_TARGET}/v1",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "${MODEL}",
+            "name": "${MODEL}",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 65536,
+            "maxTokens": 8192,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          }
+        ]
+      }
+    }
   },
   "gateway": {
     "auth": {
@@ -362,6 +432,16 @@ GCEOF
   "openai-codex:default": {
     "provider": "openai-codex",
     "mode": "oauth"
+  }
+}
+GCEOF
+  elif [ "$BENCHMARK_BACKEND" = "llama-cpp" ]; then
+    cat > "$GEMMACLAW_HOME/agents/main/agent/auth-profiles.json" << GCEOF
+{
+  "openai:default": {
+    "type": "token",
+    "provider": "openai",
+    "token": "benchmark-dummy-key"
   }
 }
 GCEOF
@@ -511,7 +591,12 @@ GCEOF
     fi
   done
 
-  EXTRA_ARGS=(--model "$MODEL" --gateway-url http://127.0.0.1:3001 --ollama-url "$OLLAMA_TARGET")
+  EXTRA_ARGS=(--model "$MODEL" --gateway-url http://127.0.0.1:3001)
+  if [ "$BENCHMARK_BACKEND" = "llama-cpp" ]; then
+    EXTRA_ARGS+=(--llama-cpp-url "$LLAMA_CPP_TARGET")
+  else
+    EXTRA_ARGS+=(--ollama-url "$OLLAMA_TARGET")
+  fi
   if [ "$HAS_OUTPUT_DIR" = "0" ]; then
     EXTRA_ARGS+=(--output-dir /results)
   fi

@@ -401,9 +401,9 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
     tasks,
     {
       gatewayUrl: "containerized-per-task",
-      backend: "ollama",
-      ollamaUrl: "host-mounted-results",
-      llamaCppUrl: "host-mounted-results",
+      backend: manifestConfig.backend,
+      ollamaUrl: manifestConfig.ollamaUrl,
+      llamaCppUrl: manifestConfig.llamaCppUrl,
       model: String(opts.model ?? "auto"),
       quant: opts.quant as string | undefined,
       thinkingLevel: opts.thinking as string | undefined,
