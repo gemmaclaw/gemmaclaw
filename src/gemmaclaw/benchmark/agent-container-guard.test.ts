@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertSingleAgentBenchmarkTaskInContainer,
+  computeBenchmarkDockerImageTag,
   defaultAgentBenchmarkRunId,
   findBenchmarkRepoRoot,
   isInsideAgentBenchmarkContainer,
@@ -124,6 +125,29 @@ describe("agent benchmark container guard", () => {
     fs.mkdirSync(nested, { recursive: true });
     fs.writeFileSync(path.join(root, "Dockerfile.benchmark"), "FROM scratch\n");
     expect(findBenchmarkRepoRoot(nested)).toBe(root);
+  });
+
+  it("computes a unique Docker image tag per repo root to prevent cross-worktree tag collisions", () => {
+    const rootA = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-root-a-"));
+    const rootB = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-root-b-"));
+
+    const tagA = computeBenchmarkDockerImageTag({ repoRoot: rootA });
+    const tagB = computeBenchmarkDockerImageTag({ repoRoot: rootB });
+
+    expect(tagA).toMatch(/^gemmaclaw-benchmark-[0-9a-f]{8}$/);
+    expect(tagB).toMatch(/^gemmaclaw-benchmark-[0-9a-f]{8}$/);
+    expect(tagA).not.toBe(tagB);
+
+    // Same root always produces the same tag (stable, not random)
+    expect(computeBenchmarkDockerImageTag({ repoRoot: rootA })).toBe(tagA);
+  });
+
+  it("respects GEMMACLAW_BENCHMARK_DOCKER_IMAGE env override for the image tag", () => {
+    const tag = computeBenchmarkDockerImageTag({
+      env: { GEMMACLAW_BENCHMARK_DOCKER_IMAGE: "my-custom-image:v1" },
+      repoRoot: "/some/root",
+    });
+    expect(tag).toBe("my-custom-image:v1");
   });
 
   it("resolves benchmark suite variations without mixing default and expanded suites", () => {
