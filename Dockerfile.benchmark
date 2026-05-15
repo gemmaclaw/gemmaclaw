@@ -26,15 +26,41 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN npm install -g @google/gemini-cli
 
 WORKDIR /app
+
+# Copy workspace manifests before source so the pnpm install layer is cached
+# independently of source-only changes. When lockfile/manifests are unchanged,
+# Docker reuses the installed node_modules across benchmark image rebuilds.
+#
+# Lifecycle scripts are copied now because postinstall and prepare hooks run
+# during pnpm install and must be present even before full source is copied.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches ./patches
+COPY scripts/postinstall-bundled-plugins.mjs scripts/npm-runner.mjs \
+     scripts/windows-cmd-helpers.mjs scripts/prepare-from-source.mjs ./scripts/
+# --parents preserves each package's relative path (e.g. packages/foo/package.json
+# stays at packages/foo/package.json, not flattened). Requires BuildKit >= 0.14
+# which is enabled by the # syntax= directive at the top.
+COPY --parents packages/*/package.json .
+COPY --parents extensions/*/package.json .
+COPY --parents ui/package.json .
+
+# Install dependencies. GEMMACLAW_PREPARING=1 prevents scripts/prepare-from-source.mjs
+# from running during the install lifecycle: without this flag, prepare-from-source.mjs
+# detects no dist/ directory, deletes node_modules, and reinstalls everything — a
+# duplicate pnpm install that also runs an intermediate build. Setting GEMMACLAW_PREPARING=1
+# makes prepare-from-source.mjs exit immediately (it is the existing recursion guard).
+# The full build is done once explicitly in the next RUN step.
+RUN --mount=type=cache,id=gemmaclaw-pnpm-store,target=/root/.local/share/pnpm/store \
+    GEMMACLAW_PREPARING=1 pnpm install --frozen-lockfile 2>/dev/null || \
+    GEMMACLAW_PREPARING=1 pnpm install --no-frozen-lockfile
+
+# Copy full source (invalidates layers below this point on source change, not above).
 COPY . .
 
-RUN --mount=type=cache,id=gemmaclaw-pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
+# Build dist/ explicitly. prepare-from-source is bypassed above so it does not also
+# run a partial gitInstall build during install. This is the single canonical build.
 RUN pnpm build 2>/dev/null || echo "Build completed with warnings"
 
 RUN mkdir -p /workspace /results
-
-COPY scripts/benchmark-docker-entrypoint.sh /app/scripts/benchmark-docker-entrypoint.sh
-RUN chmod +x /app/scripts/benchmark-docker-entrypoint.sh
 
 ENTRYPOINT ["bash", "/app/scripts/benchmark-docker-entrypoint.sh"]
