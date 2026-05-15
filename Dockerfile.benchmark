@@ -37,12 +37,19 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY patches ./patches
 COPY scripts/postinstall-bundled-plugins.mjs scripts/npm-runner.mjs \
      scripts/windows-cmd-helpers.mjs scripts/prepare-from-source.mjs ./scripts/
-# --parents preserves each package's relative path (e.g. packages/foo/package.json
-# stays at packages/foo/package.json, not flattened). Requires BuildKit >= 0.14
-# which is enabled by the # syntax= directive at the top.
-COPY --parents packages/*/package.json .
-COPY --parents extensions/*/package.json .
-COPY --parents ui/package.json .
+# Copy package.json files preserving directory structure so pnpm install can resolve
+# workspace packages correctly. Uses RUN --mount=type=bind (BuildKit >= 0.9, available
+# since Docker 20.10 / buildx 0.11+) instead of COPY --parents (BuildKit >= 0.14 only).
+RUN --mount=type=bind,source=packages,target=/ctx/packages \
+    --mount=type=bind,source=extensions,target=/ctx/extensions \
+    find /ctx/packages /ctx/extensions -maxdepth 2 -name 'package.json' | \
+    while read f; do \
+        rel="${f#/ctx/}"; \
+        mkdir -p "/app/$(dirname "$rel")"; \
+        cp "$f" "/app/$rel"; \
+    done
+RUN --mount=type=bind,source=ui,target=/ctx/ui \
+    mkdir -p /app/ui && [ -f /ctx/ui/package.json ] && cp /ctx/ui/package.json /app/ui/ || true
 
 # Install dependencies. GEMMACLAW_PREPARING=1 prevents scripts/prepare-from-source.mjs
 # from running during the install lifecycle: without this flag, prepare-from-source.mjs
