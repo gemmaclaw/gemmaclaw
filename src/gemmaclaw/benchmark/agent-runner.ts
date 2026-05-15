@@ -649,12 +649,20 @@ export async function collectMetadata(
     /* ollama not available or model not loaded */
   }
 
+  let effectiveHardware = hardware;
+  if (!hardware.gpu.detected && (config.backend === "llama-cpp" || config.backend === "ollama")) {
+    const hostHardware = parseHostBenchmarkHardware();
+    if (hostHardware?.gpu.detected) {
+      effectiveHardware = hostHardware;
+    }
+  }
+
   // When running inside a Docker container (no local GPU passthrough) but using
   // the Ollama backend, the host Ollama server is doing GPU-backed inference.
   // Query /api/ps to detect actual GPU VRAM in use so the manifest accurately
-  // records that this was a GPU-backed run.
-  let effectiveHardware = hardware;
-  if (!hardware.gpu.detected && config.ollamaUrl) {
+  // records that this was a GPU-backed run even if no host hardware snapshot was
+  // forwarded by the parent launcher.
+  if (!effectiveHardware.gpu.detected && config.backend === "ollama" && config.ollamaUrl) {
     try {
       const psResp = await httpGet(`${config.ollamaUrl}/api/ps`, 10_000);
       const ps = JSON.parse(psResp) as { models?: { size_vram?: number }[] };
@@ -690,6 +698,26 @@ export async function collectMetadata(
     platform: `${process.platform} ${process.arch}`,
     nodeVersion: process.version,
   };
+}
+
+function parseHostBenchmarkHardware(): HardwareInfo | undefined {
+  const raw = process.env.GEMMACLAW_BENCHMARK_HOST_HARDWARE;
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw) as HardwareInfo;
+    if (
+      typeof parsed?.cpu?.model === "string" &&
+      typeof parsed?.ram?.totalBytes === "number" &&
+      typeof parsed?.gpu?.detected === "boolean"
+    ) {
+      return parsed;
+    }
+  } catch {
+    /* ignore malformed parent hardware snapshots */
+  }
+  return undefined;
 }
 
 /** Seed mock gog state before a benchmark run. Always requires an isolated state directory. */
