@@ -307,6 +307,7 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
   const isOpenAICodexBenchmark = benchmarkBackend === "openai-codex";
   const isGeminiCliBenchmark = benchmarkBackend === "google-gemini-cli";
   const isOpenRouterBenchmark = benchmarkBackend === "openrouter";
+  const hostHardware = detectHardware();
   const hostCodexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
   const hostCodexAuthPath = path.join(hostCodexHome, "auth.json");
   const hostGeminiHome =
@@ -351,6 +352,8 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
       `GEMMACLAW_BENCHMARK_MANIFEST_TASK_IDS=${JSON.stringify(selectedTaskIds)}`,
       "-e",
       `GEMMACLAW_BENCHMARK_MANIFEST_CONFIG=${JSON.stringify(manifestConfig)}`,
+      "-e",
+      `GEMMACLAW_BENCHMARK_HOST_HARDWARE=${JSON.stringify(hostHardware)}`,
       "-e",
       `GEMMACLAW_BENCHMARK_HOST_UID=${process.getuid?.() ?? 0}`,
       "-e",
@@ -401,9 +404,9 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
     tasks,
     {
       gatewayUrl: "containerized-per-task",
-      backend: "ollama",
-      ollamaUrl: "host-mounted-results",
-      llamaCppUrl: "host-mounted-results",
+      backend: manifestConfig.backend,
+      ollamaUrl: manifestConfig.ollamaUrl,
+      llamaCppUrl: manifestConfig.llamaCppUrl,
       model: String(opts.model ?? "auto"),
       quant: opts.quant as string | undefined,
       thinkingLevel: opts.thinking as string | undefined,

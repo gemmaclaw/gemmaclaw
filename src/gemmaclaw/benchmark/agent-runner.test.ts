@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   assembleAgentBenchmarkRun,
   clearTaskStartedMarker,
+  collectMetadata,
   computeConfigHash,
   extractAssistantResponseFromStdout,
   estimateConversationEffectiveTokensPerSecond,
@@ -654,6 +655,43 @@ describe("per-task benchmark artifacts", () => {
       outputDir,
     );
     expect(assembled.tasks.map((entry) => entry.task.id)).toEqual([task.id, secondTask.id]);
+  });
+
+  it("uses forwarded host hardware metadata for host-backed llama.cpp container runs", async () => {
+    const previous = process.env.GEMMACLAW_BENCHMARK_HOST_HARDWARE;
+    const hostHardware = {
+      ...hardware,
+      gpu: {
+        detected: true,
+        nvidia: true,
+        apple: false,
+        name: "NVIDIA GeForce RTX 3090",
+        vramBytes: 24 * 1024 ** 3,
+      },
+    };
+    process.env.GEMMACLAW_BENCHMARK_HOST_HARDWARE = JSON.stringify(hostHardware);
+    try {
+      const metadata = await collectMetadata(
+        {
+          ...config,
+          backend: "llama-cpp",
+          llamaCppUrl: "http://host.docker.internal:8080",
+        },
+        {
+          ...hardware,
+          gpu: { detected: false, nvidia: false, apple: false },
+        },
+      );
+
+      expect(metadata.hardware.gpu.detected).toBe(true);
+      expect(metadata.hardware.gpu.name).toBe("NVIDIA GeForce RTX 3090");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.GEMMACLAW_BENCHMARK_HOST_HARDWARE;
+      } else {
+        process.env.GEMMACLAW_BENCHMARK_HOST_HARDWARE = previous;
+      }
+    }
   });
 });
 
