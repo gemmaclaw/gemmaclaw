@@ -203,11 +203,23 @@ def normalize_agentic_benchmark_result(data, run_id):
         ordered = sorted(speed_values)
         median_speed = ordered[len(ordered) // 2]
 
+    passed_count = sum(1 for task in normalized_tasks if task.get("passed"))
+    quant = (
+        metadata.get("quant")
+        or config.get("quant")
+        or infer_quant_label(" ".join([
+            str(metadata.get("model") or ""),
+            str(config.get("model") or ""),
+            run_id,
+        ]))
+        or ""
+    )
+
     return {
         "model": metadata.get("model") or config.get("model") or "unknown",
         "backend": config.get("backend", "ollama"),
         "timestamp": metadata.get("startedAt", ""),
-        "quant": metadata.get("quant") or config.get("quant") or "",
+        "quant": quant,
         "thinkingLevel": metadata.get("thinkingLevel") or config.get("thinkingLevel") or "",
         "runId": run_id,
         "hardware": {
@@ -217,8 +229,9 @@ def normalize_agentic_benchmark_result(data, run_id):
         },
         "summary": {
             "percentage": round((total_score / total_max) * 100) if total_max else 0,
-            "passedCount": completed,
-            "failedCount": max(0, len(normalized_tasks) - completed),
+            "passedCount": passed_count,
+            "failedCount": max(0, len(normalized_tasks) - passed_count),
+            "completedCount": completed,
             "medianTokensPerSecond": median_speed,
             "medianTokensPerSecondSource": summarize_speed_source(normalized_tasks),
             "totalTimeMs": total_time,
@@ -400,14 +413,27 @@ def format_time(ms):
     return f"{m:.1f}m"
 
 
+def infer_quant_label(text):
+    text = text.lower().replace("-", "_")
+    if re.search(r"q6_?k", text):
+        return "Q6_K"
+    if re.search(r"q5_?k_?m|q5km", text):
+        return "Q5_K_M"
+    if re.search(r"q4_?k_?m|q4km", text):
+        return "Q4_K_M"
+    if re.search(r"(?:^|_)q4(?:_|$)", text):
+        return "Q4_K_M"
+    return ""
+
+
 SIZE_CLASSES = {
     "Small (4B)": {
         "models": ["gemma3:4b", "gemma4-e4b", "gemma4:e4b"],
         "hw_rec": "Runs on 8GB RAM laptops or any machine with 4GB+ VRAM. Fast inference, good for quick tasks.",
         "icon": "&#128187;",
     },
-    "Medium (27B MoE)": {
-        "models": ["gemma4-26b-moe", "gemma4:26b-moe", "gemma4-27b"],
+    "Medium (26B MoE)": {
+        "models": ["gemma-4-26b", "gemma4-26b", "gemma4:26b", "gemma4-26b-moe", "gemma4:26b-moe", "gemma4-27b"],
         "hw_rec": "Needs 16GB+ RAM or a GPU with 12GB+ VRAM. MoE architecture activates only part of the model per token, so it runs faster than its size suggests.",
         "icon": "&#9889;",
     },
@@ -421,16 +447,16 @@ SIZE_CLASSES = {
 
 def classify_model_size(model_name):
     name_lower = model_name.lower().replace(":", "-").replace("__", "-")
+    if "26b" in name_lower or "27b" in name_lower or "moe" in name_lower:
+        return "Medium (26B MoE)"
+    if "31b" in name_lower or "dense" in name_lower:
+        return "Large (31B Dense)"
     for cls_name, cls_info in SIZE_CLASSES.items():
         for pattern in cls_info["models"]:
             if pattern.lower().replace(":", "-") in name_lower:
                 return cls_name
-    if "4b" in name_lower or "e4b" in name_lower:
+    if re.search(r"(^|[-_:])e?4b($|[-_:])", name_lower):
         return "Small (4B)"
-    if "26b" in name_lower or "27b" in name_lower or "moe" in name_lower:
-        return "Medium (27B MoE)"
-    if "31b" in name_lower or "dense" in name_lower:
-        return "Large (31B Dense)"
     return "Other"
 
 
