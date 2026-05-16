@@ -69,6 +69,7 @@ vi.mock("node:fs", async () => {
   const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
   const mkdirSyncStub = vi.fn();
   const chmodSyncStub = vi.fn();
+  const statSyncStub = vi.fn().mockReturnValue({ mode: 0 });
   const writeFileSyncStub = vi.fn();
   const readFileSyncStub = vi.fn().mockImplementation(() => {
     throw Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" });
@@ -79,11 +80,13 @@ vi.mock("node:fs", async () => {
       ...actual,
       mkdirSync: mkdirSyncStub,
       chmodSync: chmodSyncStub,
+      statSync: statSyncStub,
       writeFileSync: writeFileSyncStub,
       readFileSync: readFileSyncStub,
     },
     mkdirSync: mkdirSyncStub,
     chmodSync: chmodSyncStub,
+    statSync: statSyncStub,
     writeFileSync: writeFileSyncStub,
     readFileSync: readFileSyncStub,
   };

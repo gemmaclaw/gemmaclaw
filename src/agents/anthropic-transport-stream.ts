@@ -9,6 +9,7 @@ import {
   type SimpleStreamOptions,
   type ThinkingLevel,
 } from "@mariozechner/pi-ai";
+import { parseGeminiAuth } from "../infra/gemini-auth.js";
 import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 import {
   applyAnthropicPayloadPolicyToParams,
@@ -756,16 +757,25 @@ export function createAnthropicMessagesTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const apiKey = options?.apiKey ?? getEnvApiKey(model.provider) ?? "";
-        if (!apiKey) {
+        const rawApiKey = options?.apiKey ?? getEnvApiKey(model.provider) ?? "";
+        if (!rawApiKey) {
           throw new Error(`No API key for provider: ${model.provider}`);
         }
+        const auth = parseGeminiAuth(rawApiKey);
+        const authHeaders = auth.headers;
+        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
+          ? authHeaders["Authorization"].slice(7)
+          : rawApiKey;
+
         const transportOptions = resolveAnthropicTransportOptions(model, options, apiKey);
         const { client, isOAuthToken } = createAnthropicTransportClient({
           model,
           context,
           apiKey,
-          options: transportOptions,
+          options: {
+            ...transportOptions,
+            headers: { ...transportOptions.headers, ...authHeaders },
+          },
         });
         let params = buildAnthropicParams(model, context, isOAuthToken, transportOptions);
         const nextParams = await transportOptions.onPayload?.(params, model);

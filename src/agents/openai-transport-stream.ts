@@ -19,6 +19,7 @@ import type {
   ResponseInput,
   ResponseInputMessageContentList,
 } from "openai/resources/responses/responses.js";
+import { parseGeminiAuth } from "../infra/gemini-auth.js";
 import type { ProviderRuntimeModel } from "../plugins/provider-runtime-model.types.js";
 import { resolveProviderTransportTurnStateWithPlugin } from "../plugins/provider-runtime.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./copilot-dynamic-headers.js";
@@ -674,7 +675,13 @@ export function createOpenAIResponsesTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+        const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+        const auth = parseGeminiAuth(rawApiKey);
+        const authHeaders = auth.headers;
+        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
+          ? authHeaders["Authorization"].slice(7)
+          : rawApiKey;
+
         const turnState = resolveProviderTransportTurnState(model, {
           sessionId: options?.sessionId,
           turnId: randomUUID(),
@@ -685,7 +692,7 @@ export function createOpenAIResponsesTransportStreamFn(): StreamFn {
           model,
           context,
           apiKey,
-          options?.headers,
+          { ...options?.headers, ...authHeaders },
           turnState?.headers,
         );
         let params = buildOpenAIResponsesParams(
@@ -903,7 +910,13 @@ export function createAzureOpenAIResponsesTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+        const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+        const auth = parseGeminiAuth(rawApiKey);
+        const authHeaders = auth.headers;
+        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
+          ? authHeaders["Authorization"].slice(7)
+          : rawApiKey;
+
         const turnState = resolveProviderTransportTurnState(model, {
           sessionId: options?.sessionId,
           turnId: randomUUID(),
@@ -914,7 +927,7 @@ export function createAzureOpenAIResponsesTransportStreamFn(): StreamFn {
           model,
           context,
           apiKey,
-          options?.headers,
+          { ...options?.headers, ...authHeaders },
           turnState?.headers,
         );
         const deploymentName = resolveAzureDeploymentName(model);
@@ -1106,8 +1119,17 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-        const client = createOpenAICompletionsClient(model, context, apiKey, options?.headers);
+        const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+        const auth = parseGeminiAuth(rawApiKey);
+        const authHeaders = auth.headers;
+        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
+          ? authHeaders["Authorization"].slice(7)
+          : rawApiKey;
+
+        const client = createOpenAICompletionsClient(model, context, apiKey, {
+          ...options?.headers,
+          ...authHeaders,
+        });
         let params = buildOpenAICompletionsParams(
           model as OpenAIModeModel,
           context,
@@ -1468,6 +1490,7 @@ function detectCompat(model: OpenAIModeModel) {
     openRouterRouting: {},
     vercelGatewayRouting: {},
     supportsStrictMode: compatDefaults.supportsStrictMode,
+    requiresStringContent: compatDefaults.requiresStringContent,
   };
 }
 
@@ -1519,7 +1542,8 @@ function getCompat(model: OpenAIModeModel): {
       detected.vercelGatewayRouting,
     supportsStrictMode:
       (compat.supportsStrictMode as boolean | undefined) ?? detected.supportsStrictMode,
-    requiresStringContent: (compat.requiresStringContent as boolean | undefined) ?? false,
+    requiresStringContent:
+      (compat.requiresStringContent as boolean | undefined) ?? detected.requiresStringContent,
     visibleReasoningDetailTypes:
       (compat.visibleReasoningDetailTypes as string[] | undefined) ??
       detected.visibleReasoningDetailTypes,
@@ -1587,13 +1611,26 @@ export function buildOpenAICompletionsParams(
       }
     : context;
   const messages = convertMessages(model as never, completionsContext, compat as never);
+  const isGoogleVertex = model.provider === "google-vertex";
+  let modelId = model.id;
+  if (isGoogleVertex && model.id.includes("/publishers/")) {
+    const parts = model.id.split("/publishers/")[1].split("/models/");
+    if (parts.length >= 2) {
+      // Reconstruct as 'publisher/model', stripping any duplicate prefixes if they were erroneously included.
+      const publisher = parts[0];
+      const modelName = parts[1].startsWith(`${publisher}/`)
+        ? parts[1].slice(publisher.length + 1)
+        : parts[1];
+      modelId = `${publisher}/${modelName}`;
+    }
+  }
   const params: Record<string, unknown> = {
-    model: model.id,
+    model: modelId,
     messages: compat.requiresStringContent
       ? flattenCompletionMessagesToStringContent(messages)
       : messages,
     stream: true,
-    stream_options: { include_usage: true },
+    ...(isGoogleVertex ? {} : { stream_options: { include_usage: true } }),
   };
   if (compat.supportsStore) {
     params.store = false;
@@ -1608,12 +1645,12 @@ export function buildOpenAICompletionsParams(
   if (options?.temperature !== undefined) {
     params.temperature = options.temperature;
   }
-  if (context.tools) {
+  if (context.tools && model.provider !== "google-vertex") {
     params.tools = convertTools(context.tools, compat, model);
     if (options?.toolChoice) {
       params.tool_choice = options.toolChoice;
     }
-  } else if (hasToolHistory(context.messages)) {
+  } else if (model.provider !== "google-vertex" && hasToolHistory(context.messages)) {
     params.tools = [];
   }
   const completionsReasoningEffort = resolveOpenAICompletionsReasoningEffort(options);

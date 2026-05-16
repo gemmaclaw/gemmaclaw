@@ -1,8 +1,9 @@
-import { execFileSync, execSync, spawn, type ChildProcess } from "node:child_process";
+import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveAgentDir } from "../agents/agent-scope.js";
+import { ensureDockerWritableHostDir } from "../config/io.js";
 import { resolveStateDir } from "../config/paths.js";
 import type { OpenClawConfig } from "../config/types.js";
 import type {
@@ -49,20 +50,6 @@ const GEMMACLAW_DEFAULT_INTERNAL_HOOK_NAMES = [
   "command-logger",
   "session-memory",
 ] as const;
-
-function ensureDockerWritableHostDir(
-  fsModule: Pick<typeof import("node:fs"), "chmodSync" | "mkdirSync">,
-  dir: string,
-): void {
-  fsModule.mkdirSync(dir, { recursive: true });
-  fsModule.chmodSync(dir, 0o777);
-  try {
-    execFileSync("setfacl", ["-d", "-m", "u::rwx,g::rwx,o::rwx", dir], { stdio: "ignore" });
-  } catch {
-    // setfacl is not available on every host. chmod(777) keeps the directory
-    // writable, and the live Docker smoke catches hosts that need default ACLs.
-  }
-}
 
 function resolveGemmaclawSharedDir(): string {
   return path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
@@ -304,7 +291,7 @@ function persistThinkingDefault(thinking: OnboardingThinking): "off" | "low" | "
   return thinking;
 }
 
-function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
+export function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
   const existingEntries = listAgentEntries(draft);
   const agentId = normalizeAgentId(choices.agentName);
   const stateDir = resolveStateDir(process.env);
@@ -658,7 +645,8 @@ async function setupVertexBackend(
   }
   const { interactiveVertexSetup, buildVertexConfig } =
     await import("../gemmaclaw/provision/vertex-setup.js");
-  const { writeConfigFile } = await import("../config/config.js");
+  const { mutateConfigFile } = await import("../config/config.js");
+  const { applyMergePatch } = await import("../config/merge-patch.js");
 
   const result = await interactiveVertexSetup({ model: choices.model });
   if (!result.ok || !result.config) {
@@ -668,7 +656,11 @@ async function setupVertexBackend(
   }
 
   const vertexConfigPatch = buildVertexConfig(result.config);
-  await writeConfigFile(vertexConfigPatch);
+  await mutateConfigFile({
+    mutate: (draft) => {
+      Object.assign(draft, applyMergePatch(draft, vertexConfigPatch));
+    },
+  });
 
   if (result.config.accessToken) {
     await writeVertexAuthProfile(choices.agentName, result.config.accessToken);

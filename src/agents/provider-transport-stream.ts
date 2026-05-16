@@ -110,7 +110,7 @@ export function createTransportAwareStreamFnForModel(
   model: Model<Api>,
   ctx?: ProviderTransportStreamContext,
 ): StreamFn | undefined {
-  if (!hasTransportOverrides(model)) {
+  if (!hasTransportOverrides(model) && model.provider !== "google-vertex") {
     return undefined;
   }
   if (!isTransportAwareApiSupported(model.api)) {

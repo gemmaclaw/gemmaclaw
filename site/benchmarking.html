@@ -1,823 +1,1530 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gemmaclaw - Run Benchmarks</title>
-  <meta name="description" content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations.">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-  <link rel="alternate icon" href="favicon.ico">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Gemmaclaw">
-  <meta property="og:title" content="Gemmaclaw - Run Benchmarks">
-  <meta property="og:description" content="Out-of-the-box best Gemma setup for your hardware.">
-  <meta property="og:image" content="https://gemmaclaw.github.io/gemmaclaw/assets/gemmaclaw-github-social.png">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Gemmaclaw - Run Benchmarks">
-  <meta name="twitter:description" content="Out-of-the-box best Gemma setup for your hardware.">
-  <meta name="twitter:image" content="https://gemmaclaw.github.io/gemmaclaw/assets/gemmaclaw-github-social.png">
-  <style>
-
-
-    :root {
-      --bg: #ffffff;
-      --bg-elev: #f6f8fa;
-      --bg-elev-2: #eef1f5;
-      --border: #d0d7de;
-      --fg: #1f2328;
-      --fg-soft: #424a53;
-      --muted: #656d76;
-      --accent: #4285f4;
-      --accent-soft: #dbe8fc;
-      --good: #1a7f37;
-      --warn: #9a6700;
-      --bad: #cf222e;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* Nav */
-    .topnav {
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-    }
-    .nav-inner {
-      max-width: 960px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem;
-      padding: 0.75rem 1.5rem;
-    }
-    .logo {
-      font-size: 1.1rem; font-weight: 700; color: var(--accent);
-      text-decoration: none; flex-shrink: 0;
-      display: inline-flex; align-items: center; gap: 0.45rem;
-    }
-    .logo img { width: 28px; height: 28px; display: block; }
-    .nav-links {
-      display: flex; gap: 1.5rem;
-      overflow-x: auto; -webkit-overflow-scrolling: touch;
-      scrollbar-width: none; -ms-overflow-style: none;
-      min-width: 0;
-    }
-    .nav-links::-webkit-scrollbar { display: none; }
-    .nav-links a {
-      color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500;
-      transition: color 0.15s; white-space: nowrap; flex-shrink: 0;
-      padding: 0.25rem 0; border-bottom: 2px solid transparent;
-    }
-    .nav-links a:hover { color: var(--fg); }
-    .nav-links a.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-    .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-
-    /* Hero */
-    .hero { text-align: center; padding: 3rem 0 3rem; }
-    h1 { font-size: 3rem; font-weight: 700; letter-spacing: -0.02em; }
-    h1 span { color: var(--accent); }
-    .tagline { font-size: 1.15rem; color: var(--muted); max-width: 600px; margin: 1rem auto 2rem; }
-    .links { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
-    .links a {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.7rem 1.4rem; border-radius: 8px;
-      text-decoration: none; font-weight: 500; font-size: 0.95rem;
-      transition: opacity 0.15s, transform 0.15s;
-    }
-    .links a:hover { opacity: 0.9; transform: translateY(-1px); }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-secondary { border: 1px solid var(--border); color: var(--fg); background: var(--bg-elev); }
-
-    /* Capabilities */
-    .capabilities {
-      margin-top: 3rem;
-      padding-top: 2rem;
-      border-top: 1px solid var(--border);
-    }
-    .capabilities h2 {
-      text-align: center;
-      font-size: 1.6rem; font-weight: 600;
-      margin-bottom: 0.5rem; letter-spacing: -0.01em;
-    }
-    .cap-intro {
-      text-align: center;
-      max-width: 640px; margin: 0 auto 2rem;
-      font-size: 1rem; color: var(--fg-soft);
-    }
-    .cap-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 1rem;
-    }
-    .cap-card {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.25rem;
-      transition: border-color 0.15s, transform 0.15s;
-    }
-    .cap-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-    }
-    .cap-icon {
-      font-size: 1.5rem;
-      margin-bottom: 0.5rem;
-    }
-    .cap-card h3 {
-      font-size: 1rem; font-weight: 600;
-      margin: 0 0 0.4rem; color: var(--fg);
-    }
-    .cap-card p {
-      font-size: 0.88rem; color: var(--fg-soft);
-      margin: 0; line-height: 1.5;
-    }
-    .cap-examples {
-      margin-top: 2rem;
-    }
-    .cap-examples h3 {
-      font-size: 1.15rem; font-weight: 600;
-      margin: 0 0 1rem; color: var(--fg);
-    }
-    .example-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 0.75rem;
-    }
-    .example-item {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1rem 1.25rem;
-      font-size: 0.9rem; color: var(--fg-soft);
-      line-height: 1.5;
-    }
-    .example-item strong {
-      color: var(--fg);
-    }
-    .cap-footer {
-      text-align: center;
-      margin-top: 1.5rem;
-      font-size: 0.95rem; color: var(--muted);
-      max-width: 640px;
-      margin-left: auto; margin-right: auto;
-    }
-
-    /* Sections */
-    section { margin-top: 1rem; scroll-margin-top: 4rem; }
-    h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
-    h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: var(--fg-soft); }
-    p { color: var(--fg-soft); margin-bottom: 1rem; }
-    a.inline { color: var(--accent); text-decoration: none; }
-    a.inline:hover { text-decoration: underline; }
-
-    /* Field Notes (curated weekly synthesis) */
-    .field-notes {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem 1.75rem;
-      margin: 0;
-    }
-    .field-notes h2 {
-      font-size: 1.5rem; font-weight: 600;
-      margin: 0 0 0.5rem;
-      letter-spacing: -0.01em;
-    }
-    .field-notes h3 {
-      font-size: 1.05rem; font-weight: 600;
-      margin: 1.5rem 0 0.5rem;
-      color: var(--fg);
-    }
-    .field-notes p { color: var(--fg-soft); margin: 0 0 0.75rem; }
-    .field-notes p em { color: var(--muted); }
-    .field-notes ul {
-      list-style: none; margin: 0 0 1rem; padding: 0;
-    }
-    .field-notes li {
-      padding: 0.4rem 0 0.4rem 1.25rem;
-      position: relative;
-      color: var(--fg-soft);
-    }
-    .field-notes li::before {
-      content: '';
-      position: absolute; left: 0; top: 0.75rem;
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--accent);
-    }
-    .field-notes li strong { color: var(--fg); }
-    .field-notes a {
-      color: var(--accent); text-decoration: none;
-    }
-    .field-notes a:hover { text-decoration: underline; }
-    @media (max-width: 640px) {
-      .field-notes { padding: 1rem 1.1rem; }
-      .field-notes h2 { font-size: 1.3rem; }
-    }
-
-    /* Lists */
-    .setup-list { list-style: none; margin: 0 0 1rem; }
-    .setup-list li {
-      padding: 0.5rem 0 0.5rem 1.25rem;
-      position: relative;
-      color: var(--fg-soft);
-    }
-    .setup-list li::before {
-      content: '';
-      position: absolute; left: 0; top: 0.85rem;
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--accent);
-    }
-    .setup-list li strong { color: var(--fg); }
-
-    .setup-steps { list-style: none; counter-reset: step; margin: 0 0 1rem; }
-    .setup-steps li {
-      padding: 0.5rem 0 0.5rem 2rem;
-      position: relative;
-      color: var(--fg-soft);
-      counter-increment: step;
-    }
-    .setup-steps li::before {
-      content: counter(step);
-      position: absolute; left: 0; top: 0.45rem;
-      width: 22px; height: 22px; border-radius: 50%;
-      background: var(--accent-soft); color: var(--accent);
-      font-size: 0.75rem; font-weight: 600;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .setup-steps li strong { color: var(--fg); }
-
-    /* CLI command cards */
-    .cli-cmd-card {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin: 1.25rem 0;
-    }
-    .cli-cmd-card h4 {
-      font-size: 1.05rem; font-weight: 600;
-      margin: 0 0 0.5rem; color: var(--fg);
-    }
-    .cli-cmd-card h4 code {
-      font-family: 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.95rem; color: var(--accent);
-      background: none; padding: 0;
-    }
-    .cli-cmd-card > p {
-      font-size: 0.92rem; margin-bottom: 0.75rem;
-    }
-    .cli-cmd-card .table-wrap { margin: 0.75rem 0; }
-    .cli-cmd-card .code-block { margin: 0.75rem 0 0; }
-
-    /* Code */
-    .code-block {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 10px; padding: 1.25rem; margin: 1rem 0;
-      overflow-x: auto;
-    }
-    .code-block pre { margin: 0; }
-    .code-block code {
-      font-family: 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.88rem; color: var(--fg-soft); line-height: 1.7;
-    }
-
-    /* Tables */
-    .table-wrap {
-      overflow-x: auto; border-radius: 10px;
-      border: 1px solid var(--border); margin: 1rem 0;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
-    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
-    th {
-      background: var(--bg-elev); font-weight: 600; color: var(--fg);
-      font-size: 0.85rem; letter-spacing: 0.02em; white-space: nowrap;
-    }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--bg-elev-2); }
-    td.num { font-variant-numeric: tabular-nums; }
-    td.win { color: var(--good); font-weight: 600; }
-    td.bad { color: var(--muted); }
-    td code {
-      font-family: 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.85rem; background: var(--bg-elev-2);
-      padding: 0.15rem 0.4rem; border-radius: 4px;
-    }
-
-    /* Search */
-    .search-bar {
-      margin: 1.5rem 0;
-    }
-    .search-bar input {
-      width: 100%; padding: 0.85rem 1.25rem;
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 10px; color: var(--fg); font-size: 0.95rem;
-      outline: none; transition: border-color 0.15s;
-    }
-    .search-bar input::placeholder { color: var(--muted); }
-    .search-bar input:focus { border-color: var(--accent); }
-
-    /* Hardware cards */
-    .hw-card {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;
-      transition: border-color 0.15s;
-    }
-    .hw-card:hover { border-color: var(--accent); }
-    .hw-card-header { margin-bottom: 0.75rem; }
-    .hw-specs { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.5rem; }
-    .hw-spec { font-size: 0.9rem; color: var(--fg-soft); }
-    .hw-spec strong { color: var(--fg); }
-    .hw-best {
-      font-size: 0.88rem; color: var(--good); font-weight: 500;
-      padding: 0.35rem 0.75rem; background: rgba(63, 185, 80, 0.1);
-      border-radius: 6px; display: inline-block;
-    }
-    .hw-models { display: flex; flex-direction: column; gap: 0.5rem; }
-    .hw-model {
-      display: flex; align-items: center; gap: 1rem;
-      padding: 0.5rem 0.75rem; border-radius: 8px;
-      background: var(--bg-elev-2); font-size: 0.88rem;
-    }
-    .hw-model.recommended {
-      border: 1px solid rgba(63, 185, 80, 0.3);
-      background: rgba(63, 185, 80, 0.05);
-    }
-    .hw-model-name { font-weight: 600; color: var(--fg); min-width: 140px; }
-    .hw-model-backend { color: var(--muted); min-width: 80px; }
-    .hw-model-score { color: var(--good); font-weight: 500; min-width: 50px; }
-    .hw-model-speed { color: var(--fg-soft); }
-
-    /* Category badges */
-    .cat-badge {
-      font-size: 0.75rem; padding: 0.2rem 0.5rem;
-      background: var(--bg-elev-2); border-radius: 4px;
-      color: var(--muted); white-space: nowrap;
-    }
-
-    /* Model detail sections */
-    .model-detail {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.5rem; margin: 1rem 0;
-      min-width: 0;
-    }
-    .model-detail h3 { margin-top: 0; color: var(--fg); }
-    .detail-meta {
-      display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
-      margin-bottom: 1rem; font-size: 0.88rem; color: var(--muted);
-    }
-
-    /* Conversation viewer (expandable task rows) */
-    tr.task-row { transition: background-color 0.12s; }
-    tr.task-row:hover { background: var(--bg-elev-2); }
-    tr.task-row.open { background: var(--bg-elev-2); }
-    tr.task-row .row-toggle {
-      display: inline-block; width: 1rem; color: var(--muted);
-      font-size: 0.7rem; transition: transform 0.15s;
-    }
-    .task-status { display: inline-block; width: 1rem; font-weight: 700; }
-    .task-status.pass { color: var(--good); }
-    .task-status.fail { color: #d14545; }
-
-    tr.task-detail > td {
-      padding: 1.25rem 1.5rem; background: var(--bg);
-      min-width: 0; max-width: 100%;
-    }
-    .conv-meta {
-      display: flex; flex-wrap: wrap; gap: 1.5rem;
-      padding-bottom: 0.75rem; margin-bottom: 0.75rem;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.85rem; color: var(--muted);
-      min-width: 0;
-    }
-    .conv-meta strong { color: var(--fg-soft); font-weight: 600; }
-    .conv-desc {
-      font-style: italic; color: var(--fg-soft);
-      margin: 0 0 1rem 0; font-size: 0.95rem;
-    }
-    .conv-section { margin: 0.75rem 0; min-width: 0; max-width: 100%; }
-    .conv-thread { display: grid; gap: 0.65rem; min-width: 0; max-width: 100%; }
-    .conv-turn { margin: 0; min-width: 0; max-width: 100%; }
-    details.conv-turn {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 6px; overflow: hidden;
-    }
-    details.conv-turn summary {
-      cursor: pointer; padding: 0.55rem 0.75rem;
-      font-size: 0.78rem; font-weight: 700; color: var(--fg-soft);
-      background: var(--bg-elev-2);
-      white-space: normal; overflow-wrap: anywhere;
-    }
-    details.conv-turn .conv-block {
-      border-left: 0; border-top: 1px solid var(--border); border-radius: 0;
-    }
-    .conv-thinking summary { color: #7a5cff; }
-    .conv-tool summary { color: var(--accent); }
-    .conv-tool-result summary { color: var(--muted); }
-    .conv-label {
-      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
-      color: var(--muted); margin-bottom: 0.3rem;
-    }
-    .conv-block {
-      background: var(--bg-elev); border-left: 3px solid var(--border);
-      padding: 0.85rem 1rem; margin: 0; border-radius: 4px;
-      font-family: 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.82rem; color: var(--fg);
-      white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
-      max-height: 24rem; max-width: 100%; overflow-x: hidden; overflow-y: auto;
-    }
-    .conv-prompt { border-left-color: var(--accent); }
-    .conv-block + .conv-block { margin-top: 0.4rem; }
-    .conv-judge {
-      background: var(--bg-elev); padding: 0.85rem 1rem;
-      border-left: 3px solid #d4a017; border-radius: 4px;
-      font-size: 0.9rem; color: var(--fg-soft); line-height: 1.5;
-    }
-    .conv-judge.judge-good { border-left-color: var(--good); }
-    .conv-judge.judge-mid { border-left-color: #d4a017; }
-    .conv-judge.judge-bad { border-left-color: #d14545; }
-    .conv-empty {
-      color: var(--muted); font-style: italic; font-size: 0.88rem;
-      padding: 0.5rem 0;
-    }
-    .turn-num {
-      font-size: 0.7rem; color: var(--muted); font-weight: 400;
-      opacity: 0.7; margin-right: 0.35rem;
-    }
-    .turn-link {
-      color: var(--accent); text-decoration: none; font-size: 0.85em;
-    }
-    .turn-link:hover { text-decoration: underline; }
-    .criterion-list {
-      list-style: none; padding: 0.5rem 0 0; margin: 0.5rem 0 0;
-      border-top: 1px solid var(--border); display: grid; gap: 0.4rem;
-    }
-    .ce-item {
-      font-size: 0.82rem; line-height: 1.5; color: var(--fg-soft);
-      padding: 0.3rem 0;
-    }
-    .ce-reasoning { color: var(--muted); }
-    .judge-meta {
-      font-size: 0.72rem; font-weight: 400; color: var(--muted);
-      font-style: italic;
-    }
-
-    /* Phase cards */
-    .phase-card {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;
-    }
-    .phase-card.active { border-left: 3px solid var(--good); }
-    .phase-badge {
-      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em;
-      text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem;
-    }
-    .phase-card.active .phase-badge { color: var(--good); }
-    .phase-card h3 { margin-top: 0.25rem; }
-    .phase-status {
-      margin-top: 0.75rem; font-size: 0.88rem; color: var(--muted);
-      padding: 0.5rem 0.75rem; background: var(--bg-elev-2);
-      border-radius: 6px;
-    }
-    .phase-status code {
-      font-family: 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.82rem; color: var(--fg-soft);
-    }
-
-    .hosting-notes { margin-top: 2rem; }
-
-    /* Community reports */
-    .community-section { margin-top: 2rem; }
-
-    /* Category filter bar */
-    .cat-filter-bar {
-      display: flex; flex-wrap: wrap; gap: 0.5rem;
-      margin: 1rem 0 1.5rem; padding: 0;
-    }
-    .cat-filter-btn {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      color: var(--muted); font-size: 0.82rem; font-weight: 500;
-      padding: 0.4rem 0.9rem; border-radius: 20px;
-      cursor: pointer; transition: all 0.15s; white-space: nowrap;
-    }
-    .cat-filter-btn:hover { border-color: var(--accent); color: var(--fg-soft); }
-    .cat-filter-btn.active {
-      background: var(--accent); border-color: var(--accent);
-      color: #fff; font-weight: 600;
-    }
-
-    /* Community report cards */
-    .cr-card {
-      background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.25rem; margin-bottom: 0.75rem;
-      transition: border-color 0.15s;
-    }
-    .cr-card:hover { border-color: var(--accent); }
-    .cr-card-header { margin-bottom: 0.5rem; }
-    .cr-title-row {
-      display: flex; align-items: flex-start; justify-content: space-between;
-      gap: 0.75rem;
-    }
-    .cr-title {
-      font-size: 1rem; font-weight: 600; color: var(--fg);
-      margin: 0; line-height: 1.4;
-    }
-    .cr-title a { color: var(--fg); text-decoration: none; }
-    .cr-title a:hover { color: var(--accent); }
-    .cr-score {
-      flex-shrink: 0; font-size: 0.82rem; font-weight: 600;
-      color: var(--muted); background: var(--bg-elev-2);
-      padding: 0.2rem 0.6rem; border-radius: 6px;
-      white-space: nowrap;
-    }
-    .cr-score-high { color: var(--good); background: rgba(63, 185, 80, 0.1); }
-    .cr-score-mid { color: var(--warn); background: rgba(210, 153, 34, 0.1); }
-    .cr-meta {
-      display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem;
-      margin-top: 0.35rem; font-size: 0.8rem; color: var(--muted);
-    }
-    .cr-flair {
-      background: var(--bg-elev-2); padding: 0.1rem 0.45rem;
-      border-radius: 4px; font-size: 0.75rem;
-    }
-    .cr-cat-badge {
-      background: var(--accent-soft); color: var(--accent);
-      padding: 0.1rem 0.45rem; border-radius: 4px;
-      font-size: 0.72rem; font-weight: 500;
-    }
-    .cr-summary {
-      font-size: 0.9rem; color: var(--fg-soft); margin: 0.5rem 0;
-      line-height: 1.5;
-    }
-    .cr-comments {
-      margin: 0.5rem 0; padding: 0.5rem 0;
-      border-top: 1px solid var(--border);
-    }
-    .cr-comment {
-      display: flex; flex-direction: column; gap: 0.15rem;
-      padding: 0.35rem 0; font-size: 0.85rem;
-    }
-    .cr-comment + .cr-comment { border-top: 1px solid rgba(48, 54, 61, 0.5); padding-top: 0.45rem; }
-    .cr-comment-meta {
-      color: var(--muted); font-size: 0.78rem; font-weight: 500;
-    }
-    .cr-comment-text { color: var(--fg-soft); line-height: 1.45; }
-    .cr-source {
-      font-size: 0.82rem; color: var(--accent); text-decoration: none;
-      display: inline-block; margin-top: 0.35rem;
-    }
-    .cr-source:hover { text-decoration: underline; }
-    .no-results {
-      text-align: center; color: var(--muted); padding: 2rem 1rem;
-      font-size: 0.95rem;
-    }
-
-    /* Footer */
-    footer {
-      margin-top: 4rem; padding-top: 2rem;
-      border-top: 1px solid var(--border);
-      color: var(--muted); font-size: 0.85rem; text-align: center;
-    }
-    footer a { color: var(--accent); text-decoration: none; }
-    .footer-sub { margin-top: 0.5rem; font-size: 0.78rem; }
-
-
-    .breadcrumb { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; }
-    .breadcrumb a { color: var(--accent); text-decoration: none; }
-    .breadcrumb a:hover { text-decoration: underline; }
-    .page-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
-    .page-card { display: block; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--fg); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
-    .page-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(66,133,244,0.1); }
-    .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; color: var(--accent); line-height: 1; }
-    .page-card-icon svg { width: 1.75rem; height: 1.75rem; display: block; }
-    .page-card h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--fg); }
-    .page-card p { font-size: 0.9rem; color: var(--fg-soft); margin: 0; line-height: 1.5; }
-    .field-notes-section { margin-bottom: 2rem; }
-
-    /* Responsive */
-    @media (max-width: 640px) {
-      h1 { font-size: 2rem; }
-      .tagline { font-size: 1rem; }
-      .nav-inner { padding: 0.5rem 1rem; }
-      .nav-links { gap: 0.75rem; }
-      .nav-links a { font-size: 0.84rem; padding: 0.35rem 0; }
-      .wrap { padding: 1.5rem 1rem 3rem; }
-      .page-cards { grid-template-columns: 1fr; }
-      .hw-specs { flex-direction: column; gap: 0.25rem; }
-      .hw-model { flex-wrap: wrap; gap: 0.5rem; }
-      .cat-filter-bar { gap: 0.35rem; }
-      .cat-filter-btn { font-size: 0.75rem; padding: 0.35rem 0.7rem; }
-      .cr-title { font-size: 0.92rem; }
-      .cr-card { padding: 1rem; }
-      .cr-comment-text { font-size: 0.82rem; }
-      .cap-grid { grid-template-columns: 1fr; }
-      .example-list { grid-template-columns: 1fr; }
-      .cap-intro { font-size: 0.92rem; }
-      .cli-cmd-card { padding: 1rem; }
-      .cli-cmd-card h4 { font-size: 0.95rem; }
-      .task-explanation { padding: 0.6rem 0.8rem; }
-      .task-prompt code { font-size: 0.72rem; }
-      .model-detail { padding: 1rem; overflow: hidden; }
-      .model-detail .table-wrap { overflow-x: hidden; border-radius: 8px; }
-      .model-detail .benchmark-table,
-      .model-detail .benchmark-table tbody,
-      .model-detail .benchmark-table tr,
-      .model-detail .benchmark-table td {
-        display: block; width: 100%; max-width: 100%; min-width: 0;
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gemmaclaw - Run Benchmarks</title>
+    <meta
+      name="description"
+      content="Out-of-the-box best Gemma setup for your hardware. Benchmark results, setup guides, and self-hosting configurations."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <link rel="alternate icon" href="favicon.ico" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Gemmaclaw" />
+    <meta property="og:title" content="Gemmaclaw - Run Benchmarks" />
+    <meta property="og:description" content="Out-of-the-box best Gemma setup for your hardware." />
+    <meta
+      property="og:image"
+      content="https://gemmaclaw.github.io/gemmaclaw/assets/gemmaclaw-github-social.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Gemmaclaw - Run Benchmarks" />
+    <meta name="twitter:description" content="Out-of-the-box best Gemma setup for your hardware." />
+    <meta
+      name="twitter:image"
+      content="https://gemmaclaw.github.io/gemmaclaw/assets/gemmaclaw-github-social.png"
+    />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-elev: #f6f8fa;
+        --bg-elev-2: #eef1f5;
+        --border: #d0d7de;
+        --fg: #1f2328;
+        --fg-soft: #424a53;
+        --muted: #656d76;
+        --accent: #4285f4;
+        --accent-soft: #dbe8fc;
+        --good: #1a7f37;
+        --warn: #9a6700;
+        --bad: #cf222e;
       }
-      .model-detail .benchmark-table thead { display: none; }
-      .model-detail .benchmark-table tr.task-row {
-        padding: 0.75rem 0.8rem;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Nav */
+      .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
         border-bottom: 1px solid var(--border);
       }
-      .model-detail .benchmark-table tr.task-row td {
-        padding: 0.15rem 0; border-bottom: 0;
+      .nav-inner {
+        max-width: 960px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 1.5rem;
       }
-      .model-detail .benchmark-table tr.task-row td:first-child {
-        font-weight: 600; color: var(--fg);
+      .logo {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--accent);
+        text-decoration: none;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
       }
-      .model-detail .benchmark-table tr.task-detail {
+      .logo img {
+        width: 28px;
+        height: 28px;
+        display: block;
+      }
+      .nav-links {
+        display: flex;
+        gap: 1.5rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        min-width: 0;
+      }
+      .nav-links::-webkit-scrollbar {
+        display: none;
+      }
+      .nav-links a {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: color 0.15s;
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding: 0.25rem 0;
+        border-bottom: 2px solid transparent;
+      }
+      .nav-links a:hover {
+        color: var(--fg);
+      }
+      .nav-links a.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 4rem;
+      }
+
+      /* Hero */
+      .hero {
+        text-align: center;
+        padding: 3rem 0 3rem;
+      }
+      h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      h1 span {
+        color: var(--accent);
+      }
+      .tagline {
+        font-size: 1.15rem;
+        color: var(--muted);
+        max-width: 600px;
+        margin: 1rem auto 2rem;
+      }
+      .links {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .links a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1.4rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition:
+          opacity 0.15s,
+          transform 0.15s;
+      }
+      .links a:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-secondary {
+        border: 1px solid var(--border);
+        color: var(--fg);
+        background: var(--bg-elev);
+      }
+
+      /* Capabilities */
+      .capabilities {
+        margin-top: 3rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+      }
+      .capabilities h2 {
+        text-align: center;
+        font-size: 1.6rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.01em;
+      }
+      .cap-intro {
+        text-align: center;
+        max-width: 640px;
+        margin: 0 auto 2rem;
+        font-size: 1rem;
+        color: var(--fg-soft);
+      }
+      .cap-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+      .cap-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition:
+          border-color 0.15s,
+          transform 0.15s;
+      }
+      .cap-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+      .cap-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .cap-card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 0.4rem;
+        color: var(--fg);
+      }
+      .cap-card p {
+        font-size: 0.88rem;
+        color: var(--fg-soft);
+        margin: 0;
+        line-height: 1.5;
+      }
+      .cap-examples {
+        margin-top: 2rem;
+      }
+      .cap-examples h3 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        margin: 0 0 1rem;
+        color: var(--fg);
+      }
+      .example-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 0.75rem;
+      }
+      .example-item {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        font-size: 0.9rem;
+        color: var(--fg-soft);
+        line-height: 1.5;
+      }
+      .example-item strong {
+        color: var(--fg);
+      }
+      .cap-footer {
+        text-align: center;
+        margin-top: 1.5rem;
+        font-size: 0.95rem;
+        color: var(--muted);
+        max-width: 640px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      /* Sections */
+      section {
+        margin-top: 1rem;
+        scroll-margin-top: 4rem;
+      }
+      h2 {
+        font-size: 1.6rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        letter-spacing: -0.01em;
+      }
+      h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.75rem;
+        color: var(--fg-soft);
+      }
+      p {
+        color: var(--fg-soft);
+        margin-bottom: 1rem;
+      }
+      a.inline {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a.inline:hover {
+        text-decoration: underline;
+      }
+
+      /* Field Notes (curated weekly synthesis) */
+      .field-notes {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem 1.75rem;
+        margin: 0;
+      }
+      .field-notes h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+        letter-spacing: -0.01em;
+      }
+      .field-notes h3 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.5rem;
+        color: var(--fg);
+      }
+      .field-notes p {
+        color: var(--fg-soft);
+        margin: 0 0 0.75rem;
+      }
+      .field-notes p em {
+        color: var(--muted);
+      }
+      .field-notes ul {
+        list-style: none;
+        margin: 0 0 1rem;
+        padding: 0;
+      }
+      .field-notes li {
+        padding: 0.4rem 0 0.4rem 1.25rem;
+        position: relative;
+        color: var(--fg-soft);
+      }
+      .field-notes li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.75rem;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .field-notes li strong {
+        color: var(--fg);
+      }
+      .field-notes a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .field-notes a:hover {
+        text-decoration: underline;
+      }
+      @media (max-width: 640px) {
+        .field-notes {
+          padding: 1rem 1.1rem;
+        }
+        .field-notes h2 {
+          font-size: 1.3rem;
+        }
+      }
+
+      /* Lists */
+      .setup-list {
+        list-style: none;
+        margin: 0 0 1rem;
+      }
+      .setup-list li {
+        padding: 0.5rem 0 0.5rem 1.25rem;
+        position: relative;
+        color: var(--fg-soft);
+      }
+      .setup-list li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.85rem;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .setup-list li strong {
+        color: var(--fg);
+      }
+
+      .setup-steps {
+        list-style: none;
+        counter-reset: step;
+        margin: 0 0 1rem;
+      }
+      .setup-steps li {
+        padding: 0.5rem 0 0.5rem 2rem;
+        position: relative;
+        color: var(--fg-soft);
+        counter-increment: step;
+      }
+      .setup-steps li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 0.45rem;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .setup-steps li strong {
+        color: var(--fg);
+      }
+
+      /* CLI command cards */
+      .cli-cmd-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.25rem 0;
+      }
+      .cli-cmd-card h4 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+        color: var(--fg);
+      }
+      .cli-cmd-card h4 code {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.95rem;
+        color: var(--accent);
+        background: none;
+        padding: 0;
+      }
+      .cli-cmd-card > p {
+        font-size: 0.92rem;
+        margin-bottom: 0.75rem;
+      }
+      .cli-cmd-card .table-wrap {
+        margin: 0.75rem 0;
+      }
+      .cli-cmd-card .code-block {
+        margin: 0.75rem 0 0;
+      }
+
+      /* Code */
+      .code-block {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin: 1rem 0;
+        overflow-x: auto;
+      }
+      .code-block pre {
+        margin: 0;
+      }
+      .code-block code {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.88rem;
+        color: var(--fg-soft);
+        line-height: 1.7;
+      }
+
+      /* Tables */
+      .table-wrap {
+        overflow-x: auto;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        margin: 1rem 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.93rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.75rem 1rem;
         border-bottom: 1px solid var(--border);
       }
-      .model-detail .benchmark-table tr.task-detail[style*="table-row"] {
-        display: block !important;
+      th {
+        background: var(--bg-elev);
+        font-weight: 600;
+        color: var(--fg);
+        font-size: 0.85rem;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
       }
-      .model-detail .benchmark-table tr.task-detail > td {
-        padding: 0.9rem 0.8rem;
+      tr:last-child td {
+        border-bottom: none;
       }
-      .conv-meta { display: grid; gap: 0.35rem; }
-      .conv-block { font-size: 0.76rem; padding: 0.75rem 0.8rem; }
-      .conv-judge { font-size: 0.84rem; padding: 0.75rem 0.8rem; }
-      .benchmark-card-grid { grid-template-columns: 1fr; }
-      .benchmark-card-metrics { grid-template-columns: 1fr; }
-      .benchmark-card-head { align-items: flex-start; }
-      .benchmark-score { font-size: 1.35rem; }
-    }
+      tr:hover td {
+        background: var(--bg-elev-2);
+      }
+      td.num {
+        font-variant-numeric: tabular-nums;
+      }
+      td.win {
+        color: var(--good);
+        font-weight: 600;
+      }
+      td.bad {
+        color: var(--muted);
+      }
+      td code {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.85rem;
+        background: var(--bg-elev-2);
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+      }
 
-    /* Size class grouping */
-    .size-class-group { margin-bottom: 2rem; }
-    .size-class-group h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
-    .hw-recommendation { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.8rem; padding: 0.5rem 0.8rem; background: var(--bg-elev); border-radius: 8px; border-left: 3px solid var(--accent); }
-    .benchmark-card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 0.9rem;
-      min-width: 0;
-    }
-    .benchmark-result-card {
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
-      min-width: 0;
-      padding: 1rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--bg-elev);
-      color: var(--fg);
-      text-decoration: none;
-      transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
-    }
-    .benchmark-result-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 22px rgba(66, 133, 244, 0.10);
-    }
-    .benchmark-card-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 0.75rem;
-      min-width: 0;
-    }
-    .benchmark-card-head h4 {
-      margin: 0 0 0.35rem;
-      font-size: 1rem;
-      line-height: 1.25;
-      overflow-wrap: anywhere;
-    }
-    .benchmark-card-spec {
-      margin: 0 0 0.45rem;
-      color: var(--muted);
-      font-size: 0.78rem;
-      line-height: 1.35;
-      overflow-wrap: anywhere;
-    }
-    .benchmark-card-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.3rem;
-      min-width: 0;
-    }
-    .benchmark-score {
-      flex: 0 0 auto;
-      font-size: 1.55rem;
-      line-height: 1;
-      font-weight: 800;
-      color: var(--accent);
-    }
-    .benchmark-score.win { color: var(--good); }
-    .benchmark-score.bad { color: #d14545; }
-    .benchmark-card-metrics {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.55rem;
-      min-width: 0;
-    }
-    .benchmark-card-metrics span {
-      min-width: 0;
-      padding: 0.55rem;
-      border-radius: 8px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-    }
-    .benchmark-card-metrics strong {
-      display: block;
-      font-size: 0.92rem;
-      line-height: 1.2;
-      overflow-wrap: anywhere;
-    }
-    .benchmark-card-metrics small {
-      display: block;
-      margin-top: 0.15rem;
-      color: var(--muted);
-      font-size: 0.72rem;
-      line-height: 1.2;
-    }
-    .benchmark-card-hw {
-      color: var(--muted);
-      font-size: 0.84rem;
-      overflow-wrap: anywhere;
-    }
-    .benchmark-card-link {
-      margin-top: auto;
-      color: var(--accent);
-      font-size: 0.88rem;
-      font-weight: 600;
-    }
-    .quant-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; background: var(--bg-elev-2); color: var(--muted); font-weight: 500; vertical-align: middle; margin-left: 4px; }
-    .thinking-high { background:#e8f0fe; color:#1a73e8; }
-    .thinking-med { background:#fef9e7; color:#9a6700; }
-    .thinking-low { background:#fff3e0; color:#e37400; }
-    .thinking-off { background:#f5f5f5; color:#666; }
+      /* Search */
+      .search-bar {
+        margin: 1.5rem 0;
+      }
+      .search-bar input {
+        width: 100%;
+        padding: 0.85rem 1.25rem;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--fg);
+        font-size: 0.95rem;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      .search-bar input::placeholder {
+        color: var(--muted);
+      }
+      .search-bar input:focus {
+        border-color: var(--accent);
+      }
 
-    /* Task explanations */
-    #task-explanations { margin-top: 2.5rem; }
-    .task-category { margin-bottom: 1.5rem; }
-    .task-category h4 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.3rem; }
-    .cat-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.6rem; }
-    .task-explanation { padding: 0.7rem 1rem; margin-bottom: 0.5rem; background: var(--bg-elev); border-radius: 8px; }
-    .task-header { margin-bottom: 0.25rem; }
-    .task-desc { font-size: 0.85rem; color: var(--text); margin-bottom: 0.3rem; }
-    .task-prompt { font-size: 0.8rem; color: var(--muted); }
-    .task-prompt code { font-size: 0.78rem; background: var(--bg-elev-2); padding: 2px 6px; border-radius: 4px; word-break: break-all; }
-    .diff-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; font-weight: 500; vertical-align: middle; margin-left: 4px; }
-    .diff-easy { background: #e6f4ea; color: #1a7f37; }
-    .diff-medium { background: #fff3cd; color: #856404; }
-    .diff-hard { background: #fce8e6; color: #c93c37; }
+      /* Hardware cards */
+      .hw-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        transition: border-color 0.15s;
+      }
+      .hw-card:hover {
+        border-color: var(--accent);
+      }
+      .hw-card-header {
+        margin-bottom: 0.75rem;
+      }
+      .hw-specs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .hw-spec {
+        font-size: 0.9rem;
+        color: var(--fg-soft);
+      }
+      .hw-spec strong {
+        color: var(--fg);
+      }
+      .hw-best {
+        font-size: 0.88rem;
+        color: var(--good);
+        font-weight: 500;
+        padding: 0.35rem 0.75rem;
+        background: rgba(63, 185, 80, 0.1);
+        border-radius: 6px;
+        display: inline-block;
+      }
+      .hw-models {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .hw-model {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        background: var(--bg-elev-2);
+        font-size: 0.88rem;
+      }
+      .hw-model.recommended {
+        border: 1px solid rgba(63, 185, 80, 0.3);
+        background: rgba(63, 185, 80, 0.05);
+      }
+      .hw-model-name {
+        font-weight: 600;
+        color: var(--fg);
+        min-width: 140px;
+      }
+      .hw-model-backend {
+        color: var(--muted);
+        min-width: 80px;
+      }
+      .hw-model-score {
+        color: var(--good);
+        font-weight: 500;
+        min-width: 50px;
+      }
+      .hw-model-speed {
+        color: var(--fg-soft);
+      }
 
-    /* Benchmark landing page detail link */
-    .detail-link {
-      color: var(--accent); text-decoration: none; font-weight: 500;
-      font-size: 0.88rem; white-space: nowrap;
-    }
-    .detail-link:hover { text-decoration: underline; }
+      /* Category badges */
+      .cat-badge {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        background: var(--bg-elev-2);
+        border-radius: 4px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
 
-  </style>
-</head>
-<body>
-  <nav class="topnav">
-    <div class="nav-inner">
-      <a href="index.html" class="logo"><img src="assets/gemmaclaw-logo.svg" alt="" width="28" height="28"> <span>Gemmaclaw</span></a>
-      <div class="nav-links">
-        <a href="setup.html">Setup</a>
-        <a href="self-hosting.html">Self-Hosting</a>
-        <a href="benchmarks.html">Benchmarks</a>
-        <a href="benchmarking.html" class="active">Run Benchmarks</a>
-        <a href="community.html">Community</a>
-        <a href="goals.html">Goals</a>
-        <a href="https://github.com/gemmaclaw/gemmaclaw" target="_blank" rel="noopener">GitHub</a>
+      /* Model detail sections */
+      .model-detail {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        min-width: 0;
+      }
+      .model-detail h3 {
+        margin-top: 0;
+        color: var(--fg);
+      }
+      .detail-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.5rem;
+        margin-bottom: 1rem;
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+
+      /* Conversation viewer (expandable task rows) */
+      tr.task-row {
+        transition: background-color 0.12s;
+      }
+      tr.task-row:hover {
+        background: var(--bg-elev-2);
+      }
+      tr.task-row.open {
+        background: var(--bg-elev-2);
+      }
+      tr.task-row .row-toggle {
+        display: inline-block;
+        width: 1rem;
+        color: var(--muted);
+        font-size: 0.7rem;
+        transition: transform 0.15s;
+      }
+      .task-status {
+        display: inline-block;
+        width: 1rem;
+        font-weight: 700;
+      }
+      .task-status.pass {
+        color: var(--good);
+      }
+      .task-status.fail {
+        color: #d14545;
+      }
+
+      tr.task-detail > td {
+        padding: 1.25rem 1.5rem;
+        background: var(--bg);
+        min-width: 0;
+        max-width: 100%;
+      }
+      .conv-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.85rem;
+        color: var(--muted);
+        min-width: 0;
+      }
+      .conv-meta strong {
+        color: var(--fg-soft);
+        font-weight: 600;
+      }
+      .conv-desc {
+        font-style: italic;
+        color: var(--fg-soft);
+        margin: 0 0 1rem 0;
+        font-size: 0.95rem;
+      }
+      .conv-section {
+        margin: 0.75rem 0;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .conv-thread {
+        display: grid;
+        gap: 0.65rem;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .conv-turn {
+        margin: 0;
+        min-width: 0;
+        max-width: 100%;
+      }
+      details.conv-turn {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      details.conv-turn summary {
+        cursor: pointer;
+        padding: 0.55rem 0.75rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--fg-soft);
+        background: var(--bg-elev-2);
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+      details.conv-turn .conv-block {
+        border-left: 0;
+        border-top: 1px solid var(--border);
+        border-radius: 0;
+      }
+      .conv-thinking summary {
+        color: #7a5cff;
+      }
+      .conv-tool summary {
+        color: var(--accent);
+      }
+      .conv-tool-result summary {
+        color: var(--muted);
+      }
+      .conv-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 0.3rem;
+      }
+      .conv-block {
+        background: var(--bg-elev);
+        border-left: 3px solid var(--border);
+        padding: 0.85rem 1rem;
+        margin: 0;
+        border-radius: 4px;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+        color: var(--fg);
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        max-height: 24rem;
+        max-width: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+      .conv-prompt {
+        border-left-color: var(--accent);
+      }
+      .conv-block + .conv-block {
+        margin-top: 0.4rem;
+      }
+      .conv-judge {
+        background: var(--bg-elev);
+        padding: 0.85rem 1rem;
+        border-left: 3px solid #d4a017;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        color: var(--fg-soft);
+        line-height: 1.5;
+      }
+      .conv-judge.judge-good {
+        border-left-color: var(--good);
+      }
+      .conv-judge.judge-mid {
+        border-left-color: #d4a017;
+      }
+      .conv-judge.judge-bad {
+        border-left-color: #d14545;
+      }
+      .conv-empty {
+        color: var(--muted);
+        font-style: italic;
+        font-size: 0.88rem;
+        padding: 0.5rem 0;
+      }
+      .turn-num {
+        font-size: 0.7rem;
+        color: var(--muted);
+        font-weight: 400;
+        opacity: 0.7;
+        margin-right: 0.35rem;
+      }
+      .turn-link {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.85em;
+      }
+      .turn-link:hover {
+        text-decoration: underline;
+      }
+      .criterion-list {
+        list-style: none;
+        padding: 0.5rem 0 0;
+        margin: 0.5rem 0 0;
+        border-top: 1px solid var(--border);
+        display: grid;
+        gap: 0.4rem;
+      }
+      .ce-item {
+        font-size: 0.82rem;
+        line-height: 1.5;
+        color: var(--fg-soft);
+        padding: 0.3rem 0;
+      }
+      .ce-reasoning {
+        color: var(--muted);
+      }
+      .judge-meta {
+        font-size: 0.72rem;
+        font-weight: 400;
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      /* Phase cards */
+      .phase-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      .phase-card.active {
+        border-left: 3px solid var(--good);
+      }
+      .phase-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+      .phase-card.active .phase-badge {
+        color: var(--good);
+      }
+      .phase-card h3 {
+        margin-top: 0.25rem;
+      }
+      .phase-status {
+        margin-top: 0.75rem;
+        font-size: 0.88rem;
+        color: var(--muted);
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-elev-2);
+        border-radius: 6px;
+      }
+      .phase-status code {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+        color: var(--fg-soft);
+      }
+
+      .hosting-notes {
+        margin-top: 2rem;
+      }
+
+      /* Community reports */
+      .community-section {
+        margin-top: 2rem;
+      }
+
+      /* Category filter bar */
+      .cat-filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 1rem 0 1.5rem;
+        padding: 0;
+      }
+      .cat-filter-btn {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 500;
+        padding: 0.4rem 0.9rem;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+      }
+      .cat-filter-btn:hover {
+        border-color: var(--accent);
+        color: var(--fg-soft);
+      }
+      .cat-filter-btn.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      /* Community report cards */
+      .cr-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 0.75rem;
+        transition: border-color 0.15s;
+      }
+      .cr-card:hover {
+        border-color: var(--accent);
+      }
+      .cr-card-header {
+        margin-bottom: 0.5rem;
+      }
+      .cr-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+      .cr-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--fg);
+        margin: 0;
+        line-height: 1.4;
+      }
+      .cr-title a {
+        color: var(--fg);
+        text-decoration: none;
+      }
+      .cr-title a:hover {
+        color: var(--accent);
+      }
+      .cr-score {
+        flex-shrink: 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--muted);
+        background: var(--bg-elev-2);
+        padding: 0.2rem 0.6rem;
+        border-radius: 6px;
+        white-space: nowrap;
+      }
+      .cr-score-high {
+        color: var(--good);
+        background: rgba(63, 185, 80, 0.1);
+      }
+      .cr-score-mid {
+        color: var(--warn);
+        background: rgba(210, 153, 34, 0.1);
+      }
+      .cr-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 0.8rem;
+        margin-top: 0.35rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .cr-flair {
+        background: var(--bg-elev-2);
+        padding: 0.1rem 0.45rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+      }
+      .cr-cat-badge {
+        background: var(--accent-soft);
+        color: var(--accent);
+        padding: 0.1rem 0.45rem;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 500;
+      }
+      .cr-summary {
+        font-size: 0.9rem;
+        color: var(--fg-soft);
+        margin: 0.5rem 0;
+        line-height: 1.5;
+      }
+      .cr-comments {
+        margin: 0.5rem 0;
+        padding: 0.5rem 0;
+        border-top: 1px solid var(--border);
+      }
+      .cr-comment {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        padding: 0.35rem 0;
+        font-size: 0.85rem;
+      }
+      .cr-comment + .cr-comment {
+        border-top: 1px solid rgba(48, 54, 61, 0.5);
+        padding-top: 0.45rem;
+      }
+      .cr-comment-meta {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 500;
+      }
+      .cr-comment-text {
+        color: var(--fg-soft);
+        line-height: 1.45;
+      }
+      .cr-source {
+        font-size: 0.82rem;
+        color: var(--accent);
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 0.35rem;
+      }
+      .cr-source:hover {
+        text-decoration: underline;
+      }
+      .no-results {
+        text-align: center;
+        color: var(--muted);
+        padding: 2rem 1rem;
+        font-size: 0.95rem;
+      }
+
+      /* Footer */
+      footer {
+        margin-top: 4rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-align: center;
+      }
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .footer-sub {
+        margin-top: 0.5rem;
+        font-size: 0.78rem;
+      }
+
+      .breadcrumb {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 1.5rem;
+      }
+      .breadcrumb a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+      .page-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+      }
+      .page-card {
+        display: block;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-decoration: none;
+        color: var(--fg);
+        transition:
+          border-color 0.15s,
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .page-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(66, 133, 244, 0.1);
+      }
+      .page-card-icon {
+        font-size: 1.75rem;
+        margin-bottom: 0.75rem;
+        color: var(--accent);
+        line-height: 1;
+      }
+      .page-card-icon svg {
+        width: 1.75rem;
+        height: 1.75rem;
+        display: block;
+      }
+      .page-card h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+        color: var(--fg);
+      }
+      .page-card p {
+        font-size: 0.9rem;
+        color: var(--fg-soft);
+        margin: 0;
+        line-height: 1.5;
+      }
+      .field-notes-section {
+        margin-bottom: 2rem;
+      }
+
+      /* Responsive */
+      @media (max-width: 640px) {
+        h1 {
+          font-size: 2rem;
+        }
+        .tagline {
+          font-size: 1rem;
+        }
+        .nav-inner {
+          padding: 0.5rem 1rem;
+        }
+        .nav-links {
+          gap: 0.75rem;
+        }
+        .nav-links a {
+          font-size: 0.84rem;
+          padding: 0.35rem 0;
+        }
+        .wrap {
+          padding: 1.5rem 1rem 3rem;
+        }
+        .page-cards {
+          grid-template-columns: 1fr;
+        }
+        .hw-specs {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        .hw-model {
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .cat-filter-bar {
+          gap: 0.35rem;
+        }
+        .cat-filter-btn {
+          font-size: 0.75rem;
+          padding: 0.35rem 0.7rem;
+        }
+        .cr-title {
+          font-size: 0.92rem;
+        }
+        .cr-card {
+          padding: 1rem;
+        }
+        .cr-comment-text {
+          font-size: 0.82rem;
+        }
+        .cap-grid {
+          grid-template-columns: 1fr;
+        }
+        .example-list {
+          grid-template-columns: 1fr;
+        }
+        .cap-intro {
+          font-size: 0.92rem;
+        }
+        .cli-cmd-card {
+          padding: 1rem;
+        }
+        .cli-cmd-card h4 {
+          font-size: 0.95rem;
+        }
+        .task-explanation {
+          padding: 0.6rem 0.8rem;
+        }
+        .task-prompt code {
+          font-size: 0.72rem;
+        }
+        .model-detail {
+          padding: 1rem;
+          overflow: hidden;
+        }
+        .model-detail .table-wrap {
+          overflow-x: hidden;
+          border-radius: 8px;
+        }
+        .model-detail .benchmark-table,
+        .model-detail .benchmark-table tbody,
+        .model-detail .benchmark-table tr,
+        .model-detail .benchmark-table td {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+        }
+        .model-detail .benchmark-table thead {
+          display: none;
+        }
+        .model-detail .benchmark-table tr.task-row {
+          padding: 0.75rem 0.8rem;
+          border-bottom: 1px solid var(--border);
+        }
+        .model-detail .benchmark-table tr.task-row td {
+          padding: 0.15rem 0;
+          border-bottom: 0;
+        }
+        .model-detail .benchmark-table tr.task-row td:first-child {
+          font-weight: 600;
+          color: var(--fg);
+        }
+        .model-detail .benchmark-table tr.task-detail {
+          border-bottom: 1px solid var(--border);
+        }
+        .model-detail .benchmark-table tr.task-detail[style*="table-row"] {
+          display: block !important;
+        }
+        .model-detail .benchmark-table tr.task-detail > td {
+          padding: 0.9rem 0.8rem;
+        }
+        .conv-meta {
+          display: grid;
+          gap: 0.35rem;
+        }
+        .conv-block {
+          font-size: 0.76rem;
+          padding: 0.75rem 0.8rem;
+        }
+        .conv-judge {
+          font-size: 0.84rem;
+          padding: 0.75rem 0.8rem;
+        }
+        .benchmark-card-grid {
+          grid-template-columns: 1fr;
+        }
+        .benchmark-card-metrics {
+          grid-template-columns: 1fr;
+        }
+        .benchmark-card-head {
+          align-items: flex-start;
+        }
+        .benchmark-score {
+          font-size: 1.35rem;
+        }
+      }
+
+      /* Size class grouping */
+      .size-class-group {
+        margin-bottom: 2rem;
+      }
+      .size-class-group h3 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+        color: var(--text);
+      }
+      .hw-recommendation {
+        font-size: 0.88rem;
+        color: var(--muted);
+        margin-bottom: 0.8rem;
+        padding: 0.5rem 0.8rem;
+        background: var(--bg-elev);
+        border-radius: 8px;
+        border-left: 3px solid var(--accent);
+      }
+      .benchmark-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.9rem;
+        min-width: 0;
+      }
+      .benchmark-result-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+        min-width: 0;
+        padding: 1rem;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--bg-elev);
+        color: var(--fg);
+        text-decoration: none;
+        transition:
+          border-color 0.15s,
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .benchmark-result-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(66, 133, 244, 0.1);
+      }
+      .benchmark-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        min-width: 0;
+      }
+      .benchmark-card-head h4 {
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+      .benchmark-card-spec {
+        margin: 0 0 0.45rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+      .benchmark-card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        min-width: 0;
+      }
+      .benchmark-score {
+        flex: 0 0 auto;
+        font-size: 1.55rem;
+        line-height: 1;
+        font-weight: 800;
+        color: var(--accent);
+      }
+      .benchmark-score.win {
+        color: var(--good);
+      }
+      .benchmark-score.bad {
+        color: #d14545;
+      }
+      .benchmark-card-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+        min-width: 0;
+      }
+      .benchmark-card-metrics span {
+        min-width: 0;
+        padding: 0.55rem;
+        border-radius: 8px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+      }
+      .benchmark-card-metrics strong {
+        display: block;
+        font-size: 0.92rem;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+      }
+      .benchmark-card-metrics small {
+        display: block;
+        margin-top: 0.15rem;
+        color: var(--muted);
+        font-size: 0.72rem;
+        line-height: 1.2;
+      }
+      .benchmark-card-hw {
+        color: var(--muted);
+        font-size: 0.84rem;
+        overflow-wrap: anywhere;
+      }
+      .benchmark-card-link {
+        margin-top: auto;
+        color: var(--accent);
+        font-size: 0.88rem;
+        font-weight: 600;
+      }
+      .quant-badge {
+        font-size: 0.68rem;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: var(--bg-elev-2);
+        color: var(--muted);
+        font-weight: 500;
+        vertical-align: middle;
+        margin-left: 4px;
+      }
+      .thinking-high {
+        background: #e8f0fe;
+        color: #1a73e8;
+      }
+      .thinking-med {
+        background: #fef9e7;
+        color: #9a6700;
+      }
+      .thinking-low {
+        background: #fff3e0;
+        color: #e37400;
+      }
+      .thinking-off {
+        background: #f5f5f5;
+        color: #666;
+      }
+
+      /* Task explanations */
+      #task-explanations {
+        margin-top: 2.5rem;
+      }
+      .task-category {
+        margin-bottom: 1.5rem;
+      }
+      .task-category h4 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+      }
+      .cat-desc {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+      .task-explanation {
+        padding: 0.7rem 1rem;
+        margin-bottom: 0.5rem;
+        background: var(--bg-elev);
+        border-radius: 8px;
+      }
+      .task-header {
+        margin-bottom: 0.25rem;
+      }
+      .task-desc {
+        font-size: 0.85rem;
+        color: var(--text);
+        margin-bottom: 0.3rem;
+      }
+      .task-prompt {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .task-prompt code {
+        font-size: 0.78rem;
+        background: var(--bg-elev-2);
+        padding: 2px 6px;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+      .diff-badge {
+        font-size: 0.68rem;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-weight: 500;
+        vertical-align: middle;
+        margin-left: 4px;
+      }
+      .diff-easy {
+        background: #e6f4ea;
+        color: #1a7f37;
+      }
+      .diff-medium {
+        background: #fff3cd;
+        color: #856404;
+      }
+      .diff-hard {
+        background: #fce8e6;
+        color: #c93c37;
+      }
+
+      /* Benchmark landing page detail link */
+      .detail-link {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.88rem;
+        white-space: nowrap;
+      }
+      .detail-link:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="topnav">
+      <div class="nav-inner">
+        <a href="index.html" class="logo"
+          ><img src="assets/gemmaclaw-logo.svg" alt="" width="28" height="28" />
+          <span>Gemmaclaw</span></a
+        >
+        <div class="nav-links">
+          <a href="setup.html">Setup</a>
+          <a href="self-hosting.html">Self-Hosting</a>
+          <a href="benchmarks.html">Benchmarks</a>
+          <a href="benchmarking.html" class="active">Run Benchmarks</a>
+          <a href="community.html">Community</a>
+          <a href="goals.html">Goals</a>
+          <a href="https://github.com/gemmaclaw/gemmaclaw" target="_blank" rel="noopener">GitHub</a>
+        </div>
       </div>
-    </div>
-  </nav>
-  <div class="wrap">
-    <div class="breadcrumb"><a href="index.html">Home</a> / Run Benchmarks</div>
-    <section>
-      <h2>Running Gemmaclaw Benchmarks</h2>
-      <p>Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as AI agents with real tool use. The harness dispatches the full agent task suite, captures full conversations including tool calls, and saves structured results ready for PR submission.</p>
-      <p>Each task runs in an isolated environment with mock tools (email, calendar, tasks, contacts). Results are saved after every task, so an interrupted run can resume without losing completed tests.</p>
+    </nav>
+    <div class="wrap">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Run Benchmarks</div>
+      <section>
+        <h2>Running Gemmaclaw Benchmarks</h2>
+        <p>
+          Gemmaclaw includes a built-in E2E agentic benchmark harness that evaluates Gemma models as
+          AI agents with real tool use. The harness dispatches the full agent task suite, captures
+          full conversations including tool calls, and saves structured results ready for PR
+          submission.
+        </p>
+        <p>
+          Each task runs in an isolated environment with mock tools (email, calendar, tasks,
+          contacts). Results are saved after every task, so an interrupted run can resume without
+          losing completed tests.
+        </p>
 
-      <h3>Quick Start</h3>
-      <div class="code-block"><pre><code># 1. Set up gemmaclaw (auto-detects hardware, installs backend, pulls model)
+        <h3>Quick Start</h3>
+        <div class="code-block">
+          <pre><code># 1. Set up gemmaclaw (auto-detects hardware, installs backend, pulls model)
 gemmaclaw setup
 
 # 2. List all benchmark tasks
@@ -838,73 +1545,222 @@ pnpm benchmark agent --run-id q4-rtx3090-v1 --rerun-failed
 pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble
 
 # 7. Mock mode: test the harness without a real model (instant)
-pnpm benchmark agent --mock --run-id smoke</code></pre></div>
+pnpm benchmark agent --mock --run-id smoke</code></pre>
+        </div>
 
-      <h3>Backends</h3>
-      <p>The benchmark supports two inference backends:</p>
-      <div class="cli-cmd-card">
-        <h4>Ollama (default)</h4>
-        <p>Managed model server. Supports all Gemma 4 models including multimodal. Installed automatically by <code>gemmaclaw setup</code>.</p>
-        <div class="code-block"><pre><code>pnpm benchmark agent --model gemma4:e4b
-pnpm benchmark agent --model gemma4:31b --ollama-url http://192.168.1.50:11434</code></pre></div>
-      </div>
-      <div class="cli-cmd-card">
-        <h4>llama.cpp</h4>
-        <p>OpenAI-compatible API via llama-server. Lower overhead, useful for CPU-only systems and custom quantizations.</p>
-        <div class="code-block"><pre><code># Start llama-server (requires a GGUF model file)
+        <h3>Backends</h3>
+        <p>The benchmark supports two inference backends:</p>
+        <div class="cli-cmd-card">
+          <h4>Ollama (default)</h4>
+          <p>
+            Managed model server. Supports all Gemma 4 models including multimodal. Installed
+            automatically by <code>gemmaclaw setup</code>.
+          </p>
+          <div class="code-block">
+            <pre><code>pnpm benchmark agent --model gemma4:e4b
+pnpm benchmark agent --model gemma4:31b --ollama-url http://192.168.1.50:11434</code></pre>
+          </div>
+        </div>
+        <div class="cli-cmd-card">
+          <h4>llama.cpp</h4>
+          <p>
+            OpenAI-compatible API via llama-server. Lower overhead, useful for CPU-only systems and
+            custom quantizations.
+          </p>
+          <div class="code-block">
+            <pre><code># Start llama-server (requires a GGUF model file)
 llama-server -m /path/to/model.gguf --port 8080 --n-gpu-layers 99
 
 # Run benchmark against it
-pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http://127.0.0.1:8080</code></pre></div>
-      </div>
+pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http://127.0.0.1:8080</code></pre>
+          </div>
+        </div>
 
-      <h3>Configuration Options</h3>
-      <div class="table-wrap"><table>
-        <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
-        <tr><td><code>--model &lt;name&gt;</code></td><td>(auto from hardware)</td><td>Model to test (e.g. gemma4:e4b, gemma4:31b)</td></tr>
-        <tr><td><code>--backend &lt;type&gt;</code></td><td>ollama</td><td>Backend: ollama or llama-cpp</td></tr>
-        <tr><td><code>--quant &lt;level&gt;</code></td><td>(auto-detected)</td><td>Quantization to record (Q4_K_M, Q8_0, FP16)</td></tr>
-        <tr><td><code>--thinking &lt;level&gt;</code></td><td>default</td><td>Thinking level (off, low, medium, high)</td></tr>
-        <tr><td><code>--filter &lt;text&gt;</code></td><td>(all tasks)</td><td>Run tasks matching text (id or name)</td></tr>
-        <tr><td><code>--task &lt;id&gt;</code></td><td>(all tasks)</td><td>Run a single task by exact id</td></tr>
-        <tr><td><code>--run-id &lt;id&gt;</code></td><td>model + timestamp</td><td>Stable result directory for resume and targeted reruns</td></tr>
-        <tr><td><code>--rerun</code></td><td>off</td><td>Rerun selected tasks even if matching per-task artifacts exist</td></tr>
-        <tr><td><code>--rerun-failed</code></td><td>off</td><td>Rerun only tasks whose saved status is timeout or error</td></tr>
-        <tr><td><code>--assemble</code></td><td>off</td><td>Rebuild <code>results.json</code>, <code>RESULTS.md</code>, and evaluation stubs from saved task artifacts</td></tr>
-        <tr><td><code>--ollama-url &lt;url&gt;</code></td><td>http://127.0.0.1:11434</td><td>Ollama API URL</td></tr>
-        <tr><td><code>--llama-cpp-url &lt;url&gt;</code></td><td>http://127.0.0.1:8080</td><td>llama.cpp server URL</td></tr>
-        <tr><td><code>--task-timeout &lt;sec&gt;</code></td><td>600</td><td>Max seconds per task (0 = unlimited)</td></tr>
-        <tr><td><code>--idle-timeout &lt;sec&gt;</code></td><td>30</td><td>Idle seconds before task considered done</td></tr>
-        <tr><td><code>--context-length &lt;n&gt;</code></td><td>(model default)</td><td>Context window size</td></tr>
-        <tr><td><code>--output-dir &lt;dir&gt;</code></td><td>benchmark-results</td><td>Output directory</td></tr>
-        <tr><td><code>--mock</code></td><td>off</td><td>Mock mode: no model, instant pass</td></tr>
-      </table></div>
+        <h3>Configuration Options</h3>
+        <div class="table-wrap">
+          <table>
+            <tr>
+              <th>Flag</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+            <tr>
+              <td><code>--model &lt;name&gt;</code></td>
+              <td>(auto from hardware)</td>
+              <td>Model to test (e.g. gemma4:e4b, gemma4:31b)</td>
+            </tr>
+            <tr>
+              <td><code>--backend &lt;type&gt;</code></td>
+              <td>ollama</td>
+              <td>Backend: ollama or llama-cpp</td>
+            </tr>
+            <tr>
+              <td><code>--quant &lt;level&gt;</code></td>
+              <td>(auto-detected)</td>
+              <td>Quantization to record (Q4_K_M, Q8_0, FP16)</td>
+            </tr>
+            <tr>
+              <td><code>--thinking &lt;level&gt;</code></td>
+              <td>default</td>
+              <td>Thinking level (off, low, medium, high)</td>
+            </tr>
+            <tr>
+              <td><code>--filter &lt;text&gt;</code></td>
+              <td>(all tasks)</td>
+              <td>Run tasks matching text (id or name)</td>
+            </tr>
+            <tr>
+              <td><code>--task &lt;id&gt;</code></td>
+              <td>(all tasks)</td>
+              <td>Run a single task by exact id</td>
+            </tr>
+            <tr>
+              <td><code>--run-id &lt;id&gt;</code></td>
+              <td>model + timestamp</td>
+              <td>Stable result directory for resume and targeted reruns</td>
+            </tr>
+            <tr>
+              <td><code>--rerun</code></td>
+              <td>off</td>
+              <td>Rerun selected tasks even if matching per-task artifacts exist</td>
+            </tr>
+            <tr>
+              <td><code>--rerun-failed</code></td>
+              <td>off</td>
+              <td>Rerun only tasks whose saved status is timeout or error</td>
+            </tr>
+            <tr>
+              <td><code>--assemble</code></td>
+              <td>off</td>
+              <td>
+                Rebuild <code>results.json</code>, <code>RESULTS.md</code>, and evaluation stubs
+                from saved task artifacts
+              </td>
+            </tr>
+            <tr>
+              <td><code>--ollama-url &lt;url&gt;</code></td>
+              <td>http://127.0.0.1:11434</td>
+              <td>Ollama API URL</td>
+            </tr>
+            <tr>
+              <td><code>--llama-cpp-url &lt;url&gt;</code></td>
+              <td>http://127.0.0.1:8080</td>
+              <td>llama.cpp server URL</td>
+            </tr>
+            <tr>
+              <td><code>--task-timeout &lt;sec&gt;</code></td>
+              <td>600</td>
+              <td>Max seconds per task (0 = unlimited)</td>
+            </tr>
+            <tr>
+              <td><code>--idle-timeout &lt;sec&gt;</code></td>
+              <td>30</td>
+              <td>Idle seconds before task considered done</td>
+            </tr>
+            <tr>
+              <td><code>--context-length &lt;n&gt;</code></td>
+              <td>(model default)</td>
+              <td>Context window size</td>
+            </tr>
+            <tr>
+              <td><code>--output-dir &lt;dir&gt;</code></td>
+              <td>benchmark-results</td>
+              <td>Output directory</td>
+            </tr>
+            <tr>
+              <td><code>--mock</code></td>
+              <td>off</td>
+              <td>Mock mode: no model, instant pass</td>
+            </tr>
+          </table>
+        </div>
 
-      <h3>The Agent Task Suite</h3>
-      <p>Tasks evaluate Gemma models as AI agents. Each task sends a natural language request, the agent decides which tools to call, interprets results, and takes follow-up actions. The full conversation is captured for review.</p>
+        <h3>The Agent Task Suite</h3>
+        <p>
+          Tasks evaluate Gemma models as AI agents. Each task sends a natural language request, the
+          agent decides which tools to call, interprets results, and takes follow-up actions. The
+          full conversation is captured for review.
+        </p>
 
-      <div class="table-wrap"><table>
-        <tr><th>Difficulty</th><th>What It Covers</th><th>Representative Categories</th></tr>
-        <tr><td>Easy</td><td>Local smoke tests and basic tool intent</td><td>Structured output, tool intent</td></tr>
-        <tr><td>Medium</td><td>Single-workflow office tasks with concrete side effects</td><td>Email, calendar, task management, memory</td></tr>
-        <tr><td>Hard</td><td>Multi-step scheduling, coordination, and reconciliation</td><td>Email triage, meeting scheduling, client logistics, event coordination</td></tr>
-        <tr><td>Very Hard</td><td>Security, recovery, prompt-injection resistance, benchmark operations, durable guidance updates, and cross-source reconciliation</td><td>Security, error recovery, data analysis, coordination, ambiguous requests, OpenClaw operations</td></tr>
-      </table></div>
+        <div class="table-wrap">
+          <table>
+            <tr>
+              <th>Difficulty</th>
+              <th>What It Covers</th>
+              <th>Representative Categories</th>
+            </tr>
+            <tr>
+              <td>Easy</td>
+              <td>Local smoke tests and basic tool intent</td>
+              <td>Structured output, tool intent</td>
+            </tr>
+            <tr>
+              <td>Medium</td>
+              <td>Single-workflow office tasks with concrete side effects</td>
+              <td>Email, calendar, task management, memory</td>
+            </tr>
+            <tr>
+              <td>Hard</td>
+              <td>Multi-step scheduling, coordination, and reconciliation</td>
+              <td>Email triage, meeting scheduling, client logistics, event coordination</td>
+            </tr>
+            <tr>
+              <td>Very Hard</td>
+              <td>
+                Security, recovery, prompt-injection resistance, benchmark operations, durable
+                guidance updates, and cross-source reconciliation
+              </td>
+              <td>
+                Security, error recovery, data analysis, coordination, ambiguous requests, OpenClaw
+                operations
+              </td>
+            </tr>
+          </table>
+        </div>
 
-      <h3>How It Works</h3>
-      <ol class="setup-steps">
-        <li><strong>Hardware detection:</strong> The harness uses the same model catalog as <code>gemmaclaw setup</code> to auto-select the best model for your hardware. Override with <code>--model</code> if desired.</li>
-        <li><strong>Seed mock tools:</strong> Before each task, a realistic workspace is created with emails, calendar events, contacts, and tasks. Professional/workplace themed.</li>
-        <li><strong>Isolated environment:</strong> Each task runs in a fresh gemmaclaw home directory. No state leaks between tasks.</li>
-        <li><strong>Dispatch task:</strong> The task prompt is sent via <code>gemmaclaw agent --local</code>. The agent reads emails, checks calendars, creates tasks, sends emails using mock tools.</li>
-        <li><strong>Capture conversation:</strong> The full agent loop is recorded: every tool call, tool result, thinking block, and follow-up action.</li>
-        <li><strong>Save per-task results:</strong> After each task, the harness writes <code>tasks/&lt;task-id&gt;/result.json</code>, a transcript, and copied session/trajectory logs when available.</li>
-        <li><strong>Resume or rerun:</strong> A later command with the same <code>--run-id</code> reuses matching task artifacts. Add <code>--rerun</code> for a selected task or <code>--rerun-failed</code> for only failures.</li>
-        <li><strong>Evaluation (separate step):</strong> Results are reviewed against grading criteria. Scores are added to the evaluation files and published to the site.</li>
-      </ol>
+        <h3>How It Works</h3>
+        <ol class="setup-steps">
+          <li>
+            <strong>Hardware detection:</strong> The harness uses the same model catalog as
+            <code>gemmaclaw setup</code> to auto-select the best model for your hardware. Override
+            with <code>--model</code> if desired.
+          </li>
+          <li>
+            <strong>Seed mock tools:</strong> Before each task, a realistic workspace is created
+            with emails, calendar events, contacts, and tasks. Professional/workplace themed.
+          </li>
+          <li>
+            <strong>Isolated environment:</strong> Each task runs in a fresh gemmaclaw home
+            directory. No state leaks between tasks.
+          </li>
+          <li>
+            <strong>Dispatch task:</strong> The task prompt is sent via
+            <code>gemmaclaw agent --local</code>. The agent reads emails, checks calendars, creates
+            tasks, sends emails using mock tools.
+          </li>
+          <li>
+            <strong>Capture conversation:</strong> The full agent loop is recorded: every tool call,
+            tool result, thinking block, and follow-up action.
+          </li>
+          <li>
+            <strong>Save per-task results:</strong> After each task, the harness writes
+            <code>tasks/&lt;task-id&gt;/result.json</code>, a transcript, and copied
+            session/trajectory logs when available.
+          </li>
+          <li>
+            <strong>Resume or rerun:</strong> A later command with the same
+            <code>--run-id</code> reuses matching task artifacts. Add <code>--rerun</code> for a
+            selected task or <code>--rerun-failed</code> for only failures.
+          </li>
+          <li>
+            <strong>Evaluation (separate step):</strong> Results are reviewed against grading
+            criteria. Scores are added to the evaluation files and published to the site.
+          </li>
+        </ol>
 
-      <h3>Results Directory</h3>
-      <div class="code-block"><pre><code>benchmark-results/
+        <h3>Results Directory</h3>
+        <div class="code-block">
+          <pre><code>benchmark-results/
   runs/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
     manifest.json        # Run id, task list, config hash, metadata
     metadata.json        # Hardware, model, quant, config, git SHA
@@ -918,11 +1774,20 @@ pnpm benchmark agent --model gemma3:1b --backend llama-cpp --llama-cpp-url http:
     transcripts/         # Human-readable per-task transcripts
     RESULTS.md           # Markdown summary
   evaluations/&lt;model&gt;__&lt;quant&gt;__&lt;timestamp&gt;/
-    &lt;task-id&gt;.json       # Grading criteria + evaluation scores</code></pre></div>
+    &lt;task-id&gt;.json       # Grading criteria + evaluation scores</code></pre>
+        </div>
 
-      <h3>Crash Recovery and Targeted Reruns</h3>
-      <p>The harness treats each task as an independent artifact. If a process dies halfway through a suite run, keep the same <code>--run-id</code> and run the command again. Completed task artifacts with the same config hash are skipped, while missing tasks continue. If a task has a harness error or suspicious transcript, rerun just that task with <code>--task &lt;id&gt; --rerun</code>. If several tasks failed, use <code>--rerun-failed</code>.</p>
-      <div class="code-block"><pre><code># First full Q4 run
+        <h3>Crash Recovery and Targeted Reruns</h3>
+        <p>
+          The harness treats each task as an independent artifact. If a process dies halfway through
+          a suite run, keep the same <code>--run-id</code> and run the command again. Completed task
+          artifacts with the same config hash are skipped, while missing tasks continue. If a task
+          has a harness error or suspicious transcript, rerun just that task with
+          <code>--task &lt;id&gt; --rerun</code>. If several tasks failed, use
+          <code>--rerun-failed</code>.
+        </p>
+        <div class="code-block">
+          <pre><code># First full Q4 run
 pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1
 
 # Resume after crash
@@ -932,45 +1797,66 @@ pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id 
 pnpm benchmark agent --model gemma4:31b --quant Q4_K_M --thinking high --run-id q4-rtx3090-v1 --task calendar_create --rerun
 
 # Rebuild aggregate outputs
-pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble</code></pre></div>
+pnpm benchmark agent --run-id q4-rtx3090-v1 --assemble</code></pre>
+        </div>
 
-      <h3>Publishing Requirements</h3>
-      <p>Publish only post-template results that have been inspected and evaluated. The benchmark page supports a model-level view, clickable task rows, and a full transcript viewer. Tool calls, tool results, and thinking blocks are shown inline with the conversation and collapsed by default so readers can inspect the evidence without losing the dialogue flow.</p>
+        <h3>Publishing Requirements</h3>
+        <p>
+          Publish only post-template results that have been inspected and evaluated. The benchmark
+          page supports a model-level view, clickable task rows, and a full transcript viewer. Tool
+          calls, tool results, and thinking blocks are shown inline with the conversation and
+          collapsed by default so readers can inspect the evidence without losing the dialogue flow.
+        </p>
 
-      <h3>Metadata Captured</h3>
-      <ul class="setup-list">
-        <li><strong>Hardware:</strong> GPU name, VRAM, CPU model, core count, total RAM</li>
-        <li><strong>Model:</strong> Name, parameter count, quantization level, format (from Ollama API)</li>
-        <li><strong>Config:</strong> Backend type, thinking level, context length, URLs</li>
-        <li><strong>Environment:</strong> Git SHA, Node.js version, OS/platform, timestamps</li>
-      </ul>
+        <h3>Metadata Captured</h3>
+        <ul class="setup-list">
+          <li><strong>Hardware:</strong> GPU name, VRAM, CPU model, core count, total RAM</li>
+          <li>
+            <strong>Model:</strong> Name, parameter count, quantization level, format (from Ollama
+            API)
+          </li>
+          <li><strong>Config:</strong> Backend type, thinking level, context length, URLs</li>
+          <li><strong>Environment:</strong> Git SHA, Node.js version, OS/platform, timestamps</li>
+        </ul>
 
-      <h3>Submitting Results</h3>
-      <ol class="setup-steps">
-        <li><strong>Run the benchmark</strong> on your hardware</li>
-        <li><strong>Check the results</strong> in <code>benchmark-results/runs/</code></li>
-        <li><strong>Open a PR</strong> adding your results directory to the gemmaclaw repo</li>
-        <li>Results will be reviewed, evaluated, and published to the site</li>
-      </ol>
+        <h3>Submitting Results</h3>
+        <ol class="setup-steps">
+          <li><strong>Run the benchmark</strong> on your hardware</li>
+          <li><strong>Check the results</strong> in <code>benchmark-results/runs/</code></li>
+          <li><strong>Open a PR</strong> adding your results directory to the gemmaclaw repo</li>
+          <li>Results will be reviewed, evaluated, and published to the site</li>
+        </ol>
 
-      <h3>Smoke Test</h3>
-      <p>After making changes to the benchmark harness, run the smoke test to verify everything works:</p>
-      <div class="code-block"><pre><code># Mock only (instant, no model needed)
+        <h3>Smoke Test</h3>
+        <p>
+          After making changes to the benchmark harness, run the smoke test to verify everything
+          works:
+        </p>
+        <div class="code-block">
+          <pre><code># Mock only (instant, no model needed)
 bash scripts/benchmark/smoke-test.sh
 
 # Full test: mock + Ollama + llama.cpp
-bash scripts/benchmark/smoke-test.sh --real</code></pre></div>
+bash scripts/benchmark/smoke-test.sh --real</code></pre>
+        </div>
 
-      <h3>Prompt-Response Mode (Legacy)</h3>
-      <p>The original prompt-response benchmark is still available. It sends isolated prompts to the backend and checks text output (no agent loop, no tool calling).</p>
-      <div class="code-block"><pre><code>pnpm benchmark --local --model gemma4:31b
-pnpm benchmark --mock</code></pre></div>
-    </section>
-  </div>
-  <footer>
-    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
-    <p class="footer-sub">Not an official Google product.</p>
-  </footer>
-  
-</body>
+        <h3>Prompt-Response Mode (Legacy)</h3>
+        <p>
+          The original prompt-response benchmark is still available. It sends isolated prompts to
+          the backend and checks text output (no agent loop, no tool calling).
+        </p>
+        <div class="code-block">
+          <pre><code>pnpm benchmark --local --model gemma4:31b
+pnpm benchmark --mock</code></pre>
+        </div>
+      </section>
+    </div>
+    <footer>
+      <p>
+        Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>.
+        Volunteer-driven, Gemma-first.
+      </p>
+      <p class="footer-sub">Not an official Google product.</p>
+    </footer>
+  </body>
 </html>

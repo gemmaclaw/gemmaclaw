@@ -118,7 +118,7 @@ export async function testVertexConnection(
   region: string,
   accessToken: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models`;
+  const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/models`;
   try {
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -151,11 +151,17 @@ export function buildVertexConfig(vertex: VertexConfig): Record<string, unknown>
 
   const api = isNative ? "google-generative-ai" : "openai-completions";
 
+  let modelId = vertex.model;
+  if (!isNative && !modelId.startsWith("projects/") && !modelId.includes("/")) {
+    modelId = `publishers/google/models/${vertex.model}`;
+  }
+
   const providerConfig: Record<string, unknown> = {
     baseUrl,
+    api,
     models: [
       {
-        id: vertex.model,
+        id: modelId,
         name: vertex.model,
         api,
       },
@@ -170,7 +176,7 @@ export function buildVertexConfig(vertex: VertexConfig): Record<string, unknown>
     agents: {
       defaults: {
         model: {
-          primary: `google-vertex/${vertex.model}`,
+          primary: `google-vertex/${modelId}`,
         },
       },
     },

@@ -1,6 +1,12 @@
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
-import { streamAnthropic, type AnthropicOptions, type Model } from "@mariozechner/pi-ai";
+import {
+  streamAnthropic,
+  getEnvApiKey,
+  type AnthropicOptions,
+  type Model,
+} from "@mariozechner/pi-ai";
+import { parseGeminiAuth } from "../infra/gemini-auth.js";
 import {
   resolveAnthropicVertexClientRegion,
   resolveAnthropicVertexProjectId,
@@ -120,6 +126,11 @@ export function createAnthropicVertexStreamFn(
       baseUrl?: string;
       provider: string;
     };
+
+    const apiKey = options?.apiKey || getEnvApiKey(transportModel.provider) || "";
+    const auth = parseGeminiAuth(apiKey);
+    const authHeaders = auth.headers;
+
     const maxTokens = resolveAnthropicVertexMaxTokens({
       modelMaxTokens: transportModel.maxTokens,
       requestedMaxTokens: options?.maxTokens,
@@ -131,7 +142,7 @@ export function createAnthropicVertexStreamFn(
       signal: options?.signal,
       cacheRetention: options?.cacheRetention,
       sessionId: options?.sessionId,
-      headers: options?.headers,
+      headers: { ...options?.headers, ...authHeaders },
       onPayload: createAnthropicVertexOnPayload({
         model: transportModel,
         cacheRetention: options?.cacheRetention,
