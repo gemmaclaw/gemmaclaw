@@ -207,6 +207,7 @@ def normalize_agentic_benchmark_result(data, run_id):
     quant = (
         metadata.get("quant")
         or config.get("quant")
+        or (metadata.get("ollamaModelInfo") or {}).get("quantizationLevel")
         or infer_quant_label(" ".join([
             str(metadata.get("model") or ""),
             str(config.get("model") or ""),
@@ -215,11 +216,20 @@ def normalize_agentic_benchmark_result(data, run_id):
         or ""
     )
 
+    model_name = metadata.get("model") or config.get("model") or "unknown"
+    parameter_size = (
+        (metadata.get("ollamaModelInfo") or {}).get("parameterSize")
+        or metadata.get("parameterSize")
+        or infer_parameter_label(" ".join([model_name, run_id]))
+        or ""
+    )
+
     return {
-        "model": metadata.get("model") or config.get("model") or "unknown",
+        "model": model_name,
         "backend": config.get("backend", "ollama"),
         "timestamp": metadata.get("startedAt", ""),
         "quant": quant,
+        "parameterSize": parameter_size,
         "thinkingLevel": metadata.get("thinkingLevel") or config.get("thinkingLevel") or "",
         "runId": run_id,
         "hardware": {
@@ -397,9 +407,9 @@ def format_speed(tok_s, source=""):
         return "N/A"
     suffix = ""
     if source == "effective-output":
-        suffix = " effective"
+        suffix = " output-est"
     elif source in {"estimated-output", "mixed"}:
-        suffix = " est"
+        suffix = " output-est"
     return f"{tok_s:.1f} tok/s{suffix}"
 
 
@@ -426,7 +436,29 @@ def infer_quant_label(text):
     return ""
 
 
+def infer_parameter_label(model_name):
+    name_lower = model_name.lower().replace(":", "-").replace("__", "-")
+    if "functiongemma" in name_lower or re.search(r"(^|[-_])270m($|[-_])", name_lower):
+        return "270M"
+    if "31b" in name_lower:
+        return "31B"
+    if "26b" in name_lower:
+        return "26B"
+    if "27b" in name_lower:
+        return "27B"
+    if re.search(r"(^|[-_])e4b($|[-_])", name_lower):
+        return "4B effective"
+    if re.search(r"(^|[-_])4b($|[-_])", name_lower):
+        return "4B"
+    return ""
+
+
 SIZE_CLASSES = {
+    "Tiny (270M Function)": {
+        "models": ["functiongemma-270m", "functiongemma:270m"],
+        "hw_rec": "Runs on CPU or tiny GPU budgets. Specialized for native function-calling format rather than general chat tasks.",
+        "icon": "&#128295;",
+    },
     "Small (4B)": {
         "models": ["gemma3:4b", "gemma4-e4b", "gemma4:e4b"],
         "hw_rec": "Runs on 8GB RAM laptops or any machine with 4GB+ VRAM. Fast inference, good for quick tasks.",
@@ -447,6 +479,8 @@ SIZE_CLASSES = {
 
 def classify_model_size(model_name):
     name_lower = model_name.lower().replace(":", "-").replace("__", "-")
+    if "functiongemma" in name_lower or "270m" in name_lower:
+        return "Tiny (270M Function)"
     if "26b" in name_lower or "27b" in name_lower or "moe" in name_lower:
         return "Medium (26B MoE)"
     if "31b" in name_lower or "dense" in name_lower:
@@ -462,6 +496,8 @@ def classify_model_size(model_name):
 
 def model_architecture(model_name):
     name_lower = model_name.lower()
+    if "functiongemma" in name_lower or "270m" in name_lower:
+        return "Function-calling"
     if "moe" in name_lower or "26b" in name_lower or "27b" in name_lower:
         return "MoE"
     if "dense" in name_lower or "31b" in name_lower or "4b" in name_lower:
@@ -806,6 +842,7 @@ def detail_page_template(title, body_content, extra_scripts=""):
     """Page template for benchmark detail pages located under site/benchmark-results/.
     All nav and asset hrefs are prefixed with ../ to resolve correctly from the subdirectory."""
     page_title = f"Gemmaclaw - {title}" if title else "Gemmaclaw"
+    body_content = inject_page_toc(body_content)
     nav_links = []
     for label, href, is_external in NAV_ITEMS:
         active_class = ' class="active"' if href == "benchmarks.html" and "Benchmark" in label else ""
@@ -853,12 +890,14 @@ def detail_page_template(title, body_content, extra_scripts=""):
       padding: 1.5rem 0 1rem;
       border-bottom: 1px solid var(--border);
       margin-bottom: 1.5rem;
+      overflow-wrap: anywhere;
     }}
     .detail-hero h1 {{
       font-size: 1.6rem;
       font-weight: 700;
       margin: 0 0 0.5rem;
       line-height: 1.3;
+      overflow-wrap: anywhere;
     }}
     .detail-tags {{
       display: flex;
@@ -898,7 +937,7 @@ def detail_page_template(title, body_content, extra_scripts=""):
     }}
     .meta-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
       gap: 0.5rem 1.5rem;
       font-size: 0.88rem;
       margin: 1rem 0;
@@ -908,7 +947,10 @@ def detail_page_template(title, body_content, extra_scripts=""):
     @media (max-width: 640px) {{
       .detail-hero h1 {{ font-size: 1.25rem; }}
       .score-big {{ font-size: 1.8rem; }}
-      .meta-grid {{ grid-template-columns: 1fr 1fr; }}
+      .score-hero {{ display: grid; gap: 0.25rem; }}
+      .meta-grid {{ grid-template-columns: 1fr; gap: 0.45rem; }}
+      .detail-tags {{ gap: 0.3rem; }}
+      .tag {{ font-size: 0.7rem; }}
     }}
   </style>
 </head>
@@ -933,7 +975,7 @@ def detail_page_template(title, body_content, extra_scripts=""):
     {body_content}
   </div>
   <footer>
-    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
+    <p>Built on <a href="https://github.com/gemmaclaw/gemmaclaw" class="inline">Gemmaclaw</a>. Volunteer-driven, Gemma-first.</p>
     <p class="footer-sub">Not an official Google product.</p>
   </footer>
   {script_tag}
@@ -959,6 +1001,7 @@ def generate_benchmark_detail_page(result):
     model_display = result["model"]
     backend = result["backend"]
     quant = result.get("quant", "")
+    parameter_size = result.get("parameterSize") or infer_parameter_label(model_display)
     thinking = result.get("thinkingLevel", "")
     ts = result.get("timestamp", "")
     run_date = ts[:10] if ts else ""
@@ -969,10 +1012,11 @@ def generate_benchmark_detail_page(result):
 
     tags_html = ""
     tag_list = [size_class]
+    if parameter_size:
+        tag_list.append(parameter_size)
     if arch_tag:
         tag_list.append(arch_tag)
-    if quant:
-        tag_list.append(quant)
+    tag_list.append(quant or "Quant: not reported")
     if thinking:
         tag_list.append(f"Thinking: {thinking}")
     if run_date:
@@ -1031,8 +1075,9 @@ def generate_benchmark_detail_page(result):
   </div>
   <div class="meta-grid">
     <span><strong>Model class:</strong> {html_escape(size_class)}</span>
+    <span><strong>Parameters:</strong> {html_escape(parameter_size or 'not reported')}</span>
     <span><strong>Architecture:</strong> {html_escape(arch_tag)}</span>
-    <span><strong>Quantization:</strong> {html_escape(quant or 'unquantized / not reported')}</span>
+    <span><strong>Quantization:</strong> {html_escape(quant or 'not reported')}</span>
     <span><strong>Thinking:</strong> {html_escape(thinking or 'not reported')}</span>
     <span><strong>Backend:</strong> {html_escape(backend)}</span>
     <span><strong>GPU:</strong> {html_escape(gpu)}</span>
@@ -1077,6 +1122,8 @@ def generate_hardware_guide_cards(results):
             }
         configs[key]["models"].append({
             "model": r["model"],
+            "parameterSize": r.get("parameterSize") or infer_parameter_label(r["model"]),
+            "quant": r.get("quant") or infer_quant_label(r["model"]) or "not reported",
             "backend": r["backend"],
             "score": s["percentage"],
             "speed": s.get("medianTokensPerSecond", 0),
@@ -1092,13 +1139,15 @@ def generate_hardware_guide_cards(results):
             star = " recommended" if m == best else ""
             model_rows += f"""<div class="hw-model{star}">
   <span class="hw-model-name">{m['model']}</span>
-  <span class="hw-model-backend">{m['backend']}</span>
-  <span class="hw-model-score">{m['score']}%</span>
-  <span class="hw-model-speed">{format_speed(m['speed'], m.get('speed_source', ''))}</span>
+  <span class="hw-model-pill"><small>Params</small>{m['parameterSize']}</span>
+  <span class="hw-model-pill"><small>Quant</small>{m['quant']}</span>
+  <span class="hw-model-pill"><small>Backend</small>{m['backend']}</span>
+  <span class="hw-model-score"><small>Score</small>{m['score']}%</span>
+  <span class="hw-model-speed"><small>Speed</small>{format_speed(m['speed'], m.get('speed_source', ''))}</span>
 </div>\n"""
 
         gpu_display = cfg["gpu"] if cfg["gpu"] != "None detected" else "CPU only"
-        search_text = f"{cfg['cpu']} {cfg['ram']} {gpu_display} {' '.join(m['model'] for m in cfg['models'])}".lower()
+        search_text = f"{cfg['cpu']} {cfg['ram']} {gpu_display} {' '.join((m['model'] + ' ' + m['parameterSize'] + ' ' + m['quant']) for m in cfg['models'])}".lower()
         cards.append(f"""<div class="hw-card" data-search="{search_text}">
   <div class="hw-card-header">
     <div class="hw-specs">
@@ -1586,8 +1635,93 @@ NAV_ITEMS = [
 ]
 
 
+def strip_html_tags(text):
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+def slugify_heading(text):
+    base = strip_html_tags(text).lower()
+    base = re.sub(r"[^a-z0-9]+", "-", base).strip("-")
+    return base or "section"
+
+
+def ensure_section_ids(body_content):
+    used = set(re.findall(r'\sid="([^"]+)"', body_content))
+
+    def repl(match):
+        attrs = match.group(1)
+        h2_attrs = match.group(2)
+        label = match.group(3)
+        if re.search(r'\sid="[^"]+"', attrs):
+            return match.group(0)
+        base = slugify_heading(label)
+        anchor = base
+        index = 2
+        while anchor in used:
+            anchor = f"{base}-{index}"
+            index += 1
+        used.add(anchor)
+        return f'<section{attrs} id="{anchor}"><h2{h2_attrs}>{label}</h2>'
+
+    return re.sub(
+        r'<section([^>]*)>\s*<h2([^>]*)>(.*?)</h2>',
+        repl,
+        body_content,
+        flags=re.S,
+    )
+
+
+def build_page_toc(body_content):
+    """Build an auto-updating table of contents from real page sections."""
+    matches = list(re.finditer(
+        r'<section\s+[^>]*id="([^"]+)"[^>]*>\s*<h2[^>]*>(.*?)</h2>|<h3\s+[^>]*id="([^"]+)"[^>]*>(.*?)</h3>',
+        body_content,
+        flags=re.S,
+    ))
+    items = []
+    seen = set()
+    for match in matches:
+        anchor = match.group(1) or match.group(3)
+        raw_label = match.group(2) or match.group(4)
+        if anchor in seen:
+            continue
+        seen.add(anchor)
+        label = strip_html_tags(raw_label)
+        if not label:
+            label = anchor.replace("-", " ").title()
+        items.append((anchor, label))
+    if not items:
+        return ""
+    links = "\n".join(
+        f'<a href="#{html_escape(anchor)}">{html_escape(label)}</a>'
+        for anchor, label in items
+    )
+    return f"""<nav class="page-toc" aria-label="Table of contents">
+  <span>On this page</span>
+  <div>{links}</div>
+</nav>"""
+
+
+def inject_page_toc(body_content):
+    body_content = ensure_section_ids(body_content)
+    toc = build_page_toc(body_content)
+    if not toc:
+        return body_content
+    breadcrumb_pattern = r'(<div class="breadcrumb"[^>]*>.*?</div>)'
+    if re.search(breadcrumb_pattern, body_content, flags=re.S):
+        return re.sub(
+            breadcrumb_pattern,
+            lambda match: f"{match.group(1)}\n{toc}",
+            body_content,
+            count=1,
+            flags=re.S,
+        )
+    return f"{toc}\n{body_content}"
+
+
 def page_template(title, body_content, active_page="", extra_scripts=""):
     page_title = f"Gemmaclaw - {title}" if title else "Gemmaclaw"
+    body_content = inject_page_toc(body_content)
     nav_links = []
     for label, href, is_external in NAV_ITEMS:
         active_class = ' class="active"' if href == active_page else ""
@@ -1633,7 +1767,7 @@ def page_template(title, body_content, active_page="", extra_scripts=""):
     {body_content}
   </div>
   <footer>
-    <p>Built on <a href="https://github.com/openclaw/openclaw" class="inline">OpenClaw</a>. Volunteer-driven, Gemma-first.</p>
+    <p>Built on <a href="https://github.com/gemmaclaw/gemmaclaw" class="inline">Gemmaclaw</a>. Volunteer-driven, Gemma-first.</p>
     <p class="footer-sub">Not an official Google product.</p>
   </footer>
   {script_tag}
@@ -1701,13 +1835,16 @@ def generate_index_page():
         <a href="https://github.com/gemmaclaw/gemmaclaw" class="btn-secondary">GitHub</a>
       </div>
     </div>
-    <div class="page-cards">
+    <section id="site-sections" class="home-page-directory">
+      <h2>Explore Gemmaclaw</h2>
+      <div class="page-cards">
       <a href="setup.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["setup"]}</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
       <a href="self-hosting.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["self-hosting"]}</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
       <a href="benchmarks.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["benchmarks"]}</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
       <a href="community.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["community"]}</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
       <a href="goals.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["goals"]}</div><h3>Goals &amp; Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
-    </div>"""
+      </div>
+    </section>"""
     return page_template("", body)
 
 
@@ -2390,6 +2527,7 @@ def generate_benchmarks_landing_rows(results):
             pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
             speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
             quant = r.get("quant", "")
+            parameter_size = r.get("parameterSize") or infer_parameter_label(r["model"])
             thinking = r.get("thinkingLevel", "")
             run_id = r.get("runId") or r.get("_dir", "")
             detail_url = f"benchmark-results/{run_id}.html" if run_id else "#"
@@ -2402,8 +2540,9 @@ def generate_benchmarks_landing_rows(results):
             ) if thinking else ""
             spec_bits = [
                 f"Size: {size_class}",
+                f"Params: {parameter_size or 'not reported'}",
                 f"Arch: {arch}",
-                f"Quant: {quant or 'unquantized / not reported'}",
+                f"Quant: {quant or 'not reported'}",
                 f"Thinking: {thinking or 'not reported'}",
                 f"Backend: {r['backend']}",
             ]
@@ -3499,14 +3638,15 @@ CSS = """
       --warn: #9a6700;
       --bad: #cf222e;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
+    * { margin: 0; padding: 0; box-sizing: border-box; min-width: 0; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--fg);
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
     /* Nav */
@@ -3543,7 +3683,7 @@ CSS = """
     .nav-links a:hover { color: var(--fg); }
     .nav-links a.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-    .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .wrap { width: min(100%, 960px); max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; overflow-wrap: anywhere; }
 
     /* Hero */
     .hero { text-align: center; padding: 3rem 0 3rem; }
@@ -3579,7 +3719,7 @@ CSS = """
     }
     .cap-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
       gap: 1rem;
     }
     .cap-card {
@@ -3614,7 +3754,7 @@ CSS = """
     }
     .example-list {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
       gap: 0.75rem;
     }
     .example-item {
@@ -3637,7 +3777,8 @@ CSS = """
     }
 
     /* Sections */
-    section { margin-top: 1rem; scroll-margin-top: 4rem; }
+    section { margin-top: 1rem; scroll-margin-top: 4rem; max-width: 100%; }
+    section, article, aside, details, summary, div, p, li, td, th, pre, code { max-width: 100%; }
     h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
     h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: var(--fg-soft); }
     p { color: var(--fg-soft); margin-bottom: 1rem; }
@@ -3747,21 +3888,22 @@ CSS = """
     .code-block {
       background: var(--bg-elev); border: 1px solid var(--border);
       border-radius: 10px; padding: 1.25rem; margin: 1rem 0;
-      overflow-x: auto;
+      overflow-x: auto; max-width: 100%;
     }
-    .code-block pre { margin: 0; }
+    .code-block pre { margin: 0; max-width: 100%; }
     .code-block code {
       font-family: 'SF Mono', Menlo, Consolas, monospace;
       font-size: 0.88rem; color: var(--fg-soft); line-height: 1.7;
+      white-space: pre-wrap; overflow-wrap: anywhere;
     }
 
     /* Tables */
     .table-wrap {
       overflow-x: auto; border-radius: 10px;
-      border: 1px solid var(--border); margin: 1rem 0;
+      border: 1px solid var(--border); margin: 1rem 0; max-width: 100%;
     }
     table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
-    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
     th {
       background: var(--bg-elev); font-weight: 600; color: var(--fg);
       font-size: 0.85rem; letter-spacing: 0.02em; white-space: nowrap;
@@ -3791,7 +3933,7 @@ CSS = """
     }
     .suite-stat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
       gap: 0.75rem;
       margin: 1.25rem 0;
     }
@@ -3818,7 +3960,7 @@ CSS = """
     }
     .suite-quality-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
       gap: 0.75rem;
       margin: 0 0 1.25rem;
     }
@@ -3856,7 +3998,7 @@ CSS = """
     }
     .suite-category-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
       gap: 0.75rem;
     }
     .suite-category-card {
@@ -3979,7 +4121,7 @@ CSS = """
     }
     .template-full-setup dl {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
       gap: 0.6rem;
       margin: 0;
       padding: 0 0.8rem 0.8rem;
@@ -4015,7 +4157,7 @@ CSS = """
     }
     .variation-list {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
       gap: 0.4rem;
       padding: 0 1rem 1rem;
     }
@@ -4071,7 +4213,7 @@ CSS = """
     }
     .variation-detail dl {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
       gap: 0.7rem 1rem;
       margin: 0;
     }
@@ -4133,10 +4275,20 @@ CSS = """
       border: 1px solid rgba(63, 185, 80, 0.3);
       background: rgba(63, 185, 80, 0.05);
     }
-    .hw-model-name { font-weight: 600; color: var(--fg); min-width: 140px; }
-    .hw-model-backend { color: var(--muted); min-width: 80px; }
-    .hw-model-score { color: var(--good); font-weight: 500; min-width: 50px; }
-    .hw-model-speed { color: var(--fg-soft); }
+    .hw-model-name { font-weight: 600; color: var(--fg); min-width: 140px; overflow-wrap: anywhere; }
+    .hw-model-backend,
+    .hw-model-pill { color: var(--muted); min-width: 80px; overflow-wrap: anywhere; }
+    .hw-model-score { color: var(--good); font-weight: 600; min-width: 50px; }
+    .hw-model-speed { color: var(--fg-soft); min-width: 110px; overflow-wrap: anywhere; }
+    .hw-model small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.65rem;
+      line-height: 1.1;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
 
     /* Category badges */
     .cat-badge {
@@ -4375,7 +4527,7 @@ CSS = """
     .breadcrumb { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; }
     .breadcrumb a { color: var(--accent); text-decoration: none; }
     .breadcrumb a:hover { text-decoration: underline; }
-    .page-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
+    .page-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 1rem; margin-top: 2rem; }
     .page-card { display: block; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--fg); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
     .page-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(66,133,244,0.1); }
     .page-card-icon { font-size: 1.75rem; margin-bottom: 0.75rem; color: var(--accent); line-height: 1; }
@@ -4383,6 +4535,94 @@ CSS = """
     .page-card h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--fg); }
     .page-card p { font-size: 0.9rem; color: var(--fg-soft); margin: 0; line-height: 1.5; }
     .field-notes-section { margin-bottom: 2rem; }
+    .page-toc {
+      position: sticky;
+      top: 60px;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.6rem;
+      align-items: center;
+      margin: 0 0 1.2rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.96);
+      box-shadow: 0 8px 24px rgba(60,64,67,0.08);
+      backdrop-filter: blur(10px);
+    }
+    .page-toc > span {
+      color: var(--fg);
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .page-toc div {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .page-toc a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2rem;
+      padding: 0.35rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg);
+      color: var(--fg-soft);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+    .page-toc a:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .benchmark-jump-nav {
+      position: sticky;
+      top: 60px;
+      z-index: 20;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.2rem;
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.96);
+      box-shadow: 0 8px 24px rgba(60,64,67,0.08);
+      backdrop-filter: blur(10px);
+    }
+    .benchmark-jump-nav a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.25rem;
+      padding: 0.45rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg);
+      color: var(--fg-soft);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    .benchmark-jump-nav a.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .benchmark-jump-nav a:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .benchmark-jump-nav a.primary:hover {
+      color: #fff;
+      filter: brightness(0.95);
+    }
 
     /* Responsive */
     @media (max-width: 640px) {
@@ -4394,7 +4634,12 @@ CSS = """
       .wrap { padding: 1.5rem 1rem 3rem; }
       .page-cards { grid-template-columns: 1fr; }
       .hw-specs { flex-direction: column; gap: 0.25rem; }
-      .hw-model { flex-wrap: wrap; gap: 0.5rem; }
+      .hw-model { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; align-items: stretch; }
+      .hw-model-name { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+      .hw-model-pill,
+      .hw-model-score,
+      .hw-model-speed { min-width: 0; }
+      .hw-model-speed { grid-column: 1 / -1; }
       .cat-filter-bar { gap: 0.35rem; }
       .cat-filter-btn { font-size: 0.75rem; padding: 0.35rem 0.7rem; }
       .cr-title { font-size: 0.92rem; }
@@ -4407,41 +4652,77 @@ CSS = """
       .cli-cmd-card h4 { font-size: 0.95rem; }
       .task-explanation { padding: 0.6rem 0.8rem; }
       .task-prompt code { font-size: 0.72rem; }
+      .table-wrap { overflow-x: hidden; border-radius: 8px; }
+      th { white-space: normal; }
+      th, td { padding: 0.55rem 0.65rem; }
+      .code-block { padding: 0.8rem; overflow-x: hidden; }
+      .code-block code { font-size: 0.76rem; }
+      .template-command { overflow-x: hidden; white-space: normal; overflow-wrap: anywhere; }
+      .template-command code { white-space: normal; overflow-wrap: anywhere; }
       .model-detail { padding: 1rem; overflow: hidden; }
-      .model-detail .table-wrap { overflow-x: hidden; border-radius: 8px; }
-      .model-detail .benchmark-table,
-      .model-detail .benchmark-table tbody,
-      .model-detail .benchmark-table tr,
-      .model-detail .benchmark-table td {
+      .benchmark-table,
+      .benchmark-table tbody,
+      .benchmark-table tr,
+      .benchmark-table td {
         display: block; width: 100%; max-width: 100%; min-width: 0;
       }
-      .model-detail .benchmark-table thead { display: none; }
-      .model-detail .benchmark-table tr.task-row {
+      .benchmark-table thead { display: none; }
+      .benchmark-table tr.task-row {
         padding: 0.75rem 0.8rem;
         border-bottom: 1px solid var(--border);
       }
-      .model-detail .benchmark-table tr.task-row td {
+      .benchmark-table tr.task-row td {
         padding: 0.15rem 0; border-bottom: 0;
       }
-      .model-detail .benchmark-table tr.task-row td:first-child {
+      .benchmark-table tr.task-row td:first-child {
         font-weight: 600; color: var(--fg);
       }
-      .model-detail .benchmark-table tr.task-detail {
+      .benchmark-table tr.task-detail {
         border-bottom: 1px solid var(--border);
       }
-      .model-detail .benchmark-table tr.task-detail[style*="table-row"] {
+      .benchmark-table tr.task-detail[style*="table-row"] {
         display: block !important;
       }
-      .model-detail .benchmark-table tr.task-detail > td {
+      .benchmark-table tr.task-detail > td {
         padding: 0.9rem 0.8rem;
       }
       .conv-meta { display: grid; gap: 0.35rem; }
-      .conv-block { font-size: 0.76rem; padding: 0.75rem 0.8rem; }
+      .conv-section, .conv-thread, .conv-turn { width: 100%; overflow-x: hidden; }
+      .conv-block { font-size: 0.76rem; padding: 0.75rem 0.8rem; overflow-x: hidden; }
       .conv-judge { font-size: 0.84rem; padding: 0.75rem 0.8rem; }
       .benchmark-card-grid { grid-template-columns: 1fr; }
       .benchmark-card-metrics { grid-template-columns: 1fr; }
       .benchmark-card-head { align-items: flex-start; }
       .benchmark-score { font-size: 1.35rem; }
+      .page-toc {
+        top: 54px;
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+        padding: 0.55rem;
+        border-radius: 10px;
+      }
+      .page-toc div {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.35rem;
+      }
+      .page-toc a {
+        min-height: 2rem;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.76rem;
+      }
+      .benchmark-jump-nav {
+        top: 54px;
+        gap: 0.35rem;
+        padding: 0.45rem;
+        border-radius: 10px;
+      }
+      .benchmark-jump-nav a {
+        flex: 1 1 calc(50% - 0.35rem);
+        min-height: 2rem;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.78rem;
+      }
     }
 
     /* Size class grouping */
@@ -4450,7 +4731,7 @@ CSS = """
     .hw-recommendation { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.8rem; padding: 0.5rem 0.8rem; background: var(--bg-elev); border-radius: 8px; border-left: 3px solid var(--accent); }
     .benchmark-card-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
       gap: 0.9rem;
       min-width: 0;
     }
