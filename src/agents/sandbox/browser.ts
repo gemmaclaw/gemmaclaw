@@ -29,6 +29,7 @@ import {
   readDockerNetworkDriver,
   readDockerNetworkGateway,
   readDockerPort,
+  resolveDockerEnvPolicyEpoch,
 } from "./docker.js";
 import {
   buildNoVncObserverTokenUrl,
@@ -167,6 +168,7 @@ export async function ensureSandboxBrowser(params: {
   });
   const expectedHash = computeSandboxBrowserConfigHash({
     docker: browserDockerCfg,
+    dockerEnvPolicyEpoch: resolveDockerEnvPolicyEpoch(browserDockerCfg.env),
     browser: {
       cdpPort: params.cfg.browser.cdpPort,
       vncPort: params.cfg.browser.vncPort,
