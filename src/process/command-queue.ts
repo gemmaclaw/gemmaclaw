@@ -38,8 +38,6 @@ type QueueEntry = {
   resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
   enqueuedAt: number;
-  sequence: number;
-  priority: number;
   warnAfterMs: number;
   onWait?: (waitMs: number, queuedAhead: number) => void;
 };
@@ -75,7 +73,6 @@ function getQueueState() {
     lanes: new Map<string, LaneState>(),
     activeTaskWaiters: new Set<ActiveTaskWaiter>(),
     nextTaskId: 1,
-    nextQueueSequence: 1,
   }));
   // Schema migration: the singleton may have been created by an older code
   // version (e.g. v2026.4.2) that did not include `activeTaskWaiters`.  After
@@ -85,27 +82,6 @@ function getQueueState() {
   // valid Set instead of `undefined`.
   if (!state.activeTaskWaiters) {
     state.activeTaskWaiters = new Set<ActiveTaskWaiter>();
-  }
-  if (!state.nextQueueSequence) {
-    state.nextQueueSequence = 1;
-  }
-  let maxQueueSequence = state.nextQueueSequence - 1;
-  for (const lane of state.lanes.values()) {
-    for (const entry of lane.queue as Array<
-      QueueEntry & { priority?: number; sequence?: number }
-    >) {
-      if (typeof entry.priority !== "number") {
-        entry.priority = 0;
-      }
-      if (typeof entry.sequence !== "number") {
-        entry.sequence = state.nextQueueSequence++;
-      } else {
-        maxQueueSequence = Math.max(maxQueueSequence, entry.sequence);
-      }
-    }
-  }
-  if (state.nextQueueSequence <= maxQueueSequence) {
-    state.nextQueueSequence = maxQueueSequence + 1;
   }
   return state;
 }
@@ -279,13 +255,11 @@ export function enqueueCommandInLane<T>(
   const warnAfterMs = opts?.warnAfterMs ?? 2_000;
   const state = getLaneState(cleaned);
   return new Promise<T>((resolve, reject) => {
-    enqueueLaneEntry(state, {
+    state.queue.push({
       task: () => task(),
       resolve: (value) => resolve(value as T),
       reject,
       enqueuedAt: Date.now(),
-      sequence: queueState.nextQueueSequence++,
-      priority: resolveQueuePriority(opts?.priority),
       warnAfterMs,
       onWait: opts?.onWait,
     });
@@ -348,7 +322,6 @@ export function resetCommandQueueStateForTest(): void {
     resolveActiveTaskWaiter(waiter, { drained: true });
   }
   queueState.nextTaskId = 1;
-  queueState.nextQueueSequence = 1;
 }
 
 /**
