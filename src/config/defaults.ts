@@ -1,6 +1,10 @@
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
 import { normalizeProviderId } from "../agents/provider-id.js";
-import { DEFAULT_AGENT_MAX_CONCURRENT, DEFAULT_SUBAGENT_MAX_CONCURRENT } from "./agent-limits.js";
+import {
+  DEFAULT_AGENT_MAX_CONCURRENT,
+  DEFAULT_SUBAGENT_ARCHIVE_AFTER_MINUTES,
+  DEFAULT_SUBAGENT_MAX_CONCURRENT,
+} from "./agent-limits.js";
 import {
   applyProviderConfigDefaultsForConfig,
   normalizeProviderConfigForConfigDefaults,
@@ -289,7 +293,10 @@ export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
   const hasSubMax =
     typeof defaults?.subagents?.maxConcurrent === "number" &&
     Number.isFinite(defaults.subagents.maxConcurrent);
-  if (hasMax && hasSubMax) {
+  const hasSubArchive =
+    typeof defaults?.subagents?.archiveAfterMinutes === "number" &&
+    Number.isFinite(defaults.subagents.archiveAfterMinutes);
+  if (hasMax && hasSubMax && hasSubArchive) {
     return cfg;
   }
 
@@ -303,6 +310,10 @@ export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
   const nextSubagents = defaults?.subagents ? { ...defaults.subagents } : {};
   if (!hasSubMax) {
     nextSubagents.maxConcurrent = DEFAULT_SUBAGENT_MAX_CONCURRENT;
+    mutated = true;
+  }
+  if (!hasSubArchive) {
+    nextSubagents.archiveAfterMinutes = DEFAULT_SUBAGENT_ARCHIVE_AFTER_MINUTES;
     mutated = true;
   }
 

@@ -3442,7 +3442,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                 ],
                 title: "Bootstrap Prompt Truncation Warning",
                 description:
-                  'Inject agent-visible warning text when bootstrap files are truncated: "off", "once" (default), or "always".',
+                  'Inject agent-visible warning text when bootstrap files are truncated: "off", "once", or "always" (default).',
               },
               userTimezone: {
                 type: "string",
@@ -24972,7 +24972,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
     },
     "agents.defaults.bootstrapPromptTruncationWarning": {
       label: "Bootstrap Prompt Truncation Warning",
-      help: 'Inject agent-visible warning text when bootstrap files are truncated: "off", "once" (default), or "always".',
+      help: 'Inject agent-visible warning text when bootstrap files are truncated: "off", "once", or "always" (default).',
       tags: ["advanced"],
     },
     "agents.defaults.startupContext": {

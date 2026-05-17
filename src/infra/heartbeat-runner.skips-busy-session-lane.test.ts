@@ -4,6 +4,7 @@ import { getActivePluginRegistry, setActivePluginRegistry } from "../plugins/run
 import { createOutboundTestPlugin, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { type HeartbeatDeps, runHeartbeatOnce } from "./heartbeat-runner.js";
 import { seedMainSessionStore, withTempHeartbeatSandbox } from "./heartbeat-runner.test-utils.js";
+import { HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT } from "./heartbeat-wake.js";
 import { resetSystemEventsForTest, enqueueSystemEvent } from "./system-events.js";
 
 vi.mock("jiti", () => ({ createJiti: () => () => ({}) }));
@@ -122,6 +123,28 @@ describe("heartbeat runner skips when target session lane is busy", () => {
 
       expect(replySpy).toHaveBeenCalled();
       expect(result.status).toBe("ran");
+    });
+  });
+
+  it("returns requests-in-flight when the target session has an active reply run", async () => {
+    await withTempHeartbeatSandbox(async ({ storePath, replySpy }) => {
+      const cfg = createHeartbeatTelegramConfig();
+      const sessionKey = await seedHeartbeatTelegramSession(storePath, cfg);
+      const isReplyRunActive = vi.fn((key: string) => key === sessionKey);
+
+      const result = await runHeartbeatOnce({
+        cfg,
+        deps: {
+          getQueueSize: vi.fn((_lane?: string) => 0),
+          isReplyRunActive,
+          nowMs: () => Date.now(),
+          getReplyFromConfig: replySpy,
+        } as HeartbeatDeps,
+      });
+
+      expect(result).toEqual({ status: "skipped", reason: HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT });
+      expect(isReplyRunActive).toHaveBeenCalledWith(sessionKey);
+      expect(replySpy).not.toHaveBeenCalled();
     });
   });
 });

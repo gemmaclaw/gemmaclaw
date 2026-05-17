@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { loadConfig } from "../config/config.js";
+import { DEFAULT_SUBAGENT_ARCHIVE_AFTER_MINUTES } from "../config/agent-limits.js";
+import { getRuntimeConfig, loadConfig } from "../config/config.js";
 import {
   loadSessionStore,
   resolveAgentIdFromSessionKey,
@@ -292,8 +293,10 @@ export function reconcileOrphanedRestoredRuns(params: {
 }
 
 export function resolveArchiveAfterMs(cfg?: OpenClawConfig) {
-  const config = cfg ?? loadConfig();
-  const minutes = config.agents?.defaults?.subagents?.archiveAfterMinutes ?? 60;
+  const config = cfg ?? getRuntimeConfig();
+  const minutes =
+    config.agents?.defaults?.subagents?.archiveAfterMinutes ??
+    DEFAULT_SUBAGENT_ARCHIVE_AFTER_MINUTES;
   if (!Number.isFinite(minutes) || minutes < 0) {
     return undefined;
   }

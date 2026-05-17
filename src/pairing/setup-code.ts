@@ -4,7 +4,7 @@ import type { OpenClawConfig } from "../config/types.js";
 import { normalizeSecretInputString, resolveSecretInputRef } from "../config/types.secrets.js";
 import { materializeGatewayAuthSecretRefs } from "../gateway/auth-config-utils.js";
 import { assertExplicitGatewayAuthModeWhenBothConfigured } from "../gateway/auth-mode-policy.js";
-import { isLoopbackHost, isSecureWebSocketUrl } from "../gateway/net.js";
+import { isLoopbackHost } from "../gateway/net.js";
 import { issueDeviceBootstrapToken } from "../infra/device-bootstrap.js";
 import { normalizeHostname } from "../infra/net/hostname.js";
 import {
@@ -120,9 +120,6 @@ function isMobilePairingCleartextAllowedHost(host: string): boolean {
 }
 
 function validateMobilePairingUrl(url: string, source?: string): string | null {
-  if (isSecureWebSocketUrl(url)) {
-    return null;
-  }
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -131,6 +128,9 @@ function validateMobilePairingUrl(url: string, source?: string): string | null {
   }
   const protocol =
     parsed.protocol === "https:" ? "wss:" : parsed.protocol === "http:" ? "ws:" : parsed.protocol;
+  if (protocol === "wss:") {
+    return null;
+  }
   if (protocol !== "ws:" || isMobilePairingCleartextAllowedHost(parsed.hostname)) {
     return null;
   }

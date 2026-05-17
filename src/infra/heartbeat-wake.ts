@@ -5,6 +5,8 @@ import {
   resolveHeartbeatReasonKind,
 } from "./heartbeat-reason.js";
 
+export const HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT = "requests-in-flight";
+
 export type HeartbeatRunResult =
   | { status: "ran"; durationMs: number }
   | { status: "skipped"; reason: string }

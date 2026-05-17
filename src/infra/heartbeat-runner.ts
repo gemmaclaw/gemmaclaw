@@ -24,6 +24,7 @@ import {
   stripHeartbeatToken,
   type HeartbeatTask,
 } from "../auto-reply/heartbeat.js";
+import { replyRunRegistry } from "../auto-reply/reply/reply-run-registry.js";
 import { HEARTBEAT_TOKEN } from "../auto-reply/tokens.js";
 import type { ReplyPayload } from "../auto-reply/types.js";
 import { getChannelPlugin } from "../channels/plugins/index.js";
@@ -88,6 +89,7 @@ import {
 } from "./heartbeat-summary.js";
 import { createHeartbeatTypingCallbacks } from "./heartbeat-typing.js";
 import { resolveHeartbeatVisibility } from "./heartbeat-visibility.js";
+import { HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT } from "./heartbeat-wake.js";
 import {
   areHeartbeatsEnabled,
   type HeartbeatRunResult,
@@ -115,6 +117,7 @@ export type HeartbeatDeps = OutboundSendDeps &
     getReplyFromConfig?: typeof import("./heartbeat-runner.runtime.js").getReplyFromConfig;
     runtime?: RuntimeEnv;
     getQueueSize?: (lane?: string) => number;
+    isReplyRunActive?: (sessionKey: string) => boolean;
     nowMs?: () => number;
   };
 
@@ -778,6 +781,16 @@ export async function runHeartbeatOnce(opts: {
     return { status: "skipped", reason: preflight.skipReason };
   }
   const { entry, sessionKey, storePath, suppressOriginatingContext } = preflight.session;
+  const isReplyRunActive =
+    opts.deps?.isReplyRunActive ?? ((key: string) => replyRunRegistry.isActive(key));
+  if (isReplyRunActive(sessionKey)) {
+    emitHeartbeatEvent({
+      status: "skipped",
+      reason: HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT,
+      durationMs: Date.now() - startedAt,
+    });
+    return { status: "skipped", reason: HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT };
+  }
 
   // Check the resolved session lane — if it is busy, skip to avoid interrupting
   // an active streaming turn.  The wake-layer retry (heartbeat-wake.ts) will
