@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearBundledProviderPolicySurfaceCache } from "../plugins/provider-public-artifacts.js";
 import { resetBundledPluginPublicArtifactLoaderForTest } from "../plugins/public-surface-loader.js";
-import { DEFAULT_AGENT_MAX_CONCURRENT, DEFAULT_SUBAGENT_MAX_CONCURRENT } from "./agent-limits.js";
+import {
+  DEFAULT_AGENT_MAX_CONCURRENT,
+  DEFAULT_SUBAGENT_ARCHIVE_AFTER_MINUTES,
+  DEFAULT_SUBAGENT_MAX_CONCURRENT,
+} from "./agent-limits.js";
 import {
   applyAgentDefaults,
   applyContextPruningDefaults,
@@ -92,6 +96,18 @@ describe("config defaults", () => {
     const next = applyAgentDefaults({ messages: {} } as never);
 
     expect(next.agents?.defaults?.maxConcurrent).toBe(DEFAULT_AGENT_MAX_CONCURRENT);
+    expect(next.agents?.defaults?.subagents?.maxConcurrent).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENT);
+    expect(next.agents?.defaults?.subagents?.archiveAfterMinutes).toBe(
+      DEFAULT_SUBAGENT_ARCHIVE_AFTER_MINUTES,
+    );
+  });
+
+  it("preserves explicit subagent archive default", () => {
+    const next = applyAgentDefaults({
+      agents: { defaults: { subagents: { archiveAfterMinutes: 0 } } },
+    } as never);
+
+    expect(next.agents?.defaults?.subagents?.archiveAfterMinutes).toBe(0);
     expect(next.agents?.defaults?.subagents?.maxConcurrent).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENT);
   });
 });
