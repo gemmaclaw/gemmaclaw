@@ -58,9 +58,7 @@ transcript path on disk when you need the raw full transcript.
   - `Result` (latest visible `assistant` reply text, otherwise sanitized latest tool/toolResult text; terminal failed runs do not reuse captured reply text)
   - `Status` (`completed successfully` / `failed` / `timed out` / `unknown`)
   - compact runtime/token stats
-  - a review instruction telling the requester agent to verify the result before deciding whether the original task is done
-  - follow-up guidance telling the requester agent to continue the task or record a follow-up when the child result leaves more action
-  - a final-update instruction for the no-more-action path, written in normal assistant voice without forwarding raw internal metadata
+  - a delivery instruction telling the requester agent to rewrite in normal assistant voice (not forward raw internal metadata)
 - `--model` and `--thinking` override defaults for that specific run.
 - Use `info`/`log` to inspect details and output after completion.
 - `/subagents spawn` is one-shot mode (`mode: "run"`). For persistent thread-bound sessions, use `sessions_spawn` with `thread: true` and `mode: "session"`.
