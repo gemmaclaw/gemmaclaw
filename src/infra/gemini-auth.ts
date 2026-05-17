@@ -18,6 +18,18 @@ const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";
  * @returns Headers object with appropriate authentication
  */
 export function parseGeminiAuth(apiKey: string): { headers: Record<string, string> } {
+  // Detect OAuth tokens vs traditional API keys.
+  // Google OAuth tokens typically start with 'ya29.' or 'v2.'.
+  // Traditional Gemini API keys typically start with 'AIza'.
+  if (apiKey.startsWith("ya29.") || apiKey.startsWith("v2.")) {
+    return {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    };
+  }
+
   if (apiKey === GCP_VERTEX_CREDENTIALS_MARKER) {
     try {
       const token = execSync("gcloud auth application-default print-access-token", {

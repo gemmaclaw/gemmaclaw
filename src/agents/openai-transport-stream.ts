@@ -610,6 +610,14 @@ function buildOpenAIClientHeaders(
   if (turnHeaders) {
     Object.assign(headers, turnHeaders);
   }
+
+  // If we have an Authorization header (token-based auth), strip the
+  // vendor-specific x-goog-api-key to avoid credential interference
+  // at the bridge/proxy layer.
+  if (headers["Authorization"] || headers["authorization"]) {
+    delete headers["x-goog-api-key"];
+  }
+
   return headers;
 }
 
@@ -1058,6 +1066,17 @@ function buildOpenAICompletionsClientConfig(
   defaultQuery?: Record<string, string>;
 } {
   const headers = buildOpenAIClientHeaders(model, context, optionHeaders);
+
+  // OpenAI SDK always generates an Authorization header from the apiKey
+  // constructor argument. Strip it from defaultHeaders to avoid sending
+  // duplicate or conflicting authorization headers.
+  if (headers["Authorization"]) {
+    delete headers["Authorization"];
+  }
+  if (headers["authorization"]) {
+    delete headers["authorization"];
+  }
+
   const defaultQuery: Record<string, string> = {};
   let baseURL = model.baseUrl;
   let isAzureHost = false;
@@ -1130,6 +1149,7 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
           ...options?.headers,
           ...authHeaders,
         });
+
         let params = buildOpenAICompletionsParams(
           model as OpenAIModeModel,
           context,
@@ -1139,6 +1159,7 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         if (nextParams !== undefined) {
           params = nextParams as typeof params;
         }
+        process.stderr.write(`DEBUG: [openai-completions] Final Body: ${JSON.stringify(params)}\n`);
         const responseStream = (await client.chat.completions.create(params as never, {
           signal: options?.signal,
         })) as unknown as AsyncIterable<ChatCompletionChunk>;
@@ -1613,16 +1634,8 @@ export function buildOpenAICompletionsParams(
   const messages = convertMessages(model as never, completionsContext, compat as never);
   const isGoogleVertex = model.provider === "google-vertex";
   let modelId = model.id;
-  if (isGoogleVertex && model.id.includes("/publishers/")) {
-    const parts = model.id.split("/publishers/")[1].split("/models/");
-    if (parts.length >= 2) {
-      // Reconstruct as 'publisher/model', stripping any duplicate prefixes if they were erroneously included.
-      const publisher = parts[0];
-      const modelName = parts[1].startsWith(`${publisher}/`)
-        ? parts[1].slice(publisher.length + 1)
-        : parts[1];
-      modelId = `${publisher}/${modelName}`;
-    }
+  if (isGoogleVertex && model.id.includes("publishers/")) {
+    modelId = model.id.slice(model.id.indexOf("publishers/"));
   }
   const params: Record<string, unknown> = {
     model: modelId,
