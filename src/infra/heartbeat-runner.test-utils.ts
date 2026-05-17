@@ -15,6 +15,8 @@ export type HeartbeatSessionSeed = {
   lastChannel: string;
   lastProvider: string;
   lastTo: string;
+  pendingFinalDelivery?: boolean;
+  pendingFinalDeliveryText?: string;
 };
 
 export type HeartbeatReplyFn = NonNullable<HeartbeatDeps["getReplyFromConfig"]>;
