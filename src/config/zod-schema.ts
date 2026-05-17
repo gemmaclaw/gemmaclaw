@@ -753,18 +753,7 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
-        remote: z
-          .object({
-            url: z.string().optional(),
-            transport: z.union([z.literal("ssh"), z.literal("direct")]).optional(),
-            token: SecretInputSchema.optional().register(sensitive),
-            password: SecretInputSchema.optional().register(sensitive),
-            tlsFingerprint: z.string().optional(),
-            sshTarget: z.string().optional(),
-            sshIdentity: z.string().optional(),
-          })
-          .strict()
-          .optional(),
+        remote: GatewayRemoteConfigSchema,
         reload: z
           .object({
             mode: z
