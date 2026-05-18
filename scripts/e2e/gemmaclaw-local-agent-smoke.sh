@@ -10,16 +10,18 @@
 # (`gemmaclaw.mjs`) and product home (`~/.gemmaclaw`), not the internal
 # OpenClaw entrypoint or `~/.openclaw` defaults.
 #
-# Defaults to qwen3.6:35b because it is a local MoE model that is capable enough
-# to drive tools without relying on Gemini API quota.
+# Defaults to the local llama.cpp Gemma 4 MoE server because Jake and benchmark
+# smokes should exercise the same efficient backend by default.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 FLOW="${GEMMACLAW_LOCAL_AGENT_SMOKE_FLOW:-container}"
-MODEL="${GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL:-qwen3.6:35b}"
+BACKEND="${GEMMACLAW_LOCAL_AGENT_SMOKE_BACKEND:-llama-cpp}"
+MODEL="${GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL:-gemma-4-26B-A4B-it-Q4_K_M}"
 OLLAMA_URL="${GEMMACLAW_LOCAL_AGENT_SMOKE_OLLAMA_URL:-http://127.0.0.1:11434}"
+LLAMA_CPP_URL="${GEMMACLAW_LOCAL_AGENT_SMOKE_LLAMA_CPP_URL:-http://127.0.0.1:8080}"
 REQUIRED="${GEMMACLAW_LOCAL_AGENT_SMOKE_REQUIRED:-0}"
 ALLOW_DURING_BENCHMARK="${GEMMACLAW_LOCAL_AGENT_SMOKE_ALLOW_DURING_BENCHMARK:-0}"
 SKIP_BENCHMARK_GUARD="${GEMMACLAW_LOCAL_AGENT_SMOKE_SKIP_BENCHMARK_GUARD:-0}"
@@ -30,6 +32,13 @@ case "$FLOW" in
   container|non-container) ;;
   *)
     echo "FAIL: GEMMACLAW_LOCAL_AGENT_SMOKE_FLOW must be container or non-container, got $FLOW" >&2
+    exit 1
+    ;;
+esac
+case "$BACKEND" in
+  ollama|llama-cpp) ;;
+  *)
+    echo "FAIL: GEMMACLAW_LOCAL_AGENT_SMOKE_BACKEND must be ollama or llama-cpp, got $BACKEND" >&2
     exit 1
     ;;
 esac
@@ -73,19 +82,23 @@ fi
 
 if [ "$SKIP_BENCHMARK_GUARD" != "1" ] && [ "$ALLOW_DURING_BENCHMARK" != "1" ]; then
   if pgrep -af 'pnpm benchmark agent|src/gemmaclaw/benchmark/cli-standalone.ts agent' >/dev/null 2>&1; then
-    skip_or_fail "an Ollama/Gemmaclaw benchmark is active; local-model smoke would disturb the loaded model"
+    skip_or_fail "a Gemmaclaw benchmark is active; local-model smoke would disturb the loaded model"
   fi
 fi
 
-OLLAMA_URL_CHECK="$OLLAMA_URL" MODEL_CHECK="$MODEL" node <<'NODE' || skip_or_fail "Ollama model ${MODEL} is not ready at ${OLLAMA_URL}"
-const base = process.env.OLLAMA_URL_CHECK;
+SMOKE_BACKEND_CHECK="$BACKEND" OLLAMA_URL_CHECK="$OLLAMA_URL" LLAMA_CPP_URL_CHECK="$LLAMA_CPP_URL" MODEL_CHECK="$MODEL" node <<'NODE' || skip_or_fail "${BACKEND} model ${MODEL} is not ready"
+const backend = process.env.SMOKE_BACKEND_CHECK;
+const base = backend === "llama-cpp" ? process.env.LLAMA_CPP_URL_CHECK : process.env.OLLAMA_URL_CHECK;
 const model = process.env.MODEL_CHECK;
-const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5000) });
+const endpoint = backend === "llama-cpp" ? `${base}/v1/models` : `${base}/api/tags`;
+const res = await fetch(endpoint, { signal: AbortSignal.timeout(5000) });
 if (!res.ok) {
-  throw new Error(`Ollama tags failed: HTTP ${res.status}`);
+  throw new Error(`${backend} model listing failed: HTTP ${res.status}`);
 }
 const data = await res.json();
-const names = new Set((data.models ?? []).map((m) => m.name));
+const names = backend === "llama-cpp"
+  ? new Set((data.data ?? []).map((m) => m.id))
+  : new Set((data.models ?? []).map((m) => m.name));
 if (!names.has(model) && !names.has(`${model}:latest`)) {
   throw new Error(`Model not found: ${model}`);
 }
@@ -149,25 +162,33 @@ fi
 HOME="$HOME_DIR" node gemmaclaw.mjs "${setup_args[@]}" >/dev/null
 
 SMOKE_HOME_DIR="$HOME_DIR" \
+SMOKE_BACKEND="$BACKEND" \
 SMOKE_MODEL="$MODEL" \
 SMOKE_OLLAMA_URL="$OLLAMA_URL" \
+SMOKE_LLAMA_CPP_URL="$LLAMA_CPP_URL" \
 SMOKE_FLOW="$FLOW" \
 node <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 
 const home = process.env.SMOKE_HOME_DIR;
+const backend = process.env.SMOKE_BACKEND;
 const model = process.env.SMOKE_MODEL;
 const ollamaUrl = process.env.SMOKE_OLLAMA_URL;
+const llamaCppUrl = process.env.SMOKE_LLAMA_CPP_URL;
 const flow = process.env.SMOKE_FLOW;
 const cfgPath = path.join(home, ".gemmaclaw", "openclaw.json");
 const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
 const sharedDir = path.join(home, ".gemmaclaw", "shared");
-const workspaceDir = path.join(home, ".gemmaclaw", "workspaces", `${flow}-smoke`);
+const agentEntry = (cfg.agents?.list ?? []).find((agent) => agent?.id === `${flow}-smoke`);
+const workspaceDir = agentEntry?.workspace ?? path.join(home, ".gemmaclaw", `workspace-${flow}-smoke`);
 const agentsPath = path.join(workspaceDir, "AGENTS.md");
 const toolsPath = path.join(workspaceDir, "TOOLS.md");
 const internalCfgPath = path.join(home, ".openclaw", "openclaw.json");
-const internalWorkspaceDir = path.join(home, ".openclaw", "workspaces", `${flow}-smoke`);
+const internalWorkspaceDirs = [
+  path.join(home, ".openclaw", "workspaces", `${flow}-smoke`),
+  path.join(home, ".openclaw", `workspace-${flow}-smoke`),
+];
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -177,7 +198,7 @@ function mode(target) {
   return (fs.statSync(target).mode & 0o777).toString(8);
 }
 
-if (fs.existsSync(internalCfgPath) || fs.existsSync(internalWorkspaceDir)) {
+if (fs.existsSync(internalCfgPath) || internalWorkspaceDirs.some((target) => fs.existsSync(target))) {
   fail("Gemmaclaw smoke leaked state into ~/.openclaw instead of using ~/.gemmaclaw");
 }
 if (!fs.existsSync(agentsPath) || !fs.existsSync(toolsPath)) {
@@ -186,24 +207,44 @@ if (!fs.existsSync(agentsPath) || !fs.existsSync(toolsPath)) {
 
 cfg.models ??= {};
 cfg.models.providers ??= {};
-cfg.models.providers.ollama = {
-  baseUrl: `${ollamaUrl}/v1`,
-  api: "ollama",
-  models: [
-    {
-      id: model,
-      name: model,
-      reasoning: true,
-      input: ["text"],
-      contextWindow: 32768,
-      maxTokens: 4096,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    },
-  ],
-};
+if (backend === "llama-cpp") {
+  cfg.models.providers.openai = {
+    baseUrl: `${llamaCppUrl}/v1`,
+    api: "openai-completions",
+    apiKey: "llama-cpp-local",
+    models: [
+      {
+        id: model,
+        name: model,
+        reasoning: false,
+        input: ["text"],
+        contextWindow: 65536,
+        maxTokens: 8192,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      },
+    ],
+  };
+  delete cfg.models.providers.ollama;
+} else {
+  cfg.models.providers.ollama = {
+    baseUrl: `${ollamaUrl}/v1`,
+    api: "ollama",
+    models: [
+      {
+        id: model,
+        name: model,
+        reasoning: true,
+        input: ["text"],
+        contextWindow: 32768,
+        maxTokens: 4096,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      },
+    ],
+  };
+}
 cfg.agents ??= {};
 cfg.agents.defaults ??= {};
-cfg.agents.defaults.model = `ollama/${model}`;
+cfg.agents.defaults.model = backend === "llama-cpp" ? `openai/${model}` : `ollama/${model}`;
 cfg.tools ??= {};
 cfg.tools.exec ??= {};
 cfg.tools.exec.security = "full";
@@ -242,11 +283,22 @@ fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 console.log("setup-config-ok");
 NODE
 
+AGENT_WORKSPACE_DIR="$(SMOKE_HOME_DIR="$HOME_DIR" SMOKE_AGENT_NAME="$AGENT_NAME" node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+const home = process.env.SMOKE_HOME_DIR;
+const agentName = process.env.SMOKE_AGENT_NAME;
+const cfg = JSON.parse(fs.readFileSync(path.join(home, ".gemmaclaw", "openclaw.json"), "utf8"));
+const agentEntry = (cfg.agents?.list ?? []).find((agent) => agent?.id === agentName);
+console.log(agentEntry?.workspace ?? path.join(home, ".gemmaclaw", `workspace-${agentName}`));
+NODE
+)"
+
 if [ "$FLOW" = "container" ]; then
   WORKSPACE_PATH="/workspace"
   SHARED_PATH="/workspace/shared"
 else
-  WORKSPACE_PATH="$HOME_DIR/.gemmaclaw/workspaces/${AGENT_NAME}"
+  WORKSPACE_PATH="$AGENT_WORKSPACE_DIR"
   SHARED_PATH="$HOME_DIR/.gemmaclaw/shared"
 fi
 
@@ -301,9 +353,15 @@ const outsideSentinel = process.env.SMOKE_OUTSIDE_SENTINEL;
 const outsideMarker = process.env.SMOKE_OUTSIDE_MARKER;
 const containerName = process.env.SMOKE_CONTAINER_NAME;
 const flow = process.env.SMOKE_FLOW;
-const workspaceDir = path.join(home, ".gemmaclaw", "workspaces", `${flow}-smoke`);
+const cfgPath = path.join(home, ".gemmaclaw", "openclaw.json");
+const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+const agentEntry = (cfg.agents?.list ?? []).find((agent) => agent?.id === `${flow}-smoke`);
+const workspaceDir = agentEntry?.workspace ?? path.join(home, ".gemmaclaw", `workspace-${flow}-smoke`);
 const sharedDir = path.join(home, ".gemmaclaw", "shared");
-const internalWorkspaceDir = path.join(home, ".openclaw", "workspaces", `${flow}-smoke`);
+const internalWorkspaceDirs = [
+  path.join(home, ".openclaw", "workspaces", `${flow}-smoke`),
+  path.join(home, ".openclaw", `workspace-${flow}-smoke`),
+];
 const bootstrapPath = path.join(workspaceDir, "BOOTSTRAP.md");
 
 function fail(message) {
@@ -314,7 +372,7 @@ function read(file) {
   return fs.readFileSync(file, "utf8").trim();
 }
 
-if (fs.existsSync(internalWorkspaceDir)) {
+if (internalWorkspaceDirs.some((target) => fs.existsSync(target))) {
   fail("agent runtime leaked workspace state into ~/.openclaw instead of ~/.gemmaclaw");
 }
 if (!fs.existsSync(bootstrapPath)) {
@@ -410,7 +468,23 @@ const path = require("node:path");
 const restoreDir = process.env.SMOKE_RESTORE_DIR;
 const flow = process.env.SMOKE_FLOW;
 const archive = process.env.SMOKE_BACKUP_ARCHIVE;
-const workspaceDir = path.join(restoreDir, "workspaces", `${flow}-smoke`);
+const cfgPath = path.join(restoreDir, "openclaw.json");
+let workspaceDir = path.join(restoreDir, `workspace-${flow}-smoke`);
+if (fs.existsSync(cfgPath)) {
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+  const agentEntry = (cfg.agents?.list ?? []).find((agent) => agent?.id === `${flow}-smoke`);
+  if (agentEntry?.workspace) {
+    const parts = agentEntry.workspace.split(/[\\/]+/u);
+    const workspacesIndex = parts.lastIndexOf("workspaces");
+    if (workspacesIndex >= 0 && parts[workspacesIndex + 1]) {
+      workspaceDir = path.join(restoreDir, "workspaces", parts[workspacesIndex + 1]);
+    } else {
+      workspaceDir = path.isAbsolute(agentEntry.workspace)
+        ? path.join(restoreDir, path.basename(agentEntry.workspace))
+        : path.join(restoreDir, agentEntry.workspace);
+    }
+  }
+}
 const sharedDir = path.join(restoreDir, "shared");
 
 function fail(message) {
@@ -424,7 +498,7 @@ function read(file) {
 if (!fs.existsSync(archive)) {
   fail(`backup archive was not created: ${archive}`);
 }
-if (!fs.existsSync(path.join(restoreDir, "openclaw.json"))) {
+if (!fs.existsSync(cfgPath)) {
   fail("restore did not recreate openclaw.json");
 }
 if (read(path.join(workspaceDir, "workspace_e2e.txt")) !== "WORKSPACE_WRITE_OK") {

@@ -10,7 +10,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 export GEMMACLAW_LOCAL_AGENT_SMOKE_REQUIRED="${GEMMACLAW_LOCAL_AGENT_SMOKE_REQUIRED:-1}"
-export GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL="${GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL:-qwen3.6:35b}"
+export GEMMACLAW_LOCAL_AGENT_SMOKE_BACKEND="${GEMMACLAW_LOCAL_AGENT_SMOKE_BACKEND:-llama-cpp}"
+export GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL="${GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL:-gemma-4-26B-A4B-it-Q4_K_M}"
+
+echo "==> Building current Gemmaclaw source for setup live smoke"
+pnpm build
 
 echo "==> Gemmaclaw setup live smoke: container flow"
 GEMMACLAW_LOCAL_AGENT_SMOKE_FLOW=container \
