@@ -235,7 +235,6 @@ export function hasCrossChannelItems<T>(
   resolveKey: (item: T) => { key?: string; cross?: boolean },
 ): boolean {
   const keys = new Set<string>();
-  let hasUnkeyed = false;
 
   for (const item of items) {
     const resolved = resolveKey(item);
@@ -243,17 +242,10 @@ export function hasCrossChannelItems<T>(
       return true;
     }
     if (!resolved.key) {
-      hasUnkeyed = true;
       continue;
     }
     keys.add(resolved.key);
   }
 
-  if (keys.size === 0) {
-    return false;
-  }
-  if (hasUnkeyed) {
-    return true;
-  }
   return keys.size > 1;
 }
