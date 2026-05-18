@@ -79,3 +79,29 @@ export async function ensureDefaultKnowledgeAgentCron(params: {
     "Knowledge maintenance",
   );
 }
+
+export async function ensureDefaultGemmaclawAgentCronJobs(params: {
+  cfg: OpenClawConfig;
+  runtime: RuntimeEnv;
+  agentId?: string;
+  nowMs?: number;
+}): Promise<{ added: number; updated: number }> {
+  if (params.cfg.cron?.enabled === false) {
+    return { added: 0, updated: 0 };
+  }
+
+  const storePath = resolveCronStorePath(params.cfg.cron?.store);
+  const store = await loadCronStore(storePath);
+  let added = 0;
+
+  if (!hasKnowledgeAgentJob(store)) {
+    store.jobs.push(createDefaultKnowledgeAgentCronJob(params.nowMs));
+    added++;
+  }
+
+  if (added > 0) {
+    await saveCronStore(storePath, store);
+  }
+
+  return { added, updated: 0 };
+}
