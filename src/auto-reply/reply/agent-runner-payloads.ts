@@ -213,9 +213,20 @@ export async function buildReplyPayloads(params: {
         sentMediaUrls: messagingToolSentMediaUrls,
       })
     : dedupedPayloads;
+  const preservePostStreamMediaPayload = (payload: ReplyPayload): ReplyPayload[] => {
+    if (payload.isError) {
+      return [payload];
+    }
+    if (!resolveSendableOutboundReplyParts(payload).hasMedia) {
+      return [];
+    }
+    // Text has already gone through the block stream. Keep the final media attachment
+    // without replaying the caption.
+    return [{ ...payload, text: undefined }];
+  };
   // Filter out payloads already sent via pipeline or directly during tool flush.
   const filteredPayloads = shouldDropFinalPayloads
-    ? mediaFilteredPayloads.filter((payload) => payload.isError)
+    ? mediaFilteredPayloads.flatMap(preservePostStreamMediaPayload)
     : params.blockStreamingEnabled
       ? mediaFilteredPayloads.filter(
           (payload) => !params.blockReplyPipeline?.hasSentPayload(payload),

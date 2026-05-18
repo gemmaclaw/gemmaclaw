@@ -260,6 +260,9 @@ function buildAssistantOutputDirectivesSection(isMinimal: boolean) {
     "## Assistant Output Directives",
     "Use these when you need delivery metadata in an assistant message:",
     "- `MEDIA:<path-or-url>` on its own line requests attachment delivery. The web UI strips supported MEDIA lines and renders them inline; channels still decide actual delivery behavior.",
+    "- Never reply with only a `MEDIA:` line. Put a concise human caption first, then put `MEDIA:<path-or-url>` on its own final line.",
+    "- For files you create in the workspace, save the binary file to disk and use a relative `MEDIA:<filename>` path. Do not print image/audio/video bytes, base64, or data URLs into tool output.",
+    "- For downloads, prefer commands like `curl -L <url> -o file.jpg` and then `MEDIA:file.jpg`; avoid commands that stream binary content to stdout.",
     "- `[[audio_as_voice]]` marks attached audio as a voice-note style delivery hint. The web UI may show a voice-note badge when audio is present; channels still own delivery semantics.",
     "- To request a native reply/quote on supported surfaces, include one reply tag in your reply:",
     "- Reply tags must be the very first token in the message (no leading text/newlines): [[reply_to_current]] your reply.",
@@ -627,9 +630,13 @@ export function buildAgentSystemPrompt(params: {
   const promptMode = params.promptMode ?? "full";
   const isMinimal = promptMode === "minimal" || promptMode === "none";
   const sandboxContainerWorkspace = params.sandboxInfo?.containerWorkspaceDir?.trim();
+  const sandboxWorkspaceAccess = params.sandboxInfo?.workspaceAccess;
   const sanitizedWorkspaceDir = sanitizeForPromptLiteral(params.workspaceDir);
   const sanitizedSandboxContainerWorkspace = sandboxContainerWorkspace
     ? sanitizeForPromptLiteral(sandboxContainerWorkspace)
+    : "";
+  const sanitizedSandboxHostWorkspace = params.sandboxInfo?.workspaceDir
+    ? sanitizeForPromptLiteral(params.sandboxInfo.workspaceDir)
     : "";
   const elevated = params.sandboxInfo?.elevated;
   const fullAccessBlockedReasonLabel =
@@ -642,7 +649,9 @@ export function buildAgentSystemPrompt(params: {
       : sanitizedWorkspaceDir;
   const workspaceGuidance =
     params.sandboxInfo?.enabled && sanitizedSandboxContainerWorkspace
-      ? `For read/write/edit/apply_patch, file paths resolve against host workspace: ${sanitizedWorkspaceDir}. For bash/exec commands, use sandbox container paths under ${sanitizedSandboxContainerWorkspace} (or relative paths from that workdir), not host paths. Prefer relative paths so both sandboxed exec and file tools work consistently.`
+      ? sandboxWorkspaceAccess === "rw"
+        ? `For read/write/edit/apply_patch, file paths resolve against host workspace: ${sanitizedWorkspaceDir}. For bash/exec commands, use sandbox container paths under ${sanitizedSandboxContainerWorkspace} (or relative paths from that workdir), not host paths. This sandbox has rw workspace access, so files created under ${sanitizedSandboxContainerWorkspace} are backed by the host workspace and can be sent with safe relative MEDIA paths. Prefer relative paths so both sandboxed exec and file tools work consistently.`
+        : `For read/write/edit/apply_patch, file paths resolve against host workspace: ${sanitizedWorkspaceDir}. For bash/exec commands, use sandbox container paths under ${sanitizedSandboxContainerWorkspace} (or relative paths from that workdir), not host paths. Prefer relative paths so both sandboxed exec and file tools work consistently.`
       : "Treat this directory as the single global workspace for file operations unless explicitly instructed otherwise.";
   const safetySection = [
     "## Safety",
@@ -802,8 +811,16 @@ export function buildAgentSystemPrompt(params: {
           params.sandboxInfo.containerWorkspaceDir
             ? `Sandbox container workdir: ${sanitizeForPromptLiteral(params.sandboxInfo.containerWorkspaceDir)}`
             : "",
-          params.sandboxInfo.workspaceDir
-            ? `Sandbox host mount source (file tools bridge only; not valid inside sandbox exec): ${sanitizeForPromptLiteral(params.sandboxInfo.workspaceDir)}`
+          sanitizedSandboxHostWorkspace
+            ? sandboxWorkspaceAccess === "rw" && sanitizedSandboxContainerWorkspace
+              ? `Sandbox workspace host source: ${sanitizedSandboxHostWorkspace} (mounted at ${sanitizedSandboxContainerWorkspace} for sandbox exec).`
+              : `Sandbox host mount source (file tools bridge only; not valid inside sandbox exec): ${sanitizedSandboxHostWorkspace}`
+            : "",
+          sandboxWorkspaceAccess === "rw" && sanitizedSandboxContainerWorkspace
+            ? `Inside the container, treat ${sanitizedSandboxContainerWorkspace} as your persistent working area. Files you create there are visible to OpenClaw on the host and can be sent with relative MEDIA paths. Do not claim local files are trapped in an invisible sandbox.`
+            : "",
+          sandboxWorkspaceAccess === "rw"
+            ? "You may manage the container filesystem according to the container's own permissions, including creating executables and installing packages when the container user permits it. This is container admin control, not host access."
             : "",
           params.sandboxInfo.workspaceAccess
             ? `Agent workspace access: ${params.sandboxInfo.workspaceAccess}${

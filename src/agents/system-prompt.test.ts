@@ -169,6 +169,9 @@ describe("buildAgentSystemPrompt", () => {
 
     expect(prompt).toContain("## Assistant Output Directives");
     expect(prompt).toContain("[[reply_to_current]]");
+    expect(prompt).toContain(
+      "Never reply with only a `MEDIA:` line. Put a concise human caption first, then put `MEDIA:<path-or-url>` on its own final line.",
+    );
     expect(prompt).not.toContain("Tags are stripped before sending");
     expect(prompt).toContain("Supported tags are stripped before user-visible rendering");
   });
@@ -832,6 +835,32 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Sub-agents stay sandboxed");
     expect(prompt).toContain("User can toggle with /elevated on|off|ask|full.");
     expect(prompt).toContain("Current elevated level: on");
+  });
+
+  it("describes rw sandbox workspace as host-backed for exec media paths", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      sandboxInfo: {
+        enabled: true,
+        workspaceDir: "/tmp/openclaw",
+        containerWorkspaceDir: "/workspace",
+        workspaceAccess: "rw",
+      },
+    });
+
+    expect(prompt).toContain(
+      "This sandbox has rw workspace access, so files created under /workspace are backed by the host workspace and can be sent with safe relative MEDIA paths.",
+    );
+    expect(prompt).toContain(
+      "Files you create there are visible to OpenClaw on the host and can be sent with relative MEDIA paths.",
+    );
+    expect(prompt).toContain("Do not claim local files are trapped in an invisible sandbox.");
+    expect(prompt).toContain(
+      "Sandbox workspace host source: /tmp/openclaw (mounted at /workspace for sandbox exec).",
+    );
+    expect(prompt).not.toContain(
+      "Sandbox host mount source (file tools bridge only; not valid inside sandbox exec): /tmp/openclaw",
+    );
   });
 
   it("does not advertise /elevated full when auto-approved full access is unavailable", () => {

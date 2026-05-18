@@ -45,9 +45,11 @@ describe("buildAgentSystemPrompt uses sanitized workspace/sandbox strings", () =
     });
     expect(prompt).toContain("Sandbox container workdir: /workspace");
     expect(prompt).toContain(
-      "Sandbox host mount source (file tools bridge only; not valid inside sandbox exec): /hostspace",
+      "Sandbox workspace host source: /hostspace (mounted at /workspace for sandbox exec).",
     );
-    expect(prompt).toContain("(mounted at /mntmount)");
+    expect(prompt).toContain(
+      "Inside the container, treat /workspace as your persistent working area.",
+    );
     expect(prompt).not.toContain("Sandbox browser observer (noVNC):");
   });
 });

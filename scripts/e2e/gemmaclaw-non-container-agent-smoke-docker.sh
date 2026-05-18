@@ -6,8 +6,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE="${GEMMACLAW_NON_CONTAINER_AGENT_SMOKE_IMAGE:-node:22-bookworm}"
-MODEL="${GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL:-qwen3.6:35b}"
+BACKEND="${GEMMACLAW_LOCAL_AGENT_SMOKE_BACKEND:-llama-cpp}"
+MODEL="${GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL:-gemma-4-26B-A4B-it-Q4_K_M}"
 OLLAMA_URL="${GEMMACLAW_LOCAL_AGENT_SMOKE_OLLAMA_URL:-http://127.0.0.1:11434}"
+LLAMA_CPP_URL="${GEMMACLAW_LOCAL_AGENT_SMOKE_LLAMA_CPP_URL:-http://127.0.0.1:8080}"
 REQUIRED="${GEMMACLAW_LOCAL_AGENT_SMOKE_REQUIRED:-0}"
 ALLOW_DURING_BENCHMARK="${GEMMACLAW_LOCAL_AGENT_SMOKE_ALLOW_DURING_BENCHMARK:-0}"
 
@@ -34,15 +36,19 @@ if [ "$ALLOW_DURING_BENCHMARK" != "1" ]; then
   fi
 fi
 
-HOST_OLLAMA_URL="$OLLAMA_URL" HOST_MODEL="$MODEL" node <<'NODE' || skip_or_fail "Ollama model ${MODEL} is not ready at ${OLLAMA_URL}"
-const base = process.env.HOST_OLLAMA_URL;
+HOST_BACKEND="$BACKEND" HOST_OLLAMA_URL="$OLLAMA_URL" HOST_LLAMA_CPP_URL="$LLAMA_CPP_URL" HOST_MODEL="$MODEL" node <<'NODE' || skip_or_fail "${BACKEND} model ${MODEL} is not ready"
+const backend = process.env.HOST_BACKEND;
+const base = backend === "llama-cpp" ? process.env.HOST_LLAMA_CPP_URL : process.env.HOST_OLLAMA_URL;
 const model = process.env.HOST_MODEL;
-const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5000) });
+const endpoint = backend === "llama-cpp" ? `${base}/v1/models` : `${base}/api/tags`;
+const res = await fetch(endpoint, { signal: AbortSignal.timeout(5000) });
 if (!res.ok) {
-  throw new Error(`Ollama tags failed: HTTP ${res.status}`);
+  throw new Error(`${backend} model listing failed: HTTP ${res.status}`);
 }
 const data = await res.json();
-const names = new Set((data.models ?? []).map((m) => m.name));
+const names = backend === "llama-cpp"
+  ? new Set((data.data ?? []).map((m) => m.id))
+  : new Set((data.models ?? []).map((m) => m.name));
 if (!names.has(model) && !names.has(`${model}:latest`)) {
   throw new Error(`Model not found: ${model}`);
 }
@@ -75,8 +81,10 @@ docker run --rm -i \
   --add-host=host.docker.internal:host-gateway \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_FLOW=non-container \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_REQUIRED="$REQUIRED" \
+  -e GEMMACLAW_LOCAL_AGENT_SMOKE_BACKEND="$BACKEND" \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_MODEL="$MODEL" \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_OLLAMA_URL=http://host.docker.internal:11434 \
+  -e GEMMACLAW_LOCAL_AGENT_SMOKE_LLAMA_CPP_URL=http://host.docker.internal:8080 \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_HOST_SENTINEL_PATH="$HOST_SENTINEL" \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_HOST_MARKER_PATH="$HOST_MARKER" \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_SKIP_BENCHMARK_GUARD=1 \

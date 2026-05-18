@@ -546,6 +546,7 @@ export async function setupGemmaCommand(
 
           if (enableSandbox) {
             draft.agents.defaults.sandbox = buildGemmaclawDockerSandboxConfig();
+            (draft.tools.exec as Record<string, unknown>).host = "sandbox";
           }
         },
       });
@@ -756,6 +757,9 @@ async function applySharedAgentDefaults(
       draft.tools.exec ??= {};
       (draft.tools.exec as Record<string, unknown>).security = "full";
       (draft.tools.exec as Record<string, unknown>).ask = "off";
+      if (useContainer) {
+        (draft.tools.exec as Record<string, unknown>).host = "sandbox";
+      }
       applyGemmaclawHookDefaults(draft);
       applySetupAgentConfig(draft, choices);
     },

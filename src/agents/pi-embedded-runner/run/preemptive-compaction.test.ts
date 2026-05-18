@@ -108,7 +108,7 @@ describe("preemptive-compaction", () => {
     expect(result.route).toBe("fits");
   });
 
-  it("keeps the requested reserve when it leaves enough prompt budget", () => {
+  it("caps the requested reserve on 32k models so local agents keep enough prompt budget", () => {
     const result = shouldPreemptivelyCompactBeforePrompt({
       messages: [makeAssistantHistory("short history")],
       systemPrompt: "sys",
@@ -117,8 +117,8 @@ describe("preemptive-compaction", () => {
       reserveTokens: 20_000,
     });
 
-    expect(result.effectiveReserveTokens).toBe(20_000);
-    expect(result.promptBudgetBeforeReserve).toBe(12_000);
+    expect(result.effectiveReserveTokens).toBe(16_000);
+    expect(result.promptBudgetBeforeReserve).toBe(16_000);
     expect(result.shouldCompact).toBe(false);
   });
 

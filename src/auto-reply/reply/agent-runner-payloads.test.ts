@@ -187,7 +187,7 @@ describe("buildReplyPayloads media filter integration", () => {
     await expectSameTargetRepliesSuppressed({ provider: "lark", to: "ou_abc123" });
   });
 
-  it("drops all final payloads when block pipeline streamed successfully", async () => {
+  it("drops text-only final payloads when block pipeline streamed successfully", async () => {
     const pipeline: Parameters<typeof buildReplyPayloads>[0]["blockReplyPipeline"] = {
       didStream: () => true,
       isAborted: () => false,
@@ -197,8 +197,6 @@ describe("buildReplyPayloads media filter integration", () => {
       stop: () => {},
       hasBuffered: () => false,
     };
-    // shouldDropFinalPayloads short-circuits to [] when the pipeline streamed
-    // without aborting, so hasSentPayload is never reached.
     const { replyPayloads } = await buildReplyPayloads({
       ...baseParams,
       blockStreamingEnabled: true,
@@ -208,6 +206,34 @@ describe("buildReplyPayloads media filter integration", () => {
     });
 
     expect(replyPayloads).toHaveLength(0);
+  });
+
+  it("preserves final media attachment after block pipeline streamed text", async () => {
+    const pipeline: Parameters<typeof buildReplyPayloads>[0]["blockReplyPipeline"] = {
+      didStream: () => true,
+      isAborted: () => false,
+      hasSentPayload: () => false,
+      enqueue: () => {},
+      flush: async () => {},
+      stop: () => {},
+      hasBuffered: () => false,
+    };
+
+    const { replyPayloads } = await buildReplyPayloads({
+      ...baseParams,
+      blockStreamingEnabled: true,
+      blockReplyPipeline: pipeline,
+      replyToMode: "all",
+      payloads: [{ text: "Got you.\n\nMEDIA:./fox.jpg", replyToId: "post-123" }],
+    });
+
+    expect(replyPayloads).toHaveLength(1);
+    expect(replyPayloads[0]).toMatchObject({
+      text: undefined,
+      mediaUrl: "./fox.jpg",
+      mediaUrls: ["./fox.jpg"],
+      replyToId: "post-123",
+    });
   });
 
   it("preserves post-stream error payloads when block pipeline streamed successfully", async () => {

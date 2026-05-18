@@ -188,6 +188,26 @@ describe("truncateToolResultMessage", () => {
     }
     expect(getFirstToolResultText(result)).toContain("[persist-truncated]");
   });
+
+  it("collapses accidental base64 binary output and strips details", () => {
+    const base64Line = "/9j/" + "A".repeat(96);
+    const binaryOutput = [
+      "% Total    % Received % Xferd",
+      ...Array.from({ length: 80 }, () => base64Line),
+    ].join("\n");
+    const msg = {
+      ...makeToolResult(binaryOutput),
+      details: { aggregated: binaryOutput },
+    } as ToolResultMessage & { details: unknown };
+
+    const result = truncateToolResultMessage(msg, 16_000);
+
+    expect(result).not.toHaveProperty("details");
+    const text = getFirstToolResultText(result);
+    expect(text).toContain("binary/base64 output omitted");
+    expect(text).toContain("MEDIA:<relative-path>");
+    expect(text.length).toBeLessThan(1_000);
+  });
 });
 
 describe("calculateMaxToolResultChars", () => {
