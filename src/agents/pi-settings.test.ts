@@ -162,9 +162,9 @@ describe("applyPiCompactionSettingsFromConfig", () => {
   it("caps floor to context window ratio for small-context models", () => {
     // Pi SDK default reserveTokens is 16 384.  With a 16 384 context window
     // the default floor (20 000) exceeds the window.  The aligned cap
-    // computes: minPromptBudget = min(8_000, floor(16_384 * 0.5)) = 8_000,
-    // maxReserve = 16_384 - 8_000 = 8_384.  Since current (16_384) > capped
-    // floor (8_384), no override is needed.
+    // computes: minPromptBudget = min(16_000, floor(16_384 * 0.5)) = 8_192,
+    // maxReserve = 16_384 - 8_192 = 8_192.  Since current (16_384) > capped
+    // floor (8_192), no override is needed.
     const settingsManager = {
       getCompactionReserveTokens: () => 16_384,
       getCompactionKeepRecentTokens: () => 20_000,
@@ -195,7 +195,7 @@ describe("applyPiCompactionSettingsFromConfig", () => {
 
     // User sets reserveTokens=2048 but NOT reserveTokensFloor (default 20_000 applies).
     // Pre-fix: target = max(2048, 20_000) = 20_000 → exceeds 16_384 context → infinite loop.
-    // Post-fix: floor capped to 8_384 → target = max(2048, 8_384) = 8_384 → works.
+    // Post-fix: floor capped to 8_192 → target = max(2048, 8_192) = 8_192 → works.
     const result = applyPiCompactionSettingsFromConfig({
       settingsManager,
       cfg: {
@@ -209,18 +209,18 @@ describe("applyPiCompactionSettingsFromConfig", () => {
     });
 
     expect(result.didOverride).toBe(true);
-    expect(result.compaction.reserveTokens).toBe(8_384); // capped floor wins over user's 2_048
+    expect(result.compaction.reserveTokens).toBe(8_192);
     expect(settingsManager.applyOverrides).toHaveBeenCalledWith({
-      compaction: { reserveTokens: 8_384 },
+      compaction: { reserveTokens: 8_192 },
     });
   });
 
   it("applies capped floor when current reserve is below it on small-context models", () => {
     // Simulate a Pi SDK default of 4 096 with a 16 384 context window.
-    // minPromptBudget = min(8_000, floor(16_384 * 0.5)) = 8_000.
-    // maxReserve = 16_384 - 8_000 = 8_384.
-    // Capped floor = min(20_000, 8_384) = 8_384.
-    // targetReserveTokens = max(4_096, 8_384) = 8_384 → override applied.
+    // minPromptBudget = min(16_000, floor(16_384 * 0.5)) = 8_192.
+    // maxReserve = 16_384 - 8_192 = 8_192.
+    // Capped floor = min(20_000, 8_192) = 8_192.
+    // targetReserveTokens = max(4_096, 8_192) = 8_192 → override applied.
     const settingsManager = {
       getCompactionReserveTokens: () => 4_096,
       getCompactionKeepRecentTokens: () => 20_000,
@@ -238,6 +238,7 @@ describe("applyPiCompactionSettingsFromConfig", () => {
     );
     const expectedReserve = Math.max(0, 16_384 - minPromptBudget);
     expect(result.didOverride).toBe(true);
+    expect(expectedReserve).toBe(8_192);
     expect(result.compaction.reserveTokens).toBe(expectedReserve);
     expect(settingsManager.applyOverrides).toHaveBeenCalledWith({
       compaction: { reserveTokens: expectedReserve },
@@ -279,17 +280,16 @@ describe("applyPiCompactionSettingsFromConfig", () => {
       applyOverrides: vi.fn(),
     };
 
-    // 32 768 context window → minPromptBudget = min(8_000, floor(32_768 * 0.5)) = 8_000.
-    // maxReserve = 32_768 - 8_000 = 24_768.
-    // Since 24_768 > 20_000 (DEFAULT_FLOOR), the floor is NOT capped and stays at 20_000.
+    // 32 768 context window → minPromptBudget = min(16_000, floor(32_768 * 0.5)) = 16_000.
+    // maxReserve = 32_768 - 16_000 = 16_768, so the default floor is capped.
     const result = applyPiCompactionSettingsFromConfig({
       settingsManager,
       contextTokenBudget: 32_768,
     });
 
-    expect(result.compaction.reserveTokens).toBe(DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR);
+    expect(result.compaction.reserveTokens).toBe(16_768);
     expect(settingsManager.applyOverrides).toHaveBeenCalledWith({
-      compaction: { reserveTokens: DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR },
+      compaction: { reserveTokens: 16_768 },
     });
   });
 

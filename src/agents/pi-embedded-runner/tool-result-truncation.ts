@@ -39,6 +39,9 @@ export const HARD_MAX_TOOL_RESULT_CHARS = DEFAULT_MAX_LIVE_TOOL_RESULT_CHARS;
  */
 const MIN_KEEP_CHARS = 2_000;
 const RECOVERY_MIN_KEEP_CHARS = 0;
+const BINARY_OUTPUT_MIN_CHARS = 4_000;
+const BINARY_OUTPUT_RATIO = 0.5;
+const BINARY_OUTPUT_PREVIEW_CHARS = 1_000;
 
 type ToolResultTruncationOptions = {
   suffix?: string | ((truncatedChars: number) => string);
@@ -48,6 +51,48 @@ type ToolResultTruncationOptions = {
 const DEFAULT_SUFFIX = (truncatedChars: number) =>
   formatContextLimitTruncationNotice(truncatedChars);
 export const MIN_TRUNCATED_TEXT_CHARS = MIN_KEEP_CHARS + DEFAULT_SUFFIX(1).length;
+
+function looksLikeBase64Line(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.length >= 64 && /^[A-Za-z0-9+/=]+$/.test(trimmed);
+}
+
+function collapseBinaryToolOutput(text: string): string {
+  if (text.length < BINARY_OUTPUT_MIN_CHARS) {
+    return text;
+  }
+
+  let binaryChars = 0;
+  let binaryLines = 0;
+  const nonBinaryPreview: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (looksLikeBase64Line(line)) {
+      binaryChars += line.trim().length;
+      binaryLines += 1;
+      continue;
+    }
+    if (nonBinaryPreview.join("\n").length < BINARY_OUTPUT_PREVIEW_CHARS) {
+      nonBinaryPreview.push(line);
+    }
+  }
+
+  if (
+    binaryLines < 2 ||
+    binaryChars < BINARY_OUTPUT_MIN_CHARS ||
+    binaryChars / Math.max(1, text.length) < BINARY_OUTPUT_RATIO
+  ) {
+    return text;
+  }
+
+  const preview = nonBinaryPreview.join("\n").trim().slice(0, BINARY_OUTPUT_PREVIEW_CHARS);
+  return [
+    `[binary/base64 output omitted: ${binaryChars} characters across ${binaryLines} lines]`,
+    "Save binary data to a file and reference it with MEDIA:<relative-path> instead of printing it into tool output.",
+    preview ? `Non-binary output preview:\n${preview}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 function resolveSuffixFactory(
   suffix: ToolResultTruncationOptions["suffix"],
@@ -129,6 +174,7 @@ export function truncateToolResultText(
   maxChars: number,
   options: ToolResultTruncationOptions = {},
 ): string {
+  text = collapseBinaryToolOutput(text);
   const suffixFactory = resolveSuffixFactory(options.suffix);
   const minKeepChars = resolveEffectiveMinKeepChars({
     maxChars,
@@ -262,15 +308,38 @@ export function truncateToolResultMessage(
   if (!Array.isArray(content)) {
     return msg;
   }
+  let normalizedBinaryOutput = false;
+  const normalizedContent = content.map((block: unknown) => {
+    if (!block || typeof block !== "object" || (block as { type?: string }).type !== "text") {
+      return block;
+    }
+    const textBlock = block as TextContent;
+    if (typeof textBlock.text !== "string") {
+      return block;
+    }
+    const collapsed = collapseBinaryToolOutput(textBlock.text);
+    if (collapsed !== textBlock.text) {
+      normalizedBinaryOutput = true;
+      return Object.assign({}, textBlock, { text: collapsed });
+    }
+    return block;
+  });
+  const workingMsg = normalizedBinaryOutput
+    ? (({ details: _details, ...rest }) =>
+        ({ ...rest, content: normalizedContent }) as AgentMessage)(
+        msg as unknown as Record<string, unknown>,
+      )
+    : msg;
+  const workingContent = normalizedBinaryOutput ? normalizedContent : content;
 
   // Calculate total text size
-  const totalTextChars = getToolResultTextLength(msg);
+  const totalTextChars = getToolResultTextLength(workingMsg);
   if (totalTextChars <= maxChars) {
-    return msg;
+    return workingMsg;
   }
 
   // Distribute the budget proportionally among text blocks
-  const newContent = content.map((block: unknown) => {
+  const newContent = workingContent.map((block: unknown) => {
     if (!block || typeof block !== "object" || (block as { type?: string }).type !== "text") {
       return block; // Keep non-text blocks (images) as-is
     }
@@ -296,7 +365,8 @@ export function truncateToolResultMessage(
     });
   });
 
-  return { ...msg, content: newContent } as AgentMessage;
+  const { details: _details, ...rest } = workingMsg as unknown as Record<string, unknown>;
+  return { ...rest, content: newContent } as AgentMessage;
 }
 
 /**
