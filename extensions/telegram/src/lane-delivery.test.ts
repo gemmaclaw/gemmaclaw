@@ -45,6 +45,9 @@ function createHarness(params?: {
     }
     await lane.stream?.stop();
   });
+  const discardDraftLane = vi.fn().mockImplementation(async (lane: DraftLaneState) => {
+    await lane.stream?.discard?.();
+  });
   const editPreview = vi.fn().mockResolvedValue(undefined);
   const deletePreviewMessage = vi.fn().mockResolvedValue(undefined);
   const log = vi.fn();
@@ -67,6 +70,7 @@ function createHarness(params?: {
     sendPayload,
     flushDraftLane,
     stopDraftLane,
+    discardDraftLane,
     editPreview,
     deletePreviewMessage,
     log,
@@ -83,6 +87,7 @@ function createHarness(params?: {
     sendPayload,
     flushDraftLane,
     stopDraftLane,
+    discardDraftLane,
     editPreview,
     deletePreviewMessage,
     log,
@@ -189,6 +194,30 @@ describe("createLaneTextDeliverer", () => {
       }),
     );
     expect(harness.sendPayload).not.toHaveBeenCalled();
+  });
+
+  it("does not flush text previews before final media delivery", async () => {
+    const harness = createHarness({ answerHasStreamedMessage: true });
+
+    const result = await harness.deliverLaneText({
+      laneName: "answer",
+      text: "Here is the cougar",
+      payload: {
+        text: "Here is the cougar",
+        mediaUrl: "/home/frank/.gemmaclaw/workspace/cougar.jpg",
+      },
+      infoKind: "final",
+    });
+
+    expect(result.kind).toBe("sent");
+    expect(harness.discardDraftLane).toHaveBeenCalledTimes(1);
+    expect(harness.stopDraftLane).not.toHaveBeenCalled();
+    expect(harness.sendPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "Here is the cougar",
+        mediaUrl: "/home/frank/.gemmaclaw/workspace/cougar.jpg",
+      }),
+    );
   });
 
   it("keeps stop-created preview when follow-up final edit fails", async () => {

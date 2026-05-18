@@ -768,6 +768,13 @@ export const dispatchTelegramMessage = async ({
       stopDraftLane: async (lane) => {
         await lane.stream?.stop();
       },
+      discardDraftLane: async (lane) => {
+        if (typeof lane.stream?.discard === "function") {
+          await lane.stream.discard();
+          return;
+        }
+        await lane.stream?.stop();
+      },
       editPreview: async ({ messageId, text, previewButtons }) => {
         if (isDispatchSuperseded()) {
           return;
