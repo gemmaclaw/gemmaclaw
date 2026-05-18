@@ -257,7 +257,7 @@ export function listChunks(params: {
     text: string;
     embedding: string;
     source: SearchSource;
-  }>;
+  };
 
   return rows.map((row) => ({
     id: row.id,
