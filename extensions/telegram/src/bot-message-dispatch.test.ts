@@ -2528,6 +2528,46 @@ describe("dispatchTelegramMessage draft streaming", () => {
     expect(draftStream.clear).toHaveBeenCalledTimes(1);
   });
 
+  it("delivers media when a final answer contains both text and media", async () => {
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ dispatcherOptions }) => {
+      await dispatcherOptions.deliver(
+        { text: "Here is the tiger\n\nMEDIA:tiger.jpg" },
+        { kind: "final" },
+      );
+      return { queuedFinal: true };
+    });
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        route: { agentId: "main", accountId: "default" },
+      } as Partial<TelegramMessageContext>),
+      cfg: {
+        agents: {
+          list: [{ id: "main", default: true }],
+          defaults: { workspace: "/tmp/jake-main-workspace" },
+        },
+      } as OpenClawConfig,
+      streamMode: "block",
+    });
+
+    expect(deliverReplies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replies: [expect.objectContaining({ mediaUrl: expect.stringMatching(/tiger\.jpg$/) })],
+      }),
+    );
+    const mediaReply = deliverReplies.mock.calls.find((call) => {
+      const replies = call[0]?.replies;
+      return Array.isArray(replies) && String(replies[0]?.mediaUrl ?? "").endsWith("tiger.jpg");
+    })?.[0]?.replies?.[0];
+    expect(mediaReply?.text).toBe("Here is the tiger");
+    expect(mediaReply?.text).not.toContain("MEDIA:");
+    expect(mediaReply?.mediaUrl).toContain("/workspace/tiger.jpg");
+    expect(mediaReply?.mediaUrl).not.toContain("/sandboxes/");
+  });
+
   it("clears stale preview when response is NO_REPLY", async () => {
     const draftStream = createDraftStream(999);
     createTelegramDraftStream.mockReturnValue(draftStream);

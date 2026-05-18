@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { Bot } from "grammy";
 import {
   DEFAULT_TIMING,
@@ -79,9 +80,80 @@ import { cacheSticker, describeStickerImage } from "./sticker-cache.js";
 
 const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
 const silentReplyDispatchLogger = createSubsystemLogger("telegram/silent-reply-dispatch");
+const MEDIA_DIRECTIVE_RE = /^\s*MEDIA:\s*(.+?)\s*$/i;
+const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 
 /** Minimum chars before sending first streaming message (improves push notification UX) */
 const DRAFT_MIN_INITIAL_CHARS = 30;
+
+function isPathInsideRoot(candidate: string, root: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function stripMediaSourceQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === `"` && last === `"`) || (first === `'` && last === `'`)) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+}
+
+function resolveTelegramMediaDirectiveSource(source: string, mediaLocalRoots: readonly string[]) {
+  const trimmed = stripMediaSourceQuotes(source);
+  if (!trimmed || SCHEME_RE.test(trimmed) || path.isAbsolute(trimmed) || trimmed.startsWith("~")) {
+    return trimmed;
+  }
+  const workspaceRoots = mediaLocalRoots.filter((root) => {
+    const normalized = path.resolve(root);
+    return (
+      path.basename(normalized) === "workspace" ||
+      path.basename(path.dirname(normalized)) === "workspaces"
+    );
+  });
+  const preferredRoots =
+    workspaceRoots.length > 0 ? workspaceRoots.toReversed() : mediaLocalRoots.toReversed();
+  for (const root of preferredRoots) {
+    const resolved = path.resolve(root, trimmed);
+    if (isPathInsideRoot(resolved, root)) {
+      return resolved;
+    }
+  }
+  return trimmed;
+}
+
+function normalizeTelegramMediaDirectives(
+  payload: ReplyPayload,
+  mediaLocalRoots: readonly string[],
+): ReplyPayload {
+  if (typeof payload.text !== "string" || !/^\s*MEDIA:/im.test(payload.text)) {
+    return payload;
+  }
+  const mediaUrls = [...(payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []))];
+  const textLines: string[] = [];
+  for (const line of payload.text.split(/\r?\n/)) {
+    const match = MEDIA_DIRECTIVE_RE.exec(line);
+    if (!match) {
+      textLines.push(line);
+      continue;
+    }
+    const resolved = resolveTelegramMediaDirectiveSource(match[1] ?? "", mediaLocalRoots);
+    if (resolved) {
+      mediaUrls.push(resolved);
+    }
+  }
+  const text = textLines.join("\n").trim() || undefined;
+  return {
+    ...payload,
+    text,
+    mediaUrl: mediaUrls[0],
+    mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+  };
+}
 
 async function resolveStickerVisionSupport(cfg: OpenClawConfig, agentId: string) {
   try {
@@ -774,12 +846,13 @@ export const dispatchTelegramMessage = async ({
             if (isDispatchSuperseded()) {
               return;
             }
+            const payloadForDelivery = normalizeTelegramMediaDirectives(payload, mediaLocalRoots);
             const clearPendingCompactionReplayBoundaryOnVisibleBoundary = (didDeliver: boolean) => {
               if (didDeliver && info.kind !== "final") {
                 pendingCompactionReplayBoundary = false;
               }
             };
-            if (payload.isError === true) {
+            if (payloadForDelivery.isError === true) {
               hadErrorReplyFailureOrSkip = true;
             }
             if (info.kind === "final") {
@@ -789,18 +862,20 @@ export const dispatchTelegramMessage = async ({
               shouldSuppressLocalTelegramExecApprovalPrompt({
                 cfg,
                 accountId: route.accountId,
-                payload,
+                payload: payloadForDelivery,
               })
             ) {
               queuedFinal = true;
               return;
             }
             const previewButtons = (
-              payload.channelData?.telegram as { buttons?: TelegramInlineButtons } | undefined
+              payloadForDelivery.channelData?.telegram as
+                | { buttons?: TelegramInlineButtons }
+                | undefined
             )?.buttons;
-            const split = splitTextIntoLaneSegments(payload.text);
+            const split = splitTextIntoLaneSegments(payloadForDelivery.text);
             const segments = split.segments;
-            const reply = resolveSendableOutboundReplyParts(payload);
+            const reply = resolveSendableOutboundReplyParts(payloadForDelivery);
             const _hasMedia = reply.hasMedia;
 
             const flushBufferedFinalAnswer = async () => {
@@ -830,7 +905,7 @@ export const dispatchTelegramMessage = async ({
                 reasoningStepState.shouldBufferFinalAnswer()
               ) {
                 reasoningStepState.bufferFinalAnswer({
-                  payload,
+                  payload: payloadForDelivery,
                   text: segment.text,
                 });
                 continue;
@@ -841,7 +916,7 @@ export const dispatchTelegramMessage = async ({
               const result = await deliverLaneText({
                 laneName: segment.lane,
                 text: segment.text,
-                payload,
+                payload: payloadForDelivery,
                 infoKind: info.kind,
                 previewButtons,
                 allowPreviewUpdateForNonFinal: segment.lane === "reasoning",
@@ -866,6 +941,7 @@ export const dispatchTelegramMessage = async ({
             }
             if (segments.length > 0) {
               if (info.kind === "final") {
+                await flushBufferedFinalAnswer();
                 pendingCompactionReplayBoundary = false;
               }
               return;
@@ -873,7 +949,9 @@ export const dispatchTelegramMessage = async ({
             if (split.suppressedReasoningOnly) {
               if (reply.hasMedia) {
                 const payloadWithoutSuppressedReasoning =
-                  typeof payload.text === "string" ? { ...payload, text: "" } : payload;
+                  typeof payloadForDelivery.text === "string"
+                    ? { ...payloadForDelivery, text: "" }
+                    : payloadForDelivery;
                 clearPendingCompactionReplayBoundaryOnVisibleBoundary(
                   await sendPayload(payloadWithoutSuppressedReasoning),
                 );
@@ -898,7 +976,9 @@ export const dispatchTelegramMessage = async ({
               }
               return;
             }
-            clearPendingCompactionReplayBoundaryOnVisibleBoundary(await sendPayload(payload));
+            clearPendingCompactionReplayBoundaryOnVisibleBoundary(
+              await sendPayload(payloadForDelivery),
+            );
             if (info.kind === "final") {
               await flushBufferedFinalAnswer();
               pendingCompactionReplayBoundary = false;
