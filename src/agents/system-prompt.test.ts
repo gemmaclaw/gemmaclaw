@@ -169,6 +169,9 @@ describe("buildAgentSystemPrompt", () => {
 
     expect(prompt).toContain("## Assistant Output Directives");
     expect(prompt).toContain("[[reply_to_current]]");
+    expect(prompt).toContain(
+      "Never reply with only a `MEDIA:` line. Put a concise human caption first, then put `MEDIA:<path-or-url>` on its own final line.",
+    );
     expect(prompt).not.toContain("Tags are stripped before sending");
     expect(prompt).toContain("Supported tags are stripped before user-visible rendering");
   });

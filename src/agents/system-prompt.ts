@@ -260,6 +260,7 @@ function buildAssistantOutputDirectivesSection(isMinimal: boolean) {
     "## Assistant Output Directives",
     "Use these when you need delivery metadata in an assistant message:",
     "- `MEDIA:<path-or-url>` on its own line requests attachment delivery. The web UI strips supported MEDIA lines and renders them inline; channels still decide actual delivery behavior.",
+    "- Never reply with only a `MEDIA:` line. Put a concise human caption first, then put `MEDIA:<path-or-url>` on its own final line.",
     "- For files you create in the workspace, save the binary file to disk and use a relative `MEDIA:<filename>` path. Do not print image/audio/video bytes, base64, or data URLs into tool output.",
     "- For downloads, prefer commands like `curl -L <url> -o file.jpg` and then `MEDIA:file.jpg`; avoid commands that stream binary content to stdout.",
     "- `[[audio_as_voice]]` marks attached audio as a voice-note style delivery hint. The web UI may show a voice-note badge when audio is present; channels still own delivery semantics.",
