@@ -76,6 +76,7 @@ type CreateLaneTextDelivererParams = {
   sendPayload: (payload: ReplyPayload) => Promise<boolean>;
   flushDraftLane: (lane: DraftLaneState) => Promise<void>;
   stopDraftLane: (lane: DraftLaneState) => Promise<void>;
+  discardDraftLane: (lane: DraftLaneState) => Promise<void>;
   editPreview: (params: {
     laneName: LaneName;
     messageId: number;
@@ -567,7 +568,11 @@ export function createLaneTextDeliverer(params: CreateLaneTextDelivererParams) {
           `telegram: preview final too long for edit (${text.length} > ${params.draftMaxChars}); falling back to standard send`,
         );
       }
-      await params.stopDraftLane(lane);
+      if (hasMedia) {
+        await params.discardDraftLane(lane);
+      } else {
+        await params.stopDraftLane(lane);
+      }
       const delivered = await params.sendPayload(params.applyTextToPayload(payload, text));
       return delivered ? result("sent") : result("skipped");
     }
