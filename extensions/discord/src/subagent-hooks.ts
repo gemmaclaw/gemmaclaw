@@ -156,7 +156,7 @@ export async function handleDiscordSubagentSpawning(
       threadBindingReady: true,
       deliveryOrigin: {
         channel: "discord",
-        accountId: account.accountId,
+        accountId: event.requester?.accountId,
         to: `channel:${binding.threadId}`,
         threadId: binding.threadId,
       },
