@@ -21364,6 +21364,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
           remote: {
             type: "object",
             properties: {
+              enabled: {
+                type: "boolean",
+              },
               url: {
                 type: "string",
                 title: "Remote Gateway URL",
@@ -21383,6 +21386,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                 title: "Remote Gateway Transport",
                 description:
                   'Remote connection transport: "direct" uses configured URL connectivity, while "ssh" tunnels through SSH. Use SSH when you need encrypted tunnel semantics without exposing remote ports.',
+              },
+              remotePort: {
+                type: "integer",
+                minimum: 1,
+                maximum: 65535,
               },
               token: {
                 anyOf: [
