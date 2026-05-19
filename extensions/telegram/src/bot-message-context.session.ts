@@ -32,6 +32,7 @@ import {
   buildSenderLabel,
   buildSenderName,
   buildTelegramGroupFrom,
+  buildTelegramInboundOriginTarget,
   describeReplyTarget,
   normalizeForwardedContext,
   type TelegramReplyTarget,
@@ -381,7 +382,7 @@ export async function buildTelegramInboundContextPayload(params: {
     IsForum: isForum,
     TopicName: isForum && topicName ? topicName : undefined,
     OriginatingChannel: "telegram" as const,
-    OriginatingTo: `telegram:${chatId}`,
+    OriginatingTo: buildTelegramInboundOriginTarget(chatId, threadSpec),
   });
 
   const pinnedMainDmOwner = !isGroup
