@@ -359,6 +359,27 @@ function authorizeTokenAuth(params: {
   return { ok: true, method: "token" };
 }
 
+function authorizePasswordAuth(params: {
+  authPassword?: string;
+  connectPassword?: string;
+  limiter?: AuthRateLimiter;
+  ip?: string;
+  rateLimitScope: string;
+}): GatewayAuthResult {
+  if (!params.authPassword) {
+    return { ok: false, reason: "password_missing_config" };
+  }
+  if (!params.connectPassword) {
+    return { ok: false, reason: "password_missing" };
+  }
+  if (!safeEqualSecret(params.connectPassword, params.authPassword)) {
+    params.limiter?.recordFailure(params.ip, params.rateLimitScope);
+    return { ok: false, reason: "password_mismatch" };
+  }
+  params.limiter?.reset(params.ip, params.rateLimitScope);
+  return { ok: true, method: "password" };
+}
+
 export async function authorizeGatewayConnect(
   params: AuthorizeGatewayConnectParams,
 ): Promise<GatewayAuthResult> {

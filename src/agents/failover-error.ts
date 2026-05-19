@@ -6,6 +6,7 @@ import {
 } from "./pi-embedded-helpers/errors.js";
 import { isTimeoutErrorMessage } from "./pi-embedded-helpers/errors.js";
 import type { FailoverReason } from "./pi-embedded-helpers/types.js";
+import { isSessionWriteLockTimeoutError } from "./session-write-lock-error.js";
 
 const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
 
@@ -216,6 +217,25 @@ function hasEmbeddedAttemptSessionTakeover(err: unknown, seen: Set<object> = new
     hasEmbeddedAttemptSessionTakeover(candidate.error, seen) ||
     hasEmbeddedAttemptSessionTakeover(candidate.cause, seen) ||
     hasEmbeddedAttemptSessionTakeover(candidate.reason, seen)
+  );
+}
+
+function hasSessionWriteLockTimeout(err: unknown, seen: Set<object> = new Set()): boolean {
+  if (isSessionWriteLockTimeoutError(err)) {
+    return true;
+  }
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  if (seen.has(err)) {
+    return false;
+  }
+  seen.add(err);
+  const candidate = err as { error?: unknown; cause?: unknown; reason?: unknown };
+  return (
+    hasSessionWriteLockTimeout(candidate.error, seen) ||
+    hasSessionWriteLockTimeout(candidate.cause, seen) ||
+    hasSessionWriteLockTimeout(candidate.reason, seen)
   );
 }
 

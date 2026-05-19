@@ -220,7 +220,6 @@ export function maybeRetireLegacyMainDeliveryRoute(params: {
     return undefined;
   }
   if (
-    legacyMain.route === undefined &&
     legacyMain.deliveryContext === undefined &&
     legacyMain.lastChannel === undefined &&
     legacyMain.lastTo === undefined &&
@@ -233,7 +232,6 @@ export function maybeRetireLegacyMainDeliveryRoute(params: {
     key: canonicalMainSessionKey,
     entry: {
       ...legacyMain,
-      route: undefined,
       deliveryContext: undefined,
       lastChannel: undefined,
       lastTo: undefined,
