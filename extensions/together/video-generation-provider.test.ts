@@ -53,7 +53,7 @@ describe("together video generation provider", () => {
 
     expect(postJsonRequestMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "https://api.together.xyz/v1/videos",
+        url: "https://api.together.xyz/v2/videos",
       }),
     );
     expect(result.videos).toHaveLength(1);
