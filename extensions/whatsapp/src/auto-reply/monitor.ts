@@ -20,6 +20,7 @@ import {
   WhatsAppConnectionController,
   type ManagedWhatsAppListener,
 } from "../connection-controller.js";
+import { resolveWhatsAppInboundPolicy } from "../inbound-policy.js";
 import { attachWebInboxToSocket } from "../inbound/monitor.js";
 import {
   newConnectionId,
@@ -33,6 +34,7 @@ import { whatsappHeartbeatLog, whatsappLog } from "./loggers.js";
 import { buildMentionConfig } from "./mentions.js";
 import { createWebChannelStatusController } from "./monitor-state.js";
 import { createEchoTracker } from "./monitor/echo.js";
+import { formatWhatsAppInboundListeningLog } from "./monitor/listener-log.js";
 import { createWebOnMessageHandler } from "./monitor/on-message.js";
 import type { WebInboundMsg, WebMonitorTuning } from "./types.js";
 import { isLikelyWhatsAppCryptoError } from "./util.js";
@@ -408,7 +410,18 @@ export async function monitorWebChannel(
         );
       });
 
-      whatsappLog.info("Listening for personal WhatsApp inbound messages.");
+      const inboundPolicy = resolveWhatsAppInboundPolicy({
+        cfg,
+        accountId: account.accountId,
+        selfE164: selfE164 ?? null,
+      });
+      whatsappLog.info(
+        formatWhatsAppInboundListeningLog({
+          groups: inboundPolicy.account.groups,
+          groupPolicy: inboundPolicy.groupPolicy,
+          hasGroupAllowFrom: inboundPolicy.groupAllowFrom.length > 0,
+        }),
+      );
       if (process.stdout.isTTY || process.stderr.isTTY) {
         whatsappLog.raw("Ctrl+C to stop.");
       }
