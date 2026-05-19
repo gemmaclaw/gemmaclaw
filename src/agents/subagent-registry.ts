@@ -54,6 +54,7 @@ import {
 import {
   getSubagentRunsSnapshotForRead,
   persistSubagentRunsToDisk,
+  persistSubagentRunsToDiskOrThrow,
   restoreSubagentRunsFromDisk,
 } from "./subagent-registry-state.js";
 import { configureSubagentRegistrySteerRuntime } from "./subagent-registry-steer-runtime.js";
@@ -85,6 +86,7 @@ type SubagentRegistryDeps = {
   loadConfig: typeof loadConfig;
   onAgentEvent: typeof onAgentEvent;
   persistSubagentRunsToDisk: typeof persistSubagentRunsToDisk;
+  persistSubagentRunsToDiskOrThrow: typeof persistSubagentRunsToDiskOrThrow;
   resolveAgentTimeoutMs: typeof resolveAgentTimeoutMs;
   restoreSubagentRunsFromDisk: typeof restoreSubagentRunsFromDisk;
   runSubagentAnnounceFlow: SubagentAnnounceModule["runSubagentAnnounceFlow"];
@@ -118,6 +120,7 @@ const defaultSubagentRegistryDeps: SubagentRegistryDeps = {
   loadConfig,
   onAgentEvent,
   persistSubagentRunsToDisk,
+  persistSubagentRunsToDiskOrThrow,
   resolveAgentTimeoutMs,
   restoreSubagentRunsFromDisk,
   runSubagentAnnounceFlow: async (params) =>
@@ -222,6 +225,10 @@ async function resolveSubagentRegistryContextEngine(cfg: OpenClawConfig) {
 
 function persistSubagentRuns() {
   subagentRegistryDeps.persistSubagentRunsToDisk(subagentRuns);
+}
+
+function persistSubagentRunsOrThrow() {
+  subagentRegistryDeps.persistSubagentRunsToDiskOrThrow(subagentRuns);
 }
 
 export function scheduleSubagentOrphanRecovery(params?: { delayMs?: number; maxRetries?: number }) {
@@ -714,6 +721,7 @@ const subagentRunManager = createSubagentRunManager({
   resumedRuns,
   endedHookInFlightRunIds,
   persist: persistSubagentRuns,
+  persistOrThrow: persistSubagentRunsOrThrow,
   callGateway: (request) => subagentRegistryDeps.callGateway(request),
   loadConfig: () => subagentRegistryDeps.loadConfig(),
   ensureRuntimePluginsLoaded: (args: {
