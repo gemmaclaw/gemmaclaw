@@ -24,6 +24,18 @@ function loadTarRuntime(): Promise<TarRuntime> {
   return tarRuntimePromise;
 }
 
+type BackupLinkCacheKey = `${number}:${number}`;
+
+class BackupLinkCache extends Map<BackupLinkCacheKey, string> {
+  override get(_key: BackupLinkCacheKey): undefined {
+    return undefined;
+  }
+
+  override set(_key: BackupLinkCacheKey, _value: string): this {
+    return this;
+  }
+}
+
 export type BackupCreateOptions = {
   output?: string;
   dryRun?: boolean;
@@ -458,19 +470,50 @@ export async function createBackupArchive(
     await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
     const tar = await loadTarRuntime();
-    try {
-      await tar.c(
-        {
-          file: tempArchivePath,
-          gzip: true,
-          portable: true,
-          preservePaths: true,
-          onWriteEntry: (entry) => {
-            entry.path = remapArchiveEntryPath({
-              entryPath: entry.path,
-              manifestPath,
-              archiveRoot,
-            });
+    const stateAsset = result.assets.find((asset) => asset.kind === "state");
+    const extensionsFilter = stateAsset
+      ? buildExtensionsNodeModulesFilter(stateAsset.sourcePath)
+      : undefined;
+    const volatilePlan = { stateDirs: [stateAsset?.sourcePath ?? plan.stateDir] };
+    let skippedVolatileCount = 0;
+    const tarFilter = (entryPath: string): boolean => {
+      // The manifest is staged in a tmp dir outside any state directory and
+      // is always safe to include.
+      if (path.resolve(entryPath) === manifestPath) {
+        return true;
+      }
+      if (extensionsFilter && !extensionsFilter(entryPath)) {
+        return false;
+      }
+      if (isVolatileBackupPath(entryPath, volatilePlan)) {
+        skippedVolatileCount += 1;
+        return false;
+      }
+      return true;
+    };
+    await writeTarArchiveWithRetry({
+      tempArchivePath,
+      log: opts.log,
+      runTar: () => {
+        // tar.c re-walks the tree (and thus re-invokes tarFilter) on every
+        // attempt, so reset the closure counter here or retries would report
+        // cumulative skip counts across attempts instead of the final one.
+        skippedVolatileCount = 0;
+        return tar.c(
+          {
+            file: tempArchivePath,
+            gzip: true,
+            portable: true,
+            preservePaths: true,
+            linkCache: new BackupLinkCache(),
+            filter: tarFilter,
+            onWriteEntry: (entry) => {
+              entry.path = remapArchiveEntryPath({
+                entryPath: entry.path,
+                manifestPath,
+                archiveRoot,
+              });
+            },
           },
         },
         [manifestPath, ...result.assets.map((asset) => asset.sourcePath)],
