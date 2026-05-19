@@ -147,7 +147,7 @@ describe("session startup catch-up", () => {
     const session = await writeSessionFile("thread.jsonl");
     const harness = new SessionStartupCatchupHarness([
       {
-        path: "sessions/main/thread.jsonl",
+        path: "sessions/thread.jsonl",
         hash: "old-hash",
         mtime: session.mtimeMs - 1000,
         size: session.size,
@@ -164,7 +164,7 @@ describe("session startup catch-up", () => {
     const session = await writeSessionFile("thread.jsonl");
     const harness = new SessionStartupCatchupHarness([
       {
-        path: "sessions/main/thread.jsonl",
+        path: "sessions/thread.jsonl",
         hash: "old-hash",
         mtime: session.mtimeMs - 1000,
         size: session.size,
@@ -181,7 +181,7 @@ describe("session startup catch-up", () => {
     const session = await writeSessionFile("thread.jsonl");
     const harness = new SessionStartupCatchupHarness([
       {
-        path: "sessions/main/thread.jsonl",
+        path: "sessions/thread.jsonl",
         hash: "current-hash",
         mtime: session.mtimeMs,
         size: session.size,
