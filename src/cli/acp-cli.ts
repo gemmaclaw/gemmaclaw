@@ -72,7 +72,7 @@ export function registerAcpCli(program: Command) {
           verbose: Boolean(opts.verbose || inheritedVerbose),
         });
       } catch (err) {
-        defaultRuntime.error(String(err));
+        defaultRuntime.error(formatErrorMessage(err));
         defaultRuntime.exit(1);
       }
     });
