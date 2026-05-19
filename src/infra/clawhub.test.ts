@@ -20,6 +20,7 @@ describe("clawhub helpers", () => {
   const originalHome = process.env.HOME;
 
   afterEach(() => {
+    delete process.env.OPENCLAW_CLAWHUB_URL;
     delete process.env.OPENCLAW_CLAWHUB_TOKEN;
     delete process.env.CLAWHUB_TOKEN;
     delete process.env.CLAWHUB_AUTH_TOKEN;
@@ -191,6 +192,29 @@ describe("clawhub helpers", () => {
     };
 
     await expect(searchClawHubSkills({ query: "calendar", fetchImpl })).resolves.toEqual([]);
+  });
+
+  it("preserves the configured ClawHub base URL path prefix", async () => {
+    process.env.OPENCLAW_CLAWHUB_URL = "https://internal.example.com/clawhub";
+    let requestedUrl = "";
+
+    await expect(
+      searchClawHubSkills({
+        query: "calendar",
+        fetchImpl: async (input) => {
+          requestedUrl = input instanceof Request ? input.url : String(input);
+          return new Response(JSON.stringify({ results: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      }),
+    ).resolves.toStrictEqual([]);
+
+    const url = new URL(requestedUrl);
+    expect(url.origin).toBe("https://internal.example.com");
+    expect(url.pathname).toBe("/clawhub/api/v1/search");
+    expect(url.searchParams.get("q")).toBe("calendar");
   });
 
   it("wraps malformed successful ClawHub JSON responses", async () => {
