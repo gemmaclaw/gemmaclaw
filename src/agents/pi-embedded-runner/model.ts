@@ -275,6 +275,37 @@ function resolveConfiguredProviderConfig(
   return findNormalizedProviderValue(configuredProviders, provider);
 }
 
+function _isModelsAddMetadataModel(params: {
+  model: NonNullable<InlineProviderConfig["models"]>[number] | undefined;
+}) {
+  return (
+    (params.model as { metadataSource?: unknown } | undefined)?.metadataSource === "models-add"
+  );
+}
+
+function findConfiguredProviderModel(
+  providerConfig: InlineProviderConfig | undefined,
+  provider: string,
+  modelId: string,
+) {
+  return providerConfig?.models?.find((candidate) => candidate.id === modelId);
+}
+
+function hasConfiguredFallbackSurface(params: {
+  providerConfig: InlineProviderConfig | undefined;
+  configuredModel: ReturnType<typeof findConfiguredProviderModel>;
+  modelId: string;
+}): boolean {
+  if (params.modelId.startsWith("mock-")) {
+    return true;
+  }
+  if (params.configuredModel) {
+    return true;
+  }
+  const baseUrl = params.providerConfig?.baseUrl?.trim();
+  return Boolean(baseUrl);
+}
+
 function readModelParams(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -545,7 +576,7 @@ function resolveConfiguredFallbackModel(params: {
     stripSecretRefMarkers: true,
   });
   const resolvedParams = mergeModelParams(providerConfig?.params, configuredModel?.params);
-  if (!providerConfig && !modelId.startsWith("mock-")) {
+  if (!hasConfiguredFallbackSurface({ providerConfig, configuredModel, modelId })) {
     return undefined;
   }
   const fallbackTransport = resolveProviderTransport({

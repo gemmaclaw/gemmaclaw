@@ -89,6 +89,16 @@ export type ModelDefinitionConfig = {
   compat?: ModelCompatConfig;
 };
 
+export type ModelProviderLocalServiceConfig = {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  healthUrl?: string;
+  readyTimeoutMs?: number;
+  idleStopMs?: number;
+};
+
 export type ModelProviderConfig = {
   baseUrl: string;
   apiKey?: SecretInput;
@@ -97,10 +107,13 @@ export type ModelProviderConfig = {
   injectNumCtxForOpenAICompat?: boolean;
   /** Provider-specific runtime parameters interpreted by provider plugins. */
   params?: Record<string, unknown>;
+  /** Optional local service to start before calling this provider. */
+  localService?: ModelProviderLocalServiceConfig;
   headers?: Record<string, SecretInput>;
   authHeader?: boolean;
   request?: ConfiguredModelProviderRequest;
   models: ModelDefinitionConfig[];
+  timeoutSeconds?: number;
 };
 
 export type BedrockDiscoveryConfig = {

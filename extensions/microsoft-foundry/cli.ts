@@ -124,14 +124,25 @@ function buildAccessTokenArgs(params?: AccessTokenParams): string[] {
   return args;
 }
 
+function parseAzJson(raw: string, label: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    throw new Error(`Azure CLI returned malformed ${label} JSON.`);
+  }
+}
+
 export function getAccessTokenResult(params?: AccessTokenParams): AzAccessToken {
-  return JSON.parse(execAz(buildAccessTokenArgs(params))) as AzAccessToken;
+  return parseAzJson(execAz(buildAccessTokenArgs(params)), "access token") as AzAccessToken;
 }
 
 export async function getAccessTokenResultAsync(
   params?: AccessTokenParams,
 ): Promise<AzAccessToken> {
-  return JSON.parse(await execAzAsync(buildAccessTokenArgs(params))) as AzAccessToken;
+  return parseAzJson(
+    await execAzAsync(buildAccessTokenArgs(params)),
+    "access token",
+  ) as AzAccessToken;
 }
 
 export async function azLoginDeviceCode(): Promise<void> {

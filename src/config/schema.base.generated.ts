@@ -2967,8 +2967,56 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                   description:
                     "Declared model list for a provider including identifiers, metadata, and optional compatibility/cost hints. Keep IDs exact to provider catalog values so selection and fallback resolve correctly.",
                 },
+                localService: {
+                  type: "object",
+                  properties: {
+                    command: {
+                      type: "string",
+                      minLength: 1,
+                    },
+                    args: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                    },
+                    cwd: {
+                      type: "string",
+                      minLength: 1,
+                    },
+                    env: {
+                      type: "object",
+                      propertyNames: {
+                        type: "string",
+                      },
+                      additionalProperties: {
+                        type: "string",
+                      },
+                    },
+                    healthUrl: {
+                      type: "string",
+                      minLength: 1,
+                    },
+                    readyTimeoutMs: {
+                      type: "integer",
+                      exclusiveMinimum: 0,
+                      maximum: 9007199254740991,
+                    },
+                    idleStopMs: {
+                      type: "integer",
+                      minimum: 0,
+                      maximum: 9007199254740991,
+                    },
+                  },
+                  required: ["command"],
+                  additionalProperties: false,
+                },
+                timeoutSeconds: {
+                  type: "integer",
+                  exclusiveMinimum: 0,
+                  maximum: 9007199254740991,
+                },
               },
-              required: ["baseUrl", "models"],
               additionalProperties: false,
             },
             title: "Model Providers",
@@ -27351,6 +27399,10 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       tags: ["security", "models"],
     },
     "models.providers.*.request.headers.*": {
+      sensitive: true,
+      tags: ["security", "models"],
+    },
+    "models.providers.*.localService.env.*": {
       sensitive: true,
       tags: ["security", "models"],
     },
