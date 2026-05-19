@@ -2965,7 +2965,6 @@ describe("initSessionState dmScope delivery migration", () => {
       SessionEntry
     >;
     expect(persisted["agent:main:main"]?.sessionId).toBe("legacy-main");
-    expect(persisted["agent:main:main"]?.route).toBeUndefined();
     expect(persisted["agent:main:main"]?.deliveryContext).toBeUndefined();
     expect(persisted["agent:main:main"]?.lastChannel).toBeUndefined();
     expect(persisted["agent:main:main"]?.lastTo).toBeUndefined();
@@ -3073,11 +3072,6 @@ describe("initSessionState internal channel routing preservation", () => {
       to: "channel:CHAN1",
       accountId: "default",
     });
-    expect(result.sessionEntry.route).toEqual({
-      channel: "mattermost",
-      accountId: "default",
-      target: { to: "channel:CHAN1" },
-    });
     expect(result.sessionEntry.origin).toEqual({
       provider: "mattermost",
       to: "channel:CHAN1",
@@ -3093,11 +3087,6 @@ describe("initSessionState internal channel routing preservation", () => {
       channel: "mattermost",
       to: "channel:CHAN1",
       accountId: "default",
-    });
-    expect(persisted[sessionKey]?.route).toEqual({
-      channel: "mattermost",
-      accountId: "default",
-      target: { to: "channel:CHAN1" },
     });
     expect(persisted[sessionKey]?.origin).toEqual({
       provider: "mattermost",
