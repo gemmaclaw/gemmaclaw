@@ -6,6 +6,7 @@ import { BUNDLED_PLUGIN_ROOT_DIR } from "../test/helpers/bundled-plugin-paths.js
 
 const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const dockerfilePath = join(repoRoot, "Dockerfile");
+const dockerReleaseWorkflowPath = join(repoRoot, ".github/workflows/docker-release.yml");
 
 function collapseDockerContinuations(dockerfile: string): string {
   return dockerfile.replace(/\\\r?\n[ \t]*/g, " ");
@@ -66,6 +67,14 @@ describe("Dockerfile", () => {
     expect(dockerfile).toContain(
       "COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules",
     );
+  });
+
+  it("keeps the Codex plugin in official Docker release images", async () => {
+    const workflow = await readFile(dockerReleaseWorkflowPath, "utf8");
+    const releaseKeepList = "OPENCLAW_EXTENSIONS=diagnostics-otel,codex";
+
+    expect(workflow.match(new RegExp(releaseKeepList, "g"))).toHaveLength(2);
+    expect(workflow).not.toContain("OPENCLAW_EXTENSIONS=diagnostics-otel\n");
   });
 
   it("does not override bundled plugin discovery in runtime images", async () => {

@@ -5,6 +5,7 @@ import { normalizeAcpProvenanceMode } from "../acp/types.js";
 import { defaultRuntime } from "../runtime.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { theme } from "../terminal/theme.js";
+import { formatErrorMessage } from "./cli-utils.js";
 import { inheritOptionFromParent } from "./command-options.js";
 import { resolveGatewayAuthOptions } from "./gateway-secret-options.js";
 
@@ -72,7 +73,7 @@ export function registerAcpCli(program: Command) {
           verbose: Boolean(opts.verbose || inheritedVerbose),
         });
       } catch (err) {
-        defaultRuntime.error(String(err));
+        defaultRuntime.error(formatErrorMessage(err));
         defaultRuntime.exit(1);
       }
     });

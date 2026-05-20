@@ -39,6 +39,7 @@ import { findLegacyConfigIssues } from "./legacy.js";
 import { materializeRuntimeConfig } from "./materialize.js";
 import type { OpenClawConfig, ConfigValidationIssue } from "./types.js";
 import { coerceSecretRef } from "./types.secrets.js";
+import { isBuiltInModelProviderOverlayId } from "./zod-schema.core.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
 const LEGACY_REMOVED_PLUGIN_IDS = new Set(["google-antigravity-auth", "google-gemini-cli-auth"]);
@@ -51,6 +52,64 @@ type AllowedValuesCollection = {
   hasValues: boolean;
 };
 type JsonSchemaLike = Record<string, unknown>;
+
+function _stripDeprecatedValidationKeys(raw: unknown): unknown {
+  if (!isRecord(raw) || !isRecord(raw.commands) || !Object.hasOwn(raw.commands, "modelsWrite")) {
+    return raw;
+  }
+  const commands = { ...raw.commands };
+  delete commands.modelsWrite;
+  return {
+    ...raw,
+    commands,
+  };
+}
+
+function materializeBundledModelProviderOverlays(config: OpenClawConfig): OpenClawConfig {
+  const providers = config.models?.providers;
+  if (!providers) {
+    return config;
+  }
+  let nextProviders: typeof providers | undefined;
+  for (const [providerId, providerConfig] of Object.entries(providers)) {
+    if (
+      !isBuiltInModelProviderOverlayId(providerId) ||
+      (providerConfig.baseUrl && Array.isArray(providerConfig.models))
+    ) {
+      continue;
+    }
+    nextProviders ??= { ...providers };
+    nextProviders[providerId] = {
+      ...providerConfig,
+      baseUrl: providerConfig.baseUrl ?? "",
+      models: providerConfig.models ?? [],
+    };
+  }
+  if (!nextProviders) {
+    return config;
+  }
+  return {
+    ...config,
+    models: {
+      ...config.models,
+      providers: nextProviders,
+    },
+  };
+}
+
+function _stripPreservedLegacyRootKeysForValidation(
+  raw: unknown,
+  keys?: readonly string[],
+): unknown {
+  if (!keys || keys.length === 0 || !isRecord(raw)) {
+    return raw;
+  }
+  const next = { ...raw };
+  for (const key of keys) {
+    delete next[key];
+  }
+  return next;
+}
 
 const CUSTOM_EXPECTED_ONE_OF_RE = /expected one of ((?:"[^"]+"(?:\|"?[^"]+"?)*)+)/i;
 const SECRETREF_POLICY_DOC_URL = "https://docs.openclaw.ai/reference/secretref-credential-surface";
@@ -605,10 +664,10 @@ export function validateConfigObjectRaw(
       issues: mergeUnsupportedMutableSecretRefIssues(policyIssues, schemaIssues),
     };
   }
+  const validatedConfig = materializeBundledModelProviderOverlays(validated.data as OpenClawConfig);
   if (policyIssues.length > 0) {
     return { ok: false, issues: policyIssues };
   }
-  const validatedConfig = validated.data as OpenClawConfig;
   const duplicates = findDuplicateAgentDirs(validatedConfig);
   if (duplicates.length > 0) {
     return {

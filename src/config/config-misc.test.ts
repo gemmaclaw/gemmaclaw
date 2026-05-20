@@ -12,6 +12,134 @@ import { buildWebSearchProviderConfig, withTempHome, writeOpenClawConfig } from 
 import { validateConfigObject, validateConfigObjectRaw } from "./validation.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
+const nonBooleanConfigCases = [
+  {
+    name: "gateway.controlUi.allowExternalEmbedUrls",
+    config: {
+      gateway: {
+        controlUi: {
+          allowExternalEmbedUrls: "yes",
+        },
+      },
+    },
+  },
+  {
+    name: "plugins.entries.*.hooks.allowPromptInjection",
+    config: {
+      plugins: {
+        entries: {
+          "voice-call": {
+            hooks: {
+              allowPromptInjection: "no",
+              allowConversationAccess: true,
+            },
+          },
+        },
+      },
+    },
+  },
+];
+
+function issuePaths(issues: Array<{ path: string }>): string[] {
+  return issues.map((issue) => issue.path);
+}
+
+function issueMessages(issues: Array<{ message: string }>): string[] {
+  return issues.map((issue) => issue.message);
+}
+
+function _expectSomeIssueMessageContains(issues: Array<{ message: string }>, text: string): void {
+  expect(issueMessages(issues).join("\n")).toContain(text);
+}
+
+describe("boolean config validation", () => {
+  it.each(nonBooleanConfigCases)("rejects non-boolean values for $name", ({ config }) => {
+    const result = OpenClawSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("model provider localService config", () => {
+  it("accepts on-demand local provider service settings", () => {
+    const result = OpenClawSchema.safeParse({
+      models: {
+        providers: {
+          ds4: {
+            baseUrl: "http://127.0.0.1:18000/v1",
+            api: "openai-completions",
+            localService: {
+              command: "/Users/me/ds4-server",
+              args: ["--port", "18000"],
+              cwd: "/Users/me/ds4",
+              env: { METAL_DEVICE_WRAPPER_TYPE: "1" },
+              healthUrl: "http://127.0.0.1:18000/v1/models",
+              readyTimeoutMs: 180_000,
+              idleStopMs: 0,
+            },
+            models: [],
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts bundled provider timeout overlays without custom provider fields", () => {
+    const result = validateConfigObjectRaw({
+      models: {
+        providers: {
+          openai: {
+            timeoutSeconds: 600,
+          },
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts bundled provider alias timeout overlays without custom provider fields", () => {
+    const result = validateConfigObjectRaw({
+      models: {
+        providers: {
+          "z.ai": {
+            timeoutSeconds: 600,
+          },
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.config.models?.providers?.["z.ai"]?.models).toEqual([]);
+      expect(result.config.models?.providers?.["z.ai"]?.baseUrl).toBe("");
+    }
+  });
+
+  it("still requires baseUrl and models for custom provider declarations", () => {
+    const result = validateConfigObjectRaw({
+      models: {
+        providers: {
+          custom: {
+            timeoutSeconds: 600,
+          },
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(issuePaths(result.issues)).toEqual(
+        expect.arrayContaining([
+          "models.providers.custom.baseUrl",
+          "models.providers.custom.models",
+        ]),
+      );
+    }
+  });
+});
+
 describe("$schema key in config (#14998)", () => {
   it("accepts config with $schema string", () => {
     const result = OpenClawSchema.safeParse({
