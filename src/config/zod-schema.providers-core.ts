@@ -8,6 +8,7 @@ import {
 } from "../shared/custom-command-config.js";
 import { normalizeOptionalString } from "../shared/string-coerce.js";
 import { ToolPolicySchema } from "./zod-schema.agent-runtime.js";
+import { NativeExecApprovalEnableModeSchema } from "./zod-schema.approvals.js";
 import {
   ChannelHealthMonitorSchema,
   ChannelHeartbeatVisibilitySchema,
@@ -210,7 +211,7 @@ export const TelegramAccountSchemaBase = z
     capabilities: TelegramCapabilitiesSchema.optional(),
     execApprovals: z
       .object({
-        enabled: z.boolean().optional(),
+        enabled: NativeExecApprovalEnableModeSchema.optional(),
         approvers: TelegramIdListSchema.optional(),
         agentFilter: z.array(z.string()).optional(),
         sessionFilter: z.array(z.string()).optional(),
@@ -576,7 +577,7 @@ export const DiscordAccountSchema = z
     healthMonitor: ChannelHealthMonitorSchema,
     execApprovals: z
       .object({
-        enabled: z.boolean().optional(),
+        enabled: NativeExecApprovalEnableModeSchema.optional(),
         approvers: DiscordIdListSchema.optional(),
         agentFilter: z.array(z.string()).optional(),
         sessionFilter: z.array(z.string()).optional(),
@@ -903,7 +904,7 @@ export const SlackAccountSchema = z
     capabilities: SlackCapabilitiesSchema.optional(),
     execApprovals: z
       .object({
-        enabled: z.boolean().optional(),
+        enabled: NativeExecApprovalEnableModeSchema.optional(),
         approvers: z.array(z.union([z.string(), z.number()])).optional(),
         agentFilter: z.array(z.string()).optional(),
         sessionFilter: z.array(z.string()).optional(),
