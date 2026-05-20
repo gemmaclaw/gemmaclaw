@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "runId": "auto-high-2026-05-13T12-59-37-17a5a3",
+  "configHash": "ef24b0edc12d0cf5",
+  "savedAt": "2026-05-13T13:02:53.877Z",
+  "result": {
+    "task": {
+      "id": "gemma3n_tool_intent",
+      "name": "Easy Single-Step Tool Intent",
+      "description": "Tests whether a small on-device model can choose one safe tool-like intent and produce valid arguments without performing side effects.",
+      "category": "tool_intent",
+      "difficulty": "easy",
+      "prompt": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+      "grading": {
+        "type": "conversation_check",
+        "criteria": [
+          "Must return valid JSON and no surrounding explanation",
+          "Must choose exactly one top-level action",
+          "Action must be create_task, not send_email or create_calendar_event",
+          "Arguments must include title, due, and priority",
+          "Title must mention sending the Q2 forecast to Priya",
+          "Due must mention Friday at 3 PM",
+          "Priority must be high"
+        ],
+        "deterministic": {
+          "type": "tool_intent",
+          "allowedActions": ["create_task", "create_calendar_event", "send_email"],
+          "expectedAction": "create_task",
+          "expectedArguments": {
+            "title": ["send", "q2 forecast", "priya"],
+            "due": ["friday", "3"],
+            "priority": "high"
+          },
+          "allowExtraTopLevelKeys": false,
+          "allowExtraArgumentKeys": false
+        },
+        "maxScore": 5
+      },
+      "mock": {
+        "finalResponse": "{\"action\":\"create_task\",\"arguments\":{\"title\":\"Send the Q2 forecast to Priya\",\"due\":\"Friday 3 PM\",\"priority\":\"high\"}}"
+      }
+    },
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+        "timestamp": "2026-05-13T13:02:51.642Z"
+      }
+    ],
+    "elapsedMs": 18555,
+    "toolCallCount": 0,
+    "toolsUsed": [],
+    "completionStatus": "error",
+    "error": "validation_failed: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content.",
+    "validation": {
+      "valid": false,
+      "issues": [
+        {
+          "kind": "no_assistant_turn",
+          "severity": "block",
+          "message": "Task marked completed but conversation has no assistant turn with content."
+        }
+      ],
+      "deterministicScore": {
+        "taskId": "gemma3n_tool_intent",
+        "score": 0,
+        "maxScore": 5,
+        "percentage": 0,
+        "passed": false,
+        "method": "deterministic",
+        "details": "No assistant response found"
+      }
+    },
+    "validationRerunCount": 1,
+    "qualityInspection": {
+      "schemaVersion": 1,
+      "inspectedAt": "2026-05-13T13:02:53.877Z",
+      "publishable": false,
+      "issues": [
+        {
+          "kind": "validation_blocked",
+          "severity": "block",
+          "message": "Per-task validation failed; this result must not be evaluated or published.",
+          "evidence": "block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+        },
+        {
+          "kind": "task_not_completed",
+          "severity": "block",
+          "message": "Task completionStatus is error; inspect before scoring.",
+          "evidence": "validation_failed: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+        },
+        {
+          "kind": "llm_judge_missing",
+          "severity": "info",
+          "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+        },
+        {
+          "kind": "deterministic_score_low",
+          "severity": "warn",
+          "message": "Deterministic scorer failed: 0/5.",
+          "evidence": "No assistant response found"
+        }
+      ]
+    }
+  }
+}
