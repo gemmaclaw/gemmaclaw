@@ -285,13 +285,14 @@ describe("buildEmbeddedRunPayloads", () => {
 
   it.each([
     {
-      name: "still shows mutating tool errors when messages.suppressToolErrors is enabled",
+      name: "suppresses mutating tool errors when messages.suppressToolErrors is enabled",
       payload: {
         lastToolError: { toolName: "write", error: "connection timeout" },
         config: { messages: { suppressToolErrors: true } },
       },
       title: "Write",
       absentDetail: "connection timeout",
+      suppressed: true,
     },
     {
       name: "shows recoverable tool errors for mutating tools",
@@ -309,8 +310,12 @@ describe("buildEmbeddedRunPayloads", () => {
       title: "Browser",
       absentDetail: "connection timeout",
     },
-  ])("$name", ({ payload, title, absentDetail }) => {
+  ])("$name", ({ payload, title, absentDetail, suppressed }) => {
     const payloads = buildPayloads(payload);
+    if (suppressed) {
+      expect(payloads).toEqual([]);
+      return;
+    }
     expectSingleToolErrorPayload(payloads, { title, absentDetail });
   });
 
