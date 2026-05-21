@@ -264,6 +264,7 @@ export function splitMediaFromOutput(raw: string): {
           media.push(fallback);
           hasValidMedia = true;
           foundMediaToken = true;
+          validCount = 1;
           invalidParts.length = 0;
         }
       }

@@ -74,7 +74,7 @@ describe("buildReplyPayloads media filter integration", () => {
     });
   });
 
-  it("drops only invalid media when reply media normalization fails", async () => {
+  it("surfaces an error when reply media normalization fails", async () => {
     const normalizeMediaPaths = async (payload: { mediaUrl?: string }) => {
       if (payload.mediaUrl === "./bad.png") {
         throw new Error("Path escapes sandbox root");
@@ -93,10 +93,8 @@ describe("buildReplyPayloads media filter integration", () => {
 
     expect(replyPayloads).toHaveLength(2);
     expect(replyPayloads[0]).toMatchObject({
-      text: "keep text",
-      mediaUrl: undefined,
-      mediaUrls: undefined,
-      audioAsVoice: false,
+      text: expect.stringContaining("couldn't prepare the file"),
+      isError: true,
     });
     expect(replyPayloads[1]).toMatchObject({
       text: "keep second",
@@ -233,6 +231,43 @@ describe("buildReplyPayloads media filter integration", () => {
       mediaUrl: "./fox.jpg",
       mediaUrls: ["./fox.jpg"],
       replyToId: "post-123",
+    });
+  });
+
+  it("surfaces final media delivery errors after block pipeline streamed text", async () => {
+    const pipeline: Parameters<typeof buildReplyPayloads>[0]["blockReplyPipeline"] = {
+      didStream: () => true,
+      isAborted: () => false,
+      hasSentPayload: () => false,
+      enqueue: () => {},
+      flush: async () => {},
+      stop: () => {},
+      hasBuffered: () => false,
+    };
+    const normalizeMediaPaths = async (payload: { mediaUrls?: string[] }) => ({
+      ...payload,
+      mediaUrl: undefined,
+      mediaUrls: undefined,
+    });
+
+    const { replyPayloads } = await buildReplyPayloads({
+      ...baseParams,
+      blockStreamingEnabled: true,
+      blockReplyPipeline: pipeline,
+      replyToMode: "all",
+      payloads: [
+        {
+          text: "Got 'em.\n\nMEDIA:lessac_sample.wav\nMEDIA:amy_sample.wav\nMEDIA:ryan_sample.wav",
+          replyToId: "post-123",
+        },
+      ],
+      normalizeMediaPaths,
+    });
+
+    expect(replyPayloads).toHaveLength(1);
+    expect(replyPayloads[0]).toMatchObject({
+      isError: true,
+      text: expect.stringContaining("3 media attachments"),
     });
   });
 
