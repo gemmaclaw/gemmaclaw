@@ -19,8 +19,6 @@ import {
   normalizeOpenRouterBaseUrl,
   OPENROUTER_BASE_URL,
 } from "./provider-catalog.js";
-import { resolveOpenRouterExtraParamsForTransport } from "./provider-routing.js";
-import { buildOpenRouterSpeechProvider } from "./speech-provider.js";
 import { wrapOpenRouterProviderStream } from "./stream.js";
 
 const PROVIDER_ID = "openrouter";
@@ -141,7 +139,6 @@ export default definePluginEntry({
       ...PASSTHROUGH_GEMINI_REPLAY_HOOKS,
       resolveReasoningOutputMode: () => "native",
       isModernModelRef: () => true,
-      extraParamsForTransport: resolveOpenRouterExtraParamsForTransport,
       wrapStreamFn: wrapOpenRouterProviderStream,
       isCacheTtlEligible: (ctx) => isOpenRouterCacheTtlModel(ctx.modelId),
     });
