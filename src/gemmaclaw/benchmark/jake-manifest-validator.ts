@@ -1,9 +1,13 @@
 /**
  * Jake run manifest validator.
  *
- * Validates historical Jake benchmark run manifests using the original
- * QwenClaw completion criteria. Used by the Gemmaclaw benchmark port to
+ * Validates historical Jake benchmark run manifests using the original Jake
+ * completion rule. Used by the Gemmaclaw Qwen 3.6 local-provenance port to
  * verify that a Jake run is complete before consuming its artifacts.
+ *
+ * SCOPE: This validator targets Frank's older local Jake/Pi runner. It is NOT
+ * a validator for the Qwen team's QwenClawBench (a separate, internal coding-
+ * agent benchmark; see `qwenclaw-bench-upstream.ts`).
  *
  * PROVENANCE: Historical Jake runs live at:
  *   ~/.openclaw/workspace/skills/jake-benchmark/runs/<model>__<ts>/manifest.json
@@ -13,7 +17,7 @@
  *   manifest.finished is non-empty AND manifest.tasks_run >= 22
  */
 
-import { isJakeManifestComplete, JAKE_MANIFEST_MIN_TASKS } from "./qwenclaw-models.js";
+import { isJakeManifestComplete, JAKE_MANIFEST_MIN_TASKS } from "./qwen36-jake-models.js";
 
 export type JakeManifest = {
   /** ISO timestamp when the run finished. Non-empty = complete. */
@@ -35,7 +39,7 @@ export type ManifestValidationResult =
   | { valid: false; manifest?: JakeManifest; reason: string };
 
 /**
- * Validate a Jake run manifest object against the historical QwenClaw
+ * Validate a Jake run manifest object against the historical Jake
  * completion criteria.
  *
  * Returns { valid: true } when:
@@ -85,11 +89,12 @@ export function describeManifestValidation(raw: unknown): string {
 }
 
 /**
- * Validate a set of Jake manifest objects for both QwenClaw targets.
+ * Validate a set of Jake manifest objects for both Qwen 3.6 Jake targets
+ * (dense + MoE).
  *
  * Returns a summary object with per-model results.
  */
-export function validateQwenClawJakeRuns(manifests: { dense?: unknown; moe?: unknown }): {
+export function validateQwen36JakeRuns(manifests: { dense?: unknown; moe?: unknown }): {
   dense: ManifestValidationResult;
   moe: ManifestValidationResult;
   bothComplete: boolean;

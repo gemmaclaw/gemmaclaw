@@ -218,18 +218,22 @@ Results are written to the output directory in three formats:
 The summary printed to the terminal includes total score, pass rate, average
 tokens per second, and file paths for each output format.
 
-## QwenClaw 3.6 benchmark port
+## Qwen 3.6 local Jake provenance
 
-The QwenClaw 3.6 benchmark port brings the original Jake / Pi benchmark
-workflow for Qwen 3.6 into the Gemmaclaw benchmark system. The port is
-defined in `src/gemmaclaw/benchmark/qwenclaw-models.ts` and
-`src/gemmaclaw/benchmark/jake-manifest-validator.ts`.
+This section documents the local Jake/Pi Qwen 3.6 runner that was brought
+into the Gemmaclaw benchmark system as model presets and a manifest
+validator. It is purely historical provenance for a workflow that
+predates Gemmaclaw and is **not** the Qwen team's QwenClawBench. The
+upstream QwenClawBench is covered in the next section.
+
+The port is defined in `src/gemmaclaw/benchmark/qwen36-jake-models.ts`
+and `src/gemmaclaw/benchmark/jake-manifest-validator.ts`.
 
 ### Provenance
 
-The original workflow ran on the Raspberry Pi 5 (frankpi) via the Jake
-OpenClaw gateway, with Ollama serving models on the Desktop PC RTX 3090. The
-two canonical model targets were:
+The original workflow ran on a Raspberry Pi 5 via a local OpenClaw gateway,
+with Ollama serving models on a workstation GPU. The two canonical model
+targets were:
 
 | Jake / Ollama model ID   | Role  | Status  |
 | ------------------------ | ----- | ------- |
@@ -239,19 +243,18 @@ two canonical model targets were:
 **Dense blocker:** The unsloth GGUF for the dense model has empty tensor names
 and crashes on llama.cpp b9190. The froggeric GGUF resolves this, but its
 throughput (63-65 tok/s) is not competitive with the MoE (133-135 tok/s) at
-comparable VRAM. Use the froggeric GGUF only as a smoke target. See
-`knowledge/infra/gemmaclaw-benchmark-backends.md` for details.
+comparable VRAM. Use the froggeric GGUF only as a smoke target.
 
 ### Running the MoE target
 
 The Qwen 3.6 MoE model (`Qwen3.6-35B-A3B-UD-IQ4_XS.gguf`) is the primary
-benchmark target. Serve it with the Desktop llama.cpp instance and run via
-the Gemmaclaw benchmark CLI:
+benchmark target. Serve it with a local llama.cpp instance and run via the
+Gemmaclaw benchmark CLI:
 
 ```bash
-# Serve the model (llama.cpp on Desktop RTX 3090)
+# Serve the model (llama.cpp on a workstation GPU)
 llama-server \
-  -m /home/frank/models/gguf/qwen3.6-hf/Qwen3.6-35B-A3B-UD-IQ4_XS.gguf \
+  -m /path/to/Qwen3.6-35B-A3B-UD-IQ4_XS.gguf \
   --alias qwen3.6-35b-a3b \
   --host 0.0.0.0 --port 8080 \
   --n-gpu-layers 99 --ctx-size 65536 --parallel 1 \
@@ -261,11 +264,11 @@ llama-server \
 # Run the benchmark (from gemmaclaw repo)
 pnpm benchmark agent \
   --backend llama-cpp \
-  --llama-cpp-url http://100.69.102.71:8080 \
+  --llama-cpp-url http://gateway-host:8080 \
   --model qwen3.6-35b-a3b \
   --quant IQ4_XS \
   --thinking high \
-  --run-id qwenclaw-36-moe-high
+  --run-id qwen36-jake-moe-high
 ```
 
 ### Running the dense target (smoke only)
@@ -275,11 +278,11 @@ Use the froggeric GGUF as a smaller smoke target:
 ```bash
 pnpm benchmark agent \
   --backend llama-cpp \
-  --llama-cpp-url http://100.69.102.71:8080 \
+  --llama-cpp-url http://gateway-host:8080 \
   --model qwen3.6-27b-dense \
   --quant Q4_K_M \
   --thinking high \
-  --run-id qwenclaw-36-dense-smoke
+  --run-id qwen36-jake-dense-smoke
 ```
 
 ### Container isolation and credentials
@@ -295,7 +298,7 @@ path (CC ACP or Claude Code), not a raw API key.
 ### Validating historical Jake run manifests
 
 Use `validateJakeManifest` from `jake-manifest-validator.ts` to check
-whether a historical Pi run meets the original completion criteria:
+whether a historical Jake run meets the original completion criteria:
 
 ```typescript
 import { validateJakeManifest } from "./src/gemmaclaw/benchmark/jake-manifest-validator.js";
@@ -309,3 +312,49 @@ if (result.valid) {
 ```
 
 A run is complete when `manifest.finished` is non-empty and `manifest.tasks_run >= 22`.
+
+## Upstream QwenClawBench (Qwen team, release-blocked)
+
+The Qwen team's **QwenClawBench** is a separate benchmark that has **not yet
+been open-sourced**. It is referenced in the official Qwen3.6 Hugging Face
+model cards as:
+
+> _QwenClawBench: An internal real-user-distribution Claw agent benchmark
+> (open-sourcing soon); temp=0.6, 256K ctx._
+
+Sources verified 2026-05-21:
+
+- [github.com/QwenLM/Qwen3.6](https://github.com/QwenLM/Qwen3.6) (no
+  QwenClawBench mention; no public dataset/repo)
+- [huggingface.co/Qwen/Qwen3.6-35B-A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)
+  (results table + footnote)
+- [huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8](https://huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8)
+  (same footnote)
+
+Gemmaclaw must not publish a benchmark under the QwenClawBench name until
+the Qwen team releases the official artifact. The release tracker lives in
+`src/gemmaclaw/benchmark/qwenclaw-bench-upstream.ts`:
+
+- `QWENCLAW_BENCH_UPSTREAM_STATUS` records the current release state.
+- `QWENCLAW_BENCH_UPSTREAM_RUN_SETTINGS` carries the upstream-documented
+  run settings (temperature 0.6, context length 256K).
+- `assessQwenClawBenchRelease()` is a pure helper a watcher can call with
+  fetched upstream text to detect when the "open-sourcing soon" language
+  changes.
+- `ensureQwenClawBenchImportAllowed()` throws while the status is still
+  internal; use it as a guard in any code path that wants to expose a
+  QwenClawBench-named artifact.
+- `QWENCLAW_BENCH_RELEASE_CHECKLIST` lists the manual steps a future
+  Gemmaclaw adapter must follow once the upstream artifact ships.
+
+When Qwen releases QwenClawBench:
+
+1. Confirm the public artifact lives under a Qwen-team-owned namespace
+   (`github.com/QwenLM`, `huggingface.co/Qwen`, or an officially linked
+   Qwen blog).
+2. Update `QWENCLAW_BENCH_UPSTREAM_STATUS` to `released` and set
+   `publicArtifactUrl`.
+3. Implement the Gemmaclaw adapter behind the same container/credential
+   guardrails listed above (no `OPENAI_API_KEY`, container-only,
+   OAuth-backed judging).
+4. Add an end-to-end smoke before any publishable run.
