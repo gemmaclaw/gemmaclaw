@@ -103,4 +103,18 @@ describe("splitMediaFromOutput", () => {
       { type: "text", text: "```text\nMEDIA:https://example.com/ignored.png\n```\nAfter" },
     ]);
   });
+
+  it("returns media segments for bare filename directives", () => {
+    const result = splitMediaFromOutput(
+      "Got it.\nMEDIA:lessac_sample.wav\nMEDIA:amy_sample.wav\nMEDIA:ryan_sample.wav",
+    );
+
+    expect(result.mediaUrls).toEqual(["lessac_sample.wav", "amy_sample.wav", "ryan_sample.wav"]);
+    expect(result.segments).toEqual([
+      { type: "text", text: "Got it." },
+      { type: "media", url: "lessac_sample.wav" },
+      { type: "media", url: "amy_sample.wav" },
+      { type: "media", url: "ryan_sample.wav" },
+    ]);
+  });
 });

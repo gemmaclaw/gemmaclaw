@@ -29,21 +29,38 @@ async function normalizeReplyPayloadMedia(params: {
   payload: ReplyPayload;
   normalizeMediaPaths?: (payload: ReplyPayload) => Promise<ReplyPayload>;
 }): Promise<ReplyPayload> {
-  if (!params.normalizeMediaPaths || !resolveSendableOutboundReplyParts(params.payload).hasMedia) {
+  const originalParts = resolveSendableOutboundReplyParts(params.payload);
+  if (!params.normalizeMediaPaths || !originalParts.hasMedia) {
     return params.payload;
   }
 
   try {
-    return await params.normalizeMediaPaths(params.payload);
+    const normalized = await params.normalizeMediaPaths(params.payload);
+    if (!resolveSendableOutboundReplyParts(normalized).hasMedia) {
+      return {
+        text: formatMediaDeliveryError(originalParts.mediaCount, "access"),
+        isError: true,
+      };
+    }
+    return normalized;
   } catch (err) {
     logVerbose(`reply payload media normalization failed: ${String(err)}`);
     return {
-      ...params.payload,
-      mediaUrl: undefined,
-      mediaUrls: undefined,
-      audioAsVoice: false,
+      text: `${formatMediaDeliveryError(originalParts.mediaCount, "prepare")}: ${String(err)}`,
+      isError: true,
     };
   }
+}
+
+function formatMediaDeliveryError(mediaCount: number, failure: "access" | "prepare"): string {
+  const attachmentText =
+    mediaCount === 1 ? "a media attachment" : `${mediaCount} media attachments`;
+  const fileText = mediaCount === 1 ? "file" : "files";
+  const actionText = failure === "access" ? "access" : "prepare";
+  return (
+    `⚠️ I generated ${attachmentText}, but I couldn't ${actionText} the ${fileText}` +
+    " for delivery. Please retry and I'll regenerate them."
+  );
 }
 
 async function normalizeSentMediaUrlsForDedupe(params: {
