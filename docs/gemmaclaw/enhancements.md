@@ -34,7 +34,7 @@ gemmaclaw setup --enhancements external_delivery_receipt_verification
 
 Interactive setup asks whether to enable the default enhancement set. Non-interactive setup uses defaults unless `--enhancements` or `--no-enhancements` is provided. The chosen ids are persisted in `.gemmaclaw-enhancements.json`.
 
-Benchmarks can use the same selection through the `--gemmaclaw-enhancements <selection>` flag.
+Benchmarks use a raw baseline by default. The agent benchmark harness writes `.gemmaclaw-enhancements.json` with an empty `enhancements` list unless `--gemmaclaw-enhancements <selection>` is provided. Use `default`, `all`, or a comma-separated id list only when you are intentionally measuring enhanced Gemmaclaw behavior.
 
 ## external_delivery_receipt_verification
 
@@ -63,13 +63,14 @@ Benchmark guard:
 - Benchmark docs: `docs/cli/benchmark.md`
 - Harness seed helper: `scripts/benchmark/seed-mock-gog.py`
 
-Run the benchmark with the enhancement enabled:
+Run the benchmark both ways when measuring this enhancement:
 
 ```bash
-pnpm benchmark agent --task scheduled_media_delivery_verification --backend openai-codex --model gpt-5.5 --thinking medium
-pnpm benchmark agent --task scheduled_media_delivery_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements default
 pnpm benchmark agent --task scheduled_media_delivery_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements none
+pnpm benchmark agent --task scheduled_media_delivery_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements default
 ```
+
+Omitting `--gemmaclaw-enhancements` is equivalent to `none` for benchmarks. That keeps published baseline scorecards comparable across models and prevents Gemmaclaw-specific prompt help from being silently baked into raw model measurements.
 
 Run setup-path smoke checks with enhancements enabled and disabled:
 
