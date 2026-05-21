@@ -214,3 +214,95 @@ Results are written to the output directory in three formats:
 
 The summary printed to the terminal includes total score, pass rate, average
 tokens per second, and file paths for each output format.
+
+## QwenClaw 3.6 benchmark port
+
+The QwenClaw 3.6 benchmark port brings the original Jake / Pi benchmark
+workflow for Qwen 3.6 into the Gemmaclaw benchmark system. The port is
+defined in `src/gemmaclaw/benchmark/qwenclaw-models.ts` and
+`src/gemmaclaw/benchmark/jake-manifest-validator.ts`.
+
+### Provenance
+
+The original workflow ran on the Raspberry Pi 5 (frankpi) via the Jake
+OpenClaw gateway, with Ollama serving models on the Desktop PC RTX 3090. The
+two canonical model targets were:
+
+| Jake / Ollama model ID   | Role  | Status  |
+| ------------------------ | ----- | ------- |
+| `qwen3.6:35b`            | Dense | Blocked |
+| `qwen3.6:35b-a3b-q4_K_M` | MoE   | Ready   |
+
+**Dense blocker:** The unsloth GGUF for the dense model has empty tensor names
+and crashes on llama.cpp b9190. The froggeric GGUF resolves this, but its
+throughput (63-65 tok/s) is not competitive with the MoE (133-135 tok/s) at
+comparable VRAM. Use the froggeric GGUF only as a smoke target. See
+`knowledge/infra/gemmaclaw-benchmark-backends.md` for details.
+
+### Running the MoE target
+
+The Qwen 3.6 MoE model (`Qwen3.6-35B-A3B-UD-IQ4_XS.gguf`) is the primary
+benchmark target. Serve it with the Desktop llama.cpp instance and run via
+the Gemmaclaw benchmark CLI:
+
+```bash
+# Serve the model (llama.cpp on Desktop RTX 3090)
+llama-server \
+  -m /home/frank/models/gguf/qwen3.6-hf/Qwen3.6-35B-A3B-UD-IQ4_XS.gguf \
+  --alias qwen3.6-35b-a3b \
+  --host 0.0.0.0 --port 8080 \
+  --n-gpu-layers 99 --ctx-size 65536 --parallel 1 \
+  --cache-type-k q8_0 --cache-type-v q8_0 \
+  --flash-attn on --threads 8 --jinja --no-webui
+
+# Run the benchmark (from gemmaclaw repo)
+pnpm benchmark agent \
+  --backend llama-cpp \
+  --llama-cpp-url http://100.69.102.71:8080 \
+  --model qwen3.6-35b-a3b \
+  --quant IQ4_XS \
+  --thinking high \
+  --run-id qwenclaw-36-moe-high
+```
+
+### Running the dense target (smoke only)
+
+Use the froggeric GGUF as a smaller smoke target:
+
+```bash
+pnpm benchmark agent \
+  --backend llama-cpp \
+  --llama-cpp-url http://100.69.102.71:8080 \
+  --model qwen3.6-27b-dense \
+  --quant Q4_K_M \
+  --thinking high \
+  --run-id qwenclaw-36-dense-smoke
+```
+
+### Container isolation and credentials
+
+All real benchmark agent runs must execute inside the Gemmaclaw Docker
+container (`Dockerfile.benchmark`) with `GEMMACLAW_BENCHMARK_CONTAINER=1`
+and the fake-gog shim active. Do not run publishable benchmarks in host mode.
+
+This benchmark does not use `OPENAI_API_KEY`. The llama.cpp backend uses a
+dummy auth token. Any semantic judging must go through an OAuth-backed
+path (CC ACP or Claude Code), not a raw API key.
+
+### Validating historical Jake run manifests
+
+Use `validateJakeManifest` from `jake-manifest-validator.ts` to check
+whether a historical Pi run meets the original completion criteria:
+
+```typescript
+import { validateJakeManifest } from "./src/gemmaclaw/benchmark/jake-manifest-validator.js";
+
+const result = validateJakeManifest(manifest);
+if (result.valid) {
+  // manifest.finished is non-empty and tasks_run >= 22
+} else {
+  console.error(result.reason);
+}
+```
+
+A run is complete when `manifest.finished` is non-empty and `manifest.tasks_run >= 22`.
