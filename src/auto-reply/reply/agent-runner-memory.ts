@@ -81,8 +81,6 @@ const memoryDeps = {
   now: () => Date.now(),
 };
 
-const MEMORY_FLUSH_TURN_TIMEOUT_MS = 120_000;
-
 export function setAgentRunnerMemoryTestDeps(overrides?: Partial<typeof memoryDeps>): void {
   Object.assign(memoryDeps, {
     runWithModelFallback,
@@ -767,10 +765,6 @@ export async function runMemoryFlushIfNeeded(params: {
           ...embeddedContext,
           ...senderContext,
           ...runBaseParams,
-          timeoutMs: Math.min(
-            runBaseParams.timeoutMs ?? MEMORY_FLUSH_TURN_TIMEOUT_MS,
-            MEMORY_FLUSH_TURN_TIMEOUT_MS,
-          ),
           sandboxSessionKey: params.runtimePolicySessionKey,
           allowGatewaySubagentBinding: true,
           silentExpected: true,
@@ -836,6 +830,10 @@ export async function runMemoryFlushIfNeeded(params: {
       if (typeof nextCount === "number") {
         memoryFlushCompactionCount = nextCount;
       }
+      await appendPostCompactionRefreshPrompt({
+        cfg: params.cfg,
+        followupRun: params.followupRun,
+      });
     }
     if (params.storePath && params.sessionKey) {
       try {
