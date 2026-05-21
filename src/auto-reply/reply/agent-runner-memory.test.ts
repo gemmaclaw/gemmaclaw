@@ -149,10 +149,12 @@ describe("runMemoryFlushIfNeeded", () => {
       prompt?: string;
       memoryFlushWritePath?: string;
       silentExpected?: boolean;
+      timeoutMs?: number;
     };
     expect(flushCall.prompt).toContain("Pre-compaction memory flush.");
     expect(flushCall.memoryFlushWritePath).toMatch(/^memory\/\d{4}-\d{2}-\d{2}\.md$/);
     expect(flushCall.silentExpected).toBe(true);
+    expect(flushCall.timeoutMs).toBe(1_000);
     expect(refreshQueuedFollowupSessionMock).toHaveBeenCalledWith({
       key: sessionKey,
       previousSessionId: "session",
@@ -167,6 +169,42 @@ describe("runMemoryFlushIfNeeded", () => {
     expect(persisted.main.compactionCount).toBe(2);
     expect(persisted.main.memoryFlushCompactionCount).toBe(2);
     expect(persisted.main.memoryFlushAt).toBe(1_700_000_000_000);
+  });
+
+  it("caps memory flush turns below the normal interactive timeout", async () => {
+    const sessionEntry: SessionEntry = {
+      sessionId: "session",
+      updatedAt: Date.now(),
+      totalTokens: 80_000,
+      compactionCount: 1,
+    };
+
+    await runMemoryFlushIfNeeded({
+      cfg: {
+        agents: {
+          defaults: {
+            compaction: {
+              memoryFlush: {},
+            },
+          },
+        },
+      },
+      followupRun: createTestFollowupRun({ timeoutMs: 7_200_000 }),
+      sessionCtx: { Provider: "telegram" } as unknown as TemplateContext,
+      defaultModel: "anthropic/claude-opus-4-6",
+      agentCfgContextTokens: 100_000,
+      resolvedVerboseLevel: "off",
+      sessionEntry,
+      sessionStore: { main: sessionEntry },
+      sessionKey: "main",
+      isHeartbeat: false,
+      replyOperation: createReplyOperation(),
+    });
+
+    const flushCall = runEmbeddedPiAgentMock.mock.calls[0]?.[0] as {
+      timeoutMs?: number;
+    };
+    expect(flushCall.timeoutMs).toBe(120_000);
   });
 
   it("skips memory flush for CLI providers", async () => {
