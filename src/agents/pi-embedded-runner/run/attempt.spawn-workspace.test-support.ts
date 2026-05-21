@@ -25,6 +25,8 @@ type SubscribeEmbeddedPiSessionFn =
   typeof import("../../pi-embedded-subscribe.js").subscribeEmbeddedPiSession;
 type AcquireSessionWriteLockFn =
   typeof import("../../session-write-lock.js").acquireSessionWriteLock;
+type WaitForCompactionRetryWithAggregateTimeoutFn =
+  typeof import("./compaction-retry-aggregate-timeout.js").waitForCompactionRetryWithAggregateTimeout;
 
 type SubscriptionMock = ReturnType<SubscribeEmbeddedPiSessionFn>;
 type UnknownMock = Mock<(...args: unknown[]) => unknown>;
@@ -61,6 +63,8 @@ type AttemptSpawnWorkspaceHoisted = {
   installToolResultContextGuardMock: UnknownMock;
   flushPendingToolResultsAfterIdleMock: AsyncUnknownMock;
   releaseWsSessionMock: UnknownMock;
+  resolveCompactionTimeoutMsMock: Mock<(config?: unknown) => number>;
+  waitForCompactionRetryWithAggregateTimeoutMock: Mock<WaitForCompactionRetryWithAggregateTimeoutFn>;
   resolveBootstrapContextForRunMock: Mock<() => Promise<BootstrapContext>>;
   isWorkspaceBootstrapPendingMock: Mock<(workspaceDir: string) => Promise<boolean>>;
   resolveContextInjectionModeMock: Mock<() => "always" | "continuation-skip">;
@@ -113,6 +117,19 @@ const hoisted = vi.hoisted((): AttemptSpawnWorkspaceHoisted => {
   const installToolResultContextGuardMock = vi.fn(() => () => {});
   const flushPendingToolResultsAfterIdleMock = vi.fn(async () => {});
   const releaseWsSessionMock = vi.fn(() => {});
+  const resolveCompactionTimeoutMsMock = vi.fn((config?: unknown) => {
+    const raw = (
+      config as { agents?: { defaults?: { compaction?: { timeoutSeconds?: unknown } } } }
+    )?.agents?.defaults?.compaction?.timeoutSeconds;
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+      return Math.floor(raw) * 1000;
+    }
+    return 900_000;
+  });
+  const waitForCompactionRetryWithAggregateTimeoutMock =
+    vi.fn<WaitForCompactionRetryWithAggregateTimeoutFn>(async () => ({
+      timedOut: false,
+    }));
   const subscribeEmbeddedPiSessionMock = vi.fn<SubscribeEmbeddedPiSessionFn>(() =>
     createSubscriptionMock(),
   );
@@ -162,6 +179,8 @@ const hoisted = vi.hoisted((): AttemptSpawnWorkspaceHoisted => {
     installToolResultContextGuardMock,
     flushPendingToolResultsAfterIdleMock,
     releaseWsSessionMock,
+    resolveCompactionTimeoutMsMock,
+    waitForCompactionRetryWithAggregateTimeoutMock,
     resolveBootstrapContextForRunMock,
     isWorkspaceBootstrapPendingMock,
     resolveContextInjectionModeMock,
@@ -560,7 +579,7 @@ vi.mock("../compaction-runtime-context.js", () => ({
 }));
 
 vi.mock("../compaction-safety-timeout.js", () => ({
-  resolveCompactionTimeoutMs: () => undefined,
+  resolveCompactionTimeoutMs: (config?: unknown) => hoisted.resolveCompactionTimeoutMsMock(config),
 }));
 
 vi.mock("../history.js", () => ({
@@ -617,10 +636,9 @@ vi.mock("../utils.js", () => ({
 }));
 
 vi.mock("./compaction-retry-aggregate-timeout.js", () => ({
-  waitForCompactionRetryWithAggregateTimeout: async () => ({
-    timedOut: false,
-    aborted: false,
-  }),
+  waitForCompactionRetryWithAggregateTimeout: (
+    params: Parameters<WaitForCompactionRetryWithAggregateTimeoutFn>[0],
+  ) => hoisted.waitForCompactionRetryWithAggregateTimeoutMock(params),
 }));
 
 vi.mock("./compaction-timeout.js", () => ({
@@ -721,6 +739,18 @@ export function resetEmbeddedAttemptHarness(
   hoisted.installToolResultContextGuardMock.mockReset().mockReturnValue(() => {});
   hoisted.flushPendingToolResultsAfterIdleMock.mockReset().mockResolvedValue(undefined);
   hoisted.releaseWsSessionMock.mockReset().mockReturnValue(undefined);
+  hoisted.resolveCompactionTimeoutMsMock.mockReset().mockImplementation((config?: unknown) => {
+    const raw = (
+      config as { agents?: { defaults?: { compaction?: { timeoutSeconds?: unknown } } } }
+    )?.agents?.defaults?.compaction?.timeoutSeconds;
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+      return Math.floor(raw) * 1000;
+    }
+    return 900_000;
+  });
+  hoisted.waitForCompactionRetryWithAggregateTimeoutMock
+    .mockReset()
+    .mockResolvedValue({ timedOut: false });
   hoisted.resolveBootstrapContextForRunMock.mockReset().mockResolvedValue({
     bootstrapFiles: [],
     contextFiles: [],
