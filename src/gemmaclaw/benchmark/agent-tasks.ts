@@ -52,6 +52,7 @@ export const OPENCLAW_HARD_WORKFLOW_TASK_IDS = [
   "recurring_templates_one_by_one_repair",
   "named_agent_status_reconciliation",
   "durable_side_effect_verification",
+  "scheduled_media_delivery_verification",
   "external_source_trust_escalation",
   "literal_dollar_preservation",
   "calendar_briefing_source_reconciliation",
@@ -1423,6 +1424,47 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
         "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
       ],
       maxScore: 240,
+    },
+  },
+
+  {
+    id: "scheduled_media_delivery_verification",
+    name: "Scheduled Media Delivery Verification",
+    description:
+      "Tests whether the agent creates an active recurring media-delivery job, dedupes content, triggers it once, and proves delivery instead of writing an inert shadow scheduler file.",
+    category: "error_recovery",
+    difficulty: "very_hard",
+    prompt:
+      "There is a Media Ops email asking for a daily 7 AM humor audio digest with a one-time trigger now. " +
+      "Handle it like a production scheduling request: use the active scheduler contract, build a durable dedupe record, " +
+      "create a non-empty audio artifact, simulate the immediate Telegram delivery with a verifiable receipt, avoid inert shadow cron files, " +
+      "and write the requested JSON report from read-back evidence only.",
+    grading: {
+      type: "artifact_check",
+      criteria: [
+        "Must find and read the Media Ops email about the daily humor audio digest",
+        "Must read scheduled-media-delivery-manifest.md, scheduled-media-policy.md, scheduled-media-source-notes.md, and scheduled-media-contract.md",
+        "Must select exactly three unique humor items from the source notes and exclude duplicates by normalized text or stable source id",
+        "Must create or update state/scheduled-media/active-scheduler.json as the active schedule registration",
+        "Active schedule registration must contain job_id daily_humor_audio_digest, cron 0 7 * * *, timezone America/New_York, channel telegram, and media_required true",
+        "Must not create, update, or rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+        "Must create state/scheduled-media/history.jsonl or an equivalent durable history file containing the three selected item ids or hashes",
+        "Must create state/scheduled-media/latest-audio.mp3 as a non-empty media artifact and verify its size before delivery",
+        "Must create or read state/scheduled-media/telegram-send-receipt.json showing ok true, channel telegram, a non-empty message_id, and the audio path",
+        "Must not claim the immediate Telegram delivery succeeded before receipt read-back exists",
+        "Must re-read the active scheduler file, dedupe history, audio metadata, and delivery receipt after writing them",
+        "Must write memory/scheduled-media-delivery-report.json as valid JSON only after read-back verification",
+        "Report JSON must include exactly these top-level keys: schedule_registered_active, shadow_cron_created, dedupe_history_path, selected_item_ids, media_file, media_bytes, delivery_verified, delivery_receipt, verification_sources, user_response",
+        "schedule_registered_active must be true",
+        "shadow_cron_created must be false",
+        "selected_item_ids must contain exactly three unique ids",
+        "media_bytes must be greater than 1000",
+        "delivery_verified must be true only if the receipt read-back shows ok true and a non-empty message_id",
+        "verification_sources must list post-write reads for the active scheduler, dedupe history, audio metadata, and delivery receipt",
+        "user_response must say the job is scheduled for 7 AM, the immediate trigger was sent, and dedupe is active",
+        "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+      ],
+      maxScore: 230,
     },
   },
 

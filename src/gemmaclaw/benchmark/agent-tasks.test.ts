@@ -171,7 +171,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       newTaskCategories.add(task!.category);
     }
 
-    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(19);
+    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(20);
     expect(newTaskCategories.size).toBeGreaterThanOrEqual(7);
 
     const taskText = OPENCLAW_HARD_WORKFLOW_TASK_IDS.map((id) => {
@@ -199,10 +199,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     const expandedIds = new Set(EXPANDED_AGENT_BENCHMARK_TASKS.map((task) => task.id));
     const variationIds = new Set(GENERATED_AGENT_VARIATION_TASKS.map((task) => task.id));
 
-    expect(AGENT_BENCHMARK_TASKS).toHaveLength(47);
+    expect(AGENT_BENCHMARK_TASKS).toHaveLength(48);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
     expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(29400);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29594);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29595);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });
@@ -224,6 +224,26 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     expect(getTaskById("expanded_sanity", { includeExpanded: true })?.name).toBe(
       "Response Readiness",
     );
+  });
+
+  it("locks scheduled media delivery coverage against shadow cron and unverified sends", () => {
+    const task = getTaskById("scheduled_media_delivery_verification");
+
+    expect(task).toBeDefined();
+    expect(task?.difficulty).toBe("very_hard");
+    expect(task?.grading.maxScore).toBeGreaterThanOrEqual(200);
+
+    const taskText = [task!.prompt, ...task!.grading.criteria].join("\n");
+    expect(taskText).toContain("state/scheduled-media/active-scheduler.json");
+    expect(taskText).toContain("state/scheduled-media/history.jsonl");
+    expect(taskText).toContain("state/scheduled-media/latest-audio.mp3");
+    expect(taskText).toContain("state/scheduled-media/telegram-send-receipt.json");
+    expect(taskText).toContain("delivery_verified");
+    expect(taskText).toContain("shadow_cron_created must be false");
+    expect(taskText).toContain(
+      "Must not claim the immediate Telegram delivery succeeded before receipt read-back exists",
+    );
+    expect(taskText).toMatch(/workspace\/\.openclaw\/cron\/jobs\.json/);
   });
 
   it("keeps expanded benchmark task prompts and rubrics publishable", () => {

@@ -43,6 +43,18 @@ Use the 2-per-template sample before a full variation sweep. It runs 1,470
 tasks, 2 sampled cases from each of the 147 generated templates, while still
 covering the whole template catalog.
 
+The default agent suite also includes regression tasks for real production
+agent failures. `scheduled_media_delivery_verification` covers recurring media
+jobs that must schedule against an active scheduler, maintain durable dedupe
+history, generate a non-empty audio artifact, and prove the immediate Telegram
+send with a receipt. It explicitly fails agents that write an inert
+`workspace/.openclaw/cron/jobs.json` shadow file or claim delivery before
+read-back verification.
+
+```bash
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-smoke
+```
+
 ## Modes
 
 ### Docker mode (default)

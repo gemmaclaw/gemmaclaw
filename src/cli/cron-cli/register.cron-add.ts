@@ -80,7 +80,7 @@ export function registerCronAddCommand(cron: Command) {
       .option("--wake <mode>", "Wake mode (now|next-heartbeat)", "now")
       .option(
         "--at <when>",
-        "Run once at time (ISO with offset, or +duration). Use --tz for offset-less datetimes",
+        "Run once at time (ISO with offset, or duration like 20m). Use --tz for offset-less datetimes",
       )
       .option("--every <duration>", "Run every duration (e.g. 10m, 1h)")
       .option("--cron <expr>", "Cron expression (5-field or 6-field with seconds)")
