@@ -21,7 +21,7 @@
  *   pnpm benchmark agent --gateway-url http://remote:3001  # Remote gateway
  *   pnpm benchmark agent --task email_triage  # Run single task by id
  *   pnpm benchmark agent --quant Q4_K_M     # Record quantization level
- *   pnpm benchmark agent --gemmaclaw-enhancements default # Runtime prompt enhancements
+ *   pnpm benchmark agent --gemmaclaw-enhancements default # Opt into runtime prompt enhancements
  */
 
 import { execSync, spawn, spawnSync } from "node:child_process";
@@ -460,7 +460,7 @@ Agent Mode Options:
   --task <id>            Run a single task by exact id
   --output-dir <dir>     Host-mounted output directory for results/evals (default: benchmark-results)
   --gemmaclaw-home <dir> Isolated OpenClaw/gog state base for agent runs
-  --gemmaclaw-enhancements <selection>  Runtime enhancement selection: default, all, none, or comma-separated ids
+  --gemmaclaw-enhancements <selection>  Runtime enhancement selection: default, all, none, or comma-separated ids (default: none/raw baseline)
   --run-id <id>          Stable run id for resume/rerun (default: model + timestamp)
   --rerun                Force rerun of selected tasks into the same run id
   --rerun-failed         Rerun only selected tasks whose saved result failed or timed out

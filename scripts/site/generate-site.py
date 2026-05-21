@@ -1630,6 +1630,7 @@ NAV_ITEMS = [
     ("Benchmarks", "benchmarks.html", False),
     ("Run Benchmarks", "benchmarking.html", False),
     ("Community", "community.html", False),
+    ("Enhancements", "enhancements.html", False),
     ("Goals", "goals.html", False),
     ("GitHub", "https://github.com/gemmaclaw/gemmaclaw", True),
 ]
@@ -1814,6 +1815,12 @@ _CARD_ICONS = {
         '<path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
         '</svg>'
     ),
+    "enhancements": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'
+        '<path d="m9 12 2 2 4-5"/>'
+        '</svg>'
+    ),
     "goals": (
         f'<svg {_CARD_ICON_SVG_ATTRS}>'
         '<circle cx="12" cy="12" r="10"/>'
@@ -1842,6 +1849,7 @@ def generate_index_page():
       <a href="self-hosting.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["self-hosting"]}</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
       <a href="benchmarks.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["benchmarks"]}</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
       <a href="community.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["community"]}</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
+      <a href="enhancements.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["enhancements"]}</div><h3>Enhancements</h3><p>Code-owned Gemmaclaw instructions, setup flags, and benchmark guards for Gemma-powered agents.</p></a>
       <a href="goals.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["goals"]}</div><h3>Goals &amp; Roadmap</h3><p>Three-phase plan: Evidence, Productization, Community Loop. See where we are and what's next.</p></a>
       </div>
     </section>"""
@@ -3382,6 +3390,68 @@ def generate_goals_page():
     return page_template("Goals & Roadmap", body, active_page="goals.html")
 
 
+def generate_enhancements_page():
+    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Enhancements</div>
+    <section id="enhancements">
+      <h2>Gemmaclaw Enhancements</h2>
+      <p>Gemmaclaw enhancements are code-owned instructions, setup behavior, or benchmark harness guards that improve Gemma-powered agents beyond upstream OpenClaw defaults. They are registered in one place so setup, runtime injection, tests, benchmarks, and documentation all agree on what is active.</p>
+
+      <div class="phase-card active">
+        <div class="phase-badge">Default for setup</div>
+        <h3>Normal Gemmaclaw agents get useful defaults</h3>
+        <p><code>gemmaclaw setup</code> enables the default enhancement set for normal users unless they opt out. The selected ids are persisted in <code>.gemmaclaw-enhancements.json</code> and injected as generated Gemmaclaw runtime context beside workspace <code>AGENTS.md</code>. Enhancements are not copied into user-maintained agent instructions.</p>
+        <div class="code-block"><pre><code>gemmaclaw setup --enhancements default
+gemmaclaw setup --enhancements all
+gemmaclaw setup --enhancements none
+gemmaclaw setup --no-enhancements
+gemmaclaw setup --enhancements external_delivery_receipt_verification</code></pre></div>
+      </div>
+
+      <div class="phase-card">
+        <div class="phase-badge">Raw benchmark baseline</div>
+        <h3>Benchmarks are unenhanced unless explicit</h3>
+        <p>Agent benchmarks default to <code>none</code> so published scorecards measure the raw model and runtime baseline. Use <code>--gemmaclaw-enhancements default</code>, <code>all</code>, or a named id only when intentionally measuring an enhancement. Result notes and PRs should state the selection so enhanced and unenhanced runs are never mixed silently.</p>
+        <div class="code-block"><pre><code># Raw baseline, default behavior for benchmark runs
+pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-enhancements none
+
+# Enhanced comparison
+pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-enhancements default</code></pre></div>
+      </div>
+
+      <h3>How enhancements are registered</h3>
+      <p>The registry lives in <code>src/gemmaclaw/gemmaclaw_instructions.ts</code>. Each enhancement has a stable id, title, category, description, docs path, default state, and generated instruction text. Setup selection is persisted by the provisioning flow, and runtime bootstrap renders the selected sections into the generated <code>gemmaclaw_instructions.ts</code> context.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Surface</th><th>Location</th><th>Purpose</th></tr>
+        <tr><td>Registry</td><td><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></td><td>Defines ids, docs, default state, and generated instruction text.</td></tr>
+        <tr><td>Setup selection</td><td><code>gemmaclaw setup --enhancements</code></td><td>Chooses what normal agents receive and records it in <code>.gemmaclaw-enhancements.json</code>.</td></tr>
+        <tr><td>Benchmark selection</td><td><code>pnpm benchmark agent --gemmaclaw-enhancements</code></td><td>Opts benchmarks into enhancements only when intentionally comparing enhanced behavior.</td></tr>
+        <tr><td>Runtime injection</td><td><code>src/agents/bootstrap-files.ts</code></td><td>Adds generated Gemmaclaw context next to workspace instructions.</td></tr>
+      </table></div>
+
+      <h3>external_delivery_receipt_verification</h3>
+      <p>Status: default enabled for normal Gemmaclaw setup. Benchmark default: disabled unless selected explicitly.</p>
+      <p>This enhancement tells agents not to claim an external delivery succeeded until they verify the real provider response, send receipt, durable log, or benchmark mock receipt. It covers messages, media files, email, calendar mutations, webhooks, scheduled sends, and similar side effects.</p>
+      <p>The failure class came from Jake overclaiming a scheduled Telegram audio send without proving a Telegram receipt. The generalized Gemmaclaw behavior is receipt verification before claiming a send, not a Jake-only prompt patch.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Item</th><th>Value</th></tr>
+        <tr><td>Enhancement id</td><td><code>external_delivery_receipt_verification</code></td></tr>
+        <tr><td>Benchmark guard</td><td><code>scheduled_media_delivery_verification</code></td></tr>
+        <tr><td>Prompt registry</td><td><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></td></tr>
+        <tr><td>Docs source</td><td><code>docs/gemmaclaw/enhancements.md</code></td></tr>
+      </table></div>
+
+      <h3>Adding a new enhancement</h3>
+      <ol class="setup-steps">
+        <li>Register the behavior behind a named enhancement id if it changes agent instructions, prompt behavior, setup behavior, or benchmark conditions.</li>
+        <li>Keep the normal setup default enabled when it helps Gemmaclaw users, but keep benchmark runs raw by default.</li>
+        <li>Add tests for explicit enabled and disabled selections.</li>
+        <li>Run the benchmark once with <code>--gemmaclaw-enhancements none</code> and once with the intended enhancement selection when measuring improvement.</li>
+        <li>Update this page and the CLI benchmark docs with the id, failure class, setup flag, benchmark flag, and guard test.</li>
+      </ol>
+    </section>"""
+    return page_template("Enhancements", body, active_page="enhancements.html")
+
+
 def generate_benchmarking_page():
     body = """<div class="breadcrumb"><a href="index.html">Home</a> / Run Benchmarks</div>
     <section>
@@ -3594,6 +3664,7 @@ def generate_site():
         "benchmarks.html": generate_benchmarks_page(best, task_explanations_html, agent_preview_html),
         "benchmarking.html": generate_benchmarking_page(),
         "community.html": generate_community_page(community_cards, community_count, field_notes_html),
+        "enhancements.html": generate_enhancements_page(),
         "goals.html": generate_goals_page(),
     }
     for filename, html in pages.items():

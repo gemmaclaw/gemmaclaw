@@ -1063,7 +1063,7 @@ export function writeBenchmarkWorkspaceFiles(
   for (const [name, content] of Object.entries(files)) {
     fs.writeFileSync(path.join(workspaceDir, name), content);
   }
-  const enhancements = resolveGemmaclawEnhancementIds(gemmaclawEnhancements);
+  const enhancements = resolveGemmaclawEnhancementIds(gemmaclawEnhancements ?? "none");
   fs.writeFileSync(
     path.join(workspaceDir, GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME),
     `${JSON.stringify({ enhancements }, null, 2)}\n`,

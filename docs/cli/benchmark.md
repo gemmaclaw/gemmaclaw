@@ -55,14 +55,17 @@ The related default setup enhancement is documented at
 [Gemmaclaw enhancements](/gemmaclaw/enhancements).
 
 ```bash
-pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-smoke
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-raw
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-enhanced --gemmaclaw-enhancements default
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-no-enhance --gemmaclaw-enhancements none
 ```
 
+Benchmarks default to the raw baseline with no optional Gemmaclaw enhancements.
 Use `--gemmaclaw-enhancements default` for the normal Gemmaclaw prompt layer,
-`--gemmaclaw-enhancements none` to reproduce behavior without optional
-enhancements, or a comma-separated enhancement id list when isolating one
-improvement.
+`--gemmaclaw-enhancements none` to make the raw baseline explicit, or a
+comma-separated enhancement id list when isolating one improvement. Record the
+selection in result notes and PRs so scorecards do not mix enhanced and
+unenhanced runs.
 
 ## Modes
 

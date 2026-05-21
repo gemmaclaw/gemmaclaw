@@ -11,7 +11,7 @@ SITE_DIR="$REPO_DIR/site"
 FAILURES=0
 
 # Verify all required pages exist
-REQUIRED_PAGES="index.html setup.html self-hosting.html benchmarks.html community.html goals.html"
+REQUIRED_PAGES="index.html setup.html self-hosting.html benchmarks.html benchmarking.html community.html enhancements.html goals.html"
 for page in $REQUIRED_PAGES; do
   if [ ! -f "$SITE_DIR/$page" ]; then
     echo "FAIL: $page does not exist. Run generate-site.py first."
@@ -92,7 +92,9 @@ declare -A SECTION_CHECKS=(
   ["setup.html"]="setup"
   ["self-hosting.html"]="hosting"
   ["benchmarks.html"]="benchmarks"
+  ["benchmarking.html"]="running-gemmaclaw-benchmarks"
   ["goals.html"]="goals"
+  ["enhancements.html"]="enhancements"
 )
 
 for page in "${!SECTION_CHECKS[@]}"; do
