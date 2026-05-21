@@ -2346,7 +2346,10 @@ export async function runEmbeddedAttempt(
         // Only trust snapshot if compaction wasn't running before or after capture
         const preCompactionSnapshot = wasCompactingBefore || wasCompactingAfter ? null : snapshot;
         const preCompactionSessionId = activeSession.sessionId;
-        const COMPACTION_RETRY_AGGREGATE_TIMEOUT_MS = 60_000;
+        // Use the same configured safety window as compaction itself. Slow Pi
+        // runs can legitimately need more than one minute after context
+        // overflow, while the abort timer still bounds the total wait.
+        const compactionRetryAggregateTimeoutMs = compactionTimeoutMs;
 
         try {
           // Flush buffered block replies before waiting for compaction so the
@@ -2364,14 +2367,14 @@ export async function runEmbeddedAttempt(
             : await waitForCompactionRetryWithAggregateTimeout({
                 waitForCompactionRetry,
                 abortable,
-                aggregateTimeoutMs: COMPACTION_RETRY_AGGREGATE_TIMEOUT_MS,
+                aggregateTimeoutMs: compactionRetryAggregateTimeoutMs,
                 isCompactionStillInFlight: isCompactionInFlight,
               });
           if (compactionRetryWait.timedOut) {
             timedOutDuringCompaction = true;
             if (!isProbeSession) {
               log.warn(
-                `compaction retry aggregate timeout (${COMPACTION_RETRY_AGGREGATE_TIMEOUT_MS}ms): ` +
+                `compaction retry aggregate timeout (${compactionRetryAggregateTimeoutMs}ms): ` +
                   `proceeding with pre-compaction state runId=${params.runId} sessionId=${params.sessionId}`,
               );
             }

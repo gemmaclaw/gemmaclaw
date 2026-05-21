@@ -1,6 +1,7 @@
 /**
- * Wait for compaction retry completion with an aggregate timeout to avoid
- * holding a session lane indefinitely when retry resolution is lost.
+ * Wait for compaction retry completion with the caller's configured safety
+ * timeout to avoid holding a session lane indefinitely when retry resolution
+ * is lost.
  */
 export async function waitForCompactionRetryWithAggregateTimeout(params: {
   waitForCompactionRetry: () => Promise<void>;
