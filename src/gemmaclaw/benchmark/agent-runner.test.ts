@@ -390,7 +390,20 @@ describe("benchmark backend resolution", () => {
     expect(fs.readFileSync(path.join(dir, "IDENTITY.md"), "utf-8")).toContain(
       "benchmark assistant",
     );
+    expect(fs.readFileSync(path.join(dir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+      "external_delivery_receipt_verification",
+    );
     expect(fs.existsSync(path.join(dir, "memory"))).toBe(true);
+  });
+
+  it("can disable Gemmaclaw benchmark enhancements deterministically", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-workspace-context-"));
+
+    writeBenchmarkWorkspaceFiles(dir, false, "none");
+
+    expect(fs.readFileSync(path.join(dir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+      '"enhancements": []',
+    );
   });
 });
 

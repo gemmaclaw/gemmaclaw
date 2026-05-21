@@ -39,6 +39,7 @@ export type SetupGemmaCommandOpts = {
   bootstrap?: OnboardingBootstrap;
   setupMode?: OnboardingBackend;
   model?: string;
+  enhancements?: string;
 };
 
 const HEALTH_POLL_INTERVAL_MS = 500;
@@ -370,6 +371,7 @@ export async function setupGemmaCommand(
       model: opts.model,
       thinkingLevel: opts.thinking,
       bootstrap: opts.bootstrap,
+      enhancements: opts.enhancements,
       apiKey: process.env.GEMINI_API_KEY?.trim(),
     });
   } else {
@@ -382,6 +384,11 @@ export async function setupGemmaCommand(
         model: opts.model,
         thinkingLevel: opts.thinking,
         bootstrap: opts.bootstrap,
+        enhancements: opts.enhancements
+          ? (await import("../gemmaclaw/gemmaclaw_instructions.js")).resolveGemmaclawEnhancementIds(
+              opts.enhancements,
+            )
+          : undefined,
       });
     } finally {
       io.close();
@@ -795,6 +802,7 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
         thinkingLevel: choices.thinkingLevel,
         bootstrap: choices.bootstrap,
         useContainer: choices.useContainer,
+        enhancements: choices.enhancements,
         createdAt: new Date().toISOString(),
       },
       null,
@@ -811,7 +819,10 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
     choices.agentName === "main"
       ? path.join(stateDir, "workspace")
       : path.join(stateDir, "workspaces", choices.agentName);
-  applyBootstrapProfile(choices.bootstrap, workspaceDir, { useContainer: choices.useContainer });
+  applyBootstrapProfile(choices.bootstrap, workspaceDir, {
+    useContainer: choices.useContainer,
+    enhancements: choices.enhancements,
+  });
   if (choices.useContainer) {
     ensureDockerWritableHostDir(fs, workspaceDir);
     ensureDockerWritableHostDir(fs, resolveGemmaclawSharedDir());

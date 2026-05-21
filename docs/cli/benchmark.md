@@ -51,9 +51,18 @@ send with a receipt. It explicitly fails agents that write an inert
 `workspace/.openclaw/cron/jobs.json` shadow file or claim delivery before
 read-back verification.
 
+The related default setup enhancement is documented at
+[Gemmaclaw enhancements](/gemmaclaw/enhancements).
+
 ```bash
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-smoke
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-no-enhance --gemmaclaw-enhancements none
 ```
+
+Use `--gemmaclaw-enhancements default` for the normal Gemmaclaw prompt layer,
+`--gemmaclaw-enhancements none` to reproduce behavior without optional
+enhancements, or a comma-separated enhancement id list when isolating one
+improvement.
 
 ## Modes
 

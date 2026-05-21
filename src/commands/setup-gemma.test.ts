@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listAgentEntries } from "../agents/agent-scope.js";
 import type { OpenClawConfig } from "../config/types.js";
+import { EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID } from "../gemmaclaw/gemmaclaw_instructions.js";
 import type { RuntimeEnv } from "../runtime.js";
 import {
   assertDockerForContainerMode,
@@ -90,6 +91,7 @@ vi.mock("node:fs", async () => {
 });
 
 const fsMock = await import("node:fs");
+const bootstrapProfilesMock = await import("../gemmaclaw/provision/bootstrap-profiles.js");
 
 function makeRuntime(): RuntimeEnv & { logs: string[]; errors: string[]; exitCodes: number[] } {
   const logs: string[] = [];
@@ -316,6 +318,55 @@ describe("setupGemmaCommand — agent creation", () => {
     const entry = entries.find((e) => e.id === "steve");
     expect(entry).toBeDefined();
     expect(entry?.name).toBe("Steve");
+  });
+
+  it("passes default enhancements into the bootstrap profile", async () => {
+    await setupGemmaCommand(
+      {
+        nonInteractive: true,
+        dryRun: true,
+        agentName: "EnhanceBot",
+        setupMode: "gemini",
+        model: "gemini-2.0-flash",
+        thinking: "medium",
+        noContainer: true,
+      },
+      runtime,
+    );
+
+    expect(bootstrapProfilesMock.applyBootstrapProfile).toHaveBeenCalledWith(
+      "general",
+      expect.stringContaining("EnhanceBot"),
+      expect.objectContaining({
+        useContainer: false,
+        enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+      }),
+    );
+  });
+
+  it("allows setup to disable enhancements explicitly", async () => {
+    await setupGemmaCommand(
+      {
+        nonInteractive: true,
+        dryRun: true,
+        agentName: "PlainBot",
+        setupMode: "gemini",
+        model: "gemini-2.0-flash",
+        thinking: "medium",
+        noContainer: true,
+        enhancements: "none",
+      },
+      runtime,
+    );
+
+    expect(bootstrapProfilesMock.applyBootstrapProfile).toHaveBeenCalledWith(
+      "general",
+      expect.stringContaining("PlainBot"),
+      expect.objectContaining({
+        useContainer: false,
+        enhancements: [],
+      }),
+    );
   });
 
   it("produces an agents.list readable by listAgentEntries (same function used by gemmaclaw list)", async () => {

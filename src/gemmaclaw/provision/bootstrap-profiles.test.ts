@@ -56,6 +56,11 @@ describe("bootstrap-profiles", () => {
       expect(written).toContain("AGENTS.md");
       expect(written).toContain("Use `knowledge/` for durable project notes");
       expect(written).toContain("daily 3:00 AM knowledge maintenance job");
+      expect(written).not.toContain("## Self-Awareness");
+      expect(written).not.toContain("https://github.com/gemmaclaw/gemmaclaw");
+      expect(written).not.toContain("external_delivery_receipt_verification");
+      const selection = fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8");
+      expect(selection).toContain("external_delivery_receipt_verification");
     });
 
     it("writes both AGENTS.md and TOOLS.md for the coding profile", () => {
@@ -66,12 +71,18 @@ describe("bootstrap-profiles", () => {
       const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
       expect(written).toContain("Use `knowledge/` for durable project notes");
       expect(written).toContain("observable verification steps");
+      expect(written).not.toContain("## Self-Awareness");
+      expect(written).not.toContain("https://github.com/gemmaclaw/gemmaclaw");
+      expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+        "external_delivery_receipt_verification",
+      );
     });
 
-    it("writes nothing for the minimal profile", () => {
+    it("writes only the enhancement selection for the minimal profile", () => {
       const result = applyBootstrapProfile("minimal", tmpDir);
       expect(result.written).toEqual([]);
-      expect(fs.readdirSync(tmpDir)).toEqual([]);
+      expect(fs.readdirSync(tmpDir)).toEqual([".gemmaclaw-enhancements.json"]);
     });
 
     it("skips existing files by default", () => {
@@ -102,9 +113,25 @@ describe("bootstrap-profiles", () => {
       const result = applyBootstrapProfile("general", tmpDir, { useContainer: true });
       expect(result.written).toContain("AGENTS.md");
       const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+      expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+        "external_delivery_receipt_verification",
+      );
       expect(written).toContain("## Docker Sandbox Environment");
       expect(written).toContain("/workspace/shared");
       expect(written).toContain("apt-get -o APT::Sandbox::User=root install");
+    });
+
+    it("can disable default enhancements while still creating the agent workspace", () => {
+      const result = applyBootstrapProfile("general", tmpDir, { enhancements: [] });
+      expect(result.written).toContain("AGENTS.md");
+      const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+      expect(written).not.toContain("## Gemmaclaw Instructions");
+      expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(written).toContain("You are a helpful Gemma-powered assistant");
+      expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+        '"enhancements": []',
+      );
     });
   });
 

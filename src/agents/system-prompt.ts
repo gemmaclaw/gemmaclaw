@@ -43,6 +43,7 @@ type OwnerIdDisplay = "raw" | "hash";
 
 const CONTEXT_FILE_ORDER = new Map<string, number>([
   ["agents.md", 10],
+  ["gemmaclaw_instructions.ts", 15],
   ["soul.md", 20],
   ["identity.md", 30],
   ["user.md", 40],

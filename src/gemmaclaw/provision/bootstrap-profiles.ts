@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME,
+  resolveGemmaclawEnhancementIds,
+  type GemmaclawEnhancementId,
+} from "../gemmaclaw_instructions.js";
 
 export type BootstrapProfileId = "general" | "coding" | "minimal";
 
@@ -33,11 +38,6 @@ You are a helpful Gemma-powered assistant. Be concise, accurate, and direct.
 - Before saying you do not know something, search \`knowledge/\`, \`MEMORY.md\`, and recent daily memory files.
 - Never store secrets, tokens, private keys, OAuth redirects, or raw credentials in memory or knowledge files.
 - A daily 3:00 AM knowledge maintenance job may review recent \`memory/\` and update \`knowledge/\`.
-
-## Self-Awareness
-- You are running as a Gemmaclaw agent.
-- If you need to understand how to fix your own configuration or learn something about yourself, you can clone the repository: https://github.com/gemmaclaw/gemmaclaw
-- You can also check out the documentation: https://gemmaclaw.github.io/gemmaclaw/
 `;
 
 const CODING_AGENTS_MD = `# AGENTS.md
@@ -65,11 +65,6 @@ workspace.
 - Keep knowledge files useful for future agents: include dates, commands that worked, commands that failed, and observable verification steps.
 - Never store secrets, tokens, private keys, OAuth redirects, or raw credentials in memory or knowledge files.
 - A daily 3:00 AM knowledge maintenance job may review recent \`memory/\` and update \`knowledge/\`.
-
-## Self-Awareness
-- You are running as a Gemmaclaw agent.
-- If you need to understand how to fix your own configuration or learn something about yourself, you can clone the repository: https://github.com/gemmaclaw/gemmaclaw
-- You can also check out the documentation: https://gemmaclaw.github.io/gemmaclaw/
 `;
 
 const CODING_TOOLS_MD = `# TOOLS.md
@@ -132,12 +127,19 @@ export interface ApplyBootstrapResult {
 export function applyBootstrapProfile(
   profileId: BootstrapProfileId,
   workspaceDir: string,
-  opts: { overwrite?: boolean; useContainer?: boolean } = {},
+  opts: {
+    overwrite?: boolean;
+    useContainer?: boolean;
+    enhancements?: readonly GemmaclawEnhancementId[];
+  } = {},
 ): ApplyBootstrapResult {
   const profile = BOOTSTRAP_PROFILES[profileId];
   fs.mkdirSync(workspaceDir, { recursive: true });
   const written: string[] = [];
   const skipped: string[] = [];
+  const enhancements = opts.enhancements ?? resolveGemmaclawEnhancementIds(undefined);
+  const selectionPath = path.join(workspaceDir, GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME);
+  fs.writeFileSync(selectionPath, `${JSON.stringify({ enhancements }, null, 2)}\n`);
   for (const spec of profile.files) {
     const target = path.join(workspaceDir, spec.relativePath);
     if (fs.existsSync(target) && !opts.overwrite) {

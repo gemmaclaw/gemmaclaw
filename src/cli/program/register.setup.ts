@@ -52,6 +52,11 @@ export function registerSetupCommand(program: Command) {
     .option("--model <id>", "Model id (e.g. gemma3:4b, google/gemini-2.5-flash)")
     .option("--thinking <level>", "Thinking level: off|low|medium|high (default: medium)")
     .option("--bootstrap <profile>", "Bootstrap profile: general|coding|minimal (default: general)")
+    .option(
+      "--enhancements <selection>",
+      "Gemmaclaw enhancements: default|all|none|comma-separated ids (default: default)",
+    )
+    .option("--no-enhancements", "Disable all Gemmaclaw setup enhancements")
     .option("--dry-run", "Run wizard + write config without provisioning the backend", false)
     .action(async (opts, command) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
@@ -72,6 +77,7 @@ export function registerSetupCommand(program: Command) {
           "agentName",
           "thinking",
           "bootstrap",
+          "enhancements",
           "dryRun",
           "model",
         ]);
@@ -173,6 +179,8 @@ export function registerSetupCommand(program: Command) {
           bootstrapRaw === "general" || bootstrapRaw === "coding" || bootstrapRaw === "minimal"
             ? bootstrapRaw
             : undefined;
+        const enhancementSelection =
+          opts.enhancements === false ? "none" : (opts.enhancements as string | undefined);
         await setupGemmaCommand(
           {
             advanced: Boolean(opts.advanced),
@@ -184,6 +192,7 @@ export function registerSetupCommand(program: Command) {
             model: opts.model as string | undefined,
             thinking,
             bootstrap,
+            enhancements: enhancementSelection,
           },
           defaultRuntime,
         );

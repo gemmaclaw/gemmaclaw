@@ -25,6 +25,10 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
+import {
+  GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME,
+  resolveGemmaclawEnhancementIds,
+} from "../gemmaclaw_instructions.js";
 import type { HardwareInfo } from "../provision/hardware.js";
 import { detectSystemTools } from "../provision/hardware.js";
 import { selectQuickProfile } from "../provision/setup-wizard.js";
@@ -142,6 +146,8 @@ export type AgentBenchmarkConfig = {
   manifestConfig?: AgentBenchmarkConfig;
   /** Internal: full selected task set for the shared run manifest. */
   manifestTaskIds?: string[];
+  /** Gemmaclaw runtime enhancement selection for the benchmark workspace. */
+  gemmaclawEnhancements?: string;
 };
 
 export type ConversationTurn = {
@@ -1047,12 +1053,21 @@ const BENCHMARK_WORKSPACE_FILES_NO_TOOLS: Record<string, string> = {
   "HEARTBEAT.md": "HEARTBEAT_OK\n",
 };
 
-export function writeBenchmarkWorkspaceFiles(workspaceDir: string, noToolsMode?: boolean): void {
+export function writeBenchmarkWorkspaceFiles(
+  workspaceDir: string,
+  noToolsMode?: boolean,
+  gemmaclawEnhancements?: string,
+): void {
   fs.mkdirSync(path.join(workspaceDir, "memory"), { recursive: true });
   const files = noToolsMode ? BENCHMARK_WORKSPACE_FILES_NO_TOOLS : BENCHMARK_WORKSPACE_FILES;
   for (const [name, content] of Object.entries(files)) {
     fs.writeFileSync(path.join(workspaceDir, name), content);
   }
+  const enhancements = resolveGemmaclawEnhancementIds(gemmaclawEnhancements);
+  fs.writeFileSync(
+    path.join(workspaceDir, GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME),
+    `${JSON.stringify({ enhancements }, null, 2)}\n`,
+  );
 }
 
 function gemmaclawCommandArgs(): string[] {
@@ -1075,7 +1090,11 @@ function gemmaclawCommandArgs(): string[] {
 export function createBenchmarkHome(config: AgentBenchmarkConfig): string {
   const homeDir = config.gemmaclawHome ?? path.join(os.tmpdir(), `gemmaclaw-bench-${Date.now()}`);
   fs.mkdirSync(path.join(homeDir, "agents/main/sessions"), { recursive: true });
-  writeBenchmarkWorkspaceFiles(path.join(homeDir, "workspace"));
+  writeBenchmarkWorkspaceFiles(
+    path.join(homeDir, "workspace"),
+    false,
+    config.gemmaclawEnhancements,
+  );
 
   // Write config with sandbox enabled
   const benchConfig = {
@@ -1850,7 +1869,7 @@ export async function dispatchTask(
     fs.mkdirSync(path.join(ocDir, "agent"), { recursive: true });
     fs.mkdirSync(path.join(ocDir, "agents/main/agent"), { recursive: true });
     const workspaceDir = path.join(ocDir, "workspace");
-    writeBenchmarkWorkspaceFiles(workspaceDir, task.noToolsMode);
+    writeBenchmarkWorkspaceFiles(workspaceDir, task.noToolsMode, config.gemmaclawEnhancements);
     const gogStateDir = path.join(benchHome, ".config/gogcli/state");
     const fakeGogBinDir = resolveFakeGogBinDir();
     const fakeGogLogPath = path.join(benchHome, "fake-gog.log");

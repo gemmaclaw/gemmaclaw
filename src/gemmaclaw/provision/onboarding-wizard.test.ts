@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID } from "../gemmaclaw_instructions.js";
 import {
   buildNonInteractiveChoices,
   defaultModelFor,
@@ -122,7 +123,7 @@ describe("resolveModelId", () => {
 
 describe("runOnboardingWizard", () => {
   it("walks the user through every prompt in order", async () => {
-    // Default answers via Enter: "" / "" / "" / "" / "" / "" + apiKey for gemini.
+    // Default answers via Enter: name, container, backend, model, thinking, bootstrap, enhancements.
     const { io, logs, prompts } = makeScriptedIO([
       "", // agent name → main
       "", // container choice → 1 (yes)
@@ -130,6 +131,7 @@ describe("runOnboardingWizard", () => {
       "", // model → choice 1 (auto)
       "", // thinking level → medium
       "", // bootstrap → general
+      "", // enhancements → defaults
     ]);
 
     const choices = await runOnboardingWizard(io);
@@ -141,11 +143,12 @@ describe("runOnboardingWizard", () => {
       model: "auto",
       thinkingLevel: "medium",
       bootstrap: "general",
+      enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
       apiKey: undefined,
     });
 
-    // Six prompts total in the local path.
-    expect(prompts).toHaveLength(6);
+    // Seven prompts total in the local path.
+    expect(prompts).toHaveLength(7);
 
     // Each step's heading is printed.
     const joined = logs.join("\n");
@@ -155,6 +158,7 @@ describe("runOnboardingWizard", () => {
     expect(joined).toContain("Which model");
     expect(joined).toContain("How much should the agent think");
     expect(joined).toContain("starter persona");
+    expect(joined).toContain("Enable Gemmaclaw enhancements");
   });
 
   it("collects an API key when the user picks the Gemini backend", async () => {
@@ -166,6 +170,7 @@ describe("runOnboardingWizard", () => {
       "1", // first model in gemini list
       "2", // low thinking
       "2", // coding bootstrap
+      "n", // disable enhancements
       "AIza-test-key",
     ]);
 
@@ -178,6 +183,7 @@ describe("runOnboardingWizard", () => {
       model: "google/gemini-2.5-flash",
       thinkingLevel: "low",
       bootstrap: "coding",
+      enhancements: [],
       apiKey: "AIza-test-key",
     });
   });
@@ -186,6 +192,7 @@ describe("runOnboardingWizard", () => {
     const { io, errors } = makeScriptedIO([
       "Bad Name", // invalid
       "main", // valid
+      "",
       "",
       "",
       "",
@@ -207,6 +214,7 @@ describe("runOnboardingWizard", () => {
       "",
       "",
       "",
+      "",
     ]);
 
     const choices = await runOnboardingWizard(io);
@@ -219,6 +227,7 @@ describe("runOnboardingWizard", () => {
       "", // model still asks
       "", // thinking still asks
       "", // bootstrap still asks
+      "", // enhancements still asks
     ]);
 
     const choices = await runOnboardingWizard(io, {
@@ -233,7 +242,8 @@ describe("runOnboardingWizard", () => {
     expect(choices.model).toBe("gemma-3-4b-it"); // first vertex choice
     expect(choices.thinkingLevel).toBe("medium");
     expect(choices.bootstrap).toBe("general");
-    expect(prompts).toHaveLength(3);
+    expect(choices.enhancements).toEqual([EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID]);
+    expect(prompts).toHaveLength(4);
   });
 
   it("rejects a preset agent name that is not allowed", async () => {
@@ -253,6 +263,7 @@ describe("runOnboardingWizard", () => {
         "", // first model
         "", // medium thinking
         "", // general bootstrap
+        "", // enhancements default
       ]);
       const choices = await runOnboardingWizard(io);
       expect(choices.apiKey).toBe("env-key-1234");
@@ -272,6 +283,7 @@ describe("buildNonInteractiveChoices", () => {
       model: "auto",
       thinkingLevel: "medium",
       bootstrap: "general",
+      enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
       apiKey: undefined,
     });
   });
@@ -284,6 +296,7 @@ describe("buildNonInteractiveChoices", () => {
       model: "gemini-2.5-pro",
       thinkingLevel: "high",
       bootstrap: "coding",
+      enhancements: "none",
       apiKey: "AIza-x",
     });
     expect(choices).toEqual({
@@ -293,6 +306,7 @@ describe("buildNonInteractiveChoices", () => {
       model: "google/gemini-2.5-pro",
       thinkingLevel: "high",
       bootstrap: "coding",
+      enhancements: [],
       apiKey: "AIza-x",
     });
   });
@@ -311,6 +325,7 @@ describe("formatChoicesSummary", () => {
       model: "gemma3:4b",
       thinkingLevel: "high",
       bootstrap: "coding",
+      enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
     });
     const text = summary.join("\n");
     expect(text).toContain("Agent name:");
@@ -320,6 +335,7 @@ describe("formatChoicesSummary", () => {
     expect(text).toContain("gemma3:4b");
     expect(text).toContain("high");
     expect(text).toContain("Coding helper");
+    expect(text).toContain("external_delivery_receipt_verification");
   });
 });
 
@@ -333,6 +349,7 @@ describe("formatNextSteps", () => {
         model: "auto",
         thinkingLevel: "medium",
         bootstrap: "general",
+        enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
       },
       "http://127.0.0.1:8765/",
     );
@@ -353,6 +370,7 @@ describe("formatNextSteps", () => {
       model: "google/gemini-2.5-flash",
       thinkingLevel: "off",
       bootstrap: "minimal",
+      enhancements: [],
     });
     const text = lines.join("\n");
     expect(text).not.toContain("Open the chat UI");
@@ -370,6 +388,7 @@ describe("gemmaclaw home path branding", () => {
     model: "auto",
     thinkingLevel: "medium" as const,
     bootstrap: "general" as const,
+    enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
   };
 
   it("formatNextSteps does not mention .openclaw", () => {
