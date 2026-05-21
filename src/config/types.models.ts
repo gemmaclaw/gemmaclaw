@@ -37,8 +37,6 @@ export type SupportedThinkingFormat =
 export const MODEL_THINKING_FORMATS = [
   "openai",
   "openrouter",
-  "deepseek",
-  "together",
   "qwen",
   "qwen-chat-template",
   "zai",
@@ -48,24 +46,22 @@ export function isModelThinkingFormat(value: string): value is SupportedThinking
   return (MODEL_THINKING_FORMATS as readonly string[]).includes(value);
 }
 
-export type ModelCompatConfig = SupportedOpenAICompatFields &
-  SupportedOpenAIResponsesCompatFields &
-  SupportedAnthropicMessagesCompatFields & {
-    thinkingFormat?: SupportedThinkingFormat;
-    supportedReasoningEfforts?: string[];
-    reasoningEffortMap?: Record<string, string>;
-    visibleReasoningDetailTypes?: string[];
-    supportsTools?: boolean;
-    supportsPromptCacheKey?: boolean;
-    requiresStringContent?: boolean;
-    strictMessageKeys?: boolean;
-    toolSchemaProfile?: string;
-    unsupportedToolSchemaKeywords?: string[];
-    nativeWebSearchTool?: boolean;
-    toolCallArgumentsEncoding?: string;
-    requiresMistralToolIds?: boolean;
-    requiresOpenAiAnthropicToolPayload?: boolean;
-  };
+export type ModelCompatConfig = SupportedOpenAICompatFields & {
+  thinkingFormat?: SupportedThinkingFormat;
+  supportedReasoningEfforts?: string[];
+  reasoningEffortMap?: Record<string, string>;
+  visibleReasoningDetailTypes?: string[];
+  supportsTools?: boolean;
+  supportsPromptCacheKey?: boolean;
+  requiresStringContent?: boolean;
+  strictMessageKeys?: boolean;
+  toolSchemaProfile?: string;
+  unsupportedToolSchemaKeywords?: string[];
+  nativeWebSearchTool?: boolean;
+  toolCallArgumentsEncoding?: string;
+  requiresMistralToolIds?: boolean;
+  requiresOpenAiAnthropicToolPayload?: boolean;
+};
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";
 

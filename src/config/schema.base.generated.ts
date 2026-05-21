@@ -2902,28 +2902,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                             ],
                           },
                           thinkingFormat: {
-                            anyOf: [
-                              {
-                                type: "string",
-                                const: "openai",
-                              },
-                              {
-                                type: "string",
-                                const: "openrouter",
-                              },
-                              {
-                                type: "string",
-                                const: "zai",
-                              },
-                              {
-                                type: "string",
-                                const: "qwen",
-                              },
-                              {
-                                type: "string",
-                                const: "qwen-chat-template",
-                              },
-                            ],
+                            type: "string",
+                            enum: ["openai", "openrouter", "qwen", "qwen-chat-template", "zai"],
                           },
                           requiresToolResultName: {
                             type: "boolean",

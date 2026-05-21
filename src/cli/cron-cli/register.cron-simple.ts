@@ -14,69 +14,6 @@ import {
 
 const CRON_SHOW_PAGE_SIZE = 200;
 const CRON_SHOW_LOOKUP_MAX_PAGES = 50;
-const CRON_RUN_WAIT_TIMEOUT_DEFAULT = "10m";
-const CRON_RUN_WAIT_POLL_INTERVAL_DEFAULT = "2s";
-
-type CronRunCommandResult = {
-  ok?: boolean;
-  ran?: boolean;
-  enqueued?: boolean;
-  runId?: string;
-};
-
-type CronRunLogEntryResult = {
-  status?: "ok" | "error" | "skipped";
-};
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function parseCronRunWaitDuration(raw: unknown, label: string): number {
-  const input =
-    typeof raw === "string" || typeof raw === "number" || typeof raw === "bigint"
-      ? String(raw)
-      : "";
-  const durationMs = parseDurationMs(input, { defaultUnit: "ms" });
-  if (!Number.isFinite(durationMs) || durationMs < 0) {
-    throw new Error(`invalid ${label}`);
-  }
-  return durationMs;
-}
-
-function parseCronRunPollInterval(raw: unknown): number {
-  const durationMs = parseCronRunWaitDuration(raw, "--poll-interval");
-  if (durationMs <= 0) {
-    throw new Error("invalid --poll-interval");
-  }
-  return durationMs;
-}
-
-async function waitForCronRunCompletion(params: {
-  opts: GatewayRpcOpts;
-  jobId: string;
-  runId: string;
-  timeoutMs: number;
-  pollIntervalMs: number;
-}): Promise<CronRunLogEntryResult> {
-  const startedAt = Date.now();
-  for (;;) {
-    const page = (await callGatewayFromCli("cron.runs", params.opts, {
-      id: params.jobId,
-      runId: params.runId,
-      limit: 1,
-    })) as { entries?: CronRunLogEntryResult[] };
-    const entry = page.entries?.[0];
-    if (entry?.status === "ok" || entry?.status === "error" || entry?.status === "skipped") {
-      return entry;
-    }
-    if (Date.now() - startedAt >= params.timeoutMs) {
-      throw new Error(`timed out waiting for cron run ${params.runId}`);
-    }
-    await sleep(params.pollIntervalMs);
-  }
-}
-
 
 function findCronJobInPage(jobs: CronJob[], idOrName: string): CronJob | undefined {
   const needle = normalizeLowercaseStringOrEmpty(idOrName);

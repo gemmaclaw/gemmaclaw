@@ -8,6 +8,7 @@ export type CommandDescriptorCatalog<TDescriptor extends NamedCommandDescriptor>
   getDescriptors: () => readonly TDescriptor[];
   getNames: () => string[];
   getCommandsWithSubcommands: () => string[];
+  getParentDefaultHelpCommands: () => string[];
 };
 
 export function getCommandDescriptorNames(descriptors: readonly CommandDescriptorLike[]): string[] {
@@ -39,6 +40,13 @@ export function collectUniqueCommandDescriptors<TDescriptor extends CommandDescr
   return descriptors;
 }
 
+export function getParentDefaultHelpCommands(
+  _descriptors: readonly NamedCommandDescriptor[],
+): string[] {
+  // parentDefaultHelp not yet supported in gemmaclaw descriptors
+  return [];
+}
+
 export function defineCommandDescriptorCatalog<TDescriptor extends NamedCommandDescriptor>(
   descriptors: readonly TDescriptor[],
 ): CommandDescriptorCatalog<TDescriptor> {
@@ -47,6 +55,7 @@ export function defineCommandDescriptorCatalog<TDescriptor extends NamedCommandD
     getDescriptors: () => descriptors,
     getNames: () => getCommandDescriptorNames(descriptors),
     getCommandsWithSubcommands: () => getCommandsWithSubcommands(descriptors),
+    getParentDefaultHelpCommands: () => getParentDefaultHelpCommands(descriptors),
   };
 }
 
