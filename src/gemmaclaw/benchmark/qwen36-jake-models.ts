@@ -1,10 +1,17 @@
 /**
- * QwenClaw 3.6 benchmark port — model presets and provenance.
+ * Qwen 3.6 local Jake-runner provenance — model presets and historical metadata.
  *
- * PROVENANCE: This file ports the QwenClaw / Qwen 3.6 Jake benchmark workflow
- * into the Gemmaclaw benchmark system. The original workflow ran on the Raspberry
- * Pi 5 (frankpi / 100.108.252.124) via the Jake OpenClaw gateway with Ollama on
- * the Desktop PC RTX 3090. Sources:
+ * NOT THE QWEN TEAM'S QWENCLAWBENCH. This file captures Frank's older local
+ * Jake/Pi runner that happened to target Qwen 3.6 models. The Qwen team's
+ * "QwenClawBench" is a separate internal coding-agent benchmark that is not
+ * yet public; see `qwenclaw-bench-upstream.ts` for the official upstream
+ * facts and release-tracking scaffold.
+ *
+ * PROVENANCE: This file documents the Qwen 3.6 Jake/Pi benchmark workflow
+ * and brings the model targets into the Gemmaclaw benchmark system as
+ * llama.cpp-backed presets. The original workflow ran on the Raspberry Pi 5
+ * (frankpi / 100.108.252.124) via the Jake OpenClaw gateway with Ollama on
+ * the Desktop PC RTX 3090. Sources (workspace, not this repo):
  *   - scripts/qwen36-jake-orchestrator.sh
  *   - cron/jake-benchmark-qwen36-run-until-done.md
  *   - cron/jake-benchmark-qwen36-run-and-grade-until-done.md
@@ -22,7 +29,7 @@
  * NEW COMMANDS (Gemmaclaw / llama.cpp on Desktop RTX 3090):
  *   pnpm benchmark agent --backend llama-cpp --llama-cpp-url http://100.69.102.71:8080 \
  *     --model qwen3.6-35b-a3b --quant IQ4_XS --thinking high \
- *     --run-id qwenclaw-36-moe-high
+ *     --run-id qwen36-jake-moe-high
  *   (Dense model is blocked — see QWEN36_DENSE_BLOCKED below.)
  */
 
@@ -41,7 +48,7 @@ export const QWEN36_JAKE_MODEL_IDS = {
   MOE: "qwen3.6:35b-a3b-q4_K_M" as const,
 } as const;
 
-export type QwenClawModelId = (typeof QWEN36_JAKE_MODEL_IDS)[keyof typeof QWEN36_JAKE_MODEL_IDS];
+export type Qwen36JakeModelId = (typeof QWEN36_JAKE_MODEL_IDS)[keyof typeof QWEN36_JAKE_MODEL_IDS];
 
 // ── Current llama.cpp model mappings ───────────────────────────────────────
 
@@ -50,13 +57,13 @@ export type QwenClawModelId = (typeof QWEN36_JAKE_MODEL_IDS)[keyof typeof QWEN36
  * Updated 2026-05-21 from knowledge/infra/gemmaclaw-benchmark-backends.md.
  */
 export const QWEN36_LLAMACPP_MAPPING: Record<
-  QwenClawModelId,
+  Qwen36JakeModelId,
   { alias: string; gguf: string; vram: string; genToks: string; status: "ready" | "blocked" }
 > = {
   "qwen3.6:35b": {
     alias: "qwen3.6-27b-dense",
     // froggeric GGUF resolves unsloth empty-tensor issue; alias matches --alias arg
-    gguf: "froggeric/Qwen3.6-27B-GGUF → Qwen3.6-27B-Q4_K_M.gguf",
+    gguf: "froggeric/Qwen3.6-27B-GGUF -> Qwen3.6-27B-Q4_K_M.gguf",
     vram: "~19600 MiB at ctx=65536",
     genToks: "63-65 tok/s with MTP, 76-85% acceptance",
     // BLOCKED: unsloth GGUF (original) has empty tensor names on llama.cpp b9190.
@@ -67,7 +74,7 @@ export const QWEN36_LLAMACPP_MAPPING: Record<
   },
   "qwen3.6:35b-a3b-q4_K_M": {
     alias: "qwen3.6-35b-a3b",
-    gguf: "unsloth/Qwen3.6-35B-A3B-GGUF → Qwen3.6-35B-A3B-UD-IQ4_XS.gguf",
+    gguf: "unsloth/Qwen3.6-35B-A3B-GGUF -> Qwen3.6-35B-A3B-UD-IQ4_XS.gguf",
     vram: "~19100 MiB at ctx=65536",
     genToks: "133-135 tok/s",
     status: "ready",
@@ -89,7 +96,7 @@ export const QWEN36_DEFAULT_LLAMACPP_URL = "http://100.69.102.71:8080";
  * Run with: pnpm benchmark agent --backend llama-cpp
  *           --llama-cpp-url http://100.69.102.71:8080
  *           --model qwen3.6-35b-a3b --quant IQ4_XS --thinking high
- *           --run-id qwenclaw-36-moe-high
+ *           --run-id qwen36-jake-moe-high
  */
 export const QWEN36_MOE_PRESET: Partial<AgentBenchmarkConfig> = {
   backend: "llama-cpp",
@@ -121,7 +128,7 @@ export const JAKE_MANIFEST_MIN_TASKS = 22;
 
 /**
  * Check whether a raw Jake run manifest object meets the historical
- * QwenClaw completion criteria:
+ * Jake completion criteria:
  *   - manifest.finished is non-empty (string)
  *   - manifest.tasks_run >= JAKE_MANIFEST_MIN_TASKS (22)
  */
@@ -140,14 +147,21 @@ export function isJakeManifestComplete(manifest: unknown): boolean {
 }
 
 /**
- * Human-readable description of what the QwenClaw port adds to Gemmaclaw.
- * Shown in `pnpm benchmark agent list --suite qwenclaw` or docs.
+ * Human-readable description of the Qwen 3.6 local Jake provenance brought
+ * into Gemmaclaw. This is NOT the Qwen team's QwenClawBench (see
+ * `qwenclaw-bench-upstream.ts`); it documents Frank's older Jake/Pi runner
+ * so that historical manifests can be validated and the same Qwen 3.6
+ * targets can be re-run from Gemmaclaw.
  */
-export const QWENCLAW_PORT_DESCRIPTION = {
-  name: "QwenClaw 3.6 Benchmark Port",
-  version: "1.0.0",
+export const QWEN36_JAKE_PROVENANCE = {
+  name: "Qwen 3.6 local Jake provenance",
+  version: "1.1.0",
   portedFrom: "Jake benchmark (Pi) — scripts/qwen36-jake-orchestrator.sh",
   portedOn: "2026-05-21",
+  distinctFromUpstream:
+    "This is Frank's local Jake/Pi runner for Qwen 3.6 models. " +
+    "It is NOT the Qwen team's QwenClawBench (open-sourcing soon). " +
+    "See `qwenclaw-bench-upstream.ts` for the upstream release scaffold.",
   models: [
     {
       jakeId: QWEN36_JAKE_MODEL_IDS.MOE,
@@ -156,7 +170,7 @@ export const QWENCLAW_PORT_DESCRIPTION = {
       status: "ready",
       benchmarkCommand:
         "pnpm benchmark agent --backend llama-cpp --llama-cpp-url http://100.69.102.71:8080 " +
-        "--model qwen3.6-35b-a3b --quant IQ4_XS --thinking high --run-id qwenclaw-36-moe-high",
+        "--model qwen3.6-35b-a3b --quant IQ4_XS --thinking high --run-id qwen36-jake-moe-high",
     },
     {
       jakeId: QWEN36_JAKE_MODEL_IDS.DENSE,
@@ -169,7 +183,7 @@ export const QWENCLAW_PORT_DESCRIPTION = {
         "Use as smoke target only. See knowledge/infra/gemmaclaw-benchmark-backends.md.",
       benchmarkCommand:
         "pnpm benchmark agent --backend llama-cpp --llama-cpp-url http://100.69.102.71:8080 " +
-        "--model qwen3.6-27b-dense --quant Q4_K_M --thinking high --run-id qwenclaw-36-dense-smoke",
+        "--model qwen3.6-27b-dense --quant Q4_K_M --thinking high --run-id qwen36-jake-dense-smoke",
     },
   ],
   jakeCompletionCriteria: {

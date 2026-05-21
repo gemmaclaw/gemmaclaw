@@ -1,10 +1,14 @@
 /**
- * Tests for jake-manifest-validator.ts — QwenClaw 3.6 port.
+ * Tests for jake-manifest-validator.ts — Qwen 3.6 local Jake provenance.
  *
  * These are pure-unit / fixture-backed tests. No model inference, no Docker,
  * no network. They verify that the manifest validator correctly applies the
  * historical Jake completion criteria (finished non-empty, tasks_run >= 22)
  * and that model preset metadata is accurate.
+ *
+ * SCOPE: validates Frank's local Jake/Pi runner artifacts. NOT a validator
+ * for the Qwen team's upstream QwenClawBench. See
+ * `qwenclaw-bench-upstream.test.ts` for upstream-fact tests.
  */
 
 import { describe, expect, it } from "vitest";
@@ -12,16 +16,16 @@ import {
   JAKE_MANIFEST_MIN_TASKS,
   describeManifestValidation,
   validateJakeManifest,
-  validateQwenClawJakeRuns,
+  validateQwen36JakeRuns,
 } from "./jake-manifest-validator.js";
 import {
   QWEN36_DENSE_BLOCKED,
   QWEN36_JAKE_MODEL_IDS,
+  QWEN36_JAKE_PROVENANCE,
   QWEN36_LLAMACPP_MAPPING,
   QWEN36_MOE_PRESET,
-  QWENCLAW_PORT_DESCRIPTION,
   isJakeManifestComplete,
-} from "./qwenclaw-models.js";
+} from "./qwen36-jake-models.js";
 
 // ── Fixture manifests ───────────────────────────────────────────────────────
 
@@ -60,7 +64,7 @@ const INCOMPLETE_MANIFEST_MISSING_FINISHED = {
 const MALFORMED_MANIFEST = "not an object";
 const NULL_MANIFEST = null;
 
-// ── isJakeManifestComplete (qwenclaw-models.ts) ─────────────────────────────
+// ── isJakeManifestComplete (qwen36-jake-models.ts) ──────────────────────────
 
 describe("isJakeManifestComplete", () => {
   it("returns true for a complete manifest with exactly 22 tasks", () => {
@@ -154,11 +158,11 @@ describe("describeManifestValidation", () => {
   });
 });
 
-// ── validateQwenClawJakeRuns ────────────────────────────────────────────────
+// ── validateQwen36JakeRuns ──────────────────────────────────────────────────
 
-describe("validateQwenClawJakeRuns", () => {
+describe("validateQwen36JakeRuns", () => {
   it("reports bothComplete=true when both manifests are complete", () => {
-    const result = validateQwenClawJakeRuns({
+    const result = validateQwen36JakeRuns({
       dense: COMPLETE_MANIFEST_LARGE,
       moe: COMPLETE_MANIFEST,
     });
@@ -168,13 +172,13 @@ describe("validateQwenClawJakeRuns", () => {
   });
 
   it("reports bothComplete=false when dense is missing", () => {
-    const result = validateQwenClawJakeRuns({ moe: COMPLETE_MANIFEST });
+    const result = validateQwen36JakeRuns({ moe: COMPLETE_MANIFEST });
     expect(result.bothComplete).toBe(false);
     expect(result.dense.valid).toBe(false);
   });
 
   it("reports bothComplete=false when moe is incomplete", () => {
-    const result = validateQwenClawJakeRuns({
+    const result = validateQwen36JakeRuns({
       dense: COMPLETE_MANIFEST_LARGE,
       moe: PARTIAL_MANIFEST_LOW_TASKS,
     });
@@ -183,7 +187,7 @@ describe("validateQwenClawJakeRuns", () => {
   });
 
   it("reports bothComplete=false when both are undefined", () => {
-    const result = validateQwenClawJakeRuns({});
+    const result = validateQwen36JakeRuns({});
     expect(result.bothComplete).toBe(false);
   });
 });
@@ -211,21 +215,26 @@ describe("QWEN36 model preset metadata", () => {
     expect(QWEN36_MOE_PRESET.quant).toBe("IQ4_XS");
   });
 
-  it("JAKE_MANIFEST_MIN_TASKS is 22 (historical QwenClaw criterion)", () => {
+  it("JAKE_MANIFEST_MIN_TASKS is 22 (historical Jake criterion)", () => {
     expect(JAKE_MANIFEST_MIN_TASKS).toBe(22);
   });
 
-  it("port description includes both model entries", () => {
-    expect(QWENCLAW_PORT_DESCRIPTION.models).toHaveLength(2);
-    const jakeIds = QWENCLAW_PORT_DESCRIPTION.models.map((m) => m.jakeId);
+  it("provenance includes both model entries", () => {
+    expect(QWEN36_JAKE_PROVENANCE.models).toHaveLength(2);
+    const jakeIds = QWEN36_JAKE_PROVENANCE.models.map((m) => m.jakeId);
     expect(jakeIds).toContain("qwen3.6:35b");
     expect(jakeIds).toContain("qwen3.6:35b-a3b-q4_K_M");
   });
 
-  it("port description has benchmark commands for both models", () => {
-    for (const m of QWENCLAW_PORT_DESCRIPTION.models) {
+  it("provenance has benchmark commands for both models", () => {
+    for (const m of QWEN36_JAKE_PROVENANCE.models) {
       expect(m.benchmarkCommand).toContain("pnpm benchmark agent");
       expect(m.benchmarkCommand).toContain("--backend llama-cpp");
     }
+  });
+
+  it("provenance explicitly distinguishes from upstream QwenClawBench", () => {
+    expect(QWEN36_JAKE_PROVENANCE.distinctFromUpstream).toMatch(/QwenClawBench/i);
+    expect(QWEN36_JAKE_PROVENANCE.distinctFromUpstream).toMatch(/NOT/);
   });
 });
