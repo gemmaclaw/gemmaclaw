@@ -1,4 +1,10 @@
 import { createInterface } from "node:readline";
+import {
+  getDefaultGemmaclawEnhancementIds,
+  listGemmaclawEnhancements,
+  resolveGemmaclawEnhancementIds,
+  type GemmaclawEnhancementId,
+} from "../gemmaclaw_instructions.js";
 
 /**
  * Beginner-oriented onboarding wizard.
@@ -27,6 +33,7 @@ export interface OnboardingChoices {
   model: string;
   thinkingLevel: OnboardingThinking;
   bootstrap: OnboardingBootstrap;
+  enhancements: GemmaclawEnhancementId[];
   /** Gemini API key when backend === "gemini". */
   apiKey?: string;
 }
@@ -38,6 +45,7 @@ export interface OnboardingDefaults {
   model?: string;
   thinkingLevel?: OnboardingThinking;
   bootstrap?: OnboardingBootstrap;
+  enhancements?: GemmaclawEnhancementId[];
 }
 
 export interface WizardIO {
@@ -226,6 +234,7 @@ export async function runOnboardingWizard(
   const model = await askModel(io, backend, defaults.model);
   const thinkingLevel = await askThinking(io, defaults.thinkingLevel);
   const bootstrap = await askBootstrap(io, defaults.bootstrap);
+  const enhancements = await askEnhancements(io, defaults.enhancements);
 
   let apiKey: string | undefined;
   if (backend === "gemini") {
@@ -239,6 +248,7 @@ export async function runOnboardingWizard(
     model,
     thinkingLevel,
     bootstrap,
+    enhancements,
     apiKey,
   };
 }
@@ -462,6 +472,41 @@ async function askBootstrap(
   }
 }
 
+async function askEnhancements(
+  io: WizardIO,
+  preset?: readonly GemmaclawEnhancementId[],
+): Promise<GemmaclawEnhancementId[]> {
+  if (preset) {
+    return [...preset];
+  }
+
+  const defaults = getDefaultGemmaclawEnhancementIds();
+  io.log("7. Enable Gemmaclaw enhancements?");
+  io.log(
+    "   Enhancements are Gemmaclaw-specific setup improvements beyond upstream OpenClaw defaults.",
+  );
+  for (const enhancement of listGemmaclawEnhancements()) {
+    const marker = enhancement.defaultEnabled ? "default" : "optional";
+    io.log(`  - ${enhancement.id} (${marker})`);
+    io.log(`    ${enhancement.description}`);
+  }
+  io.log("");
+
+  for (;;) {
+    const answer = await io.prompt("Enable default enhancements? [Y/n]: ");
+    const trimmed = answer.trim().toLowerCase();
+    if (trimmed === "" || trimmed === "y" || trimmed === "yes") {
+      io.log("");
+      return defaults;
+    }
+    if (trimmed === "n" || trimmed === "no") {
+      io.log("");
+      return [];
+    }
+    io.error("Enter Y to enable defaults or N to disable them.");
+  }
+}
+
 async function askGeminiApiKey(io: WizardIO): Promise<string> {
   const env = process.env.GEMINI_API_KEY?.trim();
   if (env) {
@@ -498,6 +543,8 @@ export function formatChoicesSummary(choices: OnboardingChoices): string[] {
     : "Direct on host (no sandbox)";
   const bootstrapLabel =
     BOOTSTRAP_CHOICES.find((c) => c.id === choices.bootstrap)?.label ?? choices.bootstrap;
+  const enhancementLabel =
+    choices.enhancements.length === 0 ? "none" : choices.enhancements.join(", ");
   return [
     "Your setup:",
     `  Agent name:  ${choices.agentName}`,
@@ -506,6 +553,7 @@ export function formatChoicesSummary(choices: OnboardingChoices): string[] {
     `  Model:       ${choices.model}`,
     `  Thinking:    ${choices.thinkingLevel}`,
     `  Persona:     ${bootstrapLabel}`,
+    `  Enhancements:${enhancementLabel === "none" ? " none" : ` ${enhancementLabel}`}`,
   ];
 }
 
@@ -617,6 +665,7 @@ export function buildNonInteractiveChoices(opts: {
   model?: string;
   thinkingLevel?: OnboardingThinking;
   bootstrap?: OnboardingBootstrap;
+  enhancements?: string | readonly GemmaclawEnhancementId[];
   apiKey?: string;
 }): OnboardingChoices {
   const agentName = opts.agentName?.trim() || "main";
@@ -629,6 +678,7 @@ export function buildNonInteractiveChoices(opts: {
   const thinkingLevel: OnboardingThinking = opts.thinkingLevel ?? "medium";
   const bootstrap: OnboardingBootstrap = opts.bootstrap ?? "general";
   const useContainer = opts.useContainer ?? true;
+  const enhancements = resolveGemmaclawEnhancementIds(opts.enhancements);
   return {
     agentName,
     useContainer,
@@ -636,6 +686,7 @@ export function buildNonInteractiveChoices(opts: {
     model,
     thinkingLevel,
     bootstrap,
+    enhancements,
     apiKey: backend === "gemini" ? (opts.apiKey ?? process.env.GEMINI_API_KEY?.trim()) : undefined,
   };
 }

@@ -1,6 +1,13 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import type { AgentContextInjection } from "../config/types.agent-defaults.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import {
+  GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME,
+  GEMMACLAW_INSTRUCTIONS_CONTEXT_PATH,
+  parseGemmaclawEnhancementSelection,
+  renderGemmaclawInstructions,
+} from "../gemmaclaw/gemmaclaw_instructions.js";
 import { normalizeOptionalString } from "../shared/string-coerce.js";
 import { resolveSessionAgentIds } from "./agent-scope.js";
 import { getOrLoadBootstrapFiles } from "./bootstrap-cache.js";
@@ -214,6 +221,32 @@ function filterHeartbeatBootstrapFile(
   return files.filter((file) => file.name !== DEFAULT_HEARTBEAT_FILENAME);
 }
 
+async function resolveGemmaclawInstructionBootstrapFile(
+  workspaceDir: string,
+): Promise<WorkspaceBootstrapFile | null> {
+  const selectionPath = path.join(workspaceDir, GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME);
+  let instructions = renderGemmaclawInstructions();
+  try {
+    const raw = await fs.readFile(selectionPath, "utf-8");
+    instructions = renderGemmaclawInstructions(parseGemmaclawEnhancementSelection(raw));
+  } catch (err) {
+    const anyErr = err as { code?: string };
+    if (anyErr.code !== "ENOENT") {
+      throw err;
+    }
+  }
+  const trimmed = instructions.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return {
+    name: "gemmaclaw_instructions.ts",
+    path: GEMMACLAW_INSTRUCTIONS_CONTEXT_PATH,
+    content: `${trimmed}\n`,
+    missing: false,
+  };
+}
+
 export async function resolveBootstrapFilesForRun(params: {
   workspaceDir: string;
   config?: OpenClawConfig;
@@ -237,9 +270,13 @@ export async function resolveBootstrapFilesForRun(params: {
     contextMode: params.contextMode,
     runKind: params.runKind,
   });
+  const gemmaclawInstructions = await resolveGemmaclawInstructionBootstrapFile(params.workspaceDir);
+  const filesWithGemmaclawInstructions = gemmaclawInstructions
+    ? [gemmaclawInstructions, ...bootstrapFiles]
+    : bootstrapFiles;
 
   const updated = await applyBootstrapHookOverrides({
-    files: bootstrapFiles,
+    files: filesWithGemmaclawInstructions,
     workspaceDir: params.workspaceDir,
     config: params.config,
     sessionKey: params.sessionKey,

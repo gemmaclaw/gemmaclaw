@@ -137,6 +137,8 @@ describe("registerSetupCommand", () => {
       "high",
       "--bootstrap",
       "coding",
+      "--enhancements",
+      "external_delivery_receipt_verification",
       "--dry-run",
     ]);
 
@@ -147,6 +149,7 @@ describe("registerSetupCommand", () => {
         model: "google/gemini-2.5-pro",
         thinking: "high",
         bootstrap: "coding",
+        enhancements: "external_delivery_receipt_verification",
         dryRun: true,
       }),
       runtime,
@@ -166,6 +169,20 @@ describe("registerSetupCommand", () => {
       runtime,
     );
     // Workspace wizard must not be invoked when gemma flags are present.
+    expect(setupWizardCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards --no-enhancements as an explicit disabled enhancement selection", async () => {
+    await runCli(["setup", "--non-interactive", "--setup-mode", "local", "--no-enhancements"]);
+
+    expect(setupGemmaCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nonInteractive: true,
+        setupMode: "local",
+        enhancements: "none",
+      }),
+      runtime,
+    );
     expect(setupWizardCommandMock).not.toHaveBeenCalled();
   });
 

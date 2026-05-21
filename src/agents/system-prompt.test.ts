@@ -591,6 +591,24 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Bravo");
   });
 
+  it("orders code-owned Gemmaclaw instructions directly after AGENTS.md", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [
+        { path: "SOUL.md", content: "Persona" },
+        { path: "gemmaclaw_instructions.ts", content: "Gemmaclaw runtime instructions" },
+        { path: "AGENTS.md", content: "Alpha" },
+      ],
+    });
+
+    expect(prompt.indexOf("## AGENTS.md")).toBeLessThan(
+      prompt.indexOf("## gemmaclaw_instructions.ts"),
+    );
+    expect(prompt.indexOf("## gemmaclaw_instructions.ts")).toBeLessThan(
+      prompt.indexOf("## SOUL.md"),
+    );
+  });
+
   it("ignores context files with missing or blank paths", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",

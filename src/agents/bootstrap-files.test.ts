@@ -142,11 +142,13 @@ describe("resolveBootstrapContextForRun", () => {
       runKind: "heartbeat",
     });
 
-    expect(files.length).toBeGreaterThan(0);
-    expect(files.every((file) => file.name === "HEARTBEAT.md")).toBe(true);
+    expect(files.map((file) => file.name).toSorted()).toEqual([
+      "HEARTBEAT.md",
+      "gemmaclaw_instructions.ts",
+    ]);
   });
 
-  it("keeps bootstrap context empty in lightweight cron mode", async () => {
+  it("keeps only code-owned Gemmaclaw instructions in lightweight cron mode", async () => {
     const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-");
     await fs.writeFile(path.join(workspaceDir, "HEARTBEAT.md"), "check inbox", "utf8");
 
@@ -156,7 +158,38 @@ describe("resolveBootstrapContextForRun", () => {
       runKind: "cron",
     });
 
-    expect(files).toEqual([]);
+    expect(files).toHaveLength(1);
+    expect(files[0]?.name).toBe("gemmaclaw_instructions.ts");
+    expect(files[0]?.content).toContain("You are running as a Gemmaclaw agent");
+  });
+
+  it("injects code-owned Gemmaclaw instructions beside workspace AGENTS.md", async () => {
+    const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-");
+    await fs.writeFile(path.join(workspaceDir, "AGENTS.md"), "repo rules", "utf8");
+
+    const result = await resolveBootstrapContextForRun({ workspaceDir });
+    const gemmaclaw = result.contextFiles.find((file) => file.path === "gemmaclaw_instructions.ts");
+    const agents = result.contextFiles.find((file) => file.path.endsWith("AGENTS.md"));
+
+    expect(gemmaclaw?.content).toContain("You are running as a Gemmaclaw agent");
+    expect(gemmaclaw?.content).toContain("https://github.com/gemmaclaw/gemmaclaw");
+    expect(gemmaclaw?.content).toContain("external_delivery_receipt_verification");
+    expect(agents?.content).toBe("repo rules");
+  });
+
+  it("honors disabled Gemmaclaw enhancements while retaining self-awareness", async () => {
+    const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-");
+    await fs.writeFile(
+      path.join(workspaceDir, ".gemmaclaw-enhancements.json"),
+      `${JSON.stringify({ enhancements: [] }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const result = await resolveBootstrapContextForRun({ workspaceDir });
+    const gemmaclaw = result.contextFiles.find((file) => file.path === "gemmaclaw_instructions.ts");
+
+    expect(gemmaclaw?.content).toContain("You are running as a Gemmaclaw agent");
+    expect(gemmaclaw?.content).not.toContain("external_delivery_receipt_verification");
   });
 
   it("drops HEARTBEAT.md for non-heartbeat runs when the heartbeat prompt section is disabled", async () => {

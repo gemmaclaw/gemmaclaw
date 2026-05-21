@@ -15,6 +15,7 @@ const baseChoices: OnboardingChoices = {
   model: "auto",
   thinkingLevel: "medium",
   bootstrap: "general",
+  enhancements: [],
   useContainer: false,
 };
 

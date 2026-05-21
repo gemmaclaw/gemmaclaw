@@ -26,6 +26,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 - [Configuration](/gateway/configuration)
 - [Configuration examples](/gateway/configuration-examples)
 - [OpenClaw assistant](/start/openclaw)
+- [Gemmaclaw enhancements](/gemmaclaw/enhancements)
 - [Showcase](/start/showcase)
 - [Lore](/start/lore)
 

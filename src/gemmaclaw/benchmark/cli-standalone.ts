@@ -21,6 +21,7 @@
  *   pnpm benchmark agent --gateway-url http://remote:3001  # Remote gateway
  *   pnpm benchmark agent --task email_triage  # Run single task by id
  *   pnpm benchmark agent --quant Q4_K_M     # Record quantization level
+ *   pnpm benchmark agent --gemmaclaw-enhancements default # Runtime prompt enhancements
  */
 
 import { execSync, spawn, spawnSync } from "node:child_process";
@@ -83,6 +84,8 @@ function parseArgs(argv: string[]) {
       opts.outputDir = args[++i]!;
     } else if (arg === "--gemmaclaw-home" && args[i + 1]) {
       opts.gemmaclawHome = args[++i]!;
+    } else if (arg === "--gemmaclaw-enhancements" && args[i + 1]) {
+      opts.gemmaclawEnhancements = args[++i]!;
     } else if (arg === "--run-id" && args[i + 1]) {
       opts.runId = args[++i]!;
     } else if (arg === "--rerun") {
@@ -219,6 +222,7 @@ function buildAgentBenchmarkConfig(
     mock: Boolean(opts.mock),
     contextLength: opts.contextLength ? Number.parseInt(String(opts.contextLength), 10) : undefined,
     gemmaclawHome: opts.gemmaclawHome as string | undefined,
+    gemmaclawEnhancements: opts.gemmaclawEnhancements as string | undefined,
     outputDir,
     runId: opts.runId as string | undefined,
     rerun: Boolean(opts.rerun),
@@ -456,6 +460,7 @@ Agent Mode Options:
   --task <id>            Run a single task by exact id
   --output-dir <dir>     Host-mounted output directory for results/evals (default: benchmark-results)
   --gemmaclaw-home <dir> Isolated OpenClaw/gog state base for agent runs
+  --gemmaclaw-enhancements <selection>  Runtime enhancement selection: default, all, none, or comma-separated ids
   --run-id <id>          Stable run id for resume/rerun (default: model + timestamp)
   --rerun                Force rerun of selected tasks into the same run id
   --rerun-failed         Rerun only selected tasks whose saved result failed or timed out
