@@ -171,7 +171,7 @@ describe("runMemoryFlushIfNeeded", () => {
     expect(persisted.main.memoryFlushAt).toBe(1_700_000_000_000);
   });
 
-  it("caps memory flush turns below the normal interactive timeout", async () => {
+  it("preserves long memory flush timeouts so slow compaction can finish", async () => {
     const sessionEntry: SessionEntry = {
       sessionId: "session",
       updatedAt: Date.now(),
@@ -204,7 +204,71 @@ describe("runMemoryFlushIfNeeded", () => {
     const flushCall = runEmbeddedPiAgentMock.mock.calls[0]?.[0] as {
       timeoutMs?: number;
     };
-    expect(flushCall.timeoutMs).toBe(120_000);
+    expect(flushCall.timeoutMs).toBe(7_200_000);
+  });
+
+  it("injects post-compaction context before the visible turn resumes after memory flush compaction", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(rootDir, "workspace-"));
+    await fs.writeFile(
+      path.join(workspaceDir, "AGENTS.md"),
+      [
+        "## Session Startup",
+        "Read AGENTS.md before replying.",
+        "",
+        "## Red Lines",
+        "Never skip safety checks.",
+      ].join("\n"),
+      "utf8",
+    );
+    const storePath = path.join(rootDir, "sessions.json");
+    const sessionKey = "main";
+    const sessionEntry: SessionEntry = {
+      sessionId: "session",
+      updatedAt: Date.now(),
+      totalTokens: 80_000,
+      compactionCount: 1,
+    };
+    const sessionStore = { [sessionKey]: sessionEntry };
+    await writeTestSessionStore(storePath, sessionKey, sessionEntry);
+
+    runEmbeddedPiAgentMock.mockImplementationOnce(
+      async (params: {
+        onAgentEvent?: (evt: { stream: string; data: { phase: string } }) => void;
+      }) => {
+        params.onAgentEvent?.({ stream: "compaction", data: { phase: "end" } });
+        return {
+          payloads: [],
+          meta: { agentMeta: { sessionId: "session-rotated" } },
+        };
+      },
+    );
+
+    const followupRun = createTestFollowupRun({ workspaceDir });
+    await runMemoryFlushIfNeeded({
+      cfg: {
+        agents: {
+          defaults: {
+            compaction: {
+              memoryFlush: {},
+            },
+          },
+        },
+      },
+      followupRun,
+      sessionCtx: { Provider: "whatsapp" } as unknown as TemplateContext,
+      defaultModel: "anthropic/claude-opus-4-6",
+      agentCfgContextTokens: 100_000,
+      resolvedVerboseLevel: "off",
+      sessionEntry,
+      sessionStore,
+      sessionKey,
+      storePath,
+      isHeartbeat: false,
+      replyOperation: createReplyOperation(),
+    });
+
+    expect(followupRun.run.extraSystemPrompt).toContain("Post-compaction context refresh");
+    expect(followupRun.run.extraSystemPrompt).toContain("Read AGENTS.md before replying.");
   });
 
   it("skips memory flush for CLI providers", async () => {
