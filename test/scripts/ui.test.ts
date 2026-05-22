@@ -1,5 +1,6 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { assertSafeWindowsShellArgs, shouldUseShellForCommand } from "../../scripts/ui.js";
+import { assertSafeWindowsShellArgs, isDirectScriptExecution, shouldUseShellForCommand } from "../../scripts/ui.js";
 
 describe("scripts/ui windows spawn behavior", () => {
   it("enables shell for Windows command launchers that require cmd.exe", () => {
@@ -31,5 +32,13 @@ describe("scripts/ui windows spawn behavior", () => {
 
   it("does not reject args on non-windows platforms", () => {
     expect(() => assertSafeWindowsShellArgs(["contains&metacharacters"], "linux")).not.toThrow();
+  });
+
+  it("detects direct execution through a junctioned script path", () => {
+    const realScriptPath = path.resolve("repo/openclaw/scripts/ui.js");
+    const junctionScriptPath = path.resolve("linked/openclaw/scripts/ui.js");
+    const realpath = (entry: string) => (entry === junctionScriptPath ? realScriptPath : entry);
+
+    expect(isDirectScriptExecution(junctionScriptPath, realScriptPath, realpath)).toBe(true);
   });
 });
