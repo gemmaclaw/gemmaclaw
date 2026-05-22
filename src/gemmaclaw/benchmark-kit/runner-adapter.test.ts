@@ -7,7 +7,7 @@ import {
   registerAgentRunner,
   type RunnerHandle,
 } from "./runner-adapter.js";
-import { loadJakeAgentTasks } from "./task-loader.js";
+import { loadAgentFixtureTasks } from "./task-loader.js";
 
 describe("defaultRunnerForPack", () => {
   it("returns 'core-model' for tool-free packs", () => {
@@ -28,7 +28,7 @@ describe("defaultRunnerForPack", () => {
   });
 
   it("returns 'agent' for agent packs", () => {
-    expect(defaultRunnerForPack(loadJakeAgentTasks())).toBe("agent");
+    expect(defaultRunnerForPack(loadAgentFixtureTasks())).toBe("agent");
   });
 });
 
@@ -71,8 +71,8 @@ describe("buildRunner", () => {
 
   it("returns a deterministic mock-agent runner for agent-pack smoke runs", async () => {
     const r = buildRunner("mock-agent");
-    const pack = loadJakeAgentTasks();
-    const result = await r.run(pack, { modelSpec: "mock-agent:jake-agent" });
+    const pack = loadAgentFixtureTasks();
+    const result = await r.run(pack, { modelSpec: "mock-agent:agent-fixtures" });
 
     expect(r.kind).toBe("mock-agent");
     expect(result.runnerName).toBe("mock-agent");
@@ -85,7 +85,7 @@ describe("buildRunner", () => {
 describe("CoreModelRunner.run", () => {
   it("rejects agent packs with IncompatiblePackError", async () => {
     const r = buildRunner("core-model");
-    const agent = loadJakeAgentTasks();
+    const agent = loadAgentFixtureTasks();
     await expect(r.run(agent, { modelSpec: "ollama:gemma3:4b" })).rejects.toBeInstanceOf(
       IncompatiblePackError,
     );

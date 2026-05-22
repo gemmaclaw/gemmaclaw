@@ -1,5 +1,5 @@
 /**
- * Benchmark Kit: unified benchmark harness shared between gemmaclaw and jake-benchmark.
+ * Benchmark Kit: unified benchmark harness for Gemmaclaw and local-agent packs.
  */
 
 export { selectBestConfig } from "./select-config.js";
@@ -13,7 +13,7 @@ export {
   loadBenchmarkPack,
   loadBuiltinPack,
   loadCoreTasks,
-  loadJakeAgentTasks,
+  loadAgentFixtureTasks,
   loadTaskPack,
 } from "./task-loader.js";
 export type { BuiltinPackName } from "./task-loader.js";

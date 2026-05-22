@@ -139,13 +139,13 @@ describe("deriveRunId", () => {
     const id = deriveRunId(
       {
         benchmarkFamily: "agent",
-        pack: { id: "jake-agent" },
+        pack: { id: "agent-fixtures" },
         runner: { name: "mock-agent" },
         timestamp: "2026-04-28T21:01:07.719Z",
       },
       "fallback",
     );
-    expect(id).toBe("jake-agent__mock-agent__2026-04-28T21-01-07");
+    expect(id).toBe("agent-fixtures__mock-agent__2026-04-28T21-01-07");
   });
 
   it("falls back to the directory name when shape is unknown", () => {

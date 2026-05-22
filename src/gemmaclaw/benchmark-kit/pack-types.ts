@@ -1,12 +1,11 @@
 /**
  * Benchmark Kit pack types: typed, schema-validated discriminated union for
- * task packs. Mirrors the v1 pack contract from the jake-benchmark hardening
- * plan (`schemas/task-pack-v1.schema.json`) so packs flow cleanly between
- * gemmaclaw and jake-benchmark with the same shape.
+ * task packs. Mirrors the v1 pack contract used by Gemmaclaw's local-agent
+ * benchmark fixtures.
  *
  * Two families today:
  *   - "tool-free": grades raw model output to a prompt (benchmark-kit core).
- *   - "agent":     grades a multi-turn agent loop (jake-style, OpenClaw runner).
+ *   - "agent":     grades a multi-turn agent loop (OpenClaw runner).
  *
  * The legacy benchmark-kit pack format (no `schemaVersion`, no `family`) is
  * still accepted by `parseBenchmarkPack` and treated as `family: "tool-free"`.
@@ -79,7 +78,7 @@ const MockSchema = z
 
 /**
  * Standard task fields. Pack-specific fields beyond these are allowed (the
- * jake-style packs carry e.g. `experimental` and may add more) and pass
+ * agent packs carry e.g. `experimental` and may add more) and pass
  * through validation untouched.
  */
 const TaskBaseSchema = z

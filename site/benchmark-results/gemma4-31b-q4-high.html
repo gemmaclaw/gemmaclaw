@@ -14892,7 +14892,7 @@ webchat.md</pre></details>
 /app/docs/channels/telegram.md:      synthesize private or special-use answers outside the RFC 2544 benchmark
 /app/docs/channels/telegram.md:- `channels.telegram.network.dangerouslyAllowPrivateNetwork`: dangerous opt-in for trusted fake-IP or transparent-proxy environments where Telegram media downloads resolve `api.telegram.org` to private/internal/special-use addresses outside the default RFC 2544 benchmark-range allowance.
 /app/docs/benchmark-result-schema.json:  &quot;$id&quot;: &quot;https://gemmaclaw.dev/benchmark/result.schema.json&quot;,
-/app/docs/benchmark-result-schema.json:  &quot;description&quot;: &quot;Schema for gemmaclaw/jake-benchmark unified result format.&quot;,
+/app/docs/benchmark-result-schema.json:  &quot;description&quot;: &quot;Schema for gemmaclaw/private benchmark runner unified result format.&quot;,
 /app/docs/cli/benchmark.md:summary: &quot;CLI reference for `openclaw benchmark` (run benchmark suites, Docker sandbox with custom files)&quot;
 /app/docs/cli/benchmark.md:  - Running benchmarks against a local Gemma model
 /app/docs/cli/benchmark.md:  - Using Docker sandbox mode for benchmarking and security analysis
@@ -14923,36 +14923,36 @@ webchat.md</pre></details>
 /app/docs/cli/index.md:| Runtime and sandbox  | [`approvals`](/cli/approvals) · [`benchmark`](/cli/benchmark) · `exec-policy` (see [`approvals`](/cli/approvals)) · [`sandbox`](/cli/sandbox) · [`tui`](/cli/tui) · `chat`/`terminal` (aliases for [`tui --local`](/cli/tui)) · [`browser`](/cli/browser) |
 /app/docs/cli/index.md:  benchmark
 /app/docs/benchmark-kit-design.md:Two benchmark systems exist today with overlapping infrastructure but fundamentally different task types:
-/app/docs/benchmark-kit-design.md:1. **Jake Benchmark** (`jake-benchmark` repo): Tests _agent capability_ (tool-calling, multi-step planning, error recovery) via 22 tasks dispatched through an OpenClaw gateway. Bash/Python harness, Adventure Time theme, LLM-graded.
+/app/docs/benchmark-kit-design.md:1. **Legacy local-agent benchmark** (`private benchmark runner` repo): Tests _agent capability_ (tool-calling, multi-step planning, error recovery) via 22 tasks dispatched through an OpenClaw gateway. Bash/Python harness, Adventure Time theme, LLM-graded.
 /app/docs/benchmark-kit-design.md:2. **Gemmaclaw Benchmark** (`gemmaclaw/src/gemmaclaw/benchmark/`): Tests _raw model quality_ (instruction following, reasoning, extraction, safety, coding) via 15 pure-completion tasks sent directly to Ollama. TypeScript harness, deterministic + LLM-judge scoring.
 /app/docs/benchmark-kit-design.md:These share concepts (task definitions, scoring, hardware detection, result output) but were built independently. The goal is a shared **benchmark-kit** that both consume, eliminating duplicated docs/rules while keeping each system's unique task packs.
 /app/docs/benchmark-kit-design.md:benchmark-kit/                    (new: shared package in gemmaclaw repo)
 /app/docs/benchmark-kit-design.md:    result.schema.json            (JSON Schema for benchmark results)
 /app/docs/benchmark-kit-design.md:    ollama-runner.ts              (direct Ollama chat, used by gemmaclaw benchmark)
-/app/docs/benchmark-kit-design.md:    dispatch-runner.ts            (OpenClaw gateway dispatch, used by Jake benchmark)
+/app/docs/benchmark-kit-design.md:    dispatch-runner.ts            (OpenClaw gateway dispatch, used by legacy local-agent benchmark)
 /app/docs/benchmark-kit-design.md:- `tags`: array for filtering. `&quot;quick&quot;` marks tasks included in the quick benchmark.
 /app/docs/benchmark-kit-design.md:### Gemmaclaw (`gemmaclaw benchmark` CLI)
 /app/docs/benchmark-kit-design.md:Current flow preserved, but tasks and scoring imported from benchmark-kit:
-/app/docs/benchmark-kit-design.md:### Jake Benchmark (`run-model-benchmark.sh`)
+/app/docs/benchmark-kit-design.md:### Legacy local-agent benchmark (`run-model-benchmark.sh`)
 /app/docs/benchmark-kit-design.md:Inherits from gemmaclaw via git upstream merge. No additional benchmark code needed, the `gemmaclaw benchmark` command works as-is since it's a rebrand.
 /app/docs/benchmark-kit-design.md:1. Create `src/gemmaclaw/benchmark-kit/` directory in gemmaclaw repo.
 /app/docs/benchmark-kit-design.md:6. Update `src/gemmaclaw/benchmark/` to import from benchmark-kit.
 /app/docs/benchmark-kit-design.md:7. Update `src/commands/benchmark-gemma.ts` to use new paths.
-/app/docs/benchmark-kit-design.md:1. Add `tasks/jake-agent.json` to benchmark-kit with all 22 Jake tasks (converted from `harness/tasks.json`).
-/app/docs/benchmark-kit-design.md:2. Jake's `run-benchmark.sh` reads from the shared JSON instead of its local copy.
-/app/docs/benchmark-kit-design.md:4. Jake Benchmark README points to benchmark-kit docs for task format and scoring.
+/app/docs/benchmark-kit-design.md:1. Add `tasks/agent-fixtures.json` to benchmark-kit with all 22 private local agent tasks (converted from `harness/tasks.json`).
+/app/docs/benchmark-kit-design.md:2. the local agent's `run-benchmark.sh` reads from the shared JSON instead of its local copy.
+/app/docs/benchmark-kit-design.md:4. Legacy local-agent benchmark README points to benchmark-kit docs for task format and scoring.
 /app/docs/benchmark-kit-design.md:1. `gemmaclaw benchmark --quick`: runs tagged subset in under 10 minutes.
 /app/docs/benchmark-kit-design.md:2. `gemmaclaw benchmark --sweep`: iterates over a config matrix (model x quant x context), resumable via state file.
 /app/docs/benchmark-kit-design.md:3. `gemmaclaw benchmark --upload`: sanitizes results and opens a PR to the gemmaclaw/gemmaclaw dataset folder.
-/app/docs/benchmark-kit-design.md:1. Jake Benchmark `harness/README.md` references benchmark-kit for task format and scoring methodology.
+/app/docs/benchmark-kit-design.md:1. Legacy local-agent benchmark `harness/README.md` references benchmark-kit for task format and scoring methodology.
 /app/docs/benchmark-kit-design.md:2. GemmaHermes `benchmark/README.md` replaced with a one-liner pointing to gemmaclaw benchmark-kit docs.
 /app/docs/benchmark-kit-design.md:3. Single source of truth for &quot;how benchmarking works&quot; lives in `docs/benchmark-kit-design.md` and the benchmark-kit README.
-/app/docs/benchmark-kit-design.md:- Jake's bash orchestration (SSH, config swap, gateway restart, artifact collection) stays in jake-benchmark repo.
-/app/docs/benchmark-kit-design.md:- Jake's dispatch mechanism (jake-dispatch.py via OpenClaw gateway) stays in jake-benchmark.
+/app/docs/benchmark-kit-design.md:- the local agent's bash orchestration (SSH, config swap, gateway restart, artifact collection) stays in private benchmark runner repo.
+/app/docs/benchmark-kit-design.md:- the local agent's dispatch mechanism (legacy dispatch runner via OpenClaw gateway) stays in private benchmark runner.
 /app/docs/benchmark-kit-design.md:- Gemmaclaw's CLI entry point (`gemmaclaw benchmark`) stays as the primary interface.
 /app/docs/benchmark-kit-design.md:- Hardware detection implementation stays in `provision/hardware.ts`, benchmark-kit re-exports it.
 /app/docs/benchmark-kit-design.md:- Gemmaclaw's Dockerfile.benchmark stays for CI.
-/app/docs/benchmark-kit-design.md:1. **Package or directory?** Start as a directory in gemmaclaw (`src/gemmaclaw/benchmark-kit/`). If Jake needs it as a standalone npm package later, extract then.
+/app/docs/benchmark-kit-design.md:1. **Package or directory?** Start as a directory in gemmaclaw (`src/gemmaclaw/benchmark-kit/`). If private local agent needs it as a standalone npm package later, extract then.
 /app/docs/site-architecture.md:| `site/self-hosting.html` | Hardware configuration guide, search, backend comparison | Dynamic from `benchmark-results/` via `generate_hardware_guide_cards()`              |
 /app/docs/site-architecture.md:| `site/benchmarks.html`   | Benchmark results grouped by model size class            | Dynamic from `benchmark-results/` JSON files                                         |
 /app/docs/site-architecture.md:- `setup.html`, `self-hosting.html`, `benchmarks.html`, `community.html`, `goals.html`
@@ -14968,7 +14968,7 @@ webchat.md</pre></details>
 /app/docs/concepts/qa-e2e-automation.md:recorded in the report for benchmark analysis, but judge prompts explicitly say
 /app/docs/docs.json:                      &quot;cli/benchmark&quot;,
 /app/docs/config-selection-algorithm.md:After a benchmark sweep completes, the CLI auto-selects the &quot;best&quot; configuration for the user's hardware. This document defines the deterministic selection rules.
-/app/docs/config-selection-algorithm.md:Among candidates with composite scores within 2% of each other, prefer `thinkingLevel: &quot;medium&quot;` over `&quot;high&quot;` or `&quot;off&quot;`. Empirical data from Jake benchmarks shows medium thinking beats both high (over-thinks, times out) and off (misses multi-step reasoning).
+/app/docs/config-selection-algorithm.md:Among candidates with composite scores within 2% of each other, prefer `thinkingLevel: &quot;medium&quot;` over `&quot;high&quot;` or `&quot;off&quot;`. Empirical data from private local agent benchmarks shows medium thinking beats both high (over-thinks, times out) and off (misses multi-step reasoning).
 /app/docs/config-selection-algorithm.md:gemmaclaw benchmark --sweep
 /app/docs/config-selection-algorithm.md:# Quick benchmark (5-10 min, subset of tasks)
 /app/docs/config-selection-algorithm.md:gemmaclaw benchmark --quick
@@ -15195,7 +15195,7 @@ FIELD_NOTES_FILE = SITE_DIR / &quot;data&quot; / &quot;field-notes.md&quot;
 # Workspace knowledge directory for Reddit post files (set via env or default).
 # Gemmaclaw site work often happens from temporary git worktrees under /tmp; in
 # that layout REPO_DIR.parent.parent is not the OpenClaw workspace. Fall back to
-# Frank's standard workspace when available so a plain local generator run does
+# a standard workspace when available so a plain local generator run does
 # not accidentally drop the committed community-report cards.
 def resolve_workspace_dir():
     env_workspace = os.environ.get(&quot;WORKSPACE&quot;)
@@ -15237,7 +15237,7 @@ def load_benchmark_results():
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
-    # Legacy prompt-response schema. Kept for local inspection only. Frank's current
+    # Legacy prompt-response schema. Kept for local inspection only. the current
     # benchmark publication path uses the agentic schema above.
     for d in sorted(RESULTS_DIR.iterdir()):
         rfile = d / &quot;results.json&quot;
@@ -15245,7 +15245,7 @@ def load_benchmark_results():
             try:
                 with open(rfile) as f:
                     data = json.load(f)
-                # Skip results with different schema (e.g. jake-agent pack results)
+                # Skip results with different schema (e.g. agent-fixtures pack results)
                 if &quot;model&quot; not in data or &quot;backend&quot; not in data or &quot;summary&quot; not in data:
                     continue
                 data[&quot;_dir&quot;] = d.name

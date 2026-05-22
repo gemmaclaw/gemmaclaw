@@ -32,8 +32,8 @@ FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
 # Workspace knowledge directory for Reddit post files (set via env or default).
 # Gemmaclaw site work often happens from temporary git worktrees under /tmp; in
 # that layout REPO_DIR.parent.parent is not the OpenClaw workspace. Fall back to
-# Frank's standard workspace when available so a plain local generator run does
-# not accidentally drop the committed community-report cards.
+# A standard workspace when available so a plain local generator run does not
+# accidentally drop the committed community-report cards.
 def resolve_workspace_dir():
     env_workspace = os.environ.get("WORKSPACE")
     if env_workspace:
@@ -74,7 +74,7 @@ def load_benchmark_results():
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
-    # Legacy prompt-response schema. Kept for local inspection only. Frank's current
+    # Legacy prompt-response schema. Kept for local inspection only. The current
     # benchmark publication path uses the agentic schema above.
     for d in sorted(RESULTS_DIR.iterdir()):
         rfile = d / "results.json"
@@ -82,7 +82,7 @@ def load_benchmark_results():
             try:
                 with open(rfile) as f:
                     data = json.load(f)
-                # Skip results with different schema (e.g. jake-agent pack results)
+                # Skip results with different schema (e.g. agent-fixtures pack results)
                 if "model" not in data or "backend" not in data or "summary" not in data:
                     continue
                 data["_dir"] = d.name
@@ -1162,8 +1162,30 @@ def generate_hardware_guide_cards(results):
     return "\n".join(cards)
 
 
+def sanitize_public_text(text):
+    """Redact private local-agent naming from public site output."""
+    text = str(text)
+    replacements = [
+        (r"\bjake-benchmark\b", "private benchmark runner"),
+        (r"\bjake-agent\b", "agent-fixtures"),
+        (r"\bjake-dispatch\.py\b", "legacy dispatch runner"),
+        (r"\bJake Benchmark\b", "Legacy local-agent benchmark"),
+        (r"\bJake benchmark\b", "legacy local-agent benchmark"),
+        (r"\bJake's\b", "the local agent's"),
+        (r"\bJake\b", "private local agent"),
+        (r"\bjake\b", "local-agent"),
+        (r"\bFrank's real Google account\b", "a real Google account"),
+        (r"\bFrank's current\b", "the current"),
+        (r"\bFrank's standard workspace\b", "a standard workspace"),
+    ]
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+    return text
+
+
 def html_escape(text):
     """Escape HTML special characters."""
+    text = sanitize_public_text(text)
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
@@ -2346,7 +2368,7 @@ gemmaclaw channels status --probe</code></pre></div>
             <tr><td><code>--filter &lt;text&gt;</code></td><td>Run only tasks matching this text</td></tr>
             <tr><td><code>--context-length &lt;n&gt;</code></td><td>Context window size</td></tr>
             <tr><td><code>--gpu-layers &lt;n&gt;</code></td><td>Number of GPU layers</td></tr>
-            <tr><td><code>--pack &lt;name&gt;</code></td><td>Task pack: core, jake-agent, or custom path</td></tr>
+            <tr><td><code>--pack &lt;name&gt;</code></td><td>Task pack: core, agent-fixtures, or custom path</td></tr>
           </tbody>
         </table></div>
         <div class="code-block"><pre><code>gemmaclaw benchmark --model gemma3:4b
@@ -3419,31 +3441,33 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-en
       </div>
 
       <h3>How enhancements are registered</h3>
-      <p>The registry lives in <code>src/gemmaclaw/gemmaclaw_instructions.ts</code>. Each enhancement has a stable id, title, category, description, docs path, default state, and generated instruction text. Setup selection is persisted by the provisioning flow, and runtime bootstrap renders the selected sections into the generated <code>gemmaclaw_instructions.ts</code> context.</p>
+      <p>The registry lives in <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a>. Each enhancement has a stable id, title, category, description, docs path, default state, and generated instruction text. Setup selection is persisted by the provisioning flow, and runtime bootstrap renders the selected sections into the generated <code>gemmaclaw_instructions.ts</code> context.</p>
       <div class="table-wrap"><table>
         <tr><th>Surface</th><th>Location</th><th>Purpose</th></tr>
-        <tr><td>Registry</td><td><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></td><td>Defines ids, docs, default state, and generated instruction text.</td></tr>
+        <tr><td>Registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td><td>Defines ids, docs, default state, and generated instruction text.</td></tr>
         <tr><td>Setup selection</td><td><code>gemmaclaw setup --enhancements</code></td><td>Chooses what normal agents receive and records it in <code>.gemmaclaw-enhancements.json</code>.</td></tr>
         <tr><td>Benchmark selection</td><td><code>pnpm benchmark agent --gemmaclaw-enhancements</code></td><td>Opts benchmarks into enhancements only when intentionally comparing enhanced behavior.</td></tr>
-        <tr><td>Runtime injection</td><td><code>src/agents/bootstrap-files.ts</code></td><td>Adds generated Gemmaclaw context next to workspace instructions.</td></tr>
+        <tr><td>Setup persistence</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/provision/bootstrap-profiles.ts"><code>src/gemmaclaw/provision/bootstrap-profiles.ts</code></a></td><td>Persists the selected enhancement ids during setup.</td></tr>
+        <tr><td>Runtime injection</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/agents/bootstrap-files.ts"><code>src/agents/bootstrap-files.ts</code></a></td><td>Adds generated Gemmaclaw context next to workspace instructions.</td></tr>
       </table></div>
 
       <h3>external_delivery_receipt_verification</h3>
       <p>Status: default enabled for normal Gemmaclaw setup. Benchmark default: disabled unless selected explicitly.</p>
       <p>This enhancement tells agents not to claim an external delivery succeeded until they verify the real provider response, send receipt, durable log, or benchmark mock receipt. It covers messages, media files, email, calendar mutations, webhooks, scheduled sends, and similar side effects.</p>
-      <p>The failure class came from Jake overclaiming a scheduled Telegram audio send without proving a Telegram receipt. The generalized Gemmaclaw behavior is receipt verification before claiming a send, not a Jake-only prompt patch.</p>
+      <p>The failure class came from a private Gemmaclaw agent overclaiming a scheduled Telegram audio send without proving a Telegram receipt. The generalized Gemmaclaw behavior is receipt verification before claiming a send, not an agent-specific prompt patch.</p>
       <div class="table-wrap"><table>
         <tr><th>Item</th><th>Value</th></tr>
         <tr><td>Enhancement id</td><td><code>external_delivery_receipt_verification</code></td></tr>
         <tr><td>Benchmark guard</td><td><code>scheduled_media_delivery_verification</code></td></tr>
-        <tr><td>Prompt registry</td><td><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></td></tr>
-        <tr><td>Docs source</td><td><code>docs/gemmaclaw/enhancements.md</code></td></tr>
+        <tr><td>Prompt registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td></tr>
+        <tr><td>Docs source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/docs/gemmaclaw/enhancements.md"><code>docs/gemmaclaw/enhancements.md</code></a></td></tr>
       </table></div>
 
       <h3>Adding a new enhancement</h3>
       <ol class="setup-steps">
         <li>Register the behavior behind a named enhancement id if it changes agent instructions, prompt behavior, setup behavior, or benchmark conditions.</li>
         <li>Keep the normal setup default enabled when it helps Gemmaclaw users, but keep benchmark runs raw by default.</li>
+        <li>Link directly to the GitHub source file for the enhancement registry, prompt, runtime hook, or harness guard. Do not rely on local-only paths.</li>
         <li>Add tests for explicit enabled and disabled selections.</li>
         <li>Run the benchmark once with <code>--gemmaclaw-enhancements none</code> and once with the intended enhancement selection when measuring improvement.</li>
         <li>Update this page and the CLI benchmark docs with the id, failure class, setup flag, benchmark flag, and guard test.</li>

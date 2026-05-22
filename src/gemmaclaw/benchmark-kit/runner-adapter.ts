@@ -11,9 +11,9 @@
  *                     Lives in this package because that runner is also
  *                     what `gemmaclaw benchmark` already uses.
  *   - `mock-agent`:   deterministic local smoke runner for agent packs. It
- *                     proves the jake-agent pack can load, execute through
+ *                     proves the agent-fixtures pack can load, execute through
  *                     Gemmaclaw's runner seam, and write standard artifacts
- *                     without needing Frank's private Jake/OpenClaw runtime.
+ *                     without needing a private local-agent runtime.
  *   - `agent`:        abstract; throws `AgentRunnerNotConfiguredError` until
  *                     a caller registers one. Agent execution requires
  *                     pack-specific tooling (mock fixtures, OpenClaw
@@ -75,14 +75,14 @@ export type RunnerRunResult = {
  * fixtures, OpenClaw gateway lifecycle, sanitized transcripts) lives
  * outside benchmark-kit because those concerns are not portable across
  * packs. Use `registerAgentRunner` to plug one in, or run the pack
- * through `jake-benchmark` which already provides one.
+ * through a custom binary that registers one.
  */
 export class AgentRunnerNotConfiguredError extends Error {
   constructor(message?: string) {
     super(
       message ??
         "agent runner is not configured. Call registerAgentRunner(factory) " +
-          "before running an agent pack, or use jake-benchmark which ships " +
+          "before running an agent pack, or use a custom binary that ships " +
           "an OpenClaw-driven implementation. See benchmark-kit/README.md.",
     );
     this.name = "AgentRunnerNotConfiguredError";
@@ -172,9 +172,9 @@ class CoreModelRunner implements RunnerHandle {
 /**
  * Deterministic smoke runner for agent packs.
  *
- * This is not a substitute for a live OpenClaw/Jake evaluation. Its job is to
+ * This is not a substitute for a live local-agent evaluation. Its job is to
  * make the public Gemmaclaw path actually runnable in CI and by new users:
- * load the first-class Jake agent pack, execute it through the runner adapter,
+ * load the first-class agent fixture pack, execute it through the runner adapter,
  * and produce the standard artifact bundle. Live runner integrations can plug
  * into `registerAgentRunner` without changing the pack contract.
  */

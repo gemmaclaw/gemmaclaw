@@ -218,16 +218,16 @@ Results are written to the output directory in three formats:
 The summary printed to the terminal includes total score, pass rate, average
 tokens per second, and file paths for each output format.
 
-## Qwen 3.6 local Jake provenance
+## Qwen 3.6 local agent provenance
 
-This section documents the local Jake/Pi Qwen 3.6 runner that was brought
+This section documents a private local-agent Qwen 3.6 runner that was brought
 into the Gemmaclaw benchmark system as model presets and a manifest
 validator. It is purely historical provenance for a workflow that
 predates Gemmaclaw and is **not** the Qwen team's QwenClawBench. The
 upstream QwenClawBench is covered in the next section.
 
-The port is defined in `src/gemmaclaw/benchmark/qwen36-jake-models.ts`
-and `src/gemmaclaw/benchmark/jake-manifest-validator.ts`.
+The port is defined in `src/gemmaclaw/benchmark/qwen36-local-agent-models.ts`
+and `src/gemmaclaw/benchmark/local-agent-manifest-validator.ts`.
 
 ### Provenance
 
@@ -235,10 +235,10 @@ The original workflow ran on a Raspberry Pi 5 via a local OpenClaw gateway,
 with Ollama serving models on a workstation GPU. The two canonical model
 targets were:
 
-| Jake / Ollama model ID   | Role  | Status  |
-| ------------------------ | ----- | ------- |
-| `qwen3.6:35b`            | Dense | Blocked |
-| `qwen3.6:35b-a3b-q4_K_M` | MoE   | Ready   |
+| OpenClaw local agent / Ollama model ID | Role  | Status  |
+| -------------------------------------- | ----- | ------- |
+| `qwen3.6:35b`                          | Dense | Blocked |
+| `qwen3.6:35b-a3b-q4_K_M`               | MoE   | Ready   |
 
 **Dense blocker:** The unsloth GGUF for the dense model has empty tensor names
 and crashes on llama.cpp b9190. The froggeric GGUF resolves this, but its
@@ -268,7 +268,7 @@ pnpm benchmark agent \
   --model qwen3.6-35b-a3b \
   --quant IQ4_XS \
   --thinking high \
-  --run-id qwen36-jake-moe-high
+  --run-id qwen36-local-agent-moe-high
 ```
 
 ### Running the dense target (smoke only)
@@ -282,7 +282,7 @@ pnpm benchmark agent \
   --model qwen3.6-27b-dense \
   --quant Q4_K_M \
   --thinking high \
-  --run-id qwen36-jake-dense-smoke
+  --run-id qwen36-local-agent-dense-smoke
 ```
 
 ### Container isolation and credentials
@@ -295,15 +295,15 @@ This benchmark does not use `OPENAI_API_KEY`. The llama.cpp backend uses a
 dummy auth token. Any semantic judging must go through an OAuth-backed
 path (CC ACP or Claude Code), not a raw API key.
 
-### Validating historical Jake run manifests
+### Validating historical local agent run manifests
 
-Use `validateJakeManifest` from `jake-manifest-validator.ts` to check
-whether a historical Jake run meets the original completion criteria:
+Use `validateLegacyAgentManifest` from `local-agent-manifest-validator.ts` to check
+whether a historical local agent run meets the original completion criteria:
 
 ```typescript
-import { validateJakeManifest } from "./src/gemmaclaw/benchmark/jake-manifest-validator.js";
+import { validateLegacyAgentManifest } from "./src/gemmaclaw/benchmark/local-agent-manifest-validator.js";
 
-const result = validateJakeManifest(manifest);
+const result = validateLegacyAgentManifest(manifest);
 if (result.valid) {
   // manifest.finished is non-empty and tasks_run >= 22
 } else {

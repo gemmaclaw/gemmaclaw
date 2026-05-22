@@ -8,7 +8,7 @@ import {
   loadBenchmarkPack,
   loadBuiltinPack,
   loadCoreTasks,
-  loadJakeAgentTasks,
+  loadAgentFixtureTasks,
   loadTaskPack,
 } from "./task-loader.js";
 
@@ -40,31 +40,31 @@ describe("loadCoreTasks", () => {
 });
 
 describe("BUILTIN_PACKS / builtinPackPath", () => {
-  it("declares 'core' and 'jake-agent' as built-in", () => {
+  it("declares 'core' and 'agent-fixtures' as built-in", () => {
     expect(BUILTIN_PACKS).toContain("core");
-    expect(BUILTIN_PACKS).toContain("jake-agent");
+    expect(BUILTIN_PACKS).toContain("agent-fixtures");
   });
 
   it("resolves built-in paths to files in tasks/", () => {
     const corePath = builtinPackPath("core");
     expect(corePath.endsWith(path.join("tasks", "core.json"))).toBe(true);
-    expect(builtinPackPath("jake-agent").endsWith(path.join("tasks", "jake-agent.json"))).toBe(
-      true,
-    );
+    expect(
+      builtinPackPath("agent-fixtures").endsWith(path.join("tasks", "agent-fixtures.json")),
+    ).toBe(true);
   });
 });
 
-describe("loadJakeAgentTasks", () => {
+describe("loadAgentFixtureTasks", () => {
   it("loads the vendored agent pack with family='agent'", () => {
-    const pack = loadJakeAgentTasks();
+    const pack = loadAgentFixtureTasks();
     expect(pack.family).toBe("agent");
-    expect(pack.pack).toBe("jake-agent");
+    expect(pack.pack).toBe("agent-fixtures");
     expect(pack.schemaVersion).toBe("1");
     expect(pack.tasks.length).toBeGreaterThanOrEqual(20);
   });
 
   it("agent tasks declare snake_case max_score and a known grading type", () => {
-    const pack = loadJakeAgentTasks();
+    const pack = loadAgentFixtureTasks();
     const allowedTypes = new Set([
       "output_check",
       "command_check",
@@ -81,7 +81,7 @@ describe("loadJakeAgentTasks", () => {
   });
 
   it("task ids are unique", () => {
-    const pack = loadJakeAgentTasks();
+    const pack = loadAgentFixtureTasks();
     const ids = pack.tasks.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -94,8 +94,8 @@ describe("loadBenchmarkPack", () => {
     expect(pack.tasks.length).toBeGreaterThan(0);
   });
 
-  it("returns 'agent' for the v1 jake-agent.json", () => {
-    const pack = loadBenchmarkPack(builtinPackPath("jake-agent"));
+  it("returns 'agent' for the v1 agent-fixtures.json", () => {
+    const pack = loadBenchmarkPack(builtinPackPath("agent-fixtures"));
     expect(pack.family).toBe("agent");
   });
 });
@@ -106,15 +106,15 @@ describe("loadBuiltinPack", () => {
     expect(pack.family).toBe("tool-free");
   });
 
-  it("loads jake-agent by name", () => {
-    const pack = loadBuiltinPack("jake-agent");
+  it("loads agent-fixtures by name", () => {
+    const pack = loadBuiltinPack("agent-fixtures");
     expect(pack.family).toBe("agent");
   });
 });
 
 describe("loadTaskPack on agent packs", () => {
   it("rejects agent packs with a clear error (legacy callers must migrate)", () => {
-    expect(() => loadTaskPack(path.join(HERE, "tasks", "jake-agent.json"))).toThrow(
+    expect(() => loadTaskPack(path.join(HERE, "tasks", "agent-fixtures.json"))).toThrow(
       /family='agent'/,
     );
   });

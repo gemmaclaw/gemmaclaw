@@ -7,7 +7,7 @@
  *   - `loadCoreTasks()` / `loadTaskPack()` / `filterQuickTasks()`:
  *       legacy tool-free helpers that produce `BenchmarkTask[]`. Existing
  *       callers (`gemmaclaw benchmark`) keep using these.
- *   - `loadBenchmarkPack()` / `loadBuiltinPack()` / `loadJakeAgentTasks()`:
+ *   - `loadBenchmarkPack()` / `loadBuiltinPack()` / `loadAgentFixtureTasks()`:
  *       v1 helpers that produce typed `BenchmarkPack` objects, including
  *       agent packs that the core-model runner cannot grade.
  */
@@ -50,7 +50,7 @@ type TaskPackJson = {
 /**
  * Built-in task pack identifiers that ship with benchmark-kit.
  */
-export const BUILTIN_PACKS = ["core", "jake-agent"] as const;
+export const BUILTIN_PACKS = ["core", "agent-fixtures"] as const;
 export type BuiltinPackName = (typeof BUILTIN_PACKS)[number];
 
 /**
@@ -80,7 +80,7 @@ export function loadTaskPack(filePath: string): BenchmarkTask[] {
   if (parsedJson.family === "agent") {
     throw new Error(
       `task pack at ${filePath} is family='agent'; use loadBenchmarkPack() ` +
-        `or loadJakeAgentTasks() instead`,
+        `or loadAgentFixtureTasks() instead`,
     );
   }
   const pack = parsedJson as unknown as TaskPackJson;
@@ -133,21 +133,21 @@ export function loadBenchmarkPack(filePath: string): BenchmarkPack {
 }
 
 /**
- * Load a built-in pack by name (`"core"` or `"jake-agent"`).
+ * Load a built-in pack by name (`"core"` or `"agent-fixtures"`).
  */
 export function loadBuiltinPack(name: BuiltinPackName): BenchmarkPack {
   return loadBenchmarkPack(builtinPackPath(name));
 }
 
 /**
- * Convenience: load the built-in jake-agent pack as a typed `AgentPack`.
+ * Convenience: load the built-in agent-fixtures pack as a typed `AgentPack`.
  * Throws if the vendored pack is somehow not family='agent' (would mean a
  * regression in the source-of-truth file).
  */
-export function loadJakeAgentTasks(): AgentPack {
-  const pack = loadBuiltinPack("jake-agent");
+export function loadAgentFixtureTasks(): AgentPack {
+  const pack = loadBuiltinPack("agent-fixtures");
   if (pack.family !== "agent") {
-    throw new Error(`built-in jake-agent pack must be family='agent', got '${pack.family}'`);
+    throw new Error(`built-in agent-fixtures pack must be family='agent', got '${pack.family}'`);
   }
   return pack;
 }

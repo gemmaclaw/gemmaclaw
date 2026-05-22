@@ -1,31 +1,31 @@
 /**
- * Tests for jake-manifest-validator.ts — Qwen 3.6 local Jake provenance.
+ * Tests for local-agent-manifest-validator.ts — Qwen 3.6 local agent provenance.
  *
  * These are pure-unit / fixture-backed tests. No model inference, no Docker,
  * no network. They verify that the manifest validator correctly applies the
- * historical Jake completion criteria (finished non-empty, tasks_run >= 22)
+ * historical local agent completion criteria (finished non-empty, tasks_run >= 22)
  * and that model preset metadata is accurate.
  *
- * SCOPE: validates Frank's local Jake/Pi runner artifacts. NOT a validator
- * for the Qwen team's upstream QwenClawBench. See
+ * SCOPE: validates private local-agent runner artifacts. NOT a validator for
+ * the Qwen team's upstream QwenClawBench. See
  * `qwenclaw-bench-upstream.test.ts` for upstream-fact tests.
  */
 
 import { describe, expect, it } from "vitest";
 import {
-  JAKE_MANIFEST_MIN_TASKS,
+  LEGACY_AGENT_MANIFEST_MIN_TASKS,
   describeManifestValidation,
-  validateJakeManifest,
-  validateQwen36JakeRuns,
-} from "./jake-manifest-validator.js";
+  validateLegacyAgentManifest,
+  validateQwen36LocalAgentRuns,
+} from "./local-agent-manifest-validator.js";
 import {
   QWEN36_DENSE_BLOCKED,
-  QWEN36_JAKE_MODEL_IDS,
-  QWEN36_JAKE_PROVENANCE,
+  QWEN36_LOCAL_AGENT_MODEL_IDS,
+  QWEN36_LOCAL_AGENT_PROVENANCE,
   QWEN36_LLAMACPP_MAPPING,
   QWEN36_MOE_PRESET,
-  isJakeManifestComplete,
-} from "./qwen36-jake-models.js";
+  isLegacyAgentManifestComplete,
+} from "./qwen36-local-agent-models.js";
 
 // ── Fixture manifests ───────────────────────────────────────────────────────
 
@@ -64,43 +64,43 @@ const INCOMPLETE_MANIFEST_MISSING_FINISHED = {
 const MALFORMED_MANIFEST = "not an object";
 const NULL_MANIFEST = null;
 
-// ── isJakeManifestComplete (qwen36-jake-models.ts) ──────────────────────────
+// ── isLegacyAgentManifestComplete (qwen36-local-agent-models.ts) ──────────────────────────
 
-describe("isJakeManifestComplete", () => {
+describe("isLegacyAgentManifestComplete", () => {
   it("returns true for a complete manifest with exactly 22 tasks", () => {
-    expect(isJakeManifestComplete(COMPLETE_MANIFEST)).toBe(true);
+    expect(isLegacyAgentManifestComplete(COMPLETE_MANIFEST)).toBe(true);
   });
 
   it("returns true for a complete manifest with more than 22 tasks", () => {
-    expect(isJakeManifestComplete(COMPLETE_MANIFEST_LARGE)).toBe(true);
+    expect(isLegacyAgentManifestComplete(COMPLETE_MANIFEST_LARGE)).toBe(true);
   });
 
   it("returns false when tasks_run is below 22", () => {
-    expect(isJakeManifestComplete(PARTIAL_MANIFEST_LOW_TASKS)).toBe(false);
+    expect(isLegacyAgentManifestComplete(PARTIAL_MANIFEST_LOW_TASKS)).toBe(false);
   });
 
   it("returns false when finished is an empty string", () => {
-    expect(isJakeManifestComplete(INCOMPLETE_MANIFEST_NO_FINISHED)).toBe(false);
+    expect(isLegacyAgentManifestComplete(INCOMPLETE_MANIFEST_NO_FINISHED)).toBe(false);
   });
 
   it("returns false when finished is missing", () => {
-    expect(isJakeManifestComplete(INCOMPLETE_MANIFEST_MISSING_FINISHED)).toBe(false);
+    expect(isLegacyAgentManifestComplete(INCOMPLETE_MANIFEST_MISSING_FINISHED)).toBe(false);
   });
 
   it("returns false for null input", () => {
-    expect(isJakeManifestComplete(null)).toBe(false);
+    expect(isLegacyAgentManifestComplete(null)).toBe(false);
   });
 
   it("returns false for non-object input", () => {
-    expect(isJakeManifestComplete("not an object")).toBe(false);
+    expect(isLegacyAgentManifestComplete("not an object")).toBe(false);
   });
 });
 
-// ── validateJakeManifest ────────────────────────────────────────────────────
+// ── validateLegacyAgentManifest ────────────────────────────────────────────────────
 
-describe("validateJakeManifest", () => {
+describe("validateLegacyAgentManifest", () => {
   it("validates a complete manifest", () => {
-    const result = validateJakeManifest(COMPLETE_MANIFEST);
+    const result = validateLegacyAgentManifest(COMPLETE_MANIFEST);
     expect(result.valid).toBe(true);
     if (result.valid) {
       expect(result.manifest.tasks_run).toBe(22);
@@ -108,7 +108,7 @@ describe("validateJakeManifest", () => {
   });
 
   it("returns invalid for missing finished", () => {
-    const result = validateJakeManifest(INCOMPLETE_MANIFEST_MISSING_FINISHED);
+    const result = validateLegacyAgentManifest(INCOMPLETE_MANIFEST_MISSING_FINISHED);
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.reason).toContain("finished");
@@ -116,7 +116,7 @@ describe("validateJakeManifest", () => {
   });
 
   it("returns invalid for empty finished", () => {
-    const result = validateJakeManifest(INCOMPLETE_MANIFEST_NO_FINISHED);
+    const result = validateLegacyAgentManifest(INCOMPLETE_MANIFEST_NO_FINISHED);
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.reason).toContain("finished");
@@ -124,21 +124,21 @@ describe("validateJakeManifest", () => {
   });
 
   it("returns invalid for low task count", () => {
-    const result = validateJakeManifest(PARTIAL_MANIFEST_LOW_TASKS);
+    const result = validateLegacyAgentManifest(PARTIAL_MANIFEST_LOW_TASKS);
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.reason).toContain("tasks_run");
-      expect(result.reason).toContain(String(JAKE_MANIFEST_MIN_TASKS));
+      expect(result.reason).toContain(String(LEGACY_AGENT_MANIFEST_MIN_TASKS));
     }
   });
 
   it("returns invalid for null manifest", () => {
-    const result = validateJakeManifest(NULL_MANIFEST);
+    const result = validateLegacyAgentManifest(NULL_MANIFEST);
     expect(result.valid).toBe(false);
   });
 
   it("returns invalid for malformed manifest", () => {
-    const result = validateJakeManifest(MALFORMED_MANIFEST);
+    const result = validateLegacyAgentManifest(MALFORMED_MANIFEST);
     expect(result.valid).toBe(false);
   });
 });
@@ -158,11 +158,11 @@ describe("describeManifestValidation", () => {
   });
 });
 
-// ── validateQwen36JakeRuns ──────────────────────────────────────────────────
+// ── validateQwen36LocalAgentRuns ──────────────────────────────────────────────────
 
-describe("validateQwen36JakeRuns", () => {
+describe("validateQwen36LocalAgentRuns", () => {
   it("reports bothComplete=true when both manifests are complete", () => {
-    const result = validateQwen36JakeRuns({
+    const result = validateQwen36LocalAgentRuns({
       dense: COMPLETE_MANIFEST_LARGE,
       moe: COMPLETE_MANIFEST,
     });
@@ -172,13 +172,13 @@ describe("validateQwen36JakeRuns", () => {
   });
 
   it("reports bothComplete=false when dense is missing", () => {
-    const result = validateQwen36JakeRuns({ moe: COMPLETE_MANIFEST });
+    const result = validateQwen36LocalAgentRuns({ moe: COMPLETE_MANIFEST });
     expect(result.bothComplete).toBe(false);
     expect(result.dense.valid).toBe(false);
   });
 
   it("reports bothComplete=false when moe is incomplete", () => {
-    const result = validateQwen36JakeRuns({
+    const result = validateQwen36LocalAgentRuns({
       dense: COMPLETE_MANIFEST_LARGE,
       moe: PARTIAL_MANIFEST_LOW_TASKS,
     });
@@ -187,7 +187,7 @@ describe("validateQwen36JakeRuns", () => {
   });
 
   it("reports bothComplete=false when both are undefined", () => {
-    const result = validateQwen36JakeRuns({});
+    const result = validateQwen36LocalAgentRuns({});
     expect(result.bothComplete).toBe(false);
   });
 });
@@ -195,9 +195,9 @@ describe("validateQwen36JakeRuns", () => {
 // ── Model preset metadata (provenance checks) ───────────────────────────────
 
 describe("QWEN36 model preset metadata", () => {
-  it("has both Jake model IDs defined", () => {
-    expect(QWEN36_JAKE_MODEL_IDS.DENSE).toBe("qwen3.6:35b");
-    expect(QWEN36_JAKE_MODEL_IDS.MOE).toBe("qwen3.6:35b-a3b-q4_K_M");
+  it("has both OpenClaw local agent model IDs defined", () => {
+    expect(QWEN36_LOCAL_AGENT_MODEL_IDS.DENSE).toBe("qwen3.6:35b");
+    expect(QWEN36_LOCAL_AGENT_MODEL_IDS.MOE).toBe("qwen3.6:35b-a3b-q4_K_M");
   });
 
   it("marks dense model as blocked", () => {
@@ -215,26 +215,26 @@ describe("QWEN36 model preset metadata", () => {
     expect(QWEN36_MOE_PRESET.quant).toBe("IQ4_XS");
   });
 
-  it("JAKE_MANIFEST_MIN_TASKS is 22 (historical Jake criterion)", () => {
-    expect(JAKE_MANIFEST_MIN_TASKS).toBe(22);
+  it("LEGACY_AGENT_MANIFEST_MIN_TASKS is 22 (historical OpenClaw local agent criterion)", () => {
+    expect(LEGACY_AGENT_MANIFEST_MIN_TASKS).toBe(22);
   });
 
   it("provenance includes both model entries", () => {
-    expect(QWEN36_JAKE_PROVENANCE.models).toHaveLength(2);
-    const jakeIds = QWEN36_JAKE_PROVENANCE.models.map((m) => m.jakeId);
-    expect(jakeIds).toContain("qwen3.6:35b");
-    expect(jakeIds).toContain("qwen3.6:35b-a3b-q4_K_M");
+    expect(QWEN36_LOCAL_AGENT_PROVENANCE.models).toHaveLength(2);
+    const sourceModelIds = QWEN36_LOCAL_AGENT_PROVENANCE.models.map((m) => m.sourceModelId);
+    expect(sourceModelIds).toContain("qwen3.6:35b");
+    expect(sourceModelIds).toContain("qwen3.6:35b-a3b-q4_K_M");
   });
 
   it("provenance has benchmark commands for both models", () => {
-    for (const m of QWEN36_JAKE_PROVENANCE.models) {
+    for (const m of QWEN36_LOCAL_AGENT_PROVENANCE.models) {
       expect(m.benchmarkCommand).toContain("pnpm benchmark agent");
       expect(m.benchmarkCommand).toContain("--backend llama-cpp");
     }
   });
 
   it("provenance explicitly distinguishes from upstream QwenClawBench", () => {
-    expect(QWEN36_JAKE_PROVENANCE.distinctFromUpstream).toMatch(/QwenClawBench/i);
-    expect(QWEN36_JAKE_PROVENANCE.distinctFromUpstream).toMatch(/NOT/);
+    expect(QWEN36_LOCAL_AGENT_PROVENANCE.distinctFromUpstream).toMatch(/QwenClawBench/i);
+    expect(QWEN36_LOCAL_AGENT_PROVENANCE.distinctFromUpstream).toMatch(/NOT/);
   });
 });

@@ -1,13 +1,13 @@
 # Benchmark Kit
 
-Shared benchmark harness for evaluating local LLMs. Used by [gemmaclaw](https://github.com/gemmaclaw/gemmaclaw) and [jake-benchmark](https://github.com/frankhli843/jake-benchmark).
+Shared benchmark harness for evaluating local LLMs and local agent workflows in Gemmaclaw.
 
 ## Task Packs
 
 Benchmarks are organized into task packs, each a JSON file with a set of evaluation tasks. Two families exist today (the v1 schema discriminates them by `family`):
 
 - **`core.json`** (`family: "tool-free"`): Tool-free model quality tasks (instruction following, reasoning, data extraction, safety, coding). Tests raw model capability by sending prompts directly to Ollama and scoring the output. Loadable via `loadCoreTasks()` (legacy `BenchmarkTask[]`) or `loadBuiltinPack("core")` (typed `BenchmarkPack`).
-- **`jake-agent.json`** (`family: "agent"`, 23 tasks): Agent capability tasks (email, calendar, browser automation, error recovery, phishing detection). The pack is vendored from [jake-benchmark](https://github.com/frankhli843/jake-benchmark) at v1, sanitized to public profile, and contains only fictional Adventure Time fixtures (BMO, Princess Bubblegum, Finn, Ice King). Loadable via `loadJakeAgentTasks()` or `loadBuiltinPack("jake-agent")`.
+- **`agent-fixtures.json`** (`family: "agent"`, 23 tasks): Agent capability tasks (email, calendar, browser automation, error recovery, phishing detection). The pack is sanitized for public use and contains only fictional Adventure Time fixtures (BMO, Princess Bubblegum, Finn, Ice King). Loadable via `loadAgentFixtureTasks()` or `loadBuiltinPack("agent-fixtures")`.
 
 Each task includes an id, prompt, grading criteria, and (for tool-free packs) a difficulty plus optional `tags`. Tasks tagged `"quick"` are included in the fast benchmark mode.
 
@@ -48,21 +48,21 @@ gemmaclaw benchmark
 gemmaclaw benchmark --mock
 
 # Inspect the agent pack without running it (no Ollama / OpenClaw required)
-gemmaclaw benchmark --pack jake-agent --list-pack
-gemmaclaw benchmark --pack jake-agent --validate-pack
+gemmaclaw benchmark --pack agent-fixtures --list-pack
+gemmaclaw benchmark --pack agent-fixtures --validate-pack
 
-# Run the Jake agent pack through Gemmaclaw's deterministic smoke runner
-gemmaclaw benchmark --pack jake-agent --runner mock-agent
+# Run the agent fixture pack through Gemmaclaw's deterministic smoke runner
+gemmaclaw benchmark --pack agent-fixtures --runner mock-agent
 
 # Validate a custom pack file against the v1 schema
 gemmaclaw benchmark --pack /path/to/my-pack.json --validate-pack
 ```
 
-The `--pack` flag accepts either a built-in name (`core`, `jake-agent`) or a path to a pack JSON. `--list-pack` and `--validate-pack` are inspection-only modes that never touch Ollama, OpenClaw, or the network. They are safe to run in CI.
+The `--pack` flag accepts either a built-in name (`core`, `agent-fixtures`) or a path to a pack JSON. `--list-pack` and `--validate-pack` are inspection-only modes that never touch Ollama, OpenClaw, or the network. They are safe to run in CI.
 
-When running `--pack jake-agent` without a live runner, Gemmaclaw defaults to the built-in `mock-agent` runner. This is an actual runnable path through the Jake agent task pack: it loads the v1 agent pack, executes every task through the runner adapter seam, and writes `results.json`, `RESULTS.md`, and `index.html` under `./benchmark-results/<pack>__<runner>__<model>__<timestamp>/`. It is intended for smoke tests and CI portability. It does not claim to be a live OpenClaw/Jake quality score.
+When running `--pack agent-fixtures` without a live runner, Gemmaclaw defaults to the built-in `mock-agent` runner. This is an actual runnable path through the agent fixture task pack: it loads the v1 agent pack, executes every task through the runner adapter seam, and writes `results.json`, `RESULTS.md`, and `index.html` under `./benchmark-results/<pack>__<runner>__<model>__<timestamp>/`. It is intended for smoke tests and CI portability. It does not claim to be a live local-agent quality score.
 
-Tool-free packs other than the built-in `core` are recognized by the loader and v1 schema, but the gemmaclaw benchmark runner currently only executes the built-in `core` pack end-to-end. For arbitrary tool-free packs, use `loadBenchmarkPack(path)` from JS or invoke jake-benchmark's `jake-bench run` CLI.
+Tool-free packs other than the built-in `core` are recognized by the loader and v1 schema, but the Gemmaclaw benchmark runner currently only executes the built-in `core` pack end-to-end. For arbitrary tool-free packs, use `loadBenchmarkPack(path)` from JS.
 
 ### Live Agent Benchmark Isolation
 
@@ -108,12 +108,12 @@ The legacy benchmark-kit pack format (no `schemaVersion`, no `family`) is still 
 
 ### Agent Runner
 
-`gemmaclaw benchmark --pack jake-agent --runner mock-agent` is the built-in deterministic smoke path and requires no private environment. `gemmaclaw benchmark --pack jake-agent --runner agent` requires a registered live agent runner. None ships in-tree because pack-specific orchestration (mock email/calendar fixtures, OpenClaw gateway lifecycle, sanitized transcripts, Pi/Tailscale paths) is not portable across packs and consumers.
+`gemmaclaw benchmark --pack agent-fixtures --runner mock-agent` is the built-in deterministic smoke path and requires no private environment. `gemmaclaw benchmark --pack agent-fixtures --runner agent` requires a registered live agent runner. None ships in-tree because pack-specific orchestration such as mock email/calendar fixtures, gateway lifecycle, and sanitized transcripts is not portable across packs and consumers.
 
 Two paths for live agent execution:
 
 1. **External binary**: register a runner once at startup via `registerAgentRunner(factory)`. The factory returns a `RunnerHandle` (see `runner-adapter.ts`). This is how a custom CLI bundle would wire OpenClaw or any other agent backend.
-2. **jake-benchmark**: clone [jake-benchmark](https://github.com/frankhli843/jake-benchmark), follow `harness/README.md`, and run `jake-bench run --pack tasks-pack-v1.json --runner openclaw --spec ollama:<model> --baseline-config ... --baseline-home ...`. That path was hardened in PR #3 and PR #4 of jake-benchmark and produces v1 run artifacts with the same schema as gemmaclaw's loader expects.
+2. **Custom live runner**: provide a small binary that registers an agent runner, starts the required fixtures, and writes v1 run artifacts with the same schema as Gemmaclaw's loader expects.
 
 Without a registered live runner, `--runner agent` exits with a clear "no agent runner registered" error and a pointer back to this section. `--runner mock-agent`, `--list-pack`, and `--validate-pack` always work without a live runner.
 
@@ -151,7 +151,7 @@ Results follow a standardized JSON schema covering hardware info, model metadata
 
 ## Privacy
 
-The vendored `tasks/jake-agent.json` is run through the redaction audit on every test run. Adding any real internal hostname (`frank-pc`, `frankpi`, etc.), real email address, Tailscale IP, real phone number, home/root path, or known secret pattern to the vendored pack will fail the `redaction.test.ts` "vendored jake-agent.json has zero leak findings" test.
+The vendored `tasks/agent-fixtures.json` is run through the redaction audit on every test run. Adding any real internal hostname (`frank-pc`, `frankpi`, etc.), real email address, Tailscale IP, real phone number, home/root path, or known secret pattern to the vendored pack will fail the `redaction.test.ts` "vendored agent-fixtures.json has zero leak findings" test.
 
 The redaction utilities (`sanitize`, `sanitizeObject`, `audit`, `auditPack`) are also useful for run artifacts and reports. Three profiles:
 
@@ -159,7 +159,7 @@ The redaction utilities (`sanitize`, `sanitizeObject`, `audit`, `auditPack`) are
 - `internal` — redact secrets only (API keys, OAuth tokens). Keep paths/IPs for debugging.
 - `public` — also redact emails, IPs (incl. Tailscale CGNAT), internal hostnames, home paths, phone numbers.
 
-Profiles are additive; `public` includes everything `internal` does. All rules are deterministic and idempotent: `sanitize(sanitize(x)) === sanitize(x)`. This mirrors `harness/lib/sanitize.py` in jake-benchmark so the two repos sanitize identically.
+Profiles are additive; `public` includes everything `internal` does. All rules are deterministic and idempotent: `sanitize(sanitize(x)) === sanitize(x)`.
 
 ## Architecture
 

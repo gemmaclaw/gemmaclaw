@@ -18,9 +18,9 @@
  *      release-watcher script that fetches the upstream model cards and
  *      verifies whether the "open-sourcing soon" language is still present.
  *
- * Distinct from `qwen36-jake-models.ts`, which captures Frank's older
- * local Jake/Pi runner targeting Qwen 3.6 models. That port is purely
- * historical and unrelated to the Qwen team's internal benchmark.
+ * Distinct from `qwen36-local-agent-models.ts`, which captures a private
+ * local-agent runner targeting Qwen 3.6 models. That port is purely historical
+ * and unrelated to the Qwen team's internal benchmark.
  */
 
 // ── Public facts (verified against official Qwen sources, 2026-05-21) ─────
@@ -222,7 +222,7 @@ export const QWENCLAW_BENCH_RELEASE_CHECKLIST: readonly string[] = [
   "Implement the Gemmaclaw adapter behind a feature flag with " +
     "GEMMACLAW_BENCHMARK_CONTAINER=1 + fake-gog enforced. No host-mode run.",
   "Do not use OPENAI_API_KEY anywhere in the adapter. If frontier judging is " +
-    "required, route through CC ACP / OAuth-backed CLI per Frank's directive.",
+    "required, route through the approved OAuth-backed CLI path.",
   "Update QWENCLAW_BENCH_UPSTREAM_STATUS.status to 'released', set " +
     "publicArtifactUrl, refresh asOf and evidence, and bump the table snapshot.",
   "Add an end-to-end smoke that exercises the adapter against a small subset " +
