@@ -703,7 +703,13 @@ async function deliverOutboundPayloadsWithQueueCleanup(
     const results = await deliverOutboundPayloadsCore(wrappedParams);
     if (queueId) {
       if (hadPartialFailure) {
-        await failDelivery(queueId, "partial delivery failure (bestEffort)").catch(() => {});
+        await failDelivery(queueId, "partial delivery failure (bestEffort)").catch(
+          (err: unknown) => {
+            log.warn(
+              `failed to mark queued delivery ${queueId} as failed after partial failure; continuing best-effort delivery: ${formatErrorMessage(err)}`,
+            );
+          },
+        );
       } else {
         await ackDelivery(queueId).catch(() => {}); // Best-effort cleanup.
       }
@@ -713,8 +719,12 @@ async function deliverOutboundPayloadsWithQueueCleanup(
     if (queueId) {
       if (isAbortError(err)) {
         await ackDelivery(queueId).catch(() => {});
-      } else {
-        await failDelivery(queueId, formatErrorMessage(err)).catch(() => {});
+      } else if (!platformResultsReturned) {
+        await failDelivery(queueId, formatErrorMessage(err)).catch((failErr: unknown) => {
+          log.warn(
+            `failed to mark queued delivery ${queueId} as failed: ${formatErrorMessage(failErr)}`,
+          );
+        });
       }
     }
     throw err;
