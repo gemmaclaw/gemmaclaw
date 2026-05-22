@@ -683,7 +683,8 @@ async function handlePackCommands(
     }
 
     const modelSpec =
-      opts.model ?? (desiredRunner === "mock-agent" ? "mock-agent:jake-agent" : "agent:default");
+      opts.model ??
+      (desiredRunner === "mock-agent" ? "mock-agent:agent-fixtures" : "agent:default");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const outputDir =
       opts.outputDir ??
@@ -703,7 +704,7 @@ async function handlePackCommands(
     runtime.log(`Tasks: ${pack.tasks.length}`);
     runtime.log(`Output: ${outputDir}`);
     if (desiredRunner === "mock-agent") {
-      runtime.log("Mode: deterministic agent smoke (no network, no private Jake runtime)");
+      runtime.log("Mode: deterministic agent smoke (no network, no private runtime)");
     }
     runtime.log("");
 
@@ -744,7 +745,7 @@ async function handlePackCommands(
       `Tool-free pack '${pack.pack}' is supported by the loader and v1 schema, ` +
         `but the gemmaclaw benchmark runner currently only executes the built-in ` +
         `'core' pack. Use --list-pack or --validate-pack for now, or run the pack ` +
-        `via the jake-benchmark CLI which supports arbitrary tool-free packs.`,
+        `via a custom runner that supports arbitrary tool-free packs.`,
     );
     runtime.exit(2);
     return true;

@@ -48,7 +48,7 @@ These weights reflect that quality matters more than raw speed for agent tasks, 
 
 ### 4. Thinking level preference
 
-Among candidates with composite scores within 2% of each other, prefer `thinkingLevel: "medium"` over `"high"` or `"off"`. Empirical data from Jake benchmarks shows medium thinking beats both high (over-thinks, times out) and off (misses multi-step reasoning).
+Among candidates with composite scores within 2% of each other, prefer `thinkingLevel: "medium"` over `"high"` or `"off"`. Empirical data from local agent benchmarks shows medium thinking beats both high (over-thinks, times out) and off (misses multi-step reasoning).
 
 ### 5. Tie-break
 

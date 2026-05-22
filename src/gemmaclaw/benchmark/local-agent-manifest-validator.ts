@@ -1,25 +1,18 @@
 /**
- * Jake run manifest validator.
+ * Local-agent run manifest validator.
  *
- * Validates historical Jake benchmark run manifests using the original Jake
- * completion rule. Used by the Gemmaclaw Qwen 3.6 local-provenance port to
- * verify that a Jake run is complete before consuming its artifacts.
- *
- * SCOPE: This validator targets Frank's older local Jake/Pi runner. It is NOT
- * a validator for the Qwen team's QwenClawBench (a separate, internal coding-
- * agent benchmark; see `qwenclaw-bench-upstream.ts`).
- *
- * PROVENANCE: Historical Jake runs live at:
- *   ~/.openclaw/workspace/skills/jake-benchmark/runs/<model>__<ts>/manifest.json
- *   on the Pi (100.108.252.124).
- *
- * Historical completion rule (from cron/jake-benchmark-qwen36-run-until-done.md):
- *   manifest.finished is non-empty AND manifest.tasks_run >= 22
+ * Validates historical local-agent benchmark manifests using a simple
+ * completion rule: manifest.finished is non-empty and manifest.tasks_run >= 22.
+ * This is for private provenance artifacts only. It is not a validator for the
+ * Qwen team's QwenClawBench, which is a separate internal benchmark.
  */
 
-import { isJakeManifestComplete, JAKE_MANIFEST_MIN_TASKS } from "./qwen36-jake-models.js";
+import {
+  isLegacyAgentManifestComplete,
+  LEGACY_AGENT_MANIFEST_MIN_TASKS,
+} from "./qwen36-local-agent-models.js";
 
-export type JakeManifest = {
+export type LegacyAgentManifest = {
   /** ISO timestamp when the run finished. Non-empty = complete. */
   finished?: string;
   /** Number of tasks executed in this run. */
@@ -35,23 +28,23 @@ export type JakeManifest = {
 };
 
 export type ManifestValidationResult =
-  | { valid: true; manifest: JakeManifest; reason?: never }
-  | { valid: false; manifest?: JakeManifest; reason: string };
+  | { valid: true; manifest: LegacyAgentManifest; reason?: never }
+  | { valid: false; manifest?: LegacyAgentManifest; reason: string };
 
 /**
- * Validate a Jake run manifest object against the historical Jake
- * completion criteria.
+ * Validate a local-agent run manifest object against the historical completion
+ * criteria.
  *
  * Returns { valid: true } when:
  *   - manifest is a non-null object
  *   - manifest.finished is a non-empty string
- *   - manifest.tasks_run >= JAKE_MANIFEST_MIN_TASKS (22)
+ *   - manifest.tasks_run >= LEGACY_AGENT_MANIFEST_MIN_TASKS (22)
  */
-export function validateJakeManifest(raw: unknown): ManifestValidationResult {
+export function validateLegacyAgentManifest(raw: unknown): ManifestValidationResult {
   if (typeof raw !== "object" || raw === null) {
     return { valid: false, reason: "manifest is not an object" };
   }
-  const manifest = raw as JakeManifest;
+  const manifest = raw as LegacyAgentManifest;
   const finished = manifest.finished;
   if (finished == null || finished.trim() === "") {
     return {
@@ -62,11 +55,11 @@ export function validateJakeManifest(raw: unknown): ManifestValidationResult {
   }
   const tasksRun =
     typeof manifest.tasks_run === "number" ? manifest.tasks_run : Number(manifest.tasks_run) || 0;
-  if (tasksRun < JAKE_MANIFEST_MIN_TASKS) {
+  if (tasksRun < LEGACY_AGENT_MANIFEST_MIN_TASKS) {
     return {
       valid: false,
       manifest,
-      reason: `manifest.tasks_run is ${tasksRun}, need >= ${JAKE_MANIFEST_MIN_TASKS}`,
+      reason: `manifest.tasks_run is ${tasksRun}, need >= ${LEGACY_AGENT_MANIFEST_MIN_TASKS}`,
     };
   }
   return { valid: true, manifest };
@@ -77,7 +70,7 @@ export function validateJakeManifest(raw: unknown): ManifestValidationResult {
  * summary string.
  */
 export function describeManifestValidation(raw: unknown): string {
-  const result = validateJakeManifest(raw);
+  const result = validateLegacyAgentManifest(raw);
   if (result.valid) {
     const m = result.manifest;
     return (
@@ -89,18 +82,18 @@ export function describeManifestValidation(raw: unknown): string {
 }
 
 /**
- * Validate a set of Jake manifest objects for both Qwen 3.6 Jake targets
- * (dense + MoE).
+ * Validate a set of local-agent manifest objects for both Qwen 3.6 targets
+ * (dense and MoE).
  *
  * Returns a summary object with per-model results.
  */
-export function validateQwen36JakeRuns(manifests: { dense?: unknown; moe?: unknown }): {
+export function validateQwen36LocalAgentRuns(manifests: { dense?: unknown; moe?: unknown }): {
   dense: ManifestValidationResult;
   moe: ManifestValidationResult;
   bothComplete: boolean;
 } {
-  const dense = validateJakeManifest(manifests.dense);
-  const moe = validateJakeManifest(manifests.moe);
+  const dense = validateLegacyAgentManifest(manifests.dense);
+  const moe = validateLegacyAgentManifest(manifests.moe);
   return {
     dense,
     moe,
@@ -109,4 +102,4 @@ export function validateQwen36JakeRuns(manifests: { dense?: unknown; moe?: unkno
 }
 
 // Re-export for convenience
-export { isJakeManifestComplete, JAKE_MANIFEST_MIN_TASKS };
+export { isLegacyAgentManifestComplete, LEGACY_AGENT_MANIFEST_MIN_TASKS };

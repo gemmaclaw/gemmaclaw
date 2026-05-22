@@ -10,7 +10,7 @@ title: "Gemmaclaw Enhancements"
 
 Gemmaclaw enhancements are small improvements that Gemmaclaw applies beyond upstream OpenClaw defaults. They are deliberately registered in one place so setup, runtime injection, docs, tests, benchmarks, and future upstream-merge smoke checks all agree on what should exist.
 
-The registry and generated prompt live in `src/gemmaclaw/gemmaclaw_instructions.ts`. Setup records the selected enhancement ids in `.gemmaclaw-enhancements.json`, and runtime bootstrap injection renders the code-owned instructions beside the workspace `AGENTS.md` context. The instructions are not copied into `AGENTS.md`.
+The registry and generated prompt live in [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts). Setup records the selected enhancement ids in `.gemmaclaw-enhancements.json`, and runtime bootstrap injection renders the code-owned instructions beside the workspace `AGENTS.md` context. The instructions are not copied into `AGENTS.md`.
 
 ## Gemmaclaw instructions
 
@@ -42,20 +42,21 @@ Status: default enabled
 
 Code and prompt:
 
-- Registry and generated instructions: `src/gemmaclaw/gemmaclaw_instructions.ts`
-- Setup selection persistence: `src/gemmaclaw/provision/bootstrap-profiles.ts`
-- Runtime injection: `src/agents/bootstrap-files.ts`
+- Registry and generated instructions: [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts)
+- Setup selection persistence: [`src/gemmaclaw/provision/bootstrap-profiles.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/provision/bootstrap-profiles.ts)
+- Runtime injection: [`src/agents/bootstrap-files.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/agents/bootstrap-files.ts)
 - Agent-facing prompt location: injected as generated context path `gemmaclaw_instructions.ts`, beside `AGENTS.md`
+- Docs source: [`docs/gemmaclaw/enhancements.md`](https://github.com/gemmaclaw/gemmaclaw/blob/main/docs/gemmaclaw/enhancements.md)
 
 What it does:
 
-This enhancement tells agents not to claim that an external delivery succeeded until they verify the real provider response, send receipt, durable log, or benchmark mock receipt. It covers messages, media files, email, calendar mutations, webhooks, scheduled sends, and similar side effects.
+This enhancement tells agents not to claim that an external delivery succeeded until they verify the real provider response, send receipt, durable log, or benchmark mock receipt. It covers messages, media files, email, calendar mutations, webhooks, scheduled sends, and similar side effects. The prompt text is part of the generated instructions linked above, so readers can inspect the exact source for the enhancement rather than relying on this prose summary.
 
 It also calls out scheduled jobs specifically: an agent must verify the active scheduler location and trigger proof, not just write a copied config file in a workspace directory.
 
 Failure class helped:
 
-Jake previously overclaimed a scheduled Telegram audio job by writing local artifacts and reasoning about an inactive cron location, then saying the audio had been sent without a verified Telegram receipt. The enhancement generalizes the fix to any Gemmaclaw agent that performs externally visible delivery.
+A private Gemmaclaw agent previously overclaimed a scheduled Telegram audio job by writing local artifacts and reasoning about an inactive cron location, then saying the audio had been sent without a verified Telegram receipt. The enhancement generalizes the fix to any Gemmaclaw agent that performs externally visible delivery.
 
 Benchmark guard:
 

@@ -4,7 +4,7 @@
 
 Two benchmark systems exist today with overlapping infrastructure but fundamentally different task types:
 
-1. **Jake Benchmark** (`jake-benchmark` repo): Tests _agent capability_ (tool-calling, multi-step planning, error recovery) via 22 tasks dispatched through an OpenClaw gateway. Bash/Python harness, Adventure Time theme, LLM-graded.
+1. **Legacy local-agent benchmark**: Tests _agent capability_ (tool-calling, multi-step planning, error recovery) via 22 tasks dispatched through an OpenClaw gateway. Bash/Python harness, Adventure Time theme, LLM-graded.
 2. **Gemmaclaw Benchmark** (`gemmaclaw/src/gemmaclaw/benchmark/`): Tests _raw model quality_ (instruction following, reasoning, extraction, safety, coding) via 15 pure-completion tasks sent directly to Ollama. TypeScript harness, deterministic + LLM-judge scoring.
 
 These share concepts (task definitions, scoring, hardware detection, result output) but were built independently. The goal is a shared **benchmark-kit** that both consume, eliminating duplicated docs/rules while keeping each system's unique task packs.
@@ -15,13 +15,13 @@ These share concepts (task definitions, scoring, hardware detection, result outp
 benchmark-kit/                    (new: shared package in gemmaclaw repo)
   tasks/
     core.json                     (tool-free tasks: instruction, reasoning, extraction, safety, coding)
-    jake-agent.json               (Jake-specific: email, calendar, browser, error recovery, phishing)
+    agent-fixtures.json               (OpenClaw local agent-specific: email, calendar, browser, error recovery, phishing)
   schema/
     result.schema.json            (JSON Schema for benchmark results)
     config-selection.md           (algorithm doc for auto-selecting best config)
   runner/
     ollama-runner.ts              (direct Ollama chat, used by gemmaclaw benchmark)
-    dispatch-runner.ts            (OpenClaw gateway dispatch, used by Jake benchmark)
+    dispatch-runner.ts            (OpenClaw gateway dispatch, used by local agent benchmark)
     common.ts                     (shared types, progress reporting, keepalive, timeout logic)
   scorer/
     deterministic.ts              (exact match, contains-all, JSON structure, keyword overlap)
@@ -76,7 +76,7 @@ Key additions vs current:
 
 - `tags`: array for filtering. `"quick"` marks tasks included in the quick benchmark.
 - `pack` and `version` fields at the top level for identification.
-- Jake-agent tasks add a `"runner": "dispatch"` field (default is `"ollama"` for direct inference).
+- OpenClaw local-agent tasks add a `"runner": "dispatch"` field (default is `"ollama"` for direct inference).
 
 ## How Each Consumer Uses It
 
@@ -91,12 +91,12 @@ Current flow preserved, but tasks and scoring imported from benchmark-kit:
 5. Hardware detection from `hardware/detect.ts`.
 6. Quick mode: filters to `tags: ["quick"]`.
 
-### Jake Benchmark (`run-model-benchmark.sh`)
+### OpenClaw local agent Benchmark (`run-model-benchmark.sh`)
 
 Current bash orchestration preserved (SSH to Pi, config swap, gateway restart), but task definitions and result format standardized:
 
-1. Reads `jake-agent.json` task pack (all 22 current tasks migrate here).
-2. Uses `dispatch-runner.ts` (wraps jake-dispatch.py logic) for OpenClaw gateway dispatch.
+1. Reads `agent-fixtures.json` task pack (all 22 current tasks migrate here).
+2. Uses `dispatch-runner.ts` for OpenClaw gateway dispatch.
 3. Result collection unchanged (artifacts, gog-state, memory files).
 4. Post-run: emits standardized `result.schema.json` alongside existing per-task artifacts.
 5. Quick mode: filters to `tags: ["quick"]` for a 5-task sanity check.
@@ -110,7 +110,7 @@ Inherits from gemmaclaw via git upstream merge. No additional benchmark code nee
 ### Phase 1: Extract shared code (this PR)
 
 1. Create `src/gemmaclaw/benchmark-kit/` directory in gemmaclaw repo.
-2. Move `tasks.ts` definitions into `tasks/core.json` (JSON, not TS, so Jake can consume without a TS build).
+2. Move `tasks.ts` definitions into `tasks/core.json` (JSON, not TS, so OpenClaw local agent can consume without a TS build).
 3. Move `scorer.ts` into `scorer/deterministic.ts` + `scorer/llm-judge.ts`.
 4. Move `results.ts` into `results/` module.
 5. Move hardware detection (already in `provision/hardware.ts`) ref into `hardware/detect.ts`.
@@ -118,12 +118,12 @@ Inherits from gemmaclaw via git upstream merge. No additional benchmark code nee
 7. Update `src/commands/benchmark-gemma.ts` to use new paths.
 8. All existing tests must pass.
 
-### Phase 2: Standardize Jake Benchmark
+### Phase 2: Standardize OpenClaw local agent Benchmark
 
-1. Add `tasks/jake-agent.json` to benchmark-kit with all 22 Jake tasks (converted from `harness/tasks.json`).
-2. Jake's `run-benchmark.sh` reads from the shared JSON instead of its local copy.
-3. Add result schema validation to Jake's `validate-run.sh`.
-4. Jake Benchmark README points to benchmark-kit docs for task format and scoring.
+1. Add `tasks/agent-fixtures.json` to benchmark-kit with all 22 OpenClaw local agent tasks (converted from `harness/tasks.json`).
+2. OpenClaw local agent's `run-benchmark.sh` reads from the shared JSON instead of its local copy.
+3. Add result schema validation to OpenClaw local agent's `validate-run.sh`.
+4. OpenClaw local agent Benchmark README points to benchmark-kit docs for task format and scoring.
 
 ### Phase 3: Add CLI commands (quick, sweep, upload)
 
@@ -133,21 +133,21 @@ Inherits from gemmaclaw via git upstream merge. No additional benchmark code nee
 
 ### Phase 4: Remove duplicate docs
 
-1. Jake Benchmark `harness/README.md` references benchmark-kit for task format and scoring methodology.
+1. OpenClaw local agent Benchmark `harness/README.md` references benchmark-kit for task format and scoring methodology.
 2. GemmaHermes `benchmark/README.md` replaced with a one-liner pointing to gemmaclaw benchmark-kit docs.
 3. Single source of truth for "how benchmarking works" lives in `docs/benchmark-kit-design.md` and the benchmark-kit README.
 
 ## What Does NOT Change
 
-- Jake's bash orchestration (SSH, config swap, gateway restart, artifact collection) stays in jake-benchmark repo.
-- Jake's dispatch mechanism (jake-dispatch.py via OpenClaw gateway) stays in jake-benchmark.
+- Legacy local-agent bash orchestration (SSH, config swap, gateway restart, artifact collection) stays in the private benchmark runner repo.
+- Legacy local-agent dispatch through the OpenClaw gateway stays in the private benchmark runner.
 - Gemmaclaw's CLI entry point (`gemmaclaw benchmark`) stays as the primary interface.
 - Hardware detection implementation stays in `provision/hardware.ts`, benchmark-kit re-exports it.
-- Adventure Time theming for Jake tasks stays in jake-agent.json.
+- Adventure Time theming for OpenClaw local agent tasks stays in agent-fixtures.json.
 - Gemmaclaw's Dockerfile.benchmark stays for CI.
 
 ## Open Questions
 
-1. **Package or directory?** Start as a directory in gemmaclaw (`src/gemmaclaw/benchmark-kit/`). If Jake needs it as a standalone npm package later, extract then.
-2. **Jake dispatch in TS or keep Python?** Keep Python for now (jake-dispatch.py is battle-tested). The TS `dispatch-runner.ts` is a future option.
-3. **Shared task IDs across packs?** Each pack has its own namespace (`core:list_reverse`, `jake-agent:email_summarize`). No collision.
+1. **Package or directory?** Start as a directory in gemmaclaw (`src/gemmaclaw/benchmark-kit/`). If OpenClaw local agent needs it as a standalone npm package later, extract then.
+2. **OpenClaw local agent dispatch in TS or keep Python?** Keep the legacy runner for now. The TS `dispatch-runner.ts` is a future option.
+3. **Shared task IDs across packs?** Each pack has its own namespace (`core:list_reverse`, `agent-fixtures:email_summarize`). No collision.

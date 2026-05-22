@@ -29,16 +29,16 @@ afterEach(() => {
 });
 
 describe("benchmarkGemmaCommand agent packs", () => {
-  it("runs the built-in jake-agent pack through mock-agent and writes standard artifacts", async () => {
-    const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-jake-agent-"));
+  it("runs the built-in agent-fixtures pack through mock-agent and writes standard artifacts", async () => {
+    const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-agent-fixtures-"));
     tmpDirs.push(outputDir);
     const { runtime, logs } = makeRuntime();
 
     await benchmarkGemmaCommand(
       {
-        pack: "jake-agent",
+        pack: "agent-fixtures",
         runner: "mock-agent",
-        model: "mock-agent:jake-agent",
+        model: "mock-agent:agent-fixtures",
         outputDir,
       },
       runtime,
@@ -53,7 +53,7 @@ describe("benchmarkGemmaCommand agent packs", () => {
 
     const artifact = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
     expect(artifact.benchmarkFamily).toBe("agent");
-    expect(artifact.pack.id).toBe("jake-agent");
+    expect(artifact.pack.id).toBe("agent-fixtures");
     expect(artifact.runner.name).toBe("mock-agent");
     expect(artifact.tasks.length).toBeGreaterThanOrEqual(20);
     expect(artifact.summary.passedCount).toBe(artifact.pack.taskCount);
@@ -64,7 +64,7 @@ describe("benchmarkGemmaCommand agent packs", () => {
     const { runtime, errors } = makeRuntime();
 
     await expect(
-      benchmarkGemmaCommand({ pack: "jake-agent", runner: "agent" }, runtime),
+      benchmarkGemmaCommand({ pack: "agent-fixtures", runner: "agent" }, runtime),
     ).rejects.toThrow(/exit 2/);
 
     expect(errors.join("\n")).toContain("no live agent runner is registered");

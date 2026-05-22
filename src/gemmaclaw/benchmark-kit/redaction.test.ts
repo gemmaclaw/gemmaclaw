@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { audit, auditPack, ruleNames, sanitize, sanitizeObject } from "./redaction.js";
-import { loadJakeAgentTasks } from "./task-loader.js";
+import { loadAgentFixtureTasks } from "./task-loader.js";
 
 describe("sanitize", () => {
   it("redacts API keys (anthropic, openai, aws) under 'internal' profile", () => {
@@ -100,7 +100,7 @@ describe("ruleNames", () => {
   });
 });
 
-describe("vendored jake-agent.json privacy audit", () => {
+describe("vendored agent-fixtures.json privacy audit", () => {
   // The vendored agent pack ships in-tree and gets shipped with gemmaclaw.
   // It MUST NOT contain real personal data, infra hostnames, secrets, or
   // identifiable identifiers. The Adventure Time fixtures are fictional
@@ -114,8 +114,8 @@ describe("vendored jake-agent.json privacy audit", () => {
     "candykingdom.land",
   ];
 
-  it("vendored jake-agent.json has zero leak findings", () => {
-    const pack = loadJakeAgentTasks();
+  it("vendored agent-fixtures.json has zero leak findings", () => {
+    const pack = loadAgentFixtureTasks();
     const findings = auditPack(pack, {
       allowEmailDomains: FICTIONAL_DOMAINS,
       allowLoopbackIps: true,
@@ -127,13 +127,15 @@ describe("vendored jake-agent.json privacy audit", () => {
         .slice(0, 10)
         .map((f) => `  ${f.rule}: ${f.match}`)
         .join("\n");
-      throw new Error(`vendored jake-agent.json has ${findings.length} leak findings:\n${summary}`);
+      throw new Error(
+        `vendored agent-fixtures.json has ${findings.length} leak findings:\n${summary}`,
+      );
     }
     expect(findings.length).toBe(0);
   });
 
   it("declares family='agent' and is non-empty", () => {
-    const pack = loadJakeAgentTasks();
+    const pack = loadAgentFixtureTasks();
     expect(pack.family).toBe("agent");
     expect(pack.tasks.length).toBeGreaterThanOrEqual(20);
   });

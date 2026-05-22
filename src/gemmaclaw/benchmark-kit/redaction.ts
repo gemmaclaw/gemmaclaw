@@ -1,9 +1,8 @@
 /**
  * Redaction utilities for benchmark artifacts and packs.
  *
- * Mirrors the rules from jake-benchmark `harness/lib/sanitize.py` so that a
- * pack or run artifact validated here matches what jake-benchmark would
- * publish. Three profiles:
+ * Mirrors the private benchmark-runner sanitization contract so that a pack
+ * or run artifact validated here is safe to publish. Three profiles:
  *
  *   - "none":     pass through unchanged
  *   - "internal": redact secrets only (tokens/keys)
