@@ -114,9 +114,12 @@ describe("runGatewayUpdate", () => {
     };
   }
 
-  async function setupGitCheckout(options?: { packageManager?: string }) {
+  async function setupGitCheckout(options?: { packageManager?: string; packageName?: string }) {
     await fs.mkdir(path.join(tempDir, ".git"));
-    const pkg: Record<string, string> = { name: "openclaw", version: "1.0.0" };
+    const pkg: Record<string, string> = {
+      name: options?.packageName ?? "openclaw",
+      version: "1.0.0",
+    };
     if (options?.packageManager) {
       pkg.packageManager = options.packageManager;
     }
@@ -1558,6 +1561,31 @@ describe("runGatewayUpdate", () => {
     expect(result.status).toBe("error");
     expect(result.reason).toBe("not-openclaw-root");
     expect(calls.some((call) => call.includes("status --porcelain"))).toBe(false);
+  });
+
+  it("accepts gemmaclaw source checkout roots for git updates", async () => {
+    await setupGitCheckout({ packageManager: "pnpm@8.0.0", packageName: "gemmaclaw" });
+    await setupUiIndex();
+
+    const stableTag = "v1.0.1-1";
+    const { runner, calls } = createRunner({
+      ...buildStableTagResponses(stableTag),
+      "pnpm install": { stdout: "" },
+      "pnpm build": { stdout: "" },
+      "pnpm ui:build": { stdout: "" },
+      [`${await resolveStableNodePath(process.execPath)} ${path.join(tempDir, "openclaw.mjs")} doctor --non-interactive --fix`]:
+        { stdout: "" },
+      [`${await resolveStableNodePath(process.execPath)} ${path.join(tempDir, "openclaw.mjs")} gateway restart`]:
+        { stdout: "" },
+    });
+
+    const result = await runWithRunner(runner, { channel: "stable" });
+
+    expect(result.status).toBe("ok");
+    expect(result.mode).toBe("git");
+    expect(calls.some((call) => call === `git -C ${tempDir} checkout --detach ${stableTag}`)).toBe(
+      true,
+    );
   });
 
   it("fails with a clear reason when openclaw.mjs is missing", async () => {
