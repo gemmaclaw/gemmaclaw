@@ -1057,11 +1057,50 @@ export function writeBenchmarkWorkspaceFiles(
   workspaceDir: string,
   noToolsMode?: boolean,
   gemmaclawEnhancements?: string,
+  taskId?: string,
 ): void {
   fs.mkdirSync(path.join(workspaceDir, "memory"), { recursive: true });
   const files = noToolsMode ? BENCHMARK_WORKSPACE_FILES_NO_TOOLS : BENCHMARK_WORKSPACE_FILES;
   for (const [name, content] of Object.entries(files)) {
     fs.writeFileSync(path.join(workspaceDir, name), content);
+  }
+  if (taskId === "commitment_followthrough_verification") {
+    fs.mkdirSync(path.join(workspaceDir, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(workspaceDir, "state/local-agent-scheduler"), { recursive: true });
+    const dailyStatusScript = path.join(workspaceDir, "scripts/send_daily_status.sh");
+    fs.writeFileSync(
+      dailyStatusScript,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'mkdir -p "state/local-agent-scheduler"',
+        'printf "daily status ok\\n" > "state/local-agent-scheduler/daily-status-last-run.txt"',
+        "",
+      ].join("\n"),
+    );
+    // Benchmark fixture: direct script execution is intentionally broken unless
+    // the agent fixes permissions or uses an explicit interpreter.
+    fs.chmodSync(dailyStatusScript, 0o644);
+    fs.writeFileSync(
+      path.join(workspaceDir, "state/local-agent-scheduler/active-jobs.json"),
+      `${JSON.stringify(
+        {
+          jobs: [
+            {
+              id: "daily_status_job",
+              enabled: false,
+              schedule: "0 8 * * *",
+              timezone: "America/New_York",
+              command: "scripts/send_daily_status.sh",
+              next_run_verified: false,
+              command_invocation_verified: false,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
   }
   const enhancements = resolveGemmaclawEnhancementIds(gemmaclawEnhancements ?? "none");
   fs.writeFileSync(
@@ -1869,7 +1908,12 @@ export async function dispatchTask(
     fs.mkdirSync(path.join(ocDir, "agent"), { recursive: true });
     fs.mkdirSync(path.join(ocDir, "agents/main/agent"), { recursive: true });
     const workspaceDir = path.join(ocDir, "workspace");
-    writeBenchmarkWorkspaceFiles(workspaceDir, task.noToolsMode, config.gemmaclawEnhancements);
+    writeBenchmarkWorkspaceFiles(
+      workspaceDir,
+      task.noToolsMode,
+      config.gemmaclawEnhancements,
+      task.id,
+    );
     const gogStateDir = path.join(benchHome, ".config/gogcli/state");
     const fakeGogBinDir = resolveFakeGogBinDir();
     const fakeGogLogPath = path.join(benchHome, "fake-gog.log");

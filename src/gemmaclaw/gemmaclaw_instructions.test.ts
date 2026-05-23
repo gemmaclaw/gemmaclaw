@@ -62,6 +62,14 @@ describe("gemmaclaw instructions", () => {
     expect(markdown).toContain("Gemmaclaw-native follow-up");
     expect(markdown).toContain("reply only after the work is complete");
     expect(markdown).toContain("host crontab or systemd timers");
+    expect(markdown).toContain("scheduled command target can be invoked");
+    expect(markdown).toContain("explicit interpreter");
+    expect(markdown).toContain("permissions, ownership, shebang");
+    expect(markdown).toContain("Gemmaclaw-native local work loop");
+    expect(markdown).toContain("subtasks with observable acceptance criteria");
+    expect(markdown).toContain("verification or QA check");
+    expect(markdown).toContain("idle trigger");
+    expect(markdown).toContain("no local agent turn, subagent, or scheduled continuation");
   });
 
   it("supports default, all, none, and explicit id selections", () => {

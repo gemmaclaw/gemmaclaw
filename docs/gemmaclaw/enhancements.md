@@ -10,7 +10,7 @@ title: "Gemmaclaw Enhancements"
 
 Gemmaclaw enhancements are small improvements that Gemmaclaw applies beyond upstream OpenClaw defaults. They are deliberately registered in one place so setup, runtime injection, docs, tests, benchmarks, and future upstream-merge smoke checks all agree on what should exist.
 
-The registry and generated prompt live in [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts). Setup records the selected enhancement ids in `.gemmaclaw-enhancements.json`, and runtime bootstrap injection renders the code-owned instructions beside the workspace `AGENTS.md` context. The instructions are not copied into `AGENTS.md`.
+The registry lives in [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts), and each enhancement prompt lives in its own source file under [`src/gemmaclaw/enhancements/`](https://github.com/gemmaclaw/gemmaclaw/tree/main/src/gemmaclaw/enhancements). Setup records the selected enhancement ids in `.gemmaclaw-enhancements.json`, and runtime bootstrap injection renders the selected code-owned instructions beside the workspace `AGENTS.md` context. The instructions are not copied into `AGENTS.md`.
 
 ## Gemmaclaw instructions
 
@@ -37,6 +37,13 @@ Interactive setup asks whether to enable the default enhancement set. Non-intera
 
 Benchmarks use a raw baseline by default. The agent benchmark harness writes `.gemmaclaw-enhancements.json` with an empty `enhancements` list unless `--gemmaclaw-enhancements <selection>` is provided. Use `default`, `all`, or a comma-separated id list only when you are intentionally measuring enhanced Gemmaclaw behavior.
 
+## Registered enhancements
+
+Every registered enhancement should appear in this contents list and on the generated site with a stable deep link:
+
+- [`external_delivery_receipt_verification`](#external_delivery_receipt_verification)
+- [`commitment_followthrough_loop`](#commitment_followthrough_loop)
+
 ## external_delivery_receipt_verification
 
 Status: default enabled
@@ -44,6 +51,7 @@ Status: default enabled
 Code and prompt:
 
 - Registry and generated instructions: [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts)
+- Prompt source: [`src/gemmaclaw/enhancements/external_delivery_receipt_verification.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/enhancements/external_delivery_receipt_verification.ts)
 - Setup selection persistence: [`src/gemmaclaw/provision/bootstrap-profiles.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/provision/bootstrap-profiles.ts)
 - Runtime injection: [`src/agents/bootstrap-files.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/agents/bootstrap-files.ts)
 - Agent-facing prompt location: injected as generated context path `gemmaclaw_instructions.ts`, beside `AGENTS.md`
@@ -55,9 +63,17 @@ This enhancement tells agents not to claim that an external delivery succeeded u
 
 It also calls out scheduled jobs specifically: an agent must verify the active scheduler location and trigger proof, not just write a copied config file in a workspace directory.
 
-Failure class helped:
+Defect pattern:
 
-A private Gemmaclaw agent previously overclaimed a scheduled Telegram audio job by writing local artifacts and reasoning about an inactive cron location, then saying the audio had been sent without a verified Telegram receipt. The enhancement generalizes the fix to any Gemmaclaw agent that performs externally visible delivery.
+An agent can produce the local artifact for an external action, for example an audio file, email draft, webhook payload, or scheduled send config, then claim the user-visible action completed even though the external provider never accepted it. This is especially easy when a scheduled job writes files locally and the agent treats those files as delivery proof.
+
+Before example:
+
+A user asks for scheduled audio clips. The agent generates `latest-audio.mp3`, writes a plausible scheduler JSON file, and replies, "I sent the clips." The actual Telegram, email, or webhook receipt is missing, or the scheduler file lives in an inactive workspace path. The user sees nothing.
+
+After with enhancement enabled:
+
+The agent must find the active scheduler surface and then verify the actual provider or harness receipt. In the benchmark fixture, success requires reading the Telegram mock receipt after the send and confirming `ok: true` plus a non-empty `message_id`. If the receipt is absent or failed, the agent says delivery is unverified and keeps investigating instead of claiming success.
 
 Benchmark guard:
 
@@ -81,6 +97,7 @@ Status: default enabled
 Code and prompt:
 
 - Registry and generated instructions: [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts)
+- Prompt source: [`src/gemmaclaw/enhancements/commitment_followthrough_loop.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/enhancements/commitment_followthrough_loop.ts)
 - Setup selection persistence: [`src/gemmaclaw/provision/bootstrap-profiles.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/provision/bootstrap-profiles.ts)
 - Runtime injection: [`src/agents/bootstrap-files.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/agents/bootstrap-files.ts)
 - Benchmark guard: [`src/gemmaclaw/benchmark/agent-tasks.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/benchmark/agent-tasks.ts)
@@ -90,13 +107,21 @@ Code and prompt:
 
 What it does:
 
-This enhancement tells agents not to say they are "on it", "will fix it", "will follow up", or similar unless they either finish the work inline and verify it before replying, or create and verify a durable Gemmaclaw-native follow-up. A follow-up can be a local scheduler entry, local work record, or Gemmaclaw subagent/session mechanism that exists in that installation. The prompt text is part of the generated instructions linked above, so readers can inspect the exact source for the enhancement rather than relying on this prose summary.
+This enhancement tells agents not to say they are "on it", "will fix it", "will follow up", or similar unless they either finish the work inline and verify it before replying, or create and verify a durable Gemmaclaw-native follow-up. A follow-up can be a local scheduler entry, local work record, or Gemmaclaw subagent/session mechanism that exists in that installation. For multi-step work, it also requires a local work loop with a plan, subtasks, observable acceptance criteria, subtask statuses, evidence, next action, an idle trigger that can resume pending work when no owner/subagent/session is active, and a QA/read-back check before the agent says the commitment is complete. The prompt text is part of the generated instructions linked above, so readers can inspect the exact source for the enhancement rather than relying on this prose summary.
 
-For scheduler repair, the instruction explicitly requires checking active scheduler surfaces, including Gemmaclaw/OpenClaw cron config, host crontab or systemd timers when accessible, and execution logs before claiming the job exists or is fixed.
+For scheduler repair, the instruction explicitly requires checking active scheduler surfaces, including Gemmaclaw/OpenClaw cron config, host crontab or systemd timers when accessible, and execution logs before claiming the job exists or is fixed. It also requires verifying that the scheduled command target can run under the scheduled runtime: file existence, ownership, executable permissions or explicit interpreter use, shebang/interpreter validity, working directory, and environment. If a scheduler target fails because of permissions or invocation setup, the agent must fix that root cause durably and prove it with a safe preflight, dry run, exact command invocation, or log evidence before calling the job repaired.
 
-Failure class helped:
+Defect pattern:
 
-A private Gemmaclaw agent previously replied to a missed scheduled job by saying it was "on it" even though the active scheduler was not repaired and no durable local follow-up existed. The generalized Gemmaclaw behavior is: finish inline, or create a verified local follow-up, then reply with the completed outcome or the follow-up proof.
+An agent can acknowledge a bug by promising background work, but then the session ends without a real repair, scheduled wake-up, local task record, or subagent/session continuation. A related scheduler defect is even subtler: the active scheduler entry exists, but the command target cannot run because of permissions, ownership, missing executable bit, invalid shebang, wrong interpreter, wrong working directory, or missing environment.
+
+Before example:
+
+A user reports that yesterday's daily status job did not run. The agent replies, "I'll get it sorted," writes or edits a cron-like file, and stops. It never proves that the file is the active scheduler. It also leaves the command as `scripts/send_daily_status.sh` even though the script is not executable by the scheduled runtime. The next run still fails with `Permission denied`.
+
+After with enhancement enabled:
+
+The agent creates `state/local-agent-work/daily-status-repair-loop.json`, breaks the repair into subtasks such as `inspect_active_scheduler`, `verify_command_invocation`, `repair_or_create_followup`, and `qa_readback`, records `active_owner`, defines an `idle_trigger` for resuming pending work when no owner/subagent/session is active, and keeps each subtask status and evidence current. For the inline path, it must inspect the active scheduler, verify the job id, schedule, timezone, and command, and prove command invocation. In the benchmark fixture, the target script is intentionally non-executable, so the expected durable repair is to use `bash scripts/send_daily_status.sh` or prove direct execution is valid, then record `command_invocation_verified: true` after read-back and set the QA check to pass. If any part cannot be verified, the agent creates `state/local-agent-todos/daily-status-repair.json` with the exact next action and reports that verified follow-up instead of using promise language.
 
 Benchmark guard:
 
