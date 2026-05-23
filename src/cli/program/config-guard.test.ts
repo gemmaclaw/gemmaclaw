@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { note } from "../../terminal/note.js";
-import { formatCliCommand } from "../command-format.js";
 import { ensureConfigReady, __test__ } from "./config-guard.js";
 
 const loadAndMaybeMigrateDoctorConfigMock = vi.hoisted(() => vi.fn());
