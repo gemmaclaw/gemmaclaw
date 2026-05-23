@@ -54,22 +54,30 @@ describe("gemmaclaw instructions", () => {
     expect(markdown).toContain("update it to the latest default branch");
     expect(markdown).toContain("external_delivery_receipt_verification");
     expect(markdown).toContain("scheduled_media_delivery_verification");
-    expect(markdown).toContain("real send receipt");
-    expect(markdown).toContain("not delivery proof");
-    expect(markdown).toContain("active scheduler location");
+    expect(markdown).toContain("send receipt");
+    expect(markdown).toContain("!= delivery proof");
+    expect(markdown).toContain("active scheduler");
     expect(markdown).toContain("commitment_followthrough_loop");
     expect(markdown).toContain("commitment_followthrough_verification");
-    expect(markdown).toContain("Gemmaclaw-native follow-up");
-    expect(markdown).toContain("reply only after the work is complete");
-    expect(markdown).toContain("host crontab or systemd timers");
-    expect(markdown).toContain("scheduled command target can be invoked");
+    expect(markdown).toContain("durable Gemmaclaw-native follow-up");
+    expect(markdown).toContain("Reply only after completed work");
+    expect(markdown).toContain("host crontab/systemd");
+    expect(markdown).toContain("command runs");
     expect(markdown).toContain("explicit interpreter");
-    expect(markdown).toContain("permissions, ownership, shebang");
-    expect(markdown).toContain("Gemmaclaw-native local work loop");
-    expect(markdown).toContain("subtasks with observable acceptance criteria");
-    expect(markdown).toContain("verification or QA check");
-    expect(markdown).toContain("idle trigger");
-    expect(markdown).toContain("no local agent turn, subagent, or scheduled continuation");
+    expect(markdown).toContain("valid shebang/interpreter");
+    expect(markdown).toContain("local work loop");
+    expect(markdown).toContain("observable subtasks");
+    expect(markdown).toContain("QA/read-back");
+    expect(markdown).toContain("Idle trigger");
+    expect(markdown).toContain("no active owner/subagent/session");
+  });
+
+  it("keeps default runtime enhancement injection concise for local model contexts", () => {
+    const markdown = renderGemmaclawInstructions();
+    const enhancementMarkdown =
+      markdown.split("### External delivery receipt verification")[1] ?? "";
+
+    expect(enhancementMarkdown.length).toBeLessThanOrEqual(1_650);
   });
 
   it("supports default, all, none, and explicit id selections", () => {
