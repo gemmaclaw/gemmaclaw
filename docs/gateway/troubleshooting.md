@@ -57,7 +57,7 @@ Related:
 
 - [Anthropic](/providers/anthropic)
 - [Token use and costs](/reference/token-use)
-- [Why am I seeing HTTP 429 from Anthropic?](/help/faq-first-run#why-am-i-seeing-http-429-ratelimiterror-from-anthropic)
+- [Why am I seeing HTTP 429 from Anthropic?](/help/faq#why-am-i-seeing-http-429-ratelimiterror-from-anthropic)
 
 ## Upstream 403 blocked responses
 
