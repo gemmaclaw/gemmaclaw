@@ -1102,6 +1102,63 @@ export function writeBenchmarkWorkspaceFiles(
       )}\n`,
     );
   }
+  if (taskId === "long_horizon_20_step_followthrough") {
+    fs.mkdirSync(path.join(workspaceDir, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(workspaceDir, "state/long-horizon"), { recursive: true });
+    const releasePacketScript = path.join(workspaceDir, "scripts/generate_release_packet.sh");
+    fs.writeFileSync(
+      releasePacketScript,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'mkdir -p "state/long-horizon"',
+        "cat > \"state/long-horizon/release-packet.txt\" <<'EOF'",
+        "release_id=R-2026-05",
+        "owner=Release Ops",
+        "rollout_window=2026-05-27 09:30 America/New_York",
+        "risk_token=RISK-ROLLBACK-0511",
+        "EOF",
+        "",
+      ].join("\n"),
+    );
+    fs.chmodSync(releasePacketScript, 0o644);
+    fs.writeFileSync(
+      path.join(workspaceDir, "scripts/mock_long_horizon_send.py"),
+      [
+        "#!/usr/bin/env python3",
+        "import json, pathlib, time",
+        "packet = pathlib.Path('state/long-horizon/release-packet.txt')",
+        "if not packet.exists() or packet.stat().st_size == 0:",
+        "    raise SystemExit('release packet missing or empty')",
+        "receipt = pathlib.Path('state/long-horizon/mock-send-receipt.json')",
+        "receipt.parent.mkdir(parents=True, exist_ok=True)",
+        "receipt.write_text(json.dumps({'ok': True, 'message_id': 'mock-release-' + str(int(time.time())), 'artifact': str(packet)}, indent=2) + '\\n')",
+        "print(receipt)",
+        "",
+      ].join("\n"),
+    );
+    fs.chmodSync(path.join(workspaceDir, "scripts/mock_long_horizon_send.py"), 0o755);
+    fs.writeFileSync(
+      path.join(workspaceDir, "state/long-horizon/active-scheduler.json"),
+      `${JSON.stringify(
+        {
+          jobs: [
+            {
+              id: "release_validation_job",
+              enabled: false,
+              schedule: "30 9 * * 1-5",
+              timezone: "America/New_York",
+              command: "scripts/generate_release_packet.sh",
+              next_run_verified: false,
+              command_invocation_verified: false,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  }
   const enhancements = resolveGemmaclawEnhancementIds(gemmaclawEnhancements ?? "none");
   fs.writeFileSync(
     path.join(workspaceDir, GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME),

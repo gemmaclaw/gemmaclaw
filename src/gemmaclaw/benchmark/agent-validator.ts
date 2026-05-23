@@ -58,6 +58,7 @@ export type ValidationIssueKind =
   | "host_oauth_marker"
   | "host_path_leak"
   | "fake_gog_missing"
+  | "long_horizon_report_incomplete"
   | "deterministic_scorer_missing";
 
 export type ValidationIssue = {
@@ -213,6 +214,79 @@ function hasGogToolCall(conversation: ConversationTurn[]): boolean {
     }
     return false;
   });
+}
+
+const LONG_HORIZON_STEP_IDS = [
+  "step_01_read_email",
+  "step_02_read_policy",
+  "step_03_read_contract",
+  "step_04_read_sources",
+  "step_05_read_log",
+  "step_06_inspect_scheduler",
+  "step_07_verify_command_target",
+  "step_08_fix_scheduler_command",
+  "step_09_generate_release_notes",
+  "step_10_validate_release_notes",
+  "step_11_update_risk_register",
+  "step_12_create_rollout_checklist",
+  "step_13_prepare_stakeholder_message",
+  "step_14_create_delivery_artifact",
+  "step_15_run_mock_delivery",
+  "step_16_read_delivery_receipt",
+  "step_17_update_dedupe_history",
+  "step_18_create_followup_if_needed",
+  "step_19_qa_readback",
+  "step_20_write_final_report",
+] as const;
+
+function lastJsonArrayBody(transcript: string, propertyName: string): string | undefined {
+  const pattern = new RegExp(`"${propertyName}"\\s*:\\s*\\[([\\s\\S]*?)\\]`, "g");
+  let match: RegExpExecArray | null;
+  let last: string | undefined;
+  while ((match = pattern.exec(transcript)) !== null) {
+    last = match[1];
+  }
+  return last;
+}
+
+function validateLongHorizonReport(transcript: string): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const pendingBody = lastJsonArrayBody(transcript, "pending_step_ids");
+  if (pendingBody === undefined) {
+    issues.push({
+      kind: "long_horizon_report_incomplete",
+      severity: "block",
+      message: "Long-horizon final report is missing pending_step_ids.",
+    });
+  } else if (/"step_\d\d_/.test(pendingBody)) {
+    issues.push({
+      kind: "long_horizon_report_incomplete",
+      severity: "block",
+      message: "Long-horizon final report still lists pending required steps.",
+      evidence: clip(`"pending_step_ids": [${pendingBody}]`),
+    });
+  }
+
+  const completedBody = lastJsonArrayBody(transcript, "completed_step_ids");
+  if (completedBody === undefined) {
+    issues.push({
+      kind: "long_horizon_report_incomplete",
+      severity: "block",
+      message: "Long-horizon final report is missing completed_step_ids.",
+    });
+  } else {
+    const missing = LONG_HORIZON_STEP_IDS.filter((stepId) => !completedBody.includes(stepId));
+    if (missing.length > 0) {
+      issues.push({
+        kind: "long_horizon_report_incomplete",
+        severity: "block",
+        message: "Long-horizon final report does not list all 20 completed step ids.",
+        evidence: clip(`missing=${missing.join(", ")}`),
+      });
+    }
+  }
+
+  return issues;
 }
 
 function findAssistantTurn(conversation: ConversationTurn[]): ConversationTurn | undefined {
@@ -381,6 +455,10 @@ export function validateTaskArtifact(input: ValidateTaskArtifactInput): Validati
           "Task invoked gog but fake-gog.log is empty/missing. Fake-gog isolation may have been bypassed.",
       });
     }
+  }
+
+  if (task.id === "long_horizon_20_step_followthrough") {
+    issues.push(...validateLongHorizonReport(transcript));
   }
 
   // (7) Deterministic scorer must produce a score when configured.

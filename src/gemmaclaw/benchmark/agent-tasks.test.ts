@@ -171,7 +171,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       newTaskCategories.add(task!.category);
     }
 
-    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(21);
+    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(22);
     expect(newTaskCategories.size).toBeGreaterThanOrEqual(7);
 
     const taskText = OPENCLAW_HARD_WORKFLOW_TASK_IDS.map((id) => {
@@ -199,10 +199,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     const expandedIds = new Set(EXPANDED_AGENT_BENCHMARK_TASKS.map((task) => task.id));
     const variationIds = new Set(GENERATED_AGENT_VARIATION_TASKS.map((task) => task.id));
 
-    expect(AGENT_BENCHMARK_TASKS).toHaveLength(49);
+    expect(AGENT_BENCHMARK_TASKS).toHaveLength(50);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
     expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(29400);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29596);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29597);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });
@@ -274,6 +274,30 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     expect(taskText).toContain("Must not rely on .openclaw/cron/jobs.json");
     expect(taskText).toMatch(/I'm on it/);
     expect(taskText).toMatch(/workspace\/\.openclaw\/cron\/jobs\.json/);
+  });
+
+  it("locks long-horizon follow-through coverage to 20 or more explicit steps", () => {
+    const task = getTaskById("long_horizon_20_step_followthrough");
+
+    expect(task).toBeDefined();
+    expect(task?.difficulty).toBe("very_hard");
+    expect(task?.grading.maxScore).toBeGreaterThanOrEqual(300);
+
+    const taskText = [task!.prompt, ...task!.grading.criteria].join("\n");
+    const stepIds = Array.from(taskText.matchAll(/step_\d{2}_[a-z_]+/g)).map((m) => m[0]);
+    const uniqueStepIds = new Set(stepIds);
+
+    expect(uniqueStepIds.size).toBeGreaterThanOrEqual(20);
+    expect(taskText).toContain("at least 20 subtasks");
+    expect(taskText).toContain("20 named step ids");
+    expect(taskText).toContain("state/local-agent-work/long-horizon-release-loop.json");
+    expect(taskText).toContain("state/long-horizon/active-scheduler.json");
+    expect(taskText).toContain("bash scripts/generate_release_packet.sh");
+    expect(taskText).toContain("state/long-horizon/mock-send-receipt.json");
+    expect(taskText).toContain("memory/long-horizon-release-report.json");
+    expect(taskText).toContain("required_step_count must be at least 20");
+    expect(taskText).toContain("promise_language_used");
+    expect(taskText).toContain("Must not rely on .openclaw/cron/jobs.json");
   });
 
   it("keeps expanded benchmark task prompts and rubrics publishable", () => {

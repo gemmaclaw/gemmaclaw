@@ -13,7 +13,10 @@ import {
   selectAgentBenchmarkTaskIds,
 } from "./agent-container-guard.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
-import { resolveAgentBenchmarkTasks } from "./cli-standalone.js";
+import {
+  resolveAgentBenchmarkDockerBuildTimeoutMs,
+  resolveAgentBenchmarkTasks,
+} from "./cli-standalone.js";
 
 describe("agent benchmark container guard", () => {
   it("detects the benchmark container marker only when explicitly set", () => {
@@ -151,14 +154,28 @@ describe("agent benchmark container guard", () => {
   });
 
   it("resolves benchmark suite variations without mixing default and expanded suites", () => {
-    expect(resolveAgentBenchmarkTasks({}).length).toBe(49);
-    expect(resolveAgentBenchmarkTasks({ suite: "default" }).length).toBe(49);
+    expect(resolveAgentBenchmarkTasks({}).length).toBe(50);
+    expect(resolveAgentBenchmarkTasks({ suite: "default" }).length).toBe(50);
     expect(resolveAgentBenchmarkTasks({ suite: "expanded" }).length).toBe(147);
     expect(resolveAgentBenchmarkTasks({ suite: "variants" }).length).toBe(29400);
-    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(29596);
+    expect(resolveAgentBenchmarkTasks({ suite: "all" }).length).toBe(29597);
     expect(() => resolveAgentBenchmarkTasks({ suite: "missing" })).toThrow(
       /Unsupported agent benchmark suite/,
     );
+  });
+
+  it("uses a long docker build timeout with an explicit env override", () => {
+    expect(resolveAgentBenchmarkDockerBuildTimeoutMs({})).toBe(45 * 60 * 1000);
+    expect(
+      resolveAgentBenchmarkDockerBuildTimeoutMs({
+        GEMMACLAW_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS: "123456",
+      }),
+    ).toBe(123456);
+    expect(
+      resolveAgentBenchmarkDockerBuildTimeoutMs({
+        GEMMACLAW_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS: "not-a-number",
+      }),
+    ).toBe(45 * 60 * 1000);
   });
 
   it("samples generated variations per template with a stable seed", () => {

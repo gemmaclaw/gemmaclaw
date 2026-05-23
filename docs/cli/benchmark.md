@@ -57,6 +57,10 @@ repair the missed daily job inline or create a verified Gemmaclaw-native local
 follow-up, and only then reply. It explicitly fails agents that say "I'm on it"
 or "I'll fix it" without completed work or a read-back-verified durable
 follow-up record.
+`long_horizon_20_step_followthrough` extends the same class to a 20+ step
+workflow. It requires the agent to enumerate each required step in a local work
+loop, execute the safe local steps, and verify scheduler, artifact, receipt,
+dedupe, and report read-backs before claiming completion.
 
 The related default setup enhancement is documented at
 [Gemmaclaw enhancements](/gemmaclaw/enhancements).
@@ -67,6 +71,7 @@ pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-no-enhance --gemmaclaw-enhancements none
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task commitment_followthrough_verification --run-id commitment-followthrough-raw --gemmaclaw-enhancements none
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task commitment_followthrough_verification --run-id commitment-followthrough-enhanced --gemmaclaw-enhancements default
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task long_horizon_20_step_followthrough --run-id long-horizon-20-step-enhanced --gemmaclaw-enhancements default
 ```
 
 Benchmarks default to the raw baseline with no optional Gemmaclaw enhancements.

@@ -3519,7 +3519,7 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-en
       <div class="table-wrap"><table>
         <tr><th>Item</th><th>Value</th></tr>
         <tr><td>Enhancement id</td><td><code>commitment_followthrough_loop</code></td></tr>
-        <tr><td>Benchmark guard</td><td><code>commitment_followthrough_verification</code></td></tr>
+        <tr><td>Benchmark guard</td><td><code>commitment_followthrough_verification</code>, <code>long_horizon_20_step_followthrough</code></td></tr>
         <tr><td>Prompt registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td></tr>
         <tr><td>Prompt source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/enhancements/commitment_followthrough_loop.ts"><code>src/gemmaclaw/enhancements/commitment_followthrough_loop.ts</code></a></td></tr>
         <tr><td>Benchmark task</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/benchmark/agent-tasks.ts"><code>src/gemmaclaw/benchmark/agent-tasks.ts</code></a></td></tr>

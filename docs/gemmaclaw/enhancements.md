@@ -181,7 +181,7 @@ Agent: I found the active scheduler, changed the command to use `bash scripts/se
 Benchmark guard:
 
 - Enhancement id: `commitment_followthrough_loop`
-- Benchmark id: `commitment_followthrough_verification`
+- Benchmark ids: `commitment_followthrough_verification`, `long_horizon_20_step_followthrough`
 - Benchmark docs: `docs/cli/benchmark.md`
 - Harness seed helper: `scripts/benchmark/seed-mock-gog.py`
 
@@ -190,6 +190,7 @@ Run the benchmark both ways when measuring this enhancement:
 ```bash
 pnpm benchmark agent --task commitment_followthrough_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements none
 pnpm benchmark agent --task commitment_followthrough_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements default
+pnpm benchmark agent --task long_horizon_20_step_followthrough --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements default
 ```
 
 Run setup-path smoke checks with enhancements enabled and disabled:
