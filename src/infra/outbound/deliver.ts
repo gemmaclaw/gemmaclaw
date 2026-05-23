@@ -719,7 +719,7 @@ async function deliverOutboundPayloadsWithQueueCleanup(
     if (queueId) {
       if (isAbortError(err)) {
         await ackDelivery(queueId).catch(() => {});
-      } else if (!platformResultsReturned) {
+      } else {
         await failDelivery(queueId, formatErrorMessage(err)).catch((failErr: unknown) => {
           log.warn(
             `failed to mark queued delivery ${queueId} as failed: ${formatErrorMessage(failErr)}`,
