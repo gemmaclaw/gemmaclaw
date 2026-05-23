@@ -102,7 +102,7 @@ High-level:
 1. Requires a clean worktree (no uncommitted changes).
 2. Switches to the selected channel (tag or branch).
 3. Fetches upstream (dev only).
-4. Dev only: preflight lint + TypeScript build in a temp worktree; if the tip fails, walks back up to 10 commits to find the newest clean build.
+4. Dev only: preflight lint + TypeScript build in a temp worktree; if the tip fails, walks back up to 10 commits to find the newest clean build. On resource-constrained source hosts, set `OPENCLAW_UPDATE_SKIP_DEV_PREFLIGHT_LINT=1` to keep the dev preflight to dependency install and build only.
 5. Rebases onto the selected commit (dev only).
 6. Installs deps with the repo package manager. For pnpm checkouts, the updater bootstraps `pnpm` on demand (via `corepack` first, then a temporary `npm install pnpm@10` fallback) instead of running `npm run build` inside a pnpm workspace.
 7. Builds + builds the Control UI.
