@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID } from "../gemmaclaw_instructions.js";
+import {
+  COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+  EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
+} from "../gemmaclaw_instructions.js";
 import {
   buildNonInteractiveChoices,
   defaultModelFor,
@@ -11,6 +14,11 @@ import {
   validateAgentName,
   type WizardIO,
 } from "./onboarding-wizard.js";
+
+const DEFAULT_ENHANCEMENTS = [
+  EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
+  COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+];
 
 /**
  * Build a scripted WizardIO that pops one queued response per `prompt()` call
@@ -143,7 +151,7 @@ describe("runOnboardingWizard", () => {
       model: "auto",
       thinkingLevel: "medium",
       bootstrap: "general",
-      enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+      enhancements: DEFAULT_ENHANCEMENTS,
       apiKey: undefined,
     });
 
@@ -242,7 +250,7 @@ describe("runOnboardingWizard", () => {
     expect(choices.model).toBe("gemma-3-4b-it"); // first vertex choice
     expect(choices.thinkingLevel).toBe("medium");
     expect(choices.bootstrap).toBe("general");
-    expect(choices.enhancements).toEqual([EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID]);
+    expect(choices.enhancements).toEqual(DEFAULT_ENHANCEMENTS);
     expect(prompts).toHaveLength(4);
   });
 
@@ -283,7 +291,7 @@ describe("buildNonInteractiveChoices", () => {
       model: "auto",
       thinkingLevel: "medium",
       bootstrap: "general",
-      enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+      enhancements: DEFAULT_ENHANCEMENTS,
       apiKey: undefined,
     });
   });
@@ -325,7 +333,7 @@ describe("formatChoicesSummary", () => {
       model: "gemma3:4b",
       thinkingLevel: "high",
       bootstrap: "coding",
-      enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+      enhancements: DEFAULT_ENHANCEMENTS,
     });
     const text = summary.join("\n");
     expect(text).toContain("Agent name:");
@@ -349,7 +357,7 @@ describe("formatNextSteps", () => {
         model: "auto",
         thinkingLevel: "medium",
         bootstrap: "general",
-        enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+        enhancements: DEFAULT_ENHANCEMENTS,
       },
       "http://127.0.0.1:8765/",
     );
@@ -388,7 +396,7 @@ describe("gemmaclaw home path branding", () => {
     model: "auto",
     thinkingLevel: "medium" as const,
     bootstrap: "general" as const,
-    enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+    enhancements: DEFAULT_ENHANCEMENTS,
   };
 
   it("formatNextSteps does not mention .openclaw", () => {

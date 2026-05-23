@@ -171,7 +171,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       newTaskCategories.add(task!.category);
     }
 
-    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(20);
+    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(21);
     expect(newTaskCategories.size).toBeGreaterThanOrEqual(7);
 
     const taskText = OPENCLAW_HARD_WORKFLOW_TASK_IDS.map((id) => {
@@ -199,10 +199,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     const expandedIds = new Set(EXPANDED_AGENT_BENCHMARK_TASKS.map((task) => task.id));
     const variationIds = new Set(GENERATED_AGENT_VARIATION_TASKS.map((task) => task.id));
 
-    expect(AGENT_BENCHMARK_TASKS).toHaveLength(48);
+    expect(AGENT_BENCHMARK_TASKS).toHaveLength(49);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
     expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(29400);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29595);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29596);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });
@@ -243,6 +243,27 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     expect(taskText).toContain(
       "Must not claim the immediate Telegram delivery succeeded before receipt read-back exists",
     );
+    expect(taskText).toMatch(/workspace\/\.openclaw\/cron\/jobs\.json/);
+  });
+
+  it("locks commitment follow-through coverage against empty promises", () => {
+    const task = getTaskById("commitment_followthrough_verification");
+
+    expect(task).toBeDefined();
+    expect(task?.difficulty).toBe("very_hard");
+    expect(task?.grading.maxScore).toBeGreaterThanOrEqual(200);
+
+    const taskText = [task!.prompt, ...task!.grading.criteria].join("\n");
+    expect(taskText).toContain("state/local-agent-scheduler/active-jobs.json");
+    expect(taskText).toContain("state/local-agent-todos/daily-status-repair.json");
+    expect(taskText).toContain("commitment-followthrough-policy.md");
+    expect(taskText).toContain("daily-status-scheduler-contract.md");
+    expect(taskText).toContain("memory/commitment-followthrough-report.json");
+    expect(taskText).toContain("Gemmaclaw-native follow-up");
+    expect(taskText).toContain("promise_language_used");
+    expect(taskText).toContain("Must not mention external ACP workers");
+    expect(taskText).toContain("Must not rely on .openclaw/cron/jobs.json");
+    expect(taskText).toMatch(/I'm on it/);
     expect(taskText).toMatch(/workspace\/\.openclaw\/cron\/jobs\.json/);
   });
 

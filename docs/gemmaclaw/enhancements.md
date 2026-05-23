@@ -30,6 +30,7 @@ gemmaclaw setup --enhancements all
 gemmaclaw setup --enhancements none
 gemmaclaw setup --no-enhancements
 gemmaclaw setup --enhancements external_delivery_receipt_verification
+gemmaclaw setup --enhancements external_delivery_receipt_verification,commitment_followthrough_loop
 ```
 
 Interactive setup asks whether to enable the default enhancement set. Non-interactive setup uses defaults unless `--enhancements` or `--no-enhancements` is provided. The chosen ids are persisted in `.gemmaclaw-enhancements.json`.
@@ -73,6 +74,44 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --backend open
 
 Omitting `--gemmaclaw-enhancements` is equivalent to `none` for benchmarks. That keeps published baseline scorecards comparable across models and prevents Gemmaclaw-specific prompt help from being silently baked into raw model measurements.
 
+## commitment_followthrough_loop
+
+Status: default enabled
+
+Code and prompt:
+
+- Registry and generated instructions: [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts)
+- Setup selection persistence: [`src/gemmaclaw/provision/bootstrap-profiles.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/provision/bootstrap-profiles.ts)
+- Runtime injection: [`src/agents/bootstrap-files.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/agents/bootstrap-files.ts)
+- Benchmark guard: [`src/gemmaclaw/benchmark/agent-tasks.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/benchmark/agent-tasks.ts)
+- Harness fixture seed: [`scripts/benchmark/seed-mock-gog.py`](https://github.com/gemmaclaw/gemmaclaw/blob/main/scripts/benchmark/seed-mock-gog.py)
+- Agent-facing prompt location: injected as generated context path `gemmaclaw_instructions.ts`, beside `AGENTS.md`
+- Docs source: [`docs/gemmaclaw/enhancements.md`](https://github.com/gemmaclaw/gemmaclaw/blob/main/docs/gemmaclaw/enhancements.md)
+
+What it does:
+
+This enhancement tells agents not to say they are "on it", "will fix it", "will follow up", or similar unless they either finish the work inline and verify it before replying, or create and verify a durable Gemmaclaw-native follow-up. A follow-up can be a local scheduler entry, local work record, or Gemmaclaw subagent/session mechanism that exists in that installation. The prompt text is part of the generated instructions linked above, so readers can inspect the exact source for the enhancement rather than relying on this prose summary.
+
+For scheduler repair, the instruction explicitly requires checking active scheduler surfaces, including Gemmaclaw/OpenClaw cron config, host crontab or systemd timers when accessible, and execution logs before claiming the job exists or is fixed.
+
+Failure class helped:
+
+A private Gemmaclaw agent previously replied to a missed scheduled job by saying it was "on it" even though the active scheduler was not repaired and no durable local follow-up existed. The generalized Gemmaclaw behavior is: finish inline, or create a verified local follow-up, then reply with the completed outcome or the follow-up proof.
+
+Benchmark guard:
+
+- Enhancement id: `commitment_followthrough_loop`
+- Benchmark id: `commitment_followthrough_verification`
+- Benchmark docs: `docs/cli/benchmark.md`
+- Harness seed helper: `scripts/benchmark/seed-mock-gog.py`
+
+Run the benchmark both ways when measuring this enhancement:
+
+```bash
+pnpm benchmark agent --task commitment_followthrough_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements none
+pnpm benchmark agent --task commitment_followthrough_verification --backend openai-codex --model gpt-5.5 --thinking medium --gemmaclaw-enhancements default
+```
+
 Run setup-path smoke checks with enhancements enabled and disabled:
 
 ```bash
@@ -84,7 +123,7 @@ gemmaclaw setup --non-interactive --dry-run --agent-name plain-host --setup-mode
 
 Expected evidence:
 
-- Enabled agents have `external_delivery_receipt_verification` in `.gemmaclaw-enhancements.json` and receive it through generated `gemmaclaw_instructions.ts` runtime context.
+- Enabled agents have `external_delivery_receipt_verification` and `commitment_followthrough_loop` in `.gemmaclaw-enhancements.json` and receive them through generated `gemmaclaw_instructions.ts` runtime context.
 - Disabled agents have an empty enhancement list in `.gemmaclaw-enhancements.json`, while still receiving the global Gemmaclaw self-awareness instruction.
 - Container agents still include Docker sandbox guidance.
 - Non-container agents omit Docker sandbox guidance.

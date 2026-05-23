@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
   EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
   GEMMACLAW_INSTRUCTIONS_CONTEXT_PATH,
   getDefaultGemmaclawEnhancementIds,
@@ -27,6 +28,20 @@ describe("gemmaclaw instructions", () => {
     );
   });
 
+  it("registers commitment follow-through as a default enhancement", () => {
+    const followThrough = listGemmaclawEnhancements().find(
+      (enhancement) => enhancement.id === COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+    );
+
+    expect(followThrough).toMatchObject({
+      id: COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+      defaultEnabled: true,
+      docsPath: "docs/gemmaclaw/enhancements.md",
+    });
+    expect(followThrough?.benchmarkIds).toContain("commitment_followthrough_verification");
+    expect(getDefaultGemmaclawEnhancementIds()).toContain(COMMITMENT_FOLLOWTHROUGH_LOOP_ID);
+  });
+
   it("renders runtime-injected instructions with receipt and scheduler verification rules", () => {
     const markdown = renderGemmaclawInstructions();
 
@@ -42,22 +57,38 @@ describe("gemmaclaw instructions", () => {
     expect(markdown).toContain("real send receipt");
     expect(markdown).toContain("not delivery proof");
     expect(markdown).toContain("active scheduler location");
+    expect(markdown).toContain("commitment_followthrough_loop");
+    expect(markdown).toContain("commitment_followthrough_verification");
+    expect(markdown).toContain("Gemmaclaw-native follow-up");
+    expect(markdown).toContain("reply only after the work is complete");
+    expect(markdown).toContain("host crontab or systemd timers");
   });
 
   it("supports default, all, none, and explicit id selections", () => {
     expect(resolveGemmaclawEnhancementIds(undefined)).toEqual([
       EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
+      COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
     ]);
     expect(resolveGemmaclawEnhancementIds("default")).toEqual([
       EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
+      COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
     ]);
     expect(resolveGemmaclawEnhancementIds("all")).toEqual([
       EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
+      COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
     ]);
     expect(resolveGemmaclawEnhancementIds("none")).toEqual([]);
     expect(resolveGemmaclawEnhancementIds(EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID)).toEqual([
       EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
     ]);
+    expect(resolveGemmaclawEnhancementIds(COMMITMENT_FOLLOWTHROUGH_LOOP_ID)).toEqual([
+      COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+    ]);
+    expect(
+      resolveGemmaclawEnhancementIds(
+        `${EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID},${COMMITMENT_FOLLOWTHROUGH_LOOP_ID}`,
+      ),
+    ).toEqual([EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID, COMMITMENT_FOLLOWTHROUGH_LOOP_ID]);
   });
 
   it("parses workspace enhancement selections for runtime injection", () => {
@@ -67,6 +98,11 @@ describe("gemmaclaw instructions", () => {
         `{"enhancements":["${EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID}"]}`,
       ),
     ).toEqual([EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID]);
+    expect(
+      parseGemmaclawEnhancementSelection(
+        `{"enhancements":["${EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID}","${COMMITMENT_FOLLOWTHROUGH_LOOP_ID}"]}`,
+      ),
+    ).toEqual([EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID, COMMITMENT_FOLLOWTHROUGH_LOOP_ID]);
   });
 
   it("rejects unknown enhancement ids loudly", () => {

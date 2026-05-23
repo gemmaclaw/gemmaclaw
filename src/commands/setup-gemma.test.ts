@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listAgentEntries } from "../agents/agent-scope.js";
 import type { OpenClawConfig } from "../config/types.js";
-import { EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID } from "../gemmaclaw/gemmaclaw_instructions.js";
+import {
+  COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+  EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
+} from "../gemmaclaw/gemmaclaw_instructions.js";
 import type { RuntimeEnv } from "../runtime.js";
 import {
   assertDockerForContainerMode,
@@ -339,7 +342,7 @@ describe("setupGemmaCommand — agent creation", () => {
       expect.stringContaining("EnhanceBot"),
       expect.objectContaining({
         useContainer: false,
-        enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID],
+        enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID, COMMITMENT_FOLLOWTHROUGH_LOOP_ID],
       }),
     );
   });

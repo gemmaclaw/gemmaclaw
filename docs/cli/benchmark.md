@@ -51,6 +51,13 @@ send with a receipt. It explicitly fails agents that write an inert
 `workspace/.openclaw/cron/jobs.json` shadow file or claim delivery before
 read-back verification.
 
+`commitment_followthrough_verification` covers the related promise-without-work
+failure class. It requires the agent to inspect the active scheduler surface,
+repair the missed daily job inline or create a verified Gemmaclaw-native local
+follow-up, and only then reply. It explicitly fails agents that say "I'm on it"
+or "I'll fix it" without completed work or a read-back-verified durable
+follow-up record.
+
 The related default setup enhancement is documented at
 [Gemmaclaw enhancements](/gemmaclaw/enhancements).
 
@@ -58,6 +65,8 @@ The related default setup enhancement is documented at
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-raw
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-enhanced --gemmaclaw-enhancements default
 pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task scheduled_media_delivery_verification --run-id scheduled-media-no-enhance --gemmaclaw-enhancements none
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task commitment_followthrough_verification --run-id commitment-followthrough-raw --gemmaclaw-enhancements none
+pnpm benchmark agent --backend openai-codex --model gpt-5.5 --thinking medium --task commitment_followthrough_verification --run-id commitment-followthrough-enhanced --gemmaclaw-enhancements default
 ```
 
 Benchmarks default to the raw baseline with no optional Gemmaclaw enhancements.
