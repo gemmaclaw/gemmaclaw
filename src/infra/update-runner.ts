@@ -6,6 +6,7 @@ import {
   resolveControlUiDistIndexHealth,
   resolveControlUiDistIndexPathForRoot,
 } from "./control-ui-assets.js";
+import { isTruthyEnvValue } from "./env.js";
 import { readPackageName, readPackageVersion } from "./package-json.js";
 import { normalizePackageTagInput } from "./package-tag.js";
 import { trimLogTail } from "./restart-sentinel.js";
@@ -139,6 +140,7 @@ const START_DIRS = ["cwd", "argv1", "process"];
 const DEFAULT_PACKAGE_NAME = "openclaw";
 const GEMMACLAW_PACKAGE_NAME = "gemmaclaw";
 const CORE_PACKAGE_NAMES = new Set([DEFAULT_PACKAGE_NAME, GEMMACLAW_PACKAGE_NAME]);
+const SKIP_DEV_PREFLIGHT_LINT_ENV = "OPENCLAW_UPDATE_SKIP_DEV_PREFLIGHT_LINT";
 const PREFLIGHT_TEMP_PREFIX =
   process.platform === "win32" ? "ocu-pf-" : "openclaw-update-preflight-";
 const PREFLIGHT_WORKTREE_DIRNAME = process.platform === "win32" ? "wt" : "worktree";
@@ -538,6 +540,9 @@ function mergeCommandEnvironments(
 }
 
 function shouldRunDevPreflightLint(): boolean {
+  if (isTruthyEnvValue(process.env[SKIP_DEV_PREFLIGHT_LINT_ENV])) {
+    return false;
+  }
   return process.platform !== "win32";
 }
 
