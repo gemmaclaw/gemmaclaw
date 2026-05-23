@@ -1,10 +1,13 @@
 export const EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID =
   "external_delivery_receipt_verification" as const;
+export const COMMITMENT_FOLLOWTHROUGH_LOOP_ID = "commitment_followthrough_loop" as const;
 
 export const GEMMACLAW_INSTRUCTIONS_CONTEXT_PATH = "gemmaclaw_instructions.ts";
 export const GEMMACLAW_ENHANCEMENT_SELECTION_FILENAME = ".gemmaclaw-enhancements.json";
 
-export type GemmaclawEnhancementId = typeof EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID;
+export type GemmaclawEnhancementId =
+  | typeof EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID
+  | typeof COMMITMENT_FOLLOWTHROUGH_LOOP_ID;
 
 export interface GemmaclawEnhancement {
   id: GemmaclawEnhancementId;
@@ -36,6 +39,28 @@ export const GEMMACLAW_ENHANCEMENTS: readonly GemmaclawEnhancement[] = [
       "- Creating a local artifact, writing a script, scheduling a command, or seeing a tool intent is not delivery proof.",
       "- If the receipt is missing, ambiguous, or failed, say the delivery is unverified, keep investigating, and do not tell the user it was sent.",
       "- For scheduled jobs, verify the active scheduler location and the next run or trigger proof, not just a copied config file in the workspace.",
+    ].join("\n"),
+  },
+  {
+    id: COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
+    title: "Commitment follow-through loop",
+    category: "prompt",
+    defaultEnabled: true,
+    description:
+      "Require agents to finish promised work inline or create and verify a durable Gemmaclaw-native follow-up before saying they are working on it.",
+    docsPath: "docs/gemmaclaw/enhancements.md",
+    benchmarkIds: ["commitment_followthrough_verification"],
+    instructionMarkdown: [
+      "### Commitment follow-through loop",
+      "",
+      "- Enhancement id: `commitment_followthrough_loop`",
+      "- Guarded by benchmark: `commitment_followthrough_verification`",
+      "- Do not say you are `on it`, `will fix it`, `will get it sorted`, `will follow up`, or equivalent unless you either finish the work inline in the current turn and verify the result before replying, or create and verify a durable Gemmaclaw-native follow-up that can resume without the user repeating the request.",
+      "- Gemmaclaw-native follow-up means a local scheduler entry, local task/todo/work record, or Gemmaclaw subagent/session mechanism available in this runtime. Do not assume external ACP workers, private operator queues, or installation-specific infrastructure exists unless this installation explicitly provides it.",
+      "- A durable follow-up record must include the title, reason, exact next action, owner/runtime, wake time or subagent/session id, verification command or artifact, and creation timestamp.",
+      "- After making a commitment, reply only after the work is complete or after the durable follow-up has been read back and verified. The reply must say what was completed, or where and when the local follow-up will resume.",
+      "- If scheduler, tool, filesystem, or subagent access fails, say the work is blocked with the exact evidence and keep the claim truthful. Do not imply background work is underway when no verified follow-up exists.",
+      "- For scheduler repair, inspect active scheduler surfaces before saying a job exists or is fixed: Gemmaclaw/OpenClaw cron config, host crontab or systemd timers when accessible, and the relevant execution logs.",
     ].join("\n"),
   },
 ];

@@ -406,6 +406,9 @@ describe("benchmark backend resolution", () => {
     expect(fs.readFileSync(path.join(dir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
       "external_delivery_receipt_verification",
     );
+    expect(fs.readFileSync(path.join(dir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+      "commitment_followthrough_loop",
+    );
   });
 
   it("can disable Gemmaclaw benchmark enhancements deterministically", () => {

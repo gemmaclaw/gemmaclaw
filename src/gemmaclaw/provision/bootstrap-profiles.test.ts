@@ -59,8 +59,10 @@ describe("bootstrap-profiles", () => {
       expect(written).not.toContain("## Self-Awareness");
       expect(written).not.toContain("https://github.com/gemmaclaw/gemmaclaw");
       expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(written).not.toContain("commitment_followthrough_loop");
       const selection = fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8");
       expect(selection).toContain("external_delivery_receipt_verification");
+      expect(selection).toContain("commitment_followthrough_loop");
     });
 
     it("writes both AGENTS.md and TOOLS.md for the coding profile", () => {
@@ -74,8 +76,12 @@ describe("bootstrap-profiles", () => {
       expect(written).not.toContain("## Self-Awareness");
       expect(written).not.toContain("https://github.com/gemmaclaw/gemmaclaw");
       expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(written).not.toContain("commitment_followthrough_loop");
       expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
         "external_delivery_receipt_verification",
+      );
+      expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+        "commitment_followthrough_loop",
       );
     });
 
@@ -114,8 +120,12 @@ describe("bootstrap-profiles", () => {
       expect(result.written).toContain("AGENTS.md");
       const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
       expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(written).not.toContain("commitment_followthrough_loop");
       expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
         "external_delivery_receipt_verification",
+      );
+      expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
+        "commitment_followthrough_loop",
       );
       expect(written).toContain("## Docker Sandbox Environment");
       expect(written).toContain("/workspace/shared");
@@ -128,6 +138,7 @@ describe("bootstrap-profiles", () => {
       const written = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
       expect(written).not.toContain("## Gemmaclaw Instructions");
       expect(written).not.toContain("external_delivery_receipt_verification");
+      expect(written).not.toContain("commitment_followthrough_loop");
       expect(written).toContain("You are a helpful Gemma-powered assistant");
       expect(fs.readFileSync(path.join(tmpDir, ".gemmaclaw-enhancements.json"), "utf-8")).toContain(
         '"enhancements": []',
