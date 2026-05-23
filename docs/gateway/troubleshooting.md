@@ -55,9 +55,46 @@ Fix options:
 
 Related:
 
-- [/providers/anthropic](/providers/anthropic)
-- [/reference/token-use](/reference/token-use)
-- [/help/faq#why-am-i-seeing-http-429-ratelimiterror-from-anthropic](/help/faq#why-am-i-seeing-http-429-ratelimiterror-from-anthropic)
+- [Anthropic](/providers/anthropic)
+- [Token use and costs](/reference/token-use)
+- [Why am I seeing HTTP 429 from Anthropic?](/help/faq#why-am-i-seeing-http-429-ratelimiterror-from-anthropic)
+
+## Upstream 403 blocked responses
+
+Use this when an upstream LLM provider returns a generic `403` such as
+`Your request was blocked`.
+
+Do not assume this is always an OpenClaw configuration issue. The response can
+come from an upstream security layer such as a CDN, WAF, bot-management rule, or
+reverse proxy in front of an OpenAI-compatible endpoint.
+
+```bash
+openclaw status
+openclaw gateway status
+openclaw logs --follow
+```
+
+Look for:
+
+- multiple models under the same provider failing in the same way
+- HTML or generic security text instead of a normal provider API error
+- provider-side security events for the same request time
+- a tiny direct `curl` probe succeeding while normal SDK-shaped requests fail
+
+Fix the provider-side filtering first when the evidence points to a WAF/CDN
+block. Prefer a narrowly scoped allow or skip rule for the API path OpenClaw
+uses, and avoid disabling protection for the whole site.
+
+<Warning>
+A successful minimal `curl` does not guarantee that real SDK-style requests will
+pass through the same upstream security layer.
+</Warning>
+
+Related:
+
+- [OpenAI-compatible endpoints](/gateway/configuration-reference#openai-compatible-endpoints)
+- [Provider configuration](/providers)
+- [Logs](/logging)
 
 ## Local OpenAI-compatible backend passes direct probes but agent runs fail
 
