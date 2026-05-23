@@ -58,6 +58,8 @@ import {
   type AgentBenchmarkTask,
 } from "./agent-tasks.js";
 
+const DEFAULT_AGENT_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS = 45 * 60 * 1000;
+
 function parseArgs(argv: string[]) {
   const args = argv.slice(2);
   const opts: Record<string, string | boolean> = {};
@@ -186,6 +188,19 @@ export function resolveAgentBenchmarkTasks(
     return ALL_AGENT_BENCHMARK_TASKS;
   }
   throw new Error(`Unsupported agent benchmark suite: ${opts.suite}`);
+}
+
+export function resolveAgentBenchmarkDockerBuildTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.GEMMACLAW_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS?.trim();
+  if (!raw) {
+    return DEFAULT_AGENT_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_AGENT_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS;
 }
 
 function buildAgentBenchmarkConfig(
@@ -331,10 +346,12 @@ async function runAgentModeInDocker(opts: Record<string, string | boolean>): Pro
   console.log(`Tasks:  ${selectedTaskIds.length}`);
   console.log("");
 
+  const dockerBuildTimeoutMs = resolveAgentBenchmarkDockerBuildTimeoutMs();
+  console.log(`Docker build timeout: ${Math.round(dockerBuildTimeoutMs / 1000)}s`);
   execSync(`docker build -f Dockerfile.benchmark -t ${AGENT_BENCHMARK_DOCKER_IMAGE} .`, {
     cwd: repoRoot,
     stdio: "inherit",
-    timeout: 900_000,
+    timeout: dockerBuildTimeoutMs,
   });
 
   for (let index = 0; index < selectedTaskIds.length; index++) {

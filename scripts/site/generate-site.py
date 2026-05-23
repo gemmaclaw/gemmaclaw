@@ -3443,7 +3443,7 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-en
 
       <h3>How enhancements are registered</h3>
       <p>The registry lives in <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a>. Each enhancement has a stable id, title, category, description, docs path, default state, and generated instruction text. The prompt body for each enhancement lives in its own file under <a href="https://github.com/gemmaclaw/gemmaclaw/tree/main/src/gemmaclaw/enhancements"><code>src/gemmaclaw/enhancements/</code></a>, so each behavior can be referenced directly. Setup selection is persisted by the provisioning flow, and runtime bootstrap renders the selected sections into the generated <code>gemmaclaw_instructions.ts</code> context.</p>
-      <p>Injected prompt files stay intentionally concise for local-model contexts. The richer explanation lives here: diagrams, example conversations, benchmark links, and share-ready summaries.</p>
+      <p>Injected prompt files stay intentionally concise for local-model contexts. The richer explanation lives here: diagrams, example conversations, and benchmark links.</p>
       <div class="table-wrap"><table>
         <tr><th>Surface</th><th>Location</th><th>Purpose</th></tr>
         <tr><td>Registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td><td>Defines ids, docs, default state, and generated instruction text.</td></tr>
@@ -3483,8 +3483,6 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-en
         <p><strong>Before:</strong> "Done, I scheduled it and sent the clip." Problem: only <code>latest-audio.mp3</code> and a copied scheduler file exist. No active scheduler proof, no Telegram receipt.</p>
         <p><strong>After:</strong> "The audio file is ready, but delivery is not verified yet. I found the active scheduler and triggered the mock send, but the receipt is missing a <code>message_id</code>, so I am not going to claim it was sent."</p>
       </div>
-      <h4>Share-ready summary</h4>
-      <div class="code-block"><pre><code>Gemmaclaw enhancement idea: teach Gemma agents that "I wrote the file" is not the same as "the user received it." The benchmark gives the agent a realistic scheduled media task where a local artifact and scheduler config can look convincing, but the only thing that counts is the real provider or mock receipt. This turns a common agent failure into a measurable behavior: no receipt, no delivery claim.</code></pre></div>
       <div class="table-wrap"><table>
         <tr><th>Item</th><th>Value</th></tr>
         <tr><td>Enhancement id</td><td><code>external_delivery_receipt_verification</code></td></tr>
@@ -3518,12 +3516,10 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-en
         <p><strong>Before:</strong> "I'm on it, I'll get it sorted." Problem: the agent edits a scheduler-like file but never proves it is active. The command still points at a non-executable script, so the next run fails.</p>
         <p><strong>After:</strong> "I found the active scheduler, changed the command to use <code>bash scripts/send_daily_status.sh</code>, ran a safe invocation check, re-read the scheduler state, and wrote the repair loop with QA evidence. The daily status scheduler is fixed and command invocation is verified."</p>
       </div>
-      <h4>Share-ready summary</h4>
-      <div class="code-block"><pre><code>Gemmaclaw enhancement idea: stop rewarding agents for "promise language." The benchmark creates a realistic missed-cron incident where saying "I'm on it" is easy, but passing requires either finishing the repair with evidence or creating a local work loop that can actually resume. It also catches a subtle scheduler bug: a job can exist and still fail because the target command cannot run. This makes follow-through measurable instead of vibes-based.</code></pre></div>
       <div class="table-wrap"><table>
         <tr><th>Item</th><th>Value</th></tr>
         <tr><td>Enhancement id</td><td><code>commitment_followthrough_loop</code></td></tr>
-        <tr><td>Benchmark guard</td><td><code>commitment_followthrough_verification</code></td></tr>
+        <tr><td>Benchmark guard</td><td><code>commitment_followthrough_verification</code>, <code>long_horizon_20_step_followthrough</code></td></tr>
         <tr><td>Prompt registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td></tr>
         <tr><td>Prompt source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/enhancements/commitment_followthrough_loop.ts"><code>src/gemmaclaw/enhancements/commitment_followthrough_loop.ts</code></a></td></tr>
         <tr><td>Benchmark task</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/benchmark/agent-tasks.ts"><code>src/gemmaclaw/benchmark/agent-tasks.ts</code></a></td></tr>

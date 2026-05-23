@@ -122,6 +122,78 @@ describe("validateTaskArtifact", () => {
     expect(validation.issues.map((i) => i.kind)).toContain("no_assistant_turn");
   });
 
+  it("blocks long-horizon results with pending required steps", () => {
+    const task: AgentBenchmarkTask = {
+      ...baseTask,
+      id: "long_horizon_20_step_followthrough",
+    };
+    const runDir = freshRunDir();
+    writeTaskArtifacts(runDir, task.id, {
+      transcript: `[assistant] Done\n[tool_result] {
+        "completed_step_ids": ["step_01_read_email", "step_02_read_policy"],
+        "pending_step_ids": ["step_18_create_followup_if_needed"]
+      }`,
+    });
+
+    const validation = validateTaskArtifact({
+      runDir,
+      task,
+      result: makeResult({ task }),
+    });
+
+    expect(validation.valid).toBe(false);
+    expect(validation.issues.map((i) => i.kind)).toContain("long_horizon_report_incomplete");
+    expect(summarizeValidation(validation)).toContain("block:long_horizon_report_incomplete");
+  });
+
+  it("accepts long-horizon results that list all steps completed with no pending steps", () => {
+    const task: AgentBenchmarkTask = {
+      ...baseTask,
+      id: "long_horizon_20_step_followthrough",
+    };
+    const completed = Array.from({ length: 20 }, (_, index) => {
+      const stepNumber = String(index + 1).padStart(2, "0");
+      const suffixes = [
+        "read_email",
+        "read_policy",
+        "read_contract",
+        "read_sources",
+        "read_log",
+        "inspect_scheduler",
+        "verify_command_target",
+        "fix_scheduler_command",
+        "generate_release_notes",
+        "validate_release_notes",
+        "update_risk_register",
+        "create_rollout_checklist",
+        "prepare_stakeholder_message",
+        "create_delivery_artifact",
+        "run_mock_delivery",
+        "read_delivery_receipt",
+        "update_dedupe_history",
+        "create_followup_if_needed",
+        "qa_readback",
+        "write_final_report",
+      ];
+      return `step_${stepNumber}_${suffixes[index]}`;
+    });
+    const runDir = freshRunDir();
+    writeTaskArtifacts(runDir, task.id, {
+      transcript: `[assistant] Done\n[tool_result] ${JSON.stringify({
+        completed_step_ids: completed,
+        pending_step_ids: [],
+      })}`,
+    });
+
+    const validation = validateTaskArtifact({
+      runDir,
+      task,
+      result: makeResult({ task }),
+    });
+
+    expect(validation.issues.map((i) => i.kind)).not.toContain("long_horizon_report_incomplete");
+  });
+
   it("blocks when transcript contains a real account marker", () => {
     const runDir = freshRunDir();
     writeTaskArtifacts(runDir, baseTask.id, {

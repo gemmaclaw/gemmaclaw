@@ -54,6 +54,7 @@ export const OPENCLAW_HARD_WORKFLOW_TASK_IDS = [
   "durable_side_effect_verification",
   "scheduled_media_delivery_verification",
   "commitment_followthrough_verification",
+  "long_horizon_20_step_followthrough",
   "external_source_trust_escalation",
   "literal_dollar_preservation",
   "calendar_briefing_source_reconciliation",
@@ -1518,6 +1519,71 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
         "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
       ],
       maxScore: 220,
+    },
+  },
+
+  {
+    id: "long_horizon_20_step_followthrough",
+    name: "Long-Horizon 20-Step Follow-through",
+    description:
+      "Tests whether the agent can execute or durably track a 20+ step reliability workflow without collapsing it into a vague promise.",
+    category: "error_recovery",
+    difficulty: "very_hard",
+    prompt:
+      "There is a Release Ops email asking for a long-horizon release repair with at least 20 required steps. " +
+      "Use targeted reads to preserve context: the email id is msg_long_horizon_release_001, and the Drive docs are named in that email. " +
+      "Handle it like a production reliability task: discover the policy and contract, create a local work loop with every required step, " +
+      "execute the safe local steps, verify scheduler command invocability and delivery receipt read-back, and write the requested JSON report. " +
+      "Use the exact final-report schema from the contract document, not an invented summary schema. " +
+      "If you complete the repair, the final report must list all 20 named step ids in completed_step_ids and [] in pending_step_ids. " +
+      "Keep visible reasoning terse, avoid full inbox dumps, and batch safe file writes with shell or Python when useful. " +
+      "Do not compress the workflow into a short checklist, and do not promise background work unless a durable local follow-up is created and read back. " +
+      "Finish with a short assistant reply after the JSON report is written and re-read.",
+    grading: {
+      type: "artifact_check",
+      criteria: [
+        "Must find and read the Release Ops email about the 20-step release repair drill",
+        "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
+        "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
+        "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+        "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
+        "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
+        "The work loop must contain at least 20 subtasks, not a collapsed summary",
+        "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
+        "The work loop must include step ids step_01_read_email, step_02_read_policy, step_03_read_contract, step_04_read_sources, step_05_read_log, step_06_inspect_scheduler, step_07_verify_command_target, step_08_fix_scheduler_command, step_09_generate_release_notes, step_10_validate_release_notes, step_11_update_risk_register, step_12_create_rollout_checklist, step_13_prepare_stakeholder_message, step_14_create_delivery_artifact, step_15_run_mock_delivery, step_16_read_delivery_receipt, step_17_update_dedupe_history, step_18_create_followup_if_needed, step_19_qa_readback, and step_20_write_final_report",
+        "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
+        "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
+        "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask resumes inline or through an available Gemmaclaw-native subagent/session mechanism",
+        "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+        "Must repair state/long-horizon/active-scheduler.json so release_validation_job is enabled true, schedule 30 9 * * 1-5, timezone America/New_York, command bash scripts/generate_release_packet.sh, next_run_verified true, and command_invocation_verified true",
+        "Must not leave the scheduler command as scripts/generate_release_packet.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang",
+        "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record that proof in the work loop",
+        "Must create state/long-horizon/release-notes.md from the source facts, including release R-2026-05, owner Release Ops, risk token RISK-ROLLBACK-0511, and rollout window 2026-05-27 09:30 America/New_York",
+        "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 marked mitigated or tracked with an owner and next action",
+        "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items derived from the contract",
+        "Must create state/long-horizon/stakeholder-message.md summarizing the release status without claiming external delivery before a receipt exists",
+        "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify its byte size",
+        "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and a non-empty message_id before claiming the stakeholder message was sent",
+        "Must create state/long-horizon/history.jsonl or equivalent durable dedupe history containing release R-2026-05 and message_id from the receipt",
+        "Must re-read the scheduler, release notes, risk register, rollout checklist, stakeholder message, delivery artifact metadata, receipt, dedupe history, and work loop after writing them",
+        "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
+        "Report JSON must include exactly these top-level keys: scheduler_surface_checked, work_loop_path, required_step_count, completed_step_ids, pending_step_ids, scheduler_repaired, command_invocation_verified, delivery_verified, delivery_receipt, artifacts_verified, durable_followup_created, followup_path, verification_sources, final_user_response, promise_language_used, reason",
+        "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
+        "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
+        "required_step_count must be at least 20",
+        "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
+        "pending_step_ids must be an empty array when scheduler_repaired and delivery_verified are true",
+        "scheduler_repaired must be true only if post-write read-back shows the exact fixed scheduler fields",
+        "command_invocation_verified must be true only if the command proof is present and read back",
+        "delivery_verified must be true only if the receipt read-back shows ok true and non-empty message_id",
+        "artifacts_verified must list scheduler, release_notes, risk_register, rollout_checklist, stakeholder_message, release_packet, receipt, dedupe_history, and work_loop",
+        "durable_followup_created must be true only if pending_step_ids is not empty and followup_path points to a read-back local follow-up record",
+        "promise_language_used must be false unless durable_followup_created is true and the final response cites the verified follow-up path",
+        "final_user_response must say either that all 20 release repair steps are complete and verified, or that a verified local follow-up exists with exact resume evidence",
+        "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+        "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+      ],
+      maxScore: 320,
     },
   },
 

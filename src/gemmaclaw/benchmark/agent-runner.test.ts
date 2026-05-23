@@ -418,6 +418,28 @@ describe("benchmark backend resolution", () => {
     });
   });
 
+  it("seeds a long-horizon 20-step scheduler fixture", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-workspace-context-"));
+
+    writeBenchmarkWorkspaceFiles(dir, false, undefined, "long_horizon_20_step_followthrough");
+
+    const scriptPath = path.join(dir, "scripts/generate_release_packet.sh");
+    const sendScriptPath = path.join(dir, "scripts/mock_long_horizon_send.py");
+    const activeSchedulerPath = path.join(dir, "state/long-horizon/active-scheduler.json");
+    const mode = fs.statSync(scriptPath).mode & 0o777;
+    const activeScheduler = JSON.parse(fs.readFileSync(activeSchedulerPath, "utf-8"));
+
+    expect(fs.readFileSync(scriptPath, "utf-8")).toContain("R-2026-05");
+    expect(mode).toBe(0o644);
+    expect(fs.readFileSync(sendScriptPath, "utf-8")).toContain("mock-send-receipt.json");
+    expect(activeScheduler.jobs[0]).toMatchObject({
+      id: "release_validation_job",
+      command: "scripts/generate_release_packet.sh",
+      enabled: false,
+      command_invocation_verified: false,
+    });
+  });
+
   it("can enable default Gemmaclaw benchmark enhancements explicitly", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-workspace-context-"));
 
