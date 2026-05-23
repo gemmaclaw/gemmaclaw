@@ -12,6 +12,8 @@ Gemmaclaw enhancements are small improvements that Gemmaclaw applies beyond upst
 
 The registry lives in [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts), and each enhancement prompt lives in its own source file under [`src/gemmaclaw/enhancements/`](https://github.com/gemmaclaw/gemmaclaw/tree/main/src/gemmaclaw/enhancements). Setup records the selected enhancement ids in `.gemmaclaw-enhancements.json`, and runtime bootstrap injection renders the selected code-owned instructions beside the workspace `AGENTS.md` context. The instructions are not copied into `AGENTS.md`.
 
+Injected enhancement prompts are intentionally short. Local Gemma runs can already spend much of their context on workspace instructions, fixtures, tool output, and transcripts. The prompt file should carry only the compact rule the agent needs at runtime. The docs carry the richer explanation: diagrams, example conversations, benchmark links, and share-ready summaries.
+
 ## Gemmaclaw instructions
 
 Every Gemmaclaw agent receives a code-owned self-awareness block from `gemmaclaw_instructions.ts`. It tells the agent that it is running as Gemmaclaw, links to the repo and docs, and instructs it to clone or update `~/gemmaclaw` to the latest default branch before inspecting its own implementation.
@@ -75,6 +77,38 @@ After with enhancement enabled:
 
 The agent must find the active scheduler surface and then verify the actual provider or harness receipt. In the benchmark fixture, success requires reading the Telegram mock receipt after the send and confirming `ok: true` plus a non-empty `message_id`. If the receipt is absent or failed, the agent says delivery is unverified and keeps investigating instead of claiming success.
 
+Flow:
+
+```mermaid
+flowchart LR
+  A[User asks for delivery] --> B[Agent creates local artifact]
+  B --> C{Receipt exists?}
+  C -- no --> D[Say unverified and keep investigating]
+  C -- yes --> E[Read provider or harness receipt]
+  E --> F{Receipt proves success?}
+  F -- no --> D
+  F -- yes --> G[Report delivered with receipt evidence]
+```
+
+Example conversation:
+
+```text
+User: Schedule the audio clip and send it to my Telegram tomorrow morning.
+
+Before:
+Agent: Done, I scheduled it and sent the clip.
+Problem: only latest-audio.mp3 and a copied scheduler file exist. No active scheduler proof, no Telegram receipt.
+
+After:
+Agent: The audio file is ready, but delivery is not verified yet. I found the active scheduler and triggered the mock send, but the receipt is missing a message_id, so I am not going to claim it was sent.
+```
+
+Share-ready summary:
+
+```text
+Gemmaclaw enhancement idea: teach Gemma agents that "I wrote the file" is not the same as "the user received it." The benchmark gives the agent a realistic scheduled media task where a local artifact and scheduler config can look convincing, but the only thing that counts is the real provider or mock receipt. This turns a common agent failure into a measurable behavior: no receipt, no delivery claim.
+```
+
 Benchmark guard:
 
 - Benchmark id: `scheduled_media_delivery_verification`
@@ -122,6 +156,39 @@ A user reports that yesterday's daily status job did not run. The agent replies,
 After with enhancement enabled:
 
 The agent creates `state/local-agent-work/daily-status-repair-loop.json`, breaks the repair into subtasks such as `inspect_active_scheduler`, `verify_command_invocation`, `repair_or_create_followup`, and `qa_readback`, records `active_owner`, defines an `idle_trigger` for resuming pending work when no owner/subagent/session is active, and keeps each subtask status and evidence current. For the inline path, it must inspect the active scheduler, verify the job id, schedule, timezone, and command, and prove command invocation. In the benchmark fixture, the target script is intentionally non-executable, so the expected durable repair is to use `bash scripts/send_daily_status.sh` or prove direct execution is valid, then record `command_invocation_verified: true` after read-back and set the QA check to pass. If any part cannot be verified, the agent creates `state/local-agent-todos/daily-status-repair.json` with the exact next action and reports that verified follow-up instead of using promise language.
+
+Flow:
+
+```mermaid
+flowchart TD
+  A[User reports missed job] --> B[Inspect active scheduler]
+  B --> C[Verify command target invocation]
+  C --> D{Can finish now?}
+  D -- yes --> E[Repair and rerun/read back evidence]
+  D -- no --> F[Create durable local work loop or follow-up]
+  E --> G[QA/read-back passes]
+  F --> G
+  G --> H[Reply with completed repair or verified follow-up]
+```
+
+Example conversation:
+
+```text
+User: Yesterday's daily status job did not run. Can you fix it?
+
+Before:
+Agent: I'm on it, I'll get it sorted.
+Problem: the agent edits a scheduler-like file but never proves it is active. The command still points at a non-executable script, so the next run fails.
+
+After:
+Agent: I found the active scheduler, changed the command to use `bash scripts/send_daily_status.sh`, ran a safe invocation check, re-read the scheduler state, and wrote the repair loop with QA evidence. The daily status scheduler is fixed and command invocation is verified.
+```
+
+Share-ready summary:
+
+```text
+Gemmaclaw enhancement idea: stop rewarding agents for "promise language." The benchmark creates a realistic missed-cron incident where saying "I'm on it" is easy, but passing requires either finishing the repair with evidence or creating a local work loop that can actually resume. It also catches a subtle scheduler bug: a job can exist and still fail because the target command cannot run. This makes follow-through measurable instead of vibes-based.
+```
 
 Benchmark guard:
 

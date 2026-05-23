@@ -152,7 +152,7 @@ if [ -f "$ENHANCEMENTS_HTML" ]; then
     echo "FAIL: Registered enhancements contents section missing"
     FAILURES=$((FAILURES + 1))
   fi
-  for phrase in "Defect pattern" "Before:" "After:"; do
+  for phrase in "Defect pattern" "Before:" "After:" "Share-ready summary" "Example conversation" "enhancement-flow"; do
     if grep -q "$phrase" "$ENHANCEMENTS_HTML"; then
       echo "PASS: Enhancement example phrase present: $phrase"
     else
