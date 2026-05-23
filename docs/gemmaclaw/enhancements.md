@@ -12,7 +12,7 @@ Gemmaclaw enhancements are small improvements that Gemmaclaw applies beyond upst
 
 The registry lives in [`src/gemmaclaw/gemmaclaw_instructions.ts`](https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts), and each enhancement prompt lives in its own source file under [`src/gemmaclaw/enhancements/`](https://github.com/gemmaclaw/gemmaclaw/tree/main/src/gemmaclaw/enhancements). Setup records the selected enhancement ids in `.gemmaclaw-enhancements.json`, and runtime bootstrap injection renders the selected code-owned instructions beside the workspace `AGENTS.md` context. The instructions are not copied into `AGENTS.md`.
 
-Injected enhancement prompts are intentionally short. Local Gemma runs can already spend much of their context on workspace instructions, fixtures, tool output, and transcripts. The prompt file should carry only the compact rule the agent needs at runtime. The docs carry the richer explanation: diagrams, example conversations, benchmark links, and share-ready summaries.
+Injected enhancement prompts are intentionally short. Local Gemma runs can already spend much of their context on workspace instructions, fixtures, tool output, and transcripts. The prompt file should carry only the compact rule the agent needs at runtime. The docs carry the richer explanation: diagrams, example conversations, and benchmark links.
 
 ## Gemmaclaw instructions
 
@@ -103,12 +103,6 @@ After:
 Agent: The audio file is ready, but delivery is not verified yet. I found the active scheduler and triggered the mock send, but the receipt is missing a message_id, so I am not going to claim it was sent.
 ```
 
-Share-ready summary:
-
-```text
-Gemmaclaw enhancement idea: teach Gemma agents that "I wrote the file" is not the same as "the user received it." The benchmark gives the agent a realistic scheduled media task where a local artifact and scheduler config can look convincing, but the only thing that counts is the real provider or mock receipt. This turns a common agent failure into a measurable behavior: no receipt, no delivery claim.
-```
-
 Benchmark guard:
 
 - Benchmark id: `scheduled_media_delivery_verification`
@@ -182,12 +176,6 @@ Problem: the agent edits a scheduler-like file but never proves it is active. Th
 
 After:
 Agent: I found the active scheduler, changed the command to use `bash scripts/send_daily_status.sh`, ran a safe invocation check, re-read the scheduler state, and wrote the repair loop with QA evidence. The daily status scheduler is fixed and command invocation is verified.
-```
-
-Share-ready summary:
-
-```text
-Gemmaclaw enhancement idea: stop rewarding agents for "promise language." The benchmark creates a realistic missed-cron incident where saying "I'm on it" is easy, but passing requires either finishing the repair with evidence or creating a local work loop that can actually resume. It also catches a subtle scheduler bug: a job can exist and still fail because the target command cannot run. This makes follow-through measurable instead of vibes-based.
 ```
 
 Benchmark guard:
