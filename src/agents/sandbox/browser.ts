@@ -45,6 +45,7 @@ import { isToolAllowed } from "./tool-policy.js";
 import type { SandboxBrowserContext, SandboxConfig } from "./types.js";
 import { validateNetworkMode } from "./validate-sandbox-security.js";
 import {
+  appendReadOnlyWorkspaceSkillMountArgs,
   appendWorkspaceMountArgs,
   formatReadOnlyWorkspaceSkillMountHashState,
   resolveReadOnlyWorkspaceSkillMounts,
@@ -302,12 +303,17 @@ export async function ensureSandboxBrowser(params: {
       workdir: params.cfg.docker.workdir,
       workspaceAccess: params.cfg.workspaceAccess,
       readOnlyWorkspaceSkillMounts,
+      includeReadOnlyWorkspaceSkillMounts: false,
     });
     if (browserDockerCfg.binds?.length) {
       for (const bind of browserDockerCfg.binds) {
         args.push("-v", bind);
       }
     }
+    appendReadOnlyWorkspaceSkillMountArgs({
+      args,
+      readOnlyWorkspaceSkillMounts,
+    });
     args.push("-p", `127.0.0.1::${params.cfg.browser.cdpPort}`);
     if (noVncEnabled) {
       args.push("-p", `127.0.0.1::${params.cfg.browser.noVncPort}`);
