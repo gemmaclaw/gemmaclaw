@@ -260,6 +260,15 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     expect(taskText).toContain("daily-status-scheduler-contract.md");
     expect(taskText).toContain("memory/commitment-followthrough-report.json");
     expect(taskText).toContain("Gemmaclaw-native follow-up");
+    expect(taskText).toContain("state/local-agent-work/daily-status-repair-loop.json");
+    expect(taskText).toContain("inspect_active_scheduler");
+    expect(taskText).toContain("qa_check.status pass");
+    expect(taskText).toContain("idle_trigger");
+    expect(taskText).toContain("active_owner");
+    expect(taskText).toContain("no active owner/subagent/session");
+    expect(taskText).toContain("command_invocation_verified");
+    expect(taskText).toContain("bash scripts/send_daily_status.sh");
+    expect(taskText).toContain("executable by the scheduled runtime");
     expect(taskText).toContain("promise_language_used");
     expect(taskText).toContain("Must not mention external ACP workers");
     expect(taskText).toContain("Must not rely on .openclaw/cron/jobs.json");

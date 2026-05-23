@@ -381,7 +381,7 @@ describe("benchmark backend resolution", () => {
   it("writes neutral benchmark workspace context files", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-workspace-context-"));
 
-    writeBenchmarkWorkspaceFiles(dir);
+    writeBenchmarkWorkspaceFiles(dir, false, undefined, "commitment_followthrough_verification");
 
     expect(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf-8")).toContain(
       "isolated benchmark workspace",
@@ -396,6 +396,26 @@ describe("benchmark backend resolution", () => {
       enhancements: [],
     });
     expect(fs.existsSync(path.join(dir, "memory"))).toBe(true);
+  });
+
+  it("seeds a concrete scheduler command permission fixture", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-workspace-context-"));
+
+    writeBenchmarkWorkspaceFiles(dir, false, undefined, "commitment_followthrough_verification");
+
+    const scriptPath = path.join(dir, "scripts/send_daily_status.sh");
+    const activeJobsPath = path.join(dir, "state/local-agent-scheduler/active-jobs.json");
+    const mode = fs.statSync(scriptPath).mode & 0o777;
+    const activeJobs = JSON.parse(fs.readFileSync(activeJobsPath, "utf-8"));
+
+    expect(fs.readFileSync(scriptPath, "utf-8")).toContain("#!/usr/bin/env bash");
+    expect(mode).toBe(0o644);
+    expect(activeJobs.jobs[0]).toMatchObject({
+      id: "daily_status_job",
+      command: "scripts/send_daily_status.sh",
+      enabled: false,
+      command_invocation_verified: false,
+    });
   });
 
   it("can enable default Gemmaclaw benchmark enhancements explicitly", () => {

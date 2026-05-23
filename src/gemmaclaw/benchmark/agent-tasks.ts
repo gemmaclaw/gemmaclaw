@@ -1479,6 +1479,7 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
     prompt:
       "There is a Local Ops email saying yesterday's daily status job did not run. " +
       "Investigate it like a production agent reliability issue: inspect the active scheduler contract, identify the real active scheduler surface, " +
+      "verify that the scheduled command target can actually be invoked by the scheduled runtime, " +
       "repair the job inline if you can verify the fix, or create a durable local follow-up record if any work must continue after the reply. " +
       "Do not tell the requester that you are on it unless the work is already complete or the follow-up has been read back and verified.",
     grading: {
@@ -1489,16 +1490,28 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
         "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
         "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
         "Must detect from the contract and log that daily_status_job is the job being repaired",
-        "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command scripts/send_daily_status.sh, and next_run_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
-        "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, and next_run_verified fields",
+        "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
+        "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
+        "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
+        "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
+        "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+        "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
+        "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
+        "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
+        "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
+        "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
+        "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
         "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
+        "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
         "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
         "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
         "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
-        "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, verification_sources, final_user_response, promise_language_used, reason",
+        "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
         "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
+        "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
         "At least one of active_job_repaired_inline or durable_followup_created must be true",
-        "verification_sources must list post-write read-back evidence for the repaired scheduler or durable follow-up",
+        "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
+        "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
         "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
         "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
         "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",

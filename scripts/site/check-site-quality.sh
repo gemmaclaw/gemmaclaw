@@ -126,6 +126,42 @@ if [ -f "$BENCHMARKS_HTML" ]; then
   fi
 fi
 
+ENHANCEMENTS_HTML="$SITE_DIR/enhancements.html"
+if [ -f "$ENHANCEMENTS_HTML" ]; then
+  echo ""
+  echo "--- Enhancements page checks ---"
+  for enhancement in external_delivery_receipt_verification commitment_followthrough_loop; do
+    if grep -q "href=\"#$enhancement\"" "$ENHANCEMENTS_HTML" && grep -q "id=\"$enhancement\"" "$ENHANCEMENTS_HTML"; then
+      echo "PASS: Enhancement deep link present for $enhancement"
+    else
+      echo "FAIL: Enhancement deep link missing for $enhancement"
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+  for prompt_source in src/gemmaclaw/enhancements/external_delivery_receipt_verification.ts src/gemmaclaw/enhancements/commitment_followthrough_loop.ts; do
+    if grep -q "$prompt_source" "$ENHANCEMENTS_HTML"; then
+      echo "PASS: Enhancement prompt source linked: $prompt_source"
+    else
+      echo "FAIL: Enhancement prompt source missing: $prompt_source"
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+  if grep -q 'id="registered-enhancements"' "$ENHANCEMENTS_HTML"; then
+    echo "PASS: Registered enhancements contents section present"
+  else
+    echo "FAIL: Registered enhancements contents section missing"
+    FAILURES=$((FAILURES + 1))
+  fi
+  for phrase in "Defect pattern" "Before:" "After:"; do
+    if grep -q "$phrase" "$ENHANCEMENTS_HTML"; then
+      echo "PASS: Enhancement example phrase present: $phrase"
+    else
+      echo "FAIL: Enhancement example phrase missing: $phrase"
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+fi
+
 # All pages must have shared nav and brand metadata
 echo ""
 echo "--- Navigation and brand checks ---"

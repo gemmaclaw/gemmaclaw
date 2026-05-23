@@ -3442,37 +3442,52 @@ pnpm benchmark agent --task scheduled_media_delivery_verification --gemmaclaw-en
       </div>
 
       <h3>How enhancements are registered</h3>
-      <p>The registry lives in <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a>. Each enhancement has a stable id, title, category, description, docs path, default state, and generated instruction text. Setup selection is persisted by the provisioning flow, and runtime bootstrap renders the selected sections into the generated <code>gemmaclaw_instructions.ts</code> context.</p>
+      <p>The registry lives in <a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a>. Each enhancement has a stable id, title, category, description, docs path, default state, and generated instruction text. The prompt body for each enhancement lives in its own file under <a href="https://github.com/gemmaclaw/gemmaclaw/tree/main/src/gemmaclaw/enhancements"><code>src/gemmaclaw/enhancements/</code></a>, so each behavior can be referenced directly. Setup selection is persisted by the provisioning flow, and runtime bootstrap renders the selected sections into the generated <code>gemmaclaw_instructions.ts</code> context.</p>
       <div class="table-wrap"><table>
         <tr><th>Surface</th><th>Location</th><th>Purpose</th></tr>
         <tr><td>Registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td><td>Defines ids, docs, default state, and generated instruction text.</td></tr>
+        <tr><td>Prompt files</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/tree/main/src/gemmaclaw/enhancements"><code>src/gemmaclaw/enhancements/</code></a></td><td>Stores one prompt source file per enhancement for direct references and reviews.</td></tr>
         <tr><td>Setup selection</td><td><code>gemmaclaw setup --enhancements</code></td><td>Chooses what normal agents receive and records it in <code>.gemmaclaw-enhancements.json</code>.</td></tr>
         <tr><td>Benchmark selection</td><td><code>pnpm benchmark agent --gemmaclaw-enhancements</code></td><td>Opts benchmarks into enhancements only when intentionally comparing enhanced behavior.</td></tr>
         <tr><td>Setup persistence</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/provision/bootstrap-profiles.ts"><code>src/gemmaclaw/provision/bootstrap-profiles.ts</code></a></td><td>Persists the selected enhancement ids during setup.</td></tr>
         <tr><td>Runtime injection</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/agents/bootstrap-files.ts"><code>src/agents/bootstrap-files.ts</code></a></td><td>Adds generated Gemmaclaw context next to workspace instructions.</td></tr>
       </table></div>
 
-      <h3>external_delivery_receipt_verification</h3>
+      <h3 id="registered-enhancements">Registered enhancements</h3>
+      <p>Every registered enhancement should have a stable deep link, a concrete defect example, and a benchmark or fixture guard.</p>
+      <ul class="setup-list">
+        <li><a href="#external_delivery_receipt_verification"><code>external_delivery_receipt_verification</code></a>: verifies external delivery receipts before claiming messages, media, email, calendar mutations, or scheduled sends completed.</li>
+        <li><a href="#commitment_followthrough_loop"><code>commitment_followthrough_loop</code></a>: prevents empty background-work promises and requires scheduler command invocation proof before claiming repair.</li>
+      </ul>
+
+      <h3 id="external_delivery_receipt_verification">external_delivery_receipt_verification</h3>
       <p>Status: default enabled for normal Gemmaclaw setup. Benchmark default: disabled unless selected explicitly.</p>
       <p>This enhancement tells agents not to claim an external delivery succeeded until they verify the real provider response, send receipt, durable log, or benchmark mock receipt. It covers messages, media files, email, calendar mutations, webhooks, scheduled sends, and similar side effects.</p>
-      <p>The failure class came from a private Gemmaclaw agent overclaiming a scheduled Telegram audio send without proving a Telegram receipt. The generalized Gemmaclaw behavior is receipt verification before claiming a send, not an agent-specific prompt patch.</p>
+      <p><strong>Defect pattern:</strong> an agent produces a local artifact or scheduler config, then claims the user-visible delivery happened even though the provider receipt is missing or failed.</p>
+      <p><strong>Before:</strong> the agent generates <code>latest-audio.mp3</code>, writes a plausible scheduler file, and says the clips were sent. The active scheduler or Telegram/email/webhook receipt is never verified, so the user may see nothing.</p>
+      <p><strong>After:</strong> the agent checks the active scheduler surface and the real provider or harness receipt before claiming delivery. In the benchmark fixture, success requires a Telegram mock receipt with <code>ok: true</code> and a non-empty <code>message_id</code>; otherwise the agent must say delivery is unverified.</p>
       <div class="table-wrap"><table>
         <tr><th>Item</th><th>Value</th></tr>
         <tr><td>Enhancement id</td><td><code>external_delivery_receipt_verification</code></td></tr>
         <tr><td>Benchmark guard</td><td><code>scheduled_media_delivery_verification</code></td></tr>
         <tr><td>Prompt registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td></tr>
+        <tr><td>Prompt source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/enhancements/external_delivery_receipt_verification.ts"><code>src/gemmaclaw/enhancements/external_delivery_receipt_verification.ts</code></a></td></tr>
         <tr><td>Docs source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/docs/gemmaclaw/enhancements.md"><code>docs/gemmaclaw/enhancements.md</code></a></td></tr>
       </table></div>
 
-      <h3>commitment_followthrough_loop</h3>
+      <h3 id="commitment_followthrough_loop">commitment_followthrough_loop</h3>
       <p>Status: default enabled for normal Gemmaclaw setup. Benchmark default: disabled unless selected explicitly.</p>
-      <p>This enhancement tells agents not to say they are "on it", "will fix it", or "will follow up" unless they finish the work inline and verify it before replying, or create and verify a durable Gemmaclaw-native follow-up. Local follow-up mechanisms can include scheduler entries, local work records, or Gemmaclaw subagent/session mechanisms available in that installation.</p>
-      <p>The failure class came from a private Gemmaclaw agent promising to fix a missed scheduled job without repairing the active scheduler or leaving a durable local follow-up. The generalized behavior is completed work or verified local follow-up before the reply.</p>
+      <p>This enhancement tells agents not to say they are "on it", "will fix it", or "will follow up" unless they finish the work inline and verify it before replying, or create and verify a durable Gemmaclaw-native follow-up. Local follow-up mechanisms can include scheduler entries, local work records, or Gemmaclaw subagent/session mechanisms available in that installation. Multi-step commitments also require a local work loop with a plan, subtasks, observable acceptance criteria, evidence, next action, an idle trigger for resuming pending work when no owner/subagent/session is active, and a QA/read-back check.</p>
+      <p>For scheduler repair, the enhancement requires checking both the active scheduler surface and the scheduled command target. Agents must verify file existence, ownership, executable permissions or explicit interpreter use, shebang/interpreter validity, working directory, and environment before claiming the job is fixed.</p>
+      <p><strong>Defect pattern:</strong> an agent promises background repair, then the session ends without a real repair, scheduled wake-up, local task record, or subagent/session continuation. For schedulers, a second defect is claiming success after editing the schedule while the command target remains non-invocable.</p>
+      <p><strong>Before:</strong> the agent replies "I'll get it sorted", edits a cron-like file, and leaves the command as <code>scripts/send_daily_status.sh</code> even though the script is not executable by the scheduled runtime. The next run fails with <code>Permission denied</code>.</p>
+      <p><strong>After:</strong> the agent creates <code>state/local-agent-work/daily-status-repair-loop.json</code>, tracks subtasks such as <code>inspect_active_scheduler</code>, <code>verify_command_invocation</code>, <code>repair_or_create_followup</code>, and <code>qa_readback</code>, records <code>active_owner</code>, defines an <code>idle_trigger</code> for resuming pending work when no owner/subagent/session is active, then either completes and verifies the repair inline or creates and reads back a durable local follow-up before replying. In the benchmark fixture, the target script is intentionally non-executable, so the expected inline repair uses <code>bash scripts/send_daily_status.sh</code> or proves direct execution is valid, then records <code>command_invocation_verified: true</code> and a passing QA check.</p>
       <div class="table-wrap"><table>
         <tr><th>Item</th><th>Value</th></tr>
         <tr><td>Enhancement id</td><td><code>commitment_followthrough_loop</code></td></tr>
         <tr><td>Benchmark guard</td><td><code>commitment_followthrough_verification</code></td></tr>
         <tr><td>Prompt registry</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/gemmaclaw_instructions.ts"><code>src/gemmaclaw/gemmaclaw_instructions.ts</code></a></td></tr>
+        <tr><td>Prompt source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/enhancements/commitment_followthrough_loop.ts"><code>src/gemmaclaw/enhancements/commitment_followthrough_loop.ts</code></a></td></tr>
         <tr><td>Benchmark task</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/src/gemmaclaw/benchmark/agent-tasks.ts"><code>src/gemmaclaw/benchmark/agent-tasks.ts</code></a></td></tr>
         <tr><td>Harness fixture</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/scripts/benchmark/seed-mock-gog.py"><code>scripts/benchmark/seed-mock-gog.py</code></a></td></tr>
         <tr><td>Docs source</td><td><a href="https://github.com/gemmaclaw/gemmaclaw/blob/main/docs/gemmaclaw/enhancements.md"><code>docs/gemmaclaw/enhancements.md</code></a></td></tr>
