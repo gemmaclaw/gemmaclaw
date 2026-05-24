@@ -5,6 +5,7 @@ import type {
 import type {
   AgentEmbeddedHarnessConfig,
   AgentModelConfig,
+  AgentRuntimePolicyConfig,
   AgentSandboxConfig,
 } from "./types.agents-shared.js";
 import type {
@@ -34,6 +35,8 @@ export type AgentModelEntryConfig = {
   params?: Record<string, unknown>;
   /** Enable streaming for this model (default: true, false for Ollama to avoid SDK issue #1205). */
   streaming?: boolean;
+  /** Optional agent runtime policy for this model entry. */
+  agentRuntime?: AgentRuntimePolicyConfig;
 };
 
 export type AgentModelListConfig = {

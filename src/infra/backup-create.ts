@@ -14,6 +14,7 @@ import {
 import { isPathWithin } from "../commands/cleanup-utils.js";
 import { resolveHomeDir, resolveUserPath } from "../utils.js";
 import { resolveRuntimeServiceVersion } from "../version.js";
+import { isVolatileBackupPath } from "./backup-volatile-filter.js";
 
 type TarRuntime = typeof import("tar");
 
@@ -44,6 +45,12 @@ export type BackupCreateOptions = {
   verify?: boolean;
   json?: boolean;
   nowMs?: number;
+  /**
+   * Optional info logger invoked for non-fatal backup events such as tar
+   * retry notices or volatile-file skip counts. When omitted, events are
+   * silent aside from the final result.
+   */
+  log?: (message: string) => void;
 };
 
 type BackupManifestAsset = {
@@ -95,6 +102,76 @@ export type BackupCreateResult = {
     coveredBy?: string;
   }>;
 };
+
+const BACKUP_TAR_MAX_ATTEMPTS = 3;
+// Backoff between attempts: wait 10s before attempt 2, 20s before attempt 3.
+const BACKUP_TAR_BACKOFF_MS = [10_000, 20_000];
+
+function isTarEofRaceError(err: unknown): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code === "EOF") {
+    return true;
+  }
+  const message = (err as Error).message ?? "";
+  return /(did not encounter expected|encountered unexpected) EOF|TAR_BAD_ARCHIVE/i.test(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type BackupTarRetryLogger = (message: string) => void;
+
+async function writeTarArchiveWithRetry(params: {
+  tempArchivePath: string;
+  runTar: () => Promise<void>;
+  log?: BackupTarRetryLogger;
+  sleepMs?: (ms: number) => Promise<void>;
+}): Promise<void> {
+  const sleepFn = params.sleepMs ?? sleep;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= BACKUP_TAR_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await params.runTar();
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (!isTarEofRaceError(err) || attempt === BACKUP_TAR_MAX_ATTEMPTS) {
+        break;
+      }
+      try {
+        await fs.rm(params.tempArchivePath, { force: true });
+      } catch (cleanupErr) {
+        const code = (cleanupErr as NodeJS.ErrnoException).code;
+        if (code && code !== "ENOENT") {
+          params.log?.(
+            `Backup archiver could not remove temp archive ${params.tempArchivePath} between retries: ${code}. Continuing.`,
+          );
+        }
+      }
+      const backoff = BACKUP_TAR_BACKOFF_MS[attempt - 1] ?? 0;
+      const offendingPath = (err as NodeJS.ErrnoException).path;
+      params.log?.(
+        `Backup archiver hit a live-write race${
+          offendingPath ? ` on ${offendingPath}` : ""
+        } (attempt ${attempt}/${BACKUP_TAR_MAX_ATTEMPTS}); retrying in ${Math.round(backoff / 1000)}s.`,
+      );
+      await sleepFn(backoff);
+    }
+  }
+  const final = lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  const offendingPath = (lastErr as NodeJS.ErrnoException | undefined)?.path;
+  const suffix = offendingPath
+    ? ` (last offending path: ${offendingPath}, after ${BACKUP_TAR_MAX_ATTEMPTS} attempts)`
+    : ` (after ${BACKUP_TAR_MAX_ATTEMPTS} attempts)`;
+  throw new Error(`Backup archive write failed: ${final.message}${suffix}`, { cause: final });
+}
+
+export const testApi = { writeTarArchiveWithRetry, isTarEofRaceError };
+export { testApi as __test };
 
 async function resolveOutputPath(params: {
   output?: string;
@@ -285,6 +362,24 @@ export function formatBackupCreateSummary(result: BackupCreateResult): string[] 
     }
   }
   return lines;
+}
+
+function normalizeBackupFilterPath(value: string): string {
+  return value.replaceAll("\\", "/").replace(/\/+$/u, "");
+}
+
+export function buildExtensionsNodeModulesFilter(stateDir: string): (filePath: string) => boolean {
+  const normalizedStateDir = normalizeBackupFilterPath(stateDir);
+  const extensionsPrefix = `${normalizedStateDir}/extensions/`;
+
+  return (filePath: string): boolean => {
+    const normalizedFilePath = normalizeBackupFilterPath(filePath);
+    if (!normalizedFilePath.startsWith(extensionsPrefix)) {
+      return true;
+    }
+
+    return !normalizedFilePath.slice(extensionsPrefix.length).split("/").includes("node_modules");
+  };
 }
 
 function remapArchiveEntryPath(params: {

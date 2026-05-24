@@ -140,7 +140,7 @@ export async function maybeCompactAgentHarnessSession(
   if (params.provider && isCliRuntimeProvider(params.provider)) {
     return undefined;
   }
-  const runtime = resolveConfiguredAgentHarnessPolicy({
+  const runtime = resolveAgentHarnessPolicy({
     provider: params.provider,
     modelId: params.model,
     config: params.config,

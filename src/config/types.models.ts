@@ -1,4 +1,5 @@
 import type { OpenAICompletionsCompat } from "@mariozechner/pi-ai";
+import type { AgentRuntimePolicyConfig } from "./types.agents-shared.js";
 import type { ConfiguredModelProviderRequest } from "./types.provider-request.js";
 import type { SecretInput } from "./types.secrets.js";
 
@@ -102,6 +103,8 @@ export type ModelDefinitionConfig = {
   params?: Record<string, unknown>;
   headers?: Record<string, string>;
   compat?: ModelCompatConfig;
+  /** Optional agent runtime policy for this model definition. */
+  agentRuntime?: AgentRuntimePolicyConfig;
 };
 
 export type ModelProviderLocalServiceConfig = {
@@ -129,6 +132,8 @@ export type ModelProviderConfig = {
   request?: ConfiguredModelProviderRequest;
   models: ModelDefinitionConfig[];
   timeoutSeconds?: number;
+  /** Optional agent runtime policy for this provider. */
+  agentRuntime?: AgentRuntimePolicyConfig;
 };
 
 export type BedrockDiscoveryConfig = {
