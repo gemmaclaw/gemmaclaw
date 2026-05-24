@@ -4,9 +4,12 @@ import type {
   PluginHookGatewayStartEvent,
 } from "../plugins/hook-types.js";
 
+import type { PluginServicesHandle } from "../plugins/services.js";
+import { withEnvAsync } from "../test-utils/env.js";
+
 const hoisted = vi.hoisted(() => {
-  const startPluginServices = vi.fn(async () => null);
-  const startGmailWatcherWithLogs = vi.fn(async () => undefined);
+  const startPluginServices = vi.fn<() => Promise<PluginServicesHandle | null>>(async () => null);
+  const startGmailWatcherWithLogs = vi.fn(async () => {});
   const loadInternalHooks = vi.fn(async () => 0);
   const setInternalHooksEnabled = vi.fn();
   const hasInternalHookListeners = vi.fn(() => false);

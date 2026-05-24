@@ -2,6 +2,7 @@ import type { AgentEmbeddedHarnessConfig } from "../../config/types.agents-share
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { isCliRuntimeAliasForProvider, isCliRuntimeProvider } from "../model-runtime-aliases.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
 import { listAgentEntries, resolveSessionAgentIds } from "../agent-scope.js";
 import type { CompactEmbeddedPiSessionParams } from "../pi-embedded-runner/compact.types.js";
@@ -136,6 +137,18 @@ export async function runAgentHarnessAttemptWithFallback(
 export async function maybeCompactAgentHarnessSession(
   params: CompactEmbeddedPiSessionParams,
 ): Promise<EmbeddedPiCompactResult | undefined> {
+  if (params.provider && isCliRuntimeProvider(params.provider)) {
+    return undefined;
+  }
+  const runtime = resolveConfiguredAgentHarnessPolicy({
+    provider: params.provider,
+    modelId: params.model,
+    config: params.config,
+    sessionKey: params.sessionKey,
+  }).runtime;
+  if (isCliRuntimeAliasForProvider({ runtime, provider: params.provider })) {
+    return undefined;
+  }
   const harness = selectAgentHarness({
     provider: params.provider ?? "",
     modelId: params.model,
