@@ -679,12 +679,14 @@ export async function maybeRecoverSuspiciousConfigRead(params: {
     }),
   );
 
-  healthState = setConfigHealthEntry(
-    healthState,
-    params.configPath,
-    createLastObservedSuspiciousEntry(entry, suspiciousSignature),
-  );
-  await writeConfigHealthState(params.deps, healthState);
+  if (restoredFromBackup) {
+    healthState = setConfigHealthEntry(
+      healthState,
+      params.configPath,
+      createLastObservedSuspiciousEntry(entry, suspiciousSignature),
+    );
+    await writeConfigHealthState(params.deps, healthState);
+  }
   return { raw: backupRaw, parsed: backupParsed };
 }
 
@@ -769,12 +771,14 @@ export function maybeRecoverSuspiciousConfigReadSync(params: {
     }),
   );
 
-  healthState = setConfigHealthEntry(
-    healthState,
-    params.configPath,
-    createLastObservedSuspiciousEntry(entry, suspiciousSignature),
-  );
-  writeConfigHealthStateSync(params.deps, healthState);
+  if (restoredFromBackup) {
+    healthState = setConfigHealthEntry(
+      healthState,
+      params.configPath,
+      createLastObservedSuspiciousEntry(entry, suspiciousSignature),
+    );
+    writeConfigHealthStateSync(params.deps, healthState);
+  }
   return { raw: backupRaw, parsed: backupParsed };
 }
 
