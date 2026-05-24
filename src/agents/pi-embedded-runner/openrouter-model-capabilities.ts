@@ -30,6 +30,7 @@ const log = createSubsystemLogger("openrouter-model-capabilities");
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const FETCH_TIMEOUT_MS = 10_000;
 const DISK_CACHE_FILENAME = "openrouter-models.json";
+const DISK_CACHE_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,6 +48,7 @@ interface OpenRouterApiModel {
   max_completion_tokens?: number;
   max_output_tokens?: number;
   top_provider?: {
+    context_length?: number;
     max_completion_tokens?: number;
   };
   pricing?: {
@@ -61,6 +63,7 @@ export interface OpenRouterModelCapabilities {
   name: string;
   input: Array<"text" | "image">;
   reasoning: boolean;
+  supportsTools?: boolean;
   contextWindow: number;
   maxTokens: number;
   cost: {
@@ -72,6 +75,7 @@ export interface OpenRouterModelCapabilities {
 }
 
 interface DiskCachePayload {
+  version?: number;
   models: Record<string, OpenRouterModelCapabilities>;
 }
 
@@ -94,6 +98,7 @@ function writeDiskCache(map: Map<string, OpenRouterModelCapabilities>): void {
       mkdirSync(cacheDir, { recursive: true });
     }
     const payload: DiskCachePayload = {
+      version: DISK_CACHE_VERSION,
       models: Object.fromEntries(map),
     };
     writeFileSync(resolveDiskCachePath(), JSON.stringify(payload), "utf-8");
@@ -128,7 +133,11 @@ function readDiskCache(): Map<string, OpenRouterModelCapabilities> | undefined {
     if (!payload || typeof payload !== "object") {
       return undefined;
     }
-    const models = (payload as DiskCachePayload).models;
+    const cachePayload = payload as DiskCachePayload;
+    if (cachePayload.version !== DISK_CACHE_VERSION) {
+      return undefined;
+    }
+    const models = cachePayload.models;
     if (!models || typeof models !== "object") {
       return undefined;
     }
@@ -164,7 +173,10 @@ function parseModel(model: OpenRouterApiModel): OpenRouterModelCapabilities {
     name: model.name || model.id,
     input,
     reasoning: model.supported_parameters?.includes("reasoning") ?? false,
-    contextWindow: model.context_length || 128_000,
+    ...(model.supported_parameters
+      ? { supportsTools: model.supported_parameters.includes("tools") }
+      : {}),
+    contextWindow: model.top_provider?.context_length ?? model.context_length ?? 128_000,
     maxTokens:
       model.top_provider?.max_completion_tokens ??
       model.max_completion_tokens ??

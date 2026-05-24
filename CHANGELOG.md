@@ -6,6 +6,14 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+### Fixes
+
+- Models/OpenRouter: use endpoint-specific OpenRouter context limits from `top_provider` metadata so provider-routed models no longer overstate available context. (#85949) Thanks @TurboTheTurtle.
+
+## 2026.5.24
+
+### Changes
+
 - Gateway/perf: reuse process-stable channel catalog reads, avoid repeated bundled-channel boundary checks, and rotate gateway watch CPU profiles so benchmark runs do not accumulate unbounded artifacts.
 - Gateway/perf: reuse immutable plugin metadata snapshots across startup, config, model, channel, setup, and secret metadata readers so hot paths avoid repeated plugin file stats and manifest registry reloads.
 - Gateway/perf: lazy-load startup-idle plugin work, core gateway method handlers, and the embedded ACPX runtime so Gateway health and ready signals no longer wait on unused handler trees or ACPX probes.

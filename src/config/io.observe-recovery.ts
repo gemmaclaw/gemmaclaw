@@ -661,9 +661,15 @@ export async function maybeRecoverSuspiciousConfigRead(params: {
     restoredFromBackup = true;
   } catch {}
 
-  params.deps.logger.warn(
-    `Config auto-restored from backup: ${params.configPath} (${suspicious.join(", ")})`,
-  );
+  if (restoredFromBackup) {
+    params.deps.logger.warn(
+      `Config auto-restored from backup: ${params.configPath} (${suspicious.join(", ")})`,
+    );
+  } else {
+    params.deps.logger.warn(
+      `Config auto-restore from backup failed: ${params.configPath} (${suspicious.join(", ")})`,
+    );
+  }
   await appendConfigAuditRecord(
     createConfigObserveAuditAppendParams(params.deps, {
       ts: now,
@@ -753,9 +759,15 @@ export function maybeRecoverSuspiciousConfigReadSync(params: {
     restoredFromBackup = true;
   } catch {}
 
-  params.deps.logger.warn(
-    `Config auto-restored from backup: ${params.configPath} (${suspicious.join(", ")})`,
-  );
+  if (restoredFromBackup) {
+    params.deps.logger.warn(
+      `Config auto-restored from backup: ${params.configPath} (${suspicious.join(", ")})`,
+    );
+  } else {
+    params.deps.logger.warn(
+      `Config auto-restore from backup failed: ${params.configPath} (${suspicious.join(", ")})`,
+    );
+  }
   appendConfigAuditRecordSync(
     createConfigObserveAuditAppendParams(params.deps, {
       ts: now,

@@ -135,6 +135,14 @@ describe("config observe recovery", () => {
     } satisfies ConfigFileSnapshot;
   }
 
+  function warnMessages(warn: ReturnType<typeof vi.fn>): string[] {
+    return warn.mock.calls.map(([message]) => String(message));
+  }
+
+  function expectWarnContaining(warn: ReturnType<typeof vi.fn>, expected: string) {
+    expect(warnMessages(warn).join("\n")).toContain(expected);
+  }
+
   function makeDeps(
     home: string,
     warn = vi.fn(),
