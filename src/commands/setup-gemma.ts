@@ -87,7 +87,7 @@ function buildGemmaclawDockerSandboxConfig(): NonNullable<
       capDrop: [],
       setupCommand: [
         "apt-get -o APT::Sandbox::User=root update",
-        "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3",
+        "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3 ffmpeg",
         "printf '\\numask 000\\n' >> /etc/profile",
         "rm -rf /var/lib/apt/lists/*",
       ].join(" && "),

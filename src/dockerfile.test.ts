@@ -6,6 +6,8 @@ import { BUNDLED_PLUGIN_ROOT_DIR } from "../test/helpers/bundled-plugin-paths.js
 
 const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const dockerfilePath = join(repoRoot, "Dockerfile");
+const sandboxDockerfilePath = join(repoRoot, "Dockerfile.sandbox");
+const sandboxCommonDockerfilePath = join(repoRoot, "Dockerfile.sandbox-common");
 const dockerReleaseWorkflowPath = join(repoRoot, ".github/workflows/docker-release.yml");
 
 function collapseDockerContinuations(dockerfile: string): string {
@@ -104,5 +106,15 @@ describe("Dockerfile", () => {
     expect(dockerfile).toContain(
       'corepack prepare "$(node -p "require(\'./package.json\').packageManager")" --activate',
     );
+  });
+
+  it("includes video decoding tools in sandbox images", async () => {
+    const sandboxDockerfile = await readFile(sandboxDockerfilePath, "utf8");
+    const sandboxCommonDockerfile = await readFile(sandboxCommonDockerfilePath, "utf8");
+
+    expect(sandboxDockerfile).toMatch(
+      /apt-get install -y --no-install-recommends[\s\S]*\bffmpeg\b/,
+    );
+    expect(sandboxCommonDockerfile).toMatch(/ARG PACKAGES=.*\bffmpeg\b/);
   });
 });
