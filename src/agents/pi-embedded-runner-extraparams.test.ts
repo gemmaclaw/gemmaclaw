@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __testing as extraParamsTesting } from "./pi-embedded-runner/extra-params.js";
 
 vi.mock("../plugins/provider-hook-runtime.js", () => ({
-  __testing: {
+  clearProviderRuntimePluginCacheForTest: vi.fn(),
+  testing: {
     buildHookProviderCacheKey: () => "test-provider-hook-cache-key",
   },
   prepareProviderExtraParams: () => undefined,
