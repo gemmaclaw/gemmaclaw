@@ -1,6 +1,5 @@
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import fsSync, { constants as fsConstants } from "node:fs";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -229,14 +228,6 @@ function isLinkUnsupportedError(code: string | undefined): boolean {
   return code === "ENOTSUP" || code === "EOPNOTSUPP" || code === "EPERM";
 }
 
-function isPermissionDeniedError(err: unknown): boolean {
-  const code = (err as NodeJS.ErrnoException | undefined)?.code;
-  if (code === "EACCES" || code === "EPERM") {
-    return true;
-  }
-  const causeCode = (err as { cause?: NodeJS.ErrnoException } | undefined)?.cause?.code;
-  return causeCode === "EACCES" || causeCode === "EPERM";
-}
 
 async function publishTempArchive(params: {
   tempArchivePath: string;
@@ -392,103 +383,6 @@ function remapArchiveEntryPath(params: {
     return path.posix.join(params.archiveRoot, "manifest.json");
   }
   return buildBackupArchivePath(params.archiveRoot, normalizedEntry);
-}
-
-async function copyAssetToStagingWithHostFs(params: {
-  sourcePath: string;
-  targetPath: string;
-}): Promise<void> {
-  await fs.mkdir(path.dirname(params.targetPath), { recursive: true });
-  await fs.cp(params.sourcePath, params.targetPath, {
-    recursive: true,
-    force: false,
-    verbatimSymlinks: true,
-  });
-}
-
-function copyAssetToStagingWithDocker(params: { sourcePath: string; targetPath: string }): void {
-  const dockerBin = process.env.OPENCLAW_BACKUP_DOCKER_BIN?.trim() || "docker";
-  const image = process.env.OPENCLAW_BACKUP_HELPER_IMAGE?.trim() || "debian:bookworm-slim";
-  const uid = typeof process.getuid === "function" ? process.getuid() : 0;
-  const gid = typeof process.getgid === "function" ? process.getgid() : 0;
-  fsSync.mkdirSync(path.dirname(params.targetPath), { recursive: true });
-  const result = spawnSync(
-    dockerBin,
-    [
-      "run",
-      "--rm",
-      "-v",
-      `${params.sourcePath}:/src:ro`,
-      "-v",
-      `${path.dirname(params.targetPath)}:/out:rw`,
-      "-e",
-      `BACKUP_TARGET_BASENAME=${path.basename(params.targetPath)}`,
-      "-e",
-      `BACKUP_TARGET_UID=${uid}`,
-      "-e",
-      `BACKUP_TARGET_GID=${gid}`,
-      image,
-      "sh",
-      "-lc",
-      'set -eu; rm -rf "/out/$BACKUP_TARGET_BASENAME"; cp -a /src "/out/$BACKUP_TARGET_BASENAME"; chown -R "$BACKUP_TARGET_UID:$BACKUP_TARGET_GID" "/out/$BACKUP_TARGET_BASENAME"; chmod -R u+rwX "/out/$BACKUP_TARGET_BASENAME"',
-    ],
-    {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 5 * 60 * 1000,
-    },
-  );
-  if (result.status !== 0) {
-    const output = [result.error?.message, result.signal, result.stderr, result.stdout]
-      .filter(Boolean)
-      .join("\n")
-      .trim();
-    throw new Error(
-      `Backup archive could not copy unreadable container-owned files from ${params.sourcePath}. ${output}`,
-    );
-  }
-}
-
-async function copyAssetToStaging(params: { sourcePath: string; targetPath: string }) {
-  try {
-    await copyAssetToStagingWithHostFs(params);
-  } catch (err) {
-    if (!isPermissionDeniedError(err)) {
-      throw err;
-    }
-    copyAssetToStagingWithDocker(params);
-  }
-}
-
-async function writeArchiveFromStaging(params: {
-  archiveRoot: string;
-  manifestPath: string;
-  assets: BackupAsset[];
-  tempArchivePath: string;
-  tempDir: string;
-}): Promise<void> {
-  const stagingRoot = path.join(params.tempDir, "staging");
-  await fs.mkdir(path.join(stagingRoot, params.archiveRoot), { recursive: true });
-  await fs.copyFile(
-    params.manifestPath,
-    path.join(stagingRoot, params.archiveRoot, "manifest.json"),
-  );
-  for (const asset of params.assets) {
-    await copyAssetToStaging({
-      sourcePath: asset.sourcePath,
-      targetPath: path.join(stagingRoot, asset.archivePath),
-    });
-  }
-  const tar = await loadTarRuntime();
-  await tar.c(
-    {
-      file: params.tempArchivePath,
-      gzip: true,
-      portable: true,
-      cwd: stagingRoot,
-    },
-    [params.archiveRoot],
-  );
 }
 
 export async function createBackupArchive(

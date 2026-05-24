@@ -5,11 +5,7 @@ import type { SandboxFsBridgeContext } from "./backend-handle.types.js";
 import { splitSandboxBindSpec } from "./bind-spec.js";
 import { SANDBOX_AGENT_WORKSPACE_MOUNT } from "./constants.js";
 import { resolveSandboxHostPathViaExistingAncestor } from "./host-paths.js";
-import {
-  isPathInsideContainerRoot,
-  normalizeContainerPath,
-  relativePathEscapesContainerRoot,
-} from "./path-utils.js";
+import { isPathInsideContainerRoot, normalizeContainerPath } from "./path-utils.js";
 import { resolveReadOnlyWorkspaceSkillMounts } from "./workspace-mounts.js";
 
 export type SandboxFsMount = {
