@@ -173,11 +173,18 @@ import {
   SANDBOX_DOCKER_EXPLICIT_ENV_POLICY_EPOCH,
 } from "./config-hash.js";
 import { DEFAULT_SANDBOX_IMAGE } from "./constants.js";
-import { readRegistry, updateRegistry } from "./registry.js";
+import { readRegistryEntry, updateRegistry } from "./registry.js";
 import { resolveSandboxAgentId, resolveSandboxScopeKey, slugifySessionKey } from "./shared.js";
 import type { SandboxConfig, SandboxDockerConfig, SandboxWorkspaceAccess } from "./types.js";
 import { validateSandboxSecurity } from "./validate-sandbox-security.js";
-import { appendWorkspaceMountArgs, SANDBOX_MOUNT_FORMAT_VERSION } from "./workspace-mounts.js";
+import {
+  appendReadOnlyWorkspaceSkillMountArgs,
+  appendWorkspaceMountArgs,
+  formatReadOnlyWorkspaceSkillMountHashState,
+  resolveReadOnlyWorkspaceSkillMounts,
+  SANDBOX_MOUNT_FORMAT_VERSION,
+  type ReadOnlyWorkspaceSkillMount,
+} from "./workspace-mounts.js";
 
 const log = createSubsystemLogger("docker");
 
@@ -515,6 +522,7 @@ async function createSandboxContainer(params: {
   agentWorkspaceDir: string;
   scopeKey: string;
   configHash?: string;
+  readOnlyWorkspaceSkillMounts: readonly ReadOnlyWorkspaceSkillMount[];
 }) {
   const { name, cfg, workspaceDir, scopeKey } = params;
   await ensureDockerImage(cfg.image);
@@ -534,8 +542,14 @@ async function createSandboxContainer(params: {
     agentWorkspaceDir: params.agentWorkspaceDir,
     workdir: cfg.workdir,
     workspaceAccess: params.workspaceAccess,
+    readOnlyWorkspaceSkillMounts: params.readOnlyWorkspaceSkillMounts,
+    includeReadOnlyWorkspaceSkillMounts: false,
   });
   appendCustomBinds(args, cfg);
+  appendReadOnlyWorkspaceSkillMountArgs({
+    args,
+    readOnlyWorkspaceSkillMounts: params.readOnlyWorkspaceSkillMounts,
+  });
   args.push(cfg.image, "sleep", "infinity");
 
   await execDocker(args);
@@ -571,6 +585,12 @@ export async function ensureSandboxContainer(params: {
   const slug = params.cfg.scope === "shared" ? "shared" : slugifySessionKey(scopeKey);
   const name = `${params.cfg.docker.containerPrefix}${slug}`;
   const containerName = name.slice(0, 63);
+  const readOnlyWorkspaceSkillMounts = resolveReadOnlyWorkspaceSkillMounts({
+    workspaceDir: params.workspaceDir,
+    agentWorkspaceDir: params.agentWorkspaceDir,
+    workdir: params.cfg.docker.workdir,
+    workspaceAccess: params.cfg.workspaceAccess,
+  });
   const expectedHash = computeSandboxConfigHash({
     docker: params.cfg.docker,
     dockerEnvPolicyEpoch: resolveDockerEnvPolicyEpoch(params.cfg.docker.env),
@@ -578,6 +598,9 @@ export async function ensureSandboxContainer(params: {
     workspaceDir: params.workspaceDir,
     agentWorkspaceDir: params.agentWorkspaceDir,
     mountFormatVersion: SANDBOX_MOUNT_FORMAT_VERSION,
+    readOnlyWorkspaceSkillMounts: formatReadOnlyWorkspaceSkillMountHashState(
+      readOnlyWorkspaceSkillMounts,
+    ),
   });
   const now = Date.now();
   const state = await dockerContainerState(containerName);
@@ -592,8 +615,7 @@ export async function ensureSandboxContainer(params: {
       }
     | undefined;
   if (hasContainer) {
-    const registry = await readRegistry();
-    registryEntry = registry.entries.find((entry) => entry.containerName === containerName);
+    registryEntry = (await readRegistryEntry(containerName)) ?? undefined;
     currentHash = await readContainerConfigHash(containerName);
     if (!currentHash) {
       currentHash = registryEntry?.configHash ?? null;
@@ -625,6 +647,7 @@ export async function ensureSandboxContainer(params: {
       agentWorkspaceDir: params.agentWorkspaceDir,
       scopeKey,
       configHash: expectedHash,
+      readOnlyWorkspaceSkillMounts,
     });
   } else if (!running) {
     await execDocker(["start", containerName]);

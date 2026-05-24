@@ -6,7 +6,11 @@ import type {
   EmbeddedRunAttemptResult,
 } from "../pi-embedded-runner/run/types.js";
 import { clearAgentHarnesses, registerAgentHarness } from "./registry.js";
-import { runAgentHarnessAttemptWithFallback, selectAgentHarness } from "./selection.js";
+import {
+  maybeCompactAgentHarnessSession,
+  runAgentHarnessAttemptWithFallback,
+  selectAgentHarness,
+} from "./selection.js";
 import type { AgentHarness } from "./types.js";
 
 const piRunAttempt = vi.fn(async () => createAttemptResult("pi"));
@@ -181,5 +185,46 @@ describe("selectAgentHarness", () => {
     expect(selectAgentHarness({ provider: "anthropic", modelId: "sonnet-4.6", config }).id).toBe(
       "pi",
     );
+  });
+
+  it("selects PI when the implicit OpenAI Codex harness is unavailable", () => {
+    expect(selectAgentHarness({ provider: "openai", modelId: "gpt-5.4" }).id).toBe("pi");
+  });
+});
+
+describe("maybeCompactAgentHarnessSession", () => {
+  const baseParams = {
+    sessionId: "session-1",
+    sessionKey: "agent:main:main",
+    sessionFile: "/tmp/session.jsonl",
+    workspaceDir: "/tmp/workspace",
+  };
+
+  it("skips harness compaction preflight for claude-cli provider sessions", async () => {
+    await expect(
+      maybeCompactAgentHarnessSession({
+        ...baseParams,
+        provider: "claude-cli",
+        model: "claude-opus-4-7",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips harness compaction preflight when model runtime is claude-cli", async () => {
+    const config: OpenClawConfig = {
+      agents: {
+        defaults: {
+          embeddedHarness: { runtime: "claude-cli" as never },
+        },
+      },
+    };
+    await expect(
+      maybeCompactAgentHarnessSession({
+        ...baseParams,
+        provider: "anthropic",
+        model: "claude-opus-4-7",
+        config,
+      }),
+    ).resolves.toBeUndefined();
   });
 });

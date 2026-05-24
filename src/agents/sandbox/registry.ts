@@ -166,6 +166,13 @@ async function withRegistryMutation<T extends RegistryEntry>(
   });
 }
 
+export async function readRegistryEntry(
+  containerName: string,
+): Promise<SandboxRegistryEntry | null> {
+  const registry = await readRegistry();
+  return registry.entries.find((entry) => entry.containerName === containerName) ?? null;
+}
+
 export async function updateRegistry(entry: SandboxRegistryEntry) {
   await withRegistryMutation<SandboxRegistryEntry>(SANDBOX_REGISTRY_PATH, (entries) =>
     upsertEntry(entries, entry),

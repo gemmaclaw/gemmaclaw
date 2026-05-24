@@ -2,6 +2,7 @@ import type { ChatType } from "../channels/chat-type.js";
 import type {
   AgentContextLimitsConfig,
   AgentDefaultsConfig,
+  AgentModelEntryConfig,
   EmbeddedPiExecutionContract,
 } from "./types.agent-defaults.js";
 import type {
@@ -119,6 +120,8 @@ export type AgentConfig = {
   tools?: AgentToolsConfig;
   /** Optional runtime descriptor for this agent. */
   runtime?: AgentRuntimeConfig;
+  /** Model catalog with optional aliases (full provider/model keys). */
+  models?: Record<string, AgentModelEntryConfig>;
 };
 
 export type AgentsConfig = {

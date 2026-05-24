@@ -1,6 +1,5 @@
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import fsSync, { constants as fsConstants } from "node:fs";
+import { accessSync, constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +13,7 @@ import {
 import { isPathWithin } from "../commands/cleanup-utils.js";
 import { resolveHomeDir, resolveUserPath } from "../utils.js";
 import { resolveRuntimeServiceVersion } from "../version.js";
+import { isVolatileBackupPath } from "./backup-volatile-filter.js";
 
 type TarRuntime = typeof import("tar");
 
@@ -24,6 +24,18 @@ function loadTarRuntime(): Promise<TarRuntime> {
   return tarRuntimePromise;
 }
 
+type BackupLinkCacheKey = `${number}:${number}`;
+
+class BackupLinkCache extends Map<BackupLinkCacheKey, string> {
+  override get(_key: BackupLinkCacheKey): undefined {
+    return undefined;
+  }
+
+  override set(_key: BackupLinkCacheKey, _value: string): this {
+    return this;
+  }
+}
+
 export type BackupCreateOptions = {
   output?: string;
   dryRun?: boolean;
@@ -32,6 +44,12 @@ export type BackupCreateOptions = {
   verify?: boolean;
   json?: boolean;
   nowMs?: number;
+  /**
+   * Optional info logger invoked for non-fatal backup events such as tar
+   * retry notices or volatile-file skip counts. When omitted, events are
+   * silent aside from the final result.
+   */
+  log?: (message: string) => void;
 };
 
 type BackupManifestAsset = {
@@ -83,6 +101,76 @@ export type BackupCreateResult = {
     coveredBy?: string;
   }>;
 };
+
+const BACKUP_TAR_MAX_ATTEMPTS = 3;
+// Backoff between attempts: wait 10s before attempt 2, 20s before attempt 3.
+const BACKUP_TAR_BACKOFF_MS = [10_000, 20_000];
+
+function isTarEofRaceError(err: unknown): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code === "EOF") {
+    return true;
+  }
+  const message = (err as Error).message ?? "";
+  return /(did not encounter expected|encountered unexpected) EOF|TAR_BAD_ARCHIVE/i.test(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type BackupTarRetryLogger = (message: string) => void;
+
+async function writeTarArchiveWithRetry(params: {
+  tempArchivePath: string;
+  runTar: () => Promise<void>;
+  log?: BackupTarRetryLogger;
+  sleepMs?: (ms: number) => Promise<void>;
+}): Promise<void> {
+  const sleepFn = params.sleepMs ?? sleep;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= BACKUP_TAR_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await params.runTar();
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (!isTarEofRaceError(err) || attempt === BACKUP_TAR_MAX_ATTEMPTS) {
+        break;
+      }
+      try {
+        await fs.rm(params.tempArchivePath, { force: true });
+      } catch (cleanupErr) {
+        const code = (cleanupErr as NodeJS.ErrnoException).code;
+        if (code && code !== "ENOENT") {
+          params.log?.(
+            `Backup archiver could not remove temp archive ${params.tempArchivePath} between retries: ${code}. Continuing.`,
+          );
+        }
+      }
+      const backoff = BACKUP_TAR_BACKOFF_MS[attempt - 1] ?? 0;
+      const offendingPath = (err as NodeJS.ErrnoException).path;
+      params.log?.(
+        `Backup archiver hit a live-write race${
+          offendingPath ? ` on ${offendingPath}` : ""
+        } (attempt ${attempt}/${BACKUP_TAR_MAX_ATTEMPTS}); retrying in ${Math.round(backoff / 1000)}s.`,
+      );
+      await sleepFn(backoff);
+    }
+  }
+  const final = lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  const offendingPath = (lastErr as NodeJS.ErrnoException | undefined)?.path;
+  const suffix = offendingPath
+    ? ` (last offending path: ${offendingPath}, after ${BACKUP_TAR_MAX_ATTEMPTS} attempts)`
+    : ` (after ${BACKUP_TAR_MAX_ATTEMPTS} attempts)`;
+  throw new Error(`Backup archive write failed: ${final.message}${suffix}`, { cause: final });
+}
+
+export const testApi = { writeTarArchiveWithRetry, isTarEofRaceError };
+export { testApi as __test };
 
 async function resolveOutputPath(params: {
   output?: string;
@@ -140,14 +228,6 @@ function isLinkUnsupportedError(code: string | undefined): boolean {
   return code === "ENOTSUP" || code === "EOPNOTSUPP" || code === "EPERM";
 }
 
-function isPermissionDeniedError(err: unknown): boolean {
-  const code = (err as NodeJS.ErrnoException | undefined)?.code;
-  if (code === "EACCES" || code === "EPERM") {
-    return true;
-  }
-  const causeCode = (err as { cause?: NodeJS.ErrnoException } | undefined)?.cause?.code;
-  return causeCode === "EACCES" || causeCode === "EPERM";
-}
 
 async function publishTempArchive(params: {
   tempArchivePath: string;
@@ -275,6 +355,24 @@ export function formatBackupCreateSummary(result: BackupCreateResult): string[] 
   return lines;
 }
 
+function normalizeBackupFilterPath(value: string): string {
+  return value.replaceAll("\\", "/").replace(/\/+$/u, "");
+}
+
+export function buildExtensionsNodeModulesFilter(stateDir: string): (filePath: string) => boolean {
+  const normalizedStateDir = normalizeBackupFilterPath(stateDir);
+  const extensionsPrefix = `${normalizedStateDir}/extensions/`;
+
+  return (filePath: string): boolean => {
+    const normalizedFilePath = normalizeBackupFilterPath(filePath);
+    if (!normalizedFilePath.startsWith(extensionsPrefix)) {
+      return true;
+    }
+
+    return !normalizedFilePath.slice(extensionsPrefix.length).split("/").includes("node_modules");
+  };
+}
+
 function remapArchiveEntryPath(params: {
   entryPath: string;
   manifestPath: string;
@@ -285,103 +383,6 @@ function remapArchiveEntryPath(params: {
     return path.posix.join(params.archiveRoot, "manifest.json");
   }
   return buildBackupArchivePath(params.archiveRoot, normalizedEntry);
-}
-
-async function copyAssetToStagingWithHostFs(params: {
-  sourcePath: string;
-  targetPath: string;
-}): Promise<void> {
-  await fs.mkdir(path.dirname(params.targetPath), { recursive: true });
-  await fs.cp(params.sourcePath, params.targetPath, {
-    recursive: true,
-    force: false,
-    verbatimSymlinks: true,
-  });
-}
-
-function copyAssetToStagingWithDocker(params: { sourcePath: string; targetPath: string }): void {
-  const dockerBin = process.env.OPENCLAW_BACKUP_DOCKER_BIN?.trim() || "docker";
-  const image = process.env.OPENCLAW_BACKUP_HELPER_IMAGE?.trim() || "debian:bookworm-slim";
-  const uid = typeof process.getuid === "function" ? process.getuid() : 0;
-  const gid = typeof process.getgid === "function" ? process.getgid() : 0;
-  fsSync.mkdirSync(path.dirname(params.targetPath), { recursive: true });
-  const result = spawnSync(
-    dockerBin,
-    [
-      "run",
-      "--rm",
-      "-v",
-      `${params.sourcePath}:/src:ro`,
-      "-v",
-      `${path.dirname(params.targetPath)}:/out:rw`,
-      "-e",
-      `BACKUP_TARGET_BASENAME=${path.basename(params.targetPath)}`,
-      "-e",
-      `BACKUP_TARGET_UID=${uid}`,
-      "-e",
-      `BACKUP_TARGET_GID=${gid}`,
-      image,
-      "sh",
-      "-lc",
-      'set -eu; rm -rf "/out/$BACKUP_TARGET_BASENAME"; cp -a /src "/out/$BACKUP_TARGET_BASENAME"; chown -R "$BACKUP_TARGET_UID:$BACKUP_TARGET_GID" "/out/$BACKUP_TARGET_BASENAME"; chmod -R u+rwX "/out/$BACKUP_TARGET_BASENAME"',
-    ],
-    {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 5 * 60 * 1000,
-    },
-  );
-  if (result.status !== 0) {
-    const output = [result.error?.message, result.signal, result.stderr, result.stdout]
-      .filter(Boolean)
-      .join("\n")
-      .trim();
-    throw new Error(
-      `Backup archive could not copy unreadable container-owned files from ${params.sourcePath}. ${output}`,
-    );
-  }
-}
-
-async function copyAssetToStaging(params: { sourcePath: string; targetPath: string }) {
-  try {
-    await copyAssetToStagingWithHostFs(params);
-  } catch (err) {
-    if (!isPermissionDeniedError(err)) {
-      throw err;
-    }
-    copyAssetToStagingWithDocker(params);
-  }
-}
-
-async function writeArchiveFromStaging(params: {
-  archiveRoot: string;
-  manifestPath: string;
-  assets: BackupAsset[];
-  tempArchivePath: string;
-  tempDir: string;
-}): Promise<void> {
-  const stagingRoot = path.join(params.tempDir, "staging");
-  await fs.mkdir(path.join(stagingRoot, params.archiveRoot), { recursive: true });
-  await fs.copyFile(
-    params.manifestPath,
-    path.join(stagingRoot, params.archiveRoot, "manifest.json"),
-  );
-  for (const asset of params.assets) {
-    await copyAssetToStaging({
-      sourcePath: asset.sourcePath,
-      targetPath: path.join(stagingRoot, asset.archivePath),
-    });
-  }
-  const tar = await loadTarRuntime();
-  await tar.c(
-    {
-      file: params.tempArchivePath,
-      gzip: true,
-      portable: true,
-      cwd: stagingRoot,
-    },
-    [params.archiveRoot],
-  );
 }
 
 export async function createBackupArchive(
@@ -458,36 +459,63 @@ export async function createBackupArchive(
     await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
     const tar = await loadTarRuntime();
-    try {
-      await tar.c(
-        {
-          file: tempArchivePath,
-          gzip: true,
-          portable: true,
-          preservePaths: true,
-          onWriteEntry: (entry) => {
-            entry.path = remapArchiveEntryPath({
-              entryPath: entry.path,
-              manifestPath,
-              archiveRoot,
-            });
-          },
-        },
-        [manifestPath, ...result.assets.map((asset) => asset.sourcePath)],
-      );
-    } catch (err) {
-      if (!isPermissionDeniedError(err)) {
-        throw err;
+    const stateAsset = result.assets.find((asset) => asset.kind === "state");
+    const extensionsFilter = stateAsset
+      ? buildExtensionsNodeModulesFilter(stateAsset.sourcePath)
+      : undefined;
+    const volatilePlan = { stateDirs: [stateAsset?.sourcePath ?? plan.stateDir] };
+    let skippedVolatileCount = 0;
+    const tarFilter = (entryPath: string): boolean => {
+      // The manifest is staged in a tmp dir outside any state directory and
+      // is always safe to include.
+      if (path.resolve(entryPath) === manifestPath) {
+        return true;
       }
-      await fs.rm(tempArchivePath, { force: true }).catch(() => undefined);
-      await writeArchiveFromStaging({
-        archiveRoot,
-        manifestPath,
-        assets: result.assets,
-        tempArchivePath,
-        tempDir,
-      });
-    }
+      if (extensionsFilter && !extensionsFilter(entryPath)) {
+        return false;
+      }
+      if (isVolatileBackupPath(entryPath, volatilePlan)) {
+        skippedVolatileCount += 1;
+        return false;
+      }
+      // Skip files the current process cannot read. This can happen when
+      // container-owned files (e.g. git pack promisor files from a Docker git
+      // clone run as root) have restrictive permissions on the host filesystem.
+      try {
+        accessSync(entryPath, fsConstants.R_OK);
+      } catch {
+        return false;
+      }
+      return true;
+    };
+    await writeTarArchiveWithRetry({
+      tempArchivePath,
+      log: opts.log,
+      runTar: () => {
+        // tar.c re-walks the tree (and thus re-invokes tarFilter) on every
+        // attempt, so reset the closure counter here or retries would report
+        // cumulative skip counts across attempts instead of the final one.
+        skippedVolatileCount = 0;
+        return tar.c(
+          {
+            file: tempArchivePath,
+            gzip: true,
+            portable: true,
+            preservePaths: true,
+            linkCache: new BackupLinkCache(),
+            filter: tarFilter,
+            onWriteEntry: (entry) => {
+              entry.path = remapArchiveEntryPath({
+                entryPath: entry.path,
+                manifestPath,
+                archiveRoot,
+              });
+            },
+          },
+          [manifestPath, ...result.assets.map((asset) => asset.sourcePath)],
+        );
+      },
+    });
     await publishTempArchive({ tempArchivePath, outputPath });
   } finally {
     await fs.rm(tempArchivePath, { force: true }).catch(() => undefined);
