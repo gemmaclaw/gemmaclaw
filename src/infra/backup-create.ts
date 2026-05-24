@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { constants as fsConstants } from "node:fs";
+import { accessSync, constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -476,6 +476,14 @@ export async function createBackupArchive(
       }
       if (isVolatileBackupPath(entryPath, volatilePlan)) {
         skippedVolatileCount += 1;
+        return false;
+      }
+      // Skip files the current process cannot read. This can happen when
+      // container-owned files (e.g. git pack promisor files from a Docker git
+      // clone run as root) have restrictive permissions on the host filesystem.
+      try {
+        accessSync(entryPath, fsConstants.R_OK);
+      } catch {
         return false;
       }
       return true;

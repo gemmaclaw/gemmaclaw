@@ -212,9 +212,9 @@ describe("ensureSandboxContainer config-hash recreation", () => {
   });
 
   it("recreates shared container when array-order change alters hash", async () => {
-    const workspaceDir = "/tmp/workspace";
-    const oldCfg = createSandboxConfig(["1.1.1.1", "8.8.8.8"]);
-    const newCfg = createSandboxConfig(["8.8.8.8", "1.1.1.1"]);
+    const workspaceDir = makeTempDir();
+    const oldCfg = createSandboxConfig(["1.1.1.1", "8.8.8.8"], [`${workspaceDir}:/workspace:rw`]);
+    const newCfg = createSandboxConfig(["8.8.8.8", "1.1.1.1"], [`${workspaceDir}:/workspace:rw`]);
 
     const oldHash = computeSandboxConfigHash({
       docker: oldCfg.docker,
@@ -270,8 +270,8 @@ describe("ensureSandboxContainer config-hash recreation", () => {
   });
 
   it("recreates shared container when previously filtered explicit env becomes allowed", async () => {
-    const workspaceDir = "/tmp/workspace";
-    const cfg = createSandboxConfig(["1.1.1.1"], undefined, "rw", {
+    const workspaceDir = makeTempDir();
+    const cfg = createSandboxConfig(["1.1.1.1"], [`${workspaceDir}:/workspace:rw`], "rw", {
       LANG: "C.UTF-8",
       GEMINI_API_KEY: "dummy-gemini",
     });
@@ -316,7 +316,7 @@ describe("ensureSandboxContainer config-hash recreation", () => {
   });
 
   it("applies custom binds after workspace mounts so overlapping binds can override", async () => {
-    const workspaceDir = "/tmp/workspace";
+    const workspaceDir = makeTempDir();
     const cfg = createSandboxConfig(
       ["1.1.1.1"],
       ["/tmp/workspace-shared/USER.md:/workspace/USER.md:ro"],
@@ -346,7 +346,7 @@ describe("ensureSandboxContainer config-hash recreation", () => {
     expect(createCall.args).toContain(`openclaw.configHash=${expectedHash}`);
 
     const bindArgs = collectDockerFlagValues(createCall.args, "-v");
-    const workspaceMountIdx = bindArgs.indexOf("/tmp/workspace:/workspace:z");
+    const workspaceMountIdx = bindArgs.indexOf(`${workspaceDir}:/workspace:z`);
     const customMountIdx = bindArgs.indexOf("/tmp/workspace-shared/USER.md:/workspace/USER.md:ro");
     expect(workspaceMountIdx).toBeGreaterThanOrEqual(0);
     expect(customMountIdx).toBeGreaterThan(workspaceMountIdx);
