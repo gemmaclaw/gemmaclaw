@@ -515,22 +515,10 @@ export async function createBackupArchive(
               });
             },
           },
-        },
-        [manifestPath, ...result.assets.map((asset) => asset.sourcePath)],
-      );
-    } catch (err) {
-      if (!isPermissionDeniedError(err)) {
-        throw err;
-      }
-      await fs.rm(tempArchivePath, { force: true }).catch(() => undefined);
-      await writeArchiveFromStaging({
-        archiveRoot,
-        manifestPath,
-        assets: result.assets,
-        tempArchivePath,
-        tempDir,
-      });
-    }
+          [manifestPath, ...result.assets.map((asset) => asset.sourcePath)],
+        );
+      },
+    });
     await publishTempArchive({ tempArchivePath, outputPath });
   } finally {
     await fs.rm(tempArchivePath, { force: true }).catch(() => undefined);
