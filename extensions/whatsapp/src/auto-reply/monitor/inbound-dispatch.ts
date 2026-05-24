@@ -316,6 +316,16 @@ export async function dispatchWhatsAppBufferedReply(params: {
         }
       },
       onReplyStart: params.msg.sendComposing,
+      onError: (err, info) => {
+        logWhatsAppReplyDeliveryError({
+          err,
+          info,
+          connectionId: params.connectionId,
+          conversationId: params.conversationId,
+          msg: params.msg,
+          replyLogger: params.replyLogger,
+        });
+      },
     },
     replyOptions: {
       disableBlockStreaming,
