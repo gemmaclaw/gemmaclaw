@@ -16,7 +16,10 @@
 
 FROM node:22-bookworm
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' > /etc/apt/apt.conf.d/99openclaw-network-retries && \
+    printf '#!/bin/sh\napt-get "$@"\nstatus=$?\nif [ "$status" -eq 0 ]; then exit 0; fi\nexec apt-get -o Acquire::ForceIPv4=true "$@"\n' > /usr/local/bin/apt-get-retry && \
+    chmod 755 /usr/local/bin/apt-get-retry && \
+    apt-get-retry update && apt-get-retry install -y --no-install-recommends \
     curl ca-certificates procps zstd python3 && \
     rm -rf /var/lib/apt/lists/*
 

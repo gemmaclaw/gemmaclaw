@@ -69,6 +69,48 @@ function resolveGemmaclawSharedDir(): string {
   return path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
 }
 
+const GEMMACLAW_APT_NETWORK_RETRY_CONF = [
+  'Acquire::Retries "5";',
+  'Acquire::http::Timeout "30";',
+  'Acquire::https::Timeout "30";',
+].join("\n");
+
+const GEMMACLAW_DEFAULT_SANDBOX_PACKAGES = [
+  "bash",
+  "ca-certificates",
+  "curl",
+  "wget",
+  "git",
+  "jq",
+  "ripgrep",
+  "python3",
+  "ffmpeg",
+  "file",
+  "unzip",
+  "procps",
+  "less",
+].join(" ");
+
+function buildGemmaclawSandboxSetupCommand(): string {
+  return [
+    `cat > /etc/apt/apt.conf.d/99gemmaclaw-network-retries <<'EOF'\n${GEMMACLAW_APT_NETWORK_RETRY_CONF}\nEOF`,
+    [
+      "cat > /usr/local/bin/apt-get-retry <<'EOF'",
+      "#!/bin/sh",
+      'apt-get -o APT::Sandbox::User=root "$@"',
+      "status=$?",
+      'if [ "$status" -eq 0 ]; then exit 0; fi',
+      'exec apt-get -o APT::Sandbox::User=root -o Acquire::ForceIPv4=true "$@"',
+      "EOF",
+      "chmod 755 /usr/local/bin/apt-get-retry",
+    ].join("\n"),
+    "apt-get-retry update",
+    `DEBIAN_FRONTEND=noninteractive apt-get-retry install -y --no-install-recommends ${GEMMACLAW_DEFAULT_SANDBOX_PACKAGES}`,
+    "printf '\\numask 000\\n' >> /etc/profile",
+    "rm -rf /var/lib/apt/lists/*",
+  ].join(" && ");
+}
+
 function buildGemmaclawDockerSandboxConfig(): NonNullable<
   NonNullable<OpenClawConfig["agents"]>["defaults"]
 >["sandbox"] {
@@ -85,12 +127,7 @@ function buildGemmaclawDockerSandboxConfig(): NonNullable<
       readOnlyRoot: false,
       network: "bridge",
       capDrop: [],
-      setupCommand: [
-        "apt-get -o APT::Sandbox::User=root update",
-        "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3 ffmpeg",
-        "printf '\\numask 000\\n' >> /etc/profile",
-        "rm -rf /var/lib/apt/lists/*",
-      ].join(" && "),
+      setupCommand: buildGemmaclawSandboxSetupCommand(),
       user: "0:0",
     },
   };

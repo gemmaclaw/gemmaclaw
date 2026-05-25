@@ -6,17 +6,25 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN --mount=type=cache,id=openclaw-sandbox-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,id=openclaw-sandbox-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-  apt-get update \
-  && apt-get upgrade -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends \
+  printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' > /etc/apt/apt.conf.d/99openclaw-network-retries \
+  && printf '#!/bin/sh\napt-get "$@"\nstatus=$?\nif [ "$status" -eq 0 ]; then exit 0; fi\nexec apt-get -o Acquire::ForceIPv4=true "$@"\n' > /usr/local/bin/apt-get-retry \
+  && chmod 755 /usr/local/bin/apt-get-retry \
+  && apt-get-retry update \
+  && apt-get-retry upgrade -y --no-install-recommends \
+  && apt-get-retry install -y --no-install-recommends \
     bash \
     ca-certificates \
     curl \
     ffmpeg \
+    file \
     git \
     jq \
+    less \
+    procps \
     python3 \
-    ripgrep
+    ripgrep \
+    unzip \
+    wget
 
 RUN useradd --create-home --shell /bin/bash sandbox
 USER sandbox

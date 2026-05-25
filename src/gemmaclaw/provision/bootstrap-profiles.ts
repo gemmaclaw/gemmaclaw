@@ -154,7 +154,7 @@ export function applyBootstrapProfile(
 ## Docker Sandbox Environment
 - You are running inside an isolated Docker container.
 - Shared files with the host machine should be placed in \`/workspace/shared\`.
-- If you need to install system packages, you MUST use \`apt-get -o APT::Sandbox::User=root install <package>\` to bypass privilege-dropping security errors.
+- If you need to install system packages, use \`apt-get-retry install <package>\` when available. Otherwise use \`apt-get -o APT::Sandbox::User=root install <package>\` to bypass privilege-dropping security errors.
 `;
     }
     fs.writeFileSync(target, contentToOutput);

@@ -93,7 +93,7 @@ docker run --rm -i \
   -v "$ROOT_DIR:/repo" \
   -w /repo \
   "$IMAGE" \
-  bash -lc 'apt-get update >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl git >/dev/null && corepack enable >/dev/null 2>&1 || true; bash scripts/e2e/gemmaclaw-local-agent-smoke.sh'
+  bash -lc 'printf '"'"'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n'"'"' > /etc/apt/apt.conf.d/99gemmaclaw-network-retries; apt_get() { apt-get "$@" || apt-get -o Acquire::ForceIPv4=true "$@"; }; apt_get update >/dev/null && DEBIAN_FRONTEND=noninteractive apt_get install -y ca-certificates curl git >/dev/null && corepack enable >/dev/null 2>&1 || true; bash scripts/e2e/gemmaclaw-local-agent-smoke.sh'
 
 if [ "$(cat "$HOST_SENTINEL")" != "HOST_SENTINEL_ORIGINAL" ]; then
   echo "FAIL: outer-host sentinel was modified" >&2

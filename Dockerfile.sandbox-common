@@ -7,7 +7,7 @@ USER root
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG PACKAGES="curl wget jq coreutils grep nodejs npm python3 git ca-certificates ffmpeg golang-go rustc cargo unzip pkg-config libasound2-dev build-essential file"
+ARG PACKAGES="curl wget jq coreutils grep nodejs npm python3 git ca-certificates ffmpeg golang-go rustc cargo unzip pkg-config libasound2-dev build-essential file ripgrep procps less"
 ARG INSTALL_PNPM=1
 ARG INSTALL_BUN=1
 ARG BUN_INSTALL_DIR=/opt/bun
@@ -23,9 +23,12 @@ ENV PATH=${BUN_INSTALL_DIR}/bin:${BREW_INSTALL_DIR}/bin:${BREW_INSTALL_DIR}/sbin
 
 RUN --mount=type=cache,id=openclaw-sandbox-common-apt-cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,id=openclaw-sandbox-common-apt-lists,target=/var/lib/apt,sharing=locked \
-  apt-get update \
-  && apt-get upgrade -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends ${PACKAGES}
+  printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' > /etc/apt/apt.conf.d/99openclaw-network-retries \
+  && printf '#!/bin/sh\napt-get "$@"\nstatus=$?\nif [ "$status" -eq 0 ]; then exit 0; fi\nexec apt-get -o Acquire::ForceIPv4=true "$@"\n' > /usr/local/bin/apt-get-retry \
+  && chmod 755 /usr/local/bin/apt-get-retry \
+  && apt-get-retry update \
+  && apt-get-retry upgrade -y --no-install-recommends \
+  && apt-get-retry install -y --no-install-recommends ${PACKAGES}
 
 RUN if [ "${INSTALL_PNPM}" = "1" ]; then npm install -g pnpm; fi
 
