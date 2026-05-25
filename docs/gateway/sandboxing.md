@@ -351,7 +351,8 @@ Build it once:
 scripts/sandbox-setup.sh
 ```
 
-Note: the default image does **not** include Node. If a skill needs Node (or
+Note: the default image includes basic shell tools plus Python and `ffmpeg`,
+but it does **not** include Node. If a skill needs Node (or
 other runtimes), either bake a custom image or install via
 `sandbox.docker.setupCommand` (requires network egress + writable root +
 root user).
