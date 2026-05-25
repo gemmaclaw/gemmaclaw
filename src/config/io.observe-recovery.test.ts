@@ -135,6 +135,14 @@ describe("config observe recovery", () => {
     } satisfies ConfigFileSnapshot;
   }
 
+  function warnMessages(warn: ReturnType<typeof vi.fn>): string[] {
+    return warn.mock.calls.map(([message]) => String(message));
+  }
+
+  function expectWarnContaining(warn: ReturnType<typeof vi.fn>, expected: string) {
+    expect(warnMessages(warn).join("\n")).toContain(expected);
+  }
+
   function makeDeps(
     home: string,
     warn = vi.fn(),
@@ -275,6 +283,87 @@ describe("config observe recovery", () => {
       expect(recovered.parsed).toEqual(editedConfig);
       await expect(fsp.readFile(configPath, "utf-8")).resolves.toBe(edited.raw);
       await expect(fsp.stat(auditPath)).rejects.toThrow();
+    });
+  });
+
+  it("retries recovery on next launch after a failed copyFile restore", async () => {
+    await withSuiteHome(async (home) => {
+      const { deps, configPath, auditPath, warn } = makeDeps(home);
+      await seedConfigBackup(configPath, recoverableTelegramConfig);
+      const clobbered = await writeClobberedUpdateChannel(configPath);
+
+      const copyError = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+      const failingFs: ObserveRecoveryDeps["fs"] = {
+        ...deps.fs,
+        promises: {
+          ...deps.fs.promises,
+          copyFile: () => Promise.reject(copyError),
+        },
+      };
+      await maybeRecoverSuspiciousConfigRead({
+        deps: { ...deps, fs: failingFs },
+        configPath,
+        raw: clobbered.raw,
+        parsed: clobbered.parsed,
+      });
+
+      expectWarnContaining(warn, "Config auto-restore from backup failed:");
+      const firstEvents = await readObserveEvents(auditPath);
+      expect(firstEvents).toHaveLength(1);
+      expect(firstEvents[0]?.restoredFromBackup).toBe(false);
+
+      const retryResult = await maybeRecoverSuspiciousConfigRead({
+        deps,
+        configPath,
+        raw: clobbered.raw,
+        parsed: clobbered.parsed,
+      });
+
+      expect((retryResult.parsed as { gateway?: { mode?: string } }).gateway?.mode).toBe("local");
+      await expect(fsp.readFile(configPath, "utf-8")).resolves.not.toBe(clobbered.raw);
+      const retryEvents = await readObserveEvents(auditPath);
+      expect(retryEvents).toHaveLength(2);
+      expect(retryEvents[1]?.restoredFromBackup).toBe(true);
+    });
+  });
+
+  it("sync recovery retries on next launch after a failed copyFileSync restore", async () => {
+    await withSuiteHome(async (home) => {
+      const { deps, configPath, auditPath, warn } = makeDeps(home);
+      await seedConfigBackup(configPath, recoverableTelegramConfig);
+      const clobbered = await writeClobberedUpdateChannel(configPath);
+
+      const copyError = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+      const failingFs: ObserveRecoveryDeps["fs"] = {
+        ...deps.fs,
+        copyFileSync: () => {
+          throw copyError;
+        },
+      };
+      maybeRecoverSuspiciousConfigReadSync({
+        deps: { ...deps, fs: failingFs },
+        configPath,
+        raw: clobbered.raw,
+        parsed: clobbered.parsed,
+      });
+
+      expectWarnContaining(warn, "Config auto-restore from backup failed:");
+      const firstEvents = await readObserveEvents(auditPath);
+      expect(firstEvents).toHaveLength(1);
+      expect(firstEvents[0]?.restoredFromBackup).toBe(false);
+
+      const retryResult = maybeRecoverSuspiciousConfigReadSync({
+        deps,
+        configPath,
+        raw: clobbered.raw,
+        parsed: clobbered.parsed,
+      });
+
+      expect((retryResult.parsed as { gateway?: { mode?: string } }).gateway?.mode).toBe("local");
+      await expect(fsp.readFile(configPath, "utf-8")).resolves.not.toBe(clobbered.raw);
+      const retryEvents = await readObserveEvents(auditPath);
+      expect(retryEvents).toHaveLength(2);
+      expect(retryEvents[1]?.restoredFromBackup).toBe(true);
     });
   });
 

@@ -89,6 +89,25 @@ export function resolveProviderAuthAliasMap(
         }
       }
     }
+    for (const choice of plugin.providerAuthChoices ?? []) {
+      for (const deprecatedChoiceId of choice.deprecatedChoiceIds ?? []) {
+        const normalizedAlias = normalizeProviderId(deprecatedChoiceId);
+        const normalizedTarget = normalizeProviderId(choice.provider);
+        if (normalizedAlias && normalizedTarget) {
+          const existing = preferredAliases.get(normalizedAlias);
+          if (
+            !existing ||
+            resolveProviderAuthAliasOriginPriority(plugin.origin) <
+              resolveProviderAuthAliasOriginPriority(existing.origin)
+          ) {
+            preferredAliases.set(normalizedAlias, {
+              origin: plugin.origin,
+              target: normalizedTarget,
+            });
+          }
+        }
+      }
+    }
   }
   for (const [alias, candidate] of preferredAliases) {
     aliases[alias] = candidate.target;
