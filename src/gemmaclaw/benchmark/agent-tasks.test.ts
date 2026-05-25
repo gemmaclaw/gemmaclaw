@@ -171,7 +171,7 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
       newTaskCategories.add(task!.category);
     }
 
-    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(22);
+    expect(OPENCLAW_HARD_WORKFLOW_TASK_IDS).toHaveLength(23);
     expect(newTaskCategories.size).toBeGreaterThanOrEqual(7);
 
     const taskText = OPENCLAW_HARD_WORKFLOW_TASK_IDS.map((id) => {
@@ -199,10 +199,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     const expandedIds = new Set(EXPANDED_AGENT_BENCHMARK_TASKS.map((task) => task.id));
     const variationIds = new Set(GENERATED_AGENT_VARIATION_TASKS.map((task) => task.id));
 
-    expect(AGENT_BENCHMARK_TASKS).toHaveLength(50);
+    expect(AGENT_BENCHMARK_TASKS).toHaveLength(51);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
     expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(29400);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29597);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29598);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });
@@ -298,6 +298,34 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     expect(taskText).toContain("required_step_count must be at least 20");
     expect(taskText).toContain("promise_language_used");
     expect(taskText).toContain("Must not rely on .openclaw/cron/jobs.json");
+  });
+
+  it("locks Home AI hill-climb coverage to labelled examples and same-label dedupe", () => {
+    const task = getTaskById("home_ai_hill_climb_labelled_examples");
+
+    expect(task).toBeDefined();
+    expect(task?.difficulty).toBe("very_hard");
+    expect(task?.grading.maxScore).toBeGreaterThanOrEqual(200);
+
+    const taskText = [task!.prompt, ...task!.grading.criteria].join("\n");
+    expect(taskText).toContain("ex_litter_white_1956");
+    expect(taskText).toContain("2026-05-24T19:56:00-04:00");
+    expect(taskText).toContain("white_cat");
+    expect(taskText).toContain("ex_feed_cluster_1759_1806");
+    expect(taskText).toContain("black_cat/eating");
+    expect(taskText).toContain("white_cat/eating");
+    expect(taskText).toContain("ex_empty_equipment_negative");
+    expect(taskText).toContain("dedupe_window_seconds");
+    expect(taskText).toContain("900");
+    expect(taskText).toContain("cat and activity");
+    expect(taskText).toContain("cat and usage_status");
+    expect(taskText).toContain("memory/home-ai-hill-climb-report.json");
+    expect(taskText).toContain("state/home-ai-hill-climb/cat_feeding_water/config.json");
+    expect(taskText).toContain("state/home-ai-hill-climb/cat_litter_box/config.json");
+    expect(taskText).toContain("semantic evaluation");
+    expect(taskText).toContain("keyword");
+    expect(taskText).toContain("clicked dashboard graph point");
+    expect(taskText).toContain("future_agent_prompt");
   });
 
   it("keeps expanded benchmark task prompts and rubrics publishable", () => {
