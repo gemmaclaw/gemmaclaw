@@ -129,6 +129,7 @@ describe("bootstrap-profiles", () => {
       );
       expect(written).toContain("## Docker Sandbox Environment");
       expect(written).toContain("/workspace/shared");
+      expect(written).toContain("apt-get-retry install");
       expect(written).toContain("apt-get -o APT::Sandbox::User=root install");
     });
 

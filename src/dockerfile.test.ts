@@ -8,6 +8,8 @@ const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const dockerfilePath = join(repoRoot, "Dockerfile");
 const sandboxDockerfilePath = join(repoRoot, "Dockerfile.sandbox");
 const sandboxCommonDockerfilePath = join(repoRoot, "Dockerfile.sandbox-common");
+const sandboxBrowserDockerfilePath = join(repoRoot, "Dockerfile.sandbox-browser");
+const benchmarkDockerfilePath = join(repoRoot, "Dockerfile.benchmark");
 const dockerReleaseWorkflowPath = join(repoRoot, ".github/workflows/docker-release.yml");
 
 function collapseDockerContinuations(dockerfile: string): string {
@@ -42,7 +44,7 @@ describe("Dockerfile", () => {
     expect(dockerfile).toContain(
       "node /app/node_modules/playwright-core/cli.js install --with-deps chromium",
     );
-    expect(dockerfile).toContain("apt-get install -y --no-install-recommends xvfb");
+    expect(dockerfile).toContain("apt-get-retry install -y --no-install-recommends xvfb");
   });
 
   it("verifies matrix-sdk-crypto native addons without hardcoded pnpm virtual-store paths", async () => {
@@ -113,8 +115,47 @@ describe("Dockerfile", () => {
     const sandboxCommonDockerfile = await readFile(sandboxCommonDockerfilePath, "utf8");
 
     expect(sandboxDockerfile).toMatch(
-      /apt-get install -y --no-install-recommends[\s\S]*\bffmpeg\b/,
+      /apt-get-retry install -y --no-install-recommends[\s\S]*\bffmpeg\b/,
     );
     expect(sandboxCommonDockerfile).toMatch(/ARG PACKAGES=.*\bffmpeg\b/);
+  });
+
+  it("includes common agent inspection tools in sandbox images", async () => {
+    const sandboxDockerfile = await readFile(sandboxDockerfilePath, "utf8");
+    const sandboxCommonDockerfile = await readFile(sandboxCommonDockerfilePath, "utf8");
+    const sandboxBrowserDockerfile = await readFile(sandboxBrowserDockerfilePath, "utf8");
+
+    for (const tool of ["jq", "ripgrep", "file", "unzip", "wget", "procps", "less"]) {
+      expect(sandboxDockerfile, `default sandbox should include ${tool}`).toMatch(
+        new RegExp(`\\b${tool}\\b`),
+      );
+      expect(sandboxCommonDockerfile, `common sandbox should include ${tool}`).toMatch(
+        new RegExp(`\\b${tool}\\b`),
+      );
+      expect(sandboxBrowserDockerfile, `browser sandbox should include ${tool}`).toMatch(
+        new RegExp(`\\b${tool}\\b`),
+      );
+    }
+  });
+
+  it("hardens apt fetches in runtime and sandbox image builds", async () => {
+    for (const [label, path] of [
+      ["runtime", dockerfilePath],
+      ["sandbox", sandboxDockerfilePath],
+      ["sandbox-common", sandboxCommonDockerfilePath],
+      ["sandbox-browser", sandboxBrowserDockerfilePath],
+      ["benchmark", benchmarkDockerfilePath],
+    ] as const) {
+      const dockerfile = await readFile(path, "utf8");
+      expect(dockerfile, `${label} image should configure apt retries`).toContain(
+        'Acquire::Retries "5";',
+      );
+      expect(dockerfile, `${label} image should install apt-get-retry`).toContain(
+        "/usr/local/bin/apt-get-retry",
+      );
+      expect(dockerfile, `${label} image should retry apt over IPv4 after failure`).toContain(
+        "Acquire::ForceIPv4=true",
+      );
+    }
   });
 });

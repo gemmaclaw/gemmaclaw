@@ -351,11 +351,19 @@ Build it once:
 scripts/sandbox-setup.sh
 ```
 
-Note: the default image includes basic shell tools plus Python and `ffmpeg`,
-but it does **not** include Node. If a skill needs Node (or
-other runtimes), either bake a custom image or install via
-`sandbox.docker.setupCommand` (requires network egress + writable root +
-root user).
+Note: the default image includes basic shell and inspection tools (`bash`,
+`curl`, `wget`, `git`, `jq`, `ripgrep`, `file`, `unzip`, `procps`, `less`) plus
+Python and `ffmpeg`, but it does **not** include Node. If a skill needs Node
+(or other runtimes), either bake a custom image or install via
+`sandbox.docker.setupCommand` (requires network egress + writable root + root
+user).
+
+The bundled sandbox images install apt retry/timeouts and an `apt-get-retry`
+helper. `apt-get-retry` runs apt normally first, then retries once with
+`Acquire::ForceIPv4=true` if the first attempt fails. This makes setup and
+agent-initiated package installs more resilient to transient DNS, mirror, and
+IPv6 routing failures without forcing IPv4-only behavior for every plain apt
+command.
 
 If you want a more functional sandbox image with common tooling (for example
 `curl`, `jq`, `nodejs`, `python3`, `git`), build:
@@ -440,6 +448,9 @@ Common pitfalls:
 - `docker.network: "container:<id>"` requires `dangerouslyAllowContainerNamespaceJoin: true` and is break-glass only.
 - `readOnlyRoot: true` prevents writes; set `readOnlyRoot: false` or bake a custom image.
 - `user` must be root for package installs (omit `user` or set `user: "0:0"`).
+- Prefer `apt-get-retry` in Gemmaclaw container setup commands and agent
+  instructions. It preserves normal apt behavior first, then falls back to an
+  IPv4 retry when DNS or mirror fetches fail.
 - Sandbox exec does **not** inherit host `process.env`. Use
   `agents.defaults.sandbox.docker.env` (or a custom image) for skill API keys.
 

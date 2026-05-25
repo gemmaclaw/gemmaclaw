@@ -272,6 +272,18 @@ if (flow === "container") {
   if (!Array.isArray(docker?.capDrop) || docker.capDrop.length !== 0) {
     fail(`capDrop must be empty, got ${JSON.stringify(docker?.capDrop)}`);
   }
+  const setupCommand = String(docker?.setupCommand ?? "");
+  for (const pkg of ["git", "python3", "jq", "ripgrep", "file", "unzip", "wget", "procps", "less"]) {
+    if (!setupCommand.includes(pkg)) {
+      fail(`setupCommand must install ${pkg}`);
+    }
+  }
+  if (!setupCommand.includes("apt-get-retry")) {
+    fail("setupCommand must install the retry-aware apt helper");
+  }
+  if (!setupCommand.includes("99gemmaclaw-network-retries")) {
+    fail("setupCommand must install apt network retry config");
+  }
   if (mode(sharedDir) !== "777" || mode(workspaceDir) !== "777") {
     fail(`bind host dirs must be mode 777, got shared=${mode(sharedDir)} workspace=${mode(workspaceDir)}`);
   }
@@ -307,7 +319,7 @@ Use your exec tool to run shell commands. Do not just explain.
 
 Run these checks:
 1. Print whoami, id, pwd, and uname -a.
-2. Install cowsay with apt-get -o APT::Sandbox::User=root update and DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y cowsay.
+2. Install cowsay with apt-get-retry update and DEBIAN_FRONTEND=noninteractive apt-get-retry install -y cowsay.
 3. Write WORKSPACE_WRITE_OK to $WORKSPACE_PATH/workspace_e2e.txt and read it back.
 4. Write SHARED_WRITE_OK to $SHARED_PATH/shared_e2e.txt and read it back.
 5. Write MOVED_SHARED_OK to $WORKSPACE_PATH/moved_e2e.txt, move it to $SHARED_PATH/moved_e2e.txt, then read it back from $SHARED_PATH/moved_e2e.txt.
@@ -335,6 +347,13 @@ if [ "$FLOW" = "container" ]; then
     echo "FAIL: no sandbox container found for $AGENT_NAME" >&2
     exit 1
   fi
+  if ! docker exec "$CONTAINER_NAME" sh -lc 'command -v cowsay >/dev/null || test -x /usr/games/cowsay'; then
+    echo "FAIL: agent did not install cowsay inside the sandbox container" >&2
+    exit 1
+  fi
+elif ! { command -v cowsay >/dev/null 2>&1 || [ -x /usr/games/cowsay ]; }; then
+  echo "FAIL: agent did not install cowsay in the non-container smoke environment" >&2
+  exit 1
 fi
 
 echo "==> Verifying smoke artifacts and isolation ($FLOW)"

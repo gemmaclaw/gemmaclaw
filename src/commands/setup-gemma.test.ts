@@ -462,15 +462,25 @@ describe("setupGemmaCommand — agent creation", () => {
         readOnlyRoot: false,
         network: "bridge",
         capDrop: [],
-        setupCommand:
-          "apt-get -o APT::Sandbox::User=root update && " +
-          "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3 ffmpeg && " +
-          "printf '\\numask 000\\n' >> /etc/profile && " +
-          "rm -rf /var/lib/apt/lists/*",
+        setupCommand: expect.any(String),
         user: "0:0",
       },
     });
     const docker = sandbox?.docker as Record<string, unknown> | undefined;
+    expect(docker?.setupCommand).toEqual(expect.any(String));
+    const setupCommand = docker?.setupCommand as string;
+    expect(setupCommand).toContain("/etc/apt/apt.conf.d/99gemmaclaw-network-retries");
+    expect(setupCommand).toContain('Acquire::Retries "5";');
+    expect(setupCommand).toContain("apt-get-retry");
+    expect(setupCommand).not.toContain("<<");
+    expect(setupCommand).toContain("Acquire::ForceIPv4=true");
+    expect(setupCommand).toContain(
+      "DEBIAN_FRONTEND=noninteractive apt-get-retry install -y --no-install-recommends bash ca-certificates curl wget git jq ripgrep python3 ffmpeg file unzip procps less",
+    );
+    for (const pkg of ["jq", "ripgrep", "file", "unzip", "wget", "procps", "less"]) {
+      expect(setupCommand).toContain(` ${pkg}`);
+    }
+    expect(setupCommand).toContain("printf '\\numask 000\\n' >> /etc/profile");
     expect(docker?.binds).toEqual([
       `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/workspace/shared:rw`,
     ]);
