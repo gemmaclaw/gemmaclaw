@@ -531,6 +531,134 @@ describe("openai transport stream", () => {
     });
   });
 
+  it("forwards temperature and top_p to chat completions request params", () => {
+    const params = buildOpenAICompletionsParams(
+      {
+        id: "gpt-5.4",
+        name: "GPT-5.4",
+        api: "openai-completions",
+        provider: "openai",
+        baseUrl: "https://api.openai.com/v1",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 8192,
+      } satisfies Model<"openai-completions">,
+      {
+        systemPrompt: "system",
+        messages: [{ role: "user", content: "hi", timestamp: 1 }],
+        tools: [],
+      } as never,
+      {
+        temperature: 0.4,
+        topP: 0.9,
+      },
+    );
+
+    expect(params.temperature).toBe(0.4);
+    expect(params.top_p).toBe(0.9);
+  });
+
+  it("forwards penalty params and seed to chat completions request params", () => {
+    const params = buildOpenAICompletionsParams(
+      {
+        id: "gpt-5.4",
+        name: "GPT-5.4",
+        api: "openai-completions",
+        provider: "openai",
+        baseUrl: "https://api.openai.com/v1",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 8192,
+      } satisfies Model<"openai-completions">,
+      {
+        systemPrompt: "system",
+        messages: [{ role: "user", content: "hi", timestamp: 1 }],
+        tools: [],
+      } as never,
+      {
+        frequencyPenalty: -0.5,
+        presencePenalty: 1.25,
+        seed: 12345,
+      },
+    );
+
+    expect(params.frequency_penalty).toBe(-0.5);
+    expect(params.presence_penalty).toBe(1.25);
+    expect(params.seed).toBe(12345);
+  });
+
+  it("forwards response_format to chat completions request params", () => {
+    const model = {
+      id: "gpt-5.4",
+      name: "GPT-5.4",
+      api: "openai-completions",
+      provider: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 200000,
+      maxTokens: 8192,
+    } satisfies Model<"openai-completions">;
+
+    const context = {
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "hi", timestamp: 1 }],
+      tools: [],
+    } as never;
+
+    {
+      const params = buildOpenAICompletionsParams(model, context, {
+        responseFormat: { type: "json_object" },
+      });
+      expect(params.response_format).toEqual({ type: "json_object" });
+    }
+
+    {
+      const params = buildOpenAICompletionsParams(model, context, {
+        responseFormat: { type: "json_schema", json_schema: {} },
+      });
+      expect(params.response_format).toEqual({ type: "json_schema", json_schema: {} });
+    }
+
+    {
+      const params = buildOpenAICompletionsParams(model, context, {});
+      expect(params).not.toHaveProperty("response_format");
+    }
+  });
+
+  it("does not build OpenRouter reasoning params for Hunter Alpha when reasoning is disabled", () => {
+    const params = buildOpenAICompletionsParams(
+      {
+        id: "openrouter/hunter-alpha",
+        name: "Hunter Alpha",
+        api: "openai-completions",
+        provider: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 1_048_576,
+        maxTokens: 65_536,
+      } satisfies Model<"openai-completions">,
+      {
+        systemPrompt: "system",
+        messages: [],
+        tools: [],
+      } as never,
+      {
+        reasoningEffort: "high",
+      } as never,
+    ) as { reasoning?: unknown; reasoning_effort?: unknown };
+
+    expect(params).not.toHaveProperty("reasoning");
+    expect(params).not.toHaveProperty("reasoning_effort");
+  });
+
   it("uses system role instead of developer for responses providers that disable developer role", () => {
     const params = buildOpenAIResponsesParams(
       {

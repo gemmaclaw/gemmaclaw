@@ -88,6 +88,37 @@ function parseSseDataLines(text: string): string[] {
     .map((line) => line.slice("data: ".length));
 }
 
+type FirstAgentCommandOptions = {
+  clientTools?: Array<{
+    function?: {
+      description?: string;
+      name?: string;
+      parameters?: Record<string, unknown>;
+      strict?: boolean;
+    };
+    type?: string;
+  }>;
+  extraSystemPrompt?: string;
+  images?: Array<{ data: string; mimeType: string; type: string }>;
+  message?: string;
+  messageChannel?: string;
+  model?: string;
+  sessionKey?: string;
+  streamParams?: {
+    frequencyPenalty?: number;
+    maxTokens?: number;
+    presencePenalty?: number;
+    responseFormat?: Record<string, unknown>;
+    seed?: number;
+    temperature?: number;
+    topP?: number;
+  };
+};
+
+function firstAgentCommandOptions() {
+  return agentCommand.mock.calls.at(0)?.[0] as FirstAgentCommandOptions | undefined;
+}
+
 describe("OpenAI-compatible HTTP API (e2e)", () => {
   it("handles request validation and routing", async () => {
     const port = enabledPort;
@@ -830,6 +861,284 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
       }
     } finally {
       // shared server
+    }
+  });
+
+  it("forwards inbound max_completion_tokens and max_tokens into streamParams", async () => {
+    const port = enabledPort;
+    const mockAgentOnce = (payloads: Array<{ text: string }>) => {
+      agentCommand.mockClear();
+      agentCommand.mockResolvedValueOnce({ payloads } as never);
+    };
+    const getFirstAgentMaxTokens = () => firstAgentCommandOptions()?.streamParams?.maxTokens;
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        max_completion_tokens: 256,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getFirstAgentMaxTokens()).toBe(256);
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        max_tokens: 128,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getFirstAgentMaxTokens()).toBe(128);
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        max_completion_tokens: 64,
+        max_tokens: 999,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getFirstAgentMaxTokens()).toBe(64);
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getFirstAgentMaxTokens()).toBeUndefined();
+      await res.text();
+    }
+  });
+
+  it("forwards inbound temperature and top_p into streamParams", async () => {
+    const port = enabledPort;
+    const mockAgentOnce = (payloads: Array<{ text: string }>) => {
+      agentCommand.mockClear();
+      agentCommand.mockResolvedValueOnce({ payloads } as never);
+    };
+    const getStreamParams = () => firstAgentCommandOptions()?.streamParams;
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        temperature: 0.3,
+        top_p: 0.95,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toMatchObject({ temperature: 0.3, topP: 0.95 });
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        temperature: 0,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      const params = getStreamParams();
+      expect(params?.temperature).toBe(0);
+      expect(params?.topP).toBeUndefined();
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toBeUndefined();
+      await res.text();
+    }
+
+    {
+      agentCommand.mockClear();
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        temperature: 999,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: { type?: string; message?: string } };
+      expect(json.error?.type).toBe("invalid_request_error");
+      expect(json.error?.message).toMatch(/temperature/);
+      expect(agentCommand).toHaveBeenCalledTimes(0);
+    }
+
+    {
+      agentCommand.mockClear();
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        top_p: 5,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: { type?: string; message?: string } };
+      expect(json.error?.type).toBe("invalid_request_error");
+      expect(json.error?.message).toMatch(/top_p/);
+      expect(agentCommand).toHaveBeenCalledTimes(0);
+    }
+  });
+
+  it("forwards inbound penalty and seed params into streamParams", async () => {
+    const port = enabledPort;
+    const mockAgentOnce = (payloads: Array<{ text: string }>) => {
+      agentCommand.mockClear();
+      agentCommand.mockResolvedValueOnce({ payloads } as never);
+    };
+    const getStreamParams = () => firstAgentCommandOptions()?.streamParams;
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        frequency_penalty: -0.5,
+        presence_penalty: 1.25,
+        seed: 12345,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toMatchObject({
+        frequencyPenalty: -0.5,
+        presencePenalty: 1.25,
+        seed: 12345,
+      });
+      await res.text();
+    }
+
+    for (const body of [{ frequency_penalty: 3 }, { presence_penalty: -3 }, { seed: 1.5 }]) {
+      agentCommand.mockClear();
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        ...body,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: { type?: string; message?: string } };
+      expect(json.error?.type).toBe("invalid_request_error");
+      expect(agentCommand).toHaveBeenCalledTimes(0);
+    }
+  });
+
+  it("maps provider format failures to OpenAI-compatible 400 errors", async () => {
+    const port = enabledPort;
+
+    agentCommand.mockClear();
+    agentCommand.mockRejectedValueOnce(
+      new FailoverError(
+        "LLM request failed: provider rejected the request schema or tool payload.",
+        {
+          reason: "format",
+          status: 400,
+          code: "decimal_above_max_value",
+          rawError:
+            "400 Invalid 'temperature': decimal above maximum value. Expected a value <= 2, but got 999 instead.",
+        },
+      ) as never,
+    );
+
+    const res = await postChatCompletions(port, {
+      model: "openclaw",
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as {
+      error?: { type?: string; code?: string; message?: string };
+    };
+    expect(json.error?.type).toBe("invalid_request_error");
+    expect(json.error?.code).toBe("decimal_above_max_value");
+    expect(json.error?.message).toContain("Invalid 'temperature'");
+    expect(agentCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards response_format into streamParams", async () => {
+    const port = enabledPort;
+    const mockAgentOnce = (payloads: Array<{ text: string }>) => {
+      agentCommand.mockClear();
+      agentCommand.mockResolvedValueOnce({ payloads } as never);
+    };
+    const getStreamParams = () => firstAgentCommandOptions()?.streamParams;
+
+    {
+      mockAgentOnce([{ text: "{}" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toMatchObject({ responseFormat: { type: "json_object" } });
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "{}" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "test", schema: { type: "object" } },
+        },
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toMatchObject({
+        responseFormat: { type: "json_schema" },
+      });
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        response_format: { type: "text" },
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toMatchObject({ responseFormat: { type: "text" } });
+      await res.text();
+    }
+
+    {
+      mockAgentOnce([{ text: "hello" }]);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(200);
+      expect(getStreamParams()).toBeUndefined();
+      await res.text();
+    }
+
+    {
+      agentCommand.mockClear();
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        response_format: { type: "xml" },
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: { type?: string; message?: string } };
+      expect(json.error?.type).toBe("invalid_request_error");
+      expect(json.error?.message).toMatch(/response_format/);
+      expect(agentCommand).toHaveBeenCalledTimes(0);
     }
   });
 
