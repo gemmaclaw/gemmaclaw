@@ -637,8 +637,8 @@ vi.mock("../utils.js", () => ({
 
 vi.mock("./compaction-retry-aggregate-timeout.js", () => ({
   waitForCompactionRetryWithAggregateTimeout: (
-    params: Parameters<WaitForCompactionRetryWithAggregateTimeoutFn>[0],
-  ) => hoisted.waitForCompactionRetryWithAggregateTimeoutMock(params),
+    ...args: Parameters<WaitForCompactionRetryWithAggregateTimeoutFn>
+  ) => hoisted.waitForCompactionRetryWithAggregateTimeoutMock(...args),
 }));
 
 vi.mock("./compaction-timeout.js", () => ({
