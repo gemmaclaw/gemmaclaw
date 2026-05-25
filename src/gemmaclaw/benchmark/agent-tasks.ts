@@ -55,6 +55,7 @@ export const OPENCLAW_HARD_WORKFLOW_TASK_IDS = [
   "scheduled_media_delivery_verification",
   "commitment_followthrough_verification",
   "long_horizon_20_step_followthrough",
+  "home_ai_hill_climb_labelled_examples",
   "external_source_trust_escalation",
   "literal_dollar_preservation",
   "calendar_briefing_source_reconciliation",
@@ -1584,6 +1585,57 @@ export const AGENT_BENCHMARK_TASKS: AgentBenchmarkTask[] = [
         "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
       ],
       maxScore: 320,
+    },
+  },
+
+  {
+    id: "home_ai_hill_climb_labelled_examples",
+    name: "Home AI Hill-Climb From Labelled Examples",
+    description:
+      "Tests whether the agent can improve a mock local Home AI job from labelled QA examples, including same-label dedupe and example promotion.",
+    category: "data_analysis",
+    difficulty: "very_hard",
+    prompt:
+      "Simulate repairing a local Home AI cat-monitoring setup from labelled QA examples. " +
+      "Do not inspect benchmark harness source. Work only from this prompt and the files you create. " +
+      "Create a mock workspace under state/home-ai-hill-climb with two jobs: cat_feeding_water and cat_litter_box. " +
+      "The current mock feeding job incorrectly dedupes by activity only, so black-cat eating and white-cat eating inside the same 15-minute window can collapse into one row. " +
+      "The current mock litter job has no positive example for white-cat litter-box usage. " +
+      "Use these labelled examples as the source of truth: " +
+      "ex_litter_white_1956 is a positive example from 2026-05-24T19:56:00-04:00 where the white cat is visibly using the litter box and should become a cat_litter_box QA example; " +
+      "ex_feed_cluster_1759_1806 contains rows at 2026-05-24T17:59:00-04:00, 18:02, 18:05, and 18:06 where black_cat/eating and white_cat/eating both occur in the same window; " +
+      "the expected hill climb is one deduped black_cat/eating point and one deduped white_cat/eating point, not one combined activity-only point; " +
+      "ex_empty_equipment_negative is a negative feeding-area example where equipment is visible but no cat is eating or drinking, so no SQLite row should be written. " +
+      "Infer the hill-climb changes needed from those labels, write corrected mock job config JSON files, write the QA example records, and write memory/home-ai-hill-climb-report.json. " +
+      "The report must explain the inferred prompt/config changes, the dedupe rule, how the 7:56 PM white-cat litter example is promoted, and how a future Gemmaclaw agent should verify the same behavior without keyword matching.",
+    grading: {
+      type: "artifact_check",
+      criteria: [
+        "Must create state/home-ai-hill-climb/cat_feeding_water/config.json",
+        "Must create state/home-ai-hill-climb/cat_litter_box/config.json",
+        "Must create state/home-ai-hill-climb/cat_litter_box/qa_examples/ex_litter_white_1956.json",
+        "Must create memory/home-ai-hill-climb-report.json as valid JSON",
+        "Must explicitly infer the hill-climb need from the labelled examples, not merely say the setup is updated",
+        "Feeding config must set dedupe_window_seconds to 900 or otherwise explicitly encode a 15-minute dedupe window",
+        "Feeding config must use same-label dedupe keys that include both cat and activity",
+        "Feeding config or report must state that black_cat/eating and white_cat/eating in the same 15-minute window remain separate visible points",
+        "Litter config must set dedupe_window_seconds to 900 or otherwise explicitly encode a 15-minute dedupe window",
+        "Litter config must use same-label dedupe keys that include cat and usage_status, or an equivalent explicit cat plus usage-label key",
+        "Litter QA example ex_litter_white_1956 must identify white_cat and visible litter-box usage as positive",
+        "The report must mention ex_litter_white_1956 and 2026-05-24T19:56:00-04:00 or 7:56 PM",
+        "The report must mention ex_feed_cluster_1759_1806 and the expected two points: black_cat/eating and white_cat/eating",
+        "The report must mention ex_empty_equipment_negative and that no row should be written for visible empty equipment",
+        "The report must include an expectation that Gemmaclaw performs semantic evaluation from labelled examples rather than keyword or fixed-phrase checks",
+        "The report must include an expectation that a clicked dashboard graph point can be inspected, removed, or promoted as an example",
+        "The report JSON must include top-level keys inferred_changes, dedupe_expectation, examples_to_add, verification_expectation, and future_agent_prompt",
+        "inferred_changes must include both prompt/semantic reasoning changes and config/dedupe changes",
+        "dedupe_expectation must preserve separate black_cat and white_cat actions in the same 15-minute window",
+        "examples_to_add must include ex_litter_white_1956 with cat white_cat and positive litter-box usage",
+        "verification_expectation must say that a future Gemmaclaw agent should reproduce the same hill-climb on the mock Home AI setup",
+        "future_agent_prompt must ask the agent to read the mock Home AI config/examples and hill-climb from labelled examples before changing behavior",
+        "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+      ],
+      maxScore: 240,
     },
   },
 
