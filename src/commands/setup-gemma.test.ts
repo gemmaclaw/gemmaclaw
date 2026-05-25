@@ -472,6 +472,7 @@ describe("setupGemmaCommand — agent creation", () => {
     expect(setupCommand).toContain("/etc/apt/apt.conf.d/99gemmaclaw-network-retries");
     expect(setupCommand).toContain('Acquire::Retries "5";');
     expect(setupCommand).toContain("apt-get-retry");
+    expect(setupCommand).not.toContain("<<");
     expect(setupCommand).toContain("Acquire::ForceIPv4=true");
     expect(setupCommand).toContain(
       "DEBIAN_FRONTEND=noninteractive apt-get-retry install -y --no-install-recommends bash ca-certificates curl wget git jq ripgrep python3 ffmpeg file unzip procps less",

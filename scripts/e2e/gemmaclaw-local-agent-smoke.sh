@@ -347,6 +347,13 @@ if [ "$FLOW" = "container" ]; then
     echo "FAIL: no sandbox container found for $AGENT_NAME" >&2
     exit 1
   fi
+  if ! docker exec "$CONTAINER_NAME" sh -lc 'command -v cowsay >/dev/null || test -x /usr/games/cowsay'; then
+    echo "FAIL: agent did not install cowsay inside the sandbox container" >&2
+    exit 1
+  fi
+elif ! { command -v cowsay >/dev/null 2>&1 || [ -x /usr/games/cowsay ]; }; then
+  echo "FAIL: agent did not install cowsay in the non-container smoke environment" >&2
+  exit 1
 fi
 
 echo "==> Verifying smoke artifacts and isolation ($FLOW)"

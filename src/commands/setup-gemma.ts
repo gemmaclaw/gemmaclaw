@@ -93,17 +93,19 @@ const GEMMACLAW_DEFAULT_SANDBOX_PACKAGES = [
 
 function buildGemmaclawSandboxSetupCommand(): string {
   return [
-    `cat > /etc/apt/apt.conf.d/99gemmaclaw-network-retries <<'EOF'\n${GEMMACLAW_APT_NETWORK_RETRY_CONF}\nEOF`,
+    `printf '%s\\n' ${GEMMACLAW_APT_NETWORK_RETRY_CONF.split("\n")
+      .map((line) => `'${line}'`)
+      .join(" ")} > /etc/apt/apt.conf.d/99gemmaclaw-network-retries`,
     [
-      "cat > /usr/local/bin/apt-get-retry <<'EOF'",
-      "#!/bin/sh",
-      'apt-get -o APT::Sandbox::User=root "$@"',
-      "status=$?",
-      'if [ "$status" -eq 0 ]; then exit 0; fi',
-      'exec apt-get -o APT::Sandbox::User=root -o Acquire::ForceIPv4=true "$@"',
-      "EOF",
-      "chmod 755 /usr/local/bin/apt-get-retry",
-    ].join("\n"),
+      "printf '%s\\n'",
+      "'#!/bin/sh'",
+      "'apt-get -o APT::Sandbox::User=root \"$@\"'",
+      "'status=$?'",
+      "'if [ \"$status\" -eq 0 ]; then exit 0; fi'",
+      "'exec apt-get -o APT::Sandbox::User=root -o Acquire::ForceIPv4=true \"$@\"'",
+      "> /usr/local/bin/apt-get-retry",
+    ].join(" "),
+    "chmod 755 /usr/local/bin/apt-get-retry",
     "apt-get-retry update",
     `DEBIAN_FRONTEND=noninteractive apt-get-retry install -y --no-install-recommends ${GEMMACLAW_DEFAULT_SANDBOX_PACKAGES}`,
     "printf '\\numask 000\\n' >> /etc/profile",
