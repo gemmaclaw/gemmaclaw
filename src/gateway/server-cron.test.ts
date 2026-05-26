@@ -91,6 +91,50 @@ function createCronConfig(name: string): OpenClawConfig {
   } as OpenClawConfig;
 }
 
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object") {
+    throw new Error(`expected ${label}`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function callArg(
+  mock: { mock: { calls: Array<Array<unknown>> } },
+  callIndex: number,
+  argIndex: number,
+  label: string,
+) {
+  const call = mock.mock.calls[callIndex];
+  if (!call) {
+    throw new Error(`Expected mock call: ${label}`);
+  }
+  if (argIndex >= call.length) {
+    throw new Error(`Expected mock call argument ${argIndex}: ${label}`);
+  }
+  return call[argIndex];
+}
+
+function expectIsolatedRunFields(fields: Record<string, unknown>) {
+  const options = requireRecord(
+    callArg(runCronIsolatedAgentTurnMock, 0, 0, "isolated cron run"),
+    "isolated cron run",
+  );
+  for (const [key, value] of Object.entries(fields)) {
+    expect(options[key]).toEqual(value);
+  }
+  return options;
+}
+
+function expectCleanupForSessionKeys(sessionKeys: string[]) {
+  expect(cleanupBrowserSessionsForLifecycleEndMock).toHaveBeenCalledTimes(1);
+  const options = requireRecord(
+    callArg(cleanupBrowserSessionsForLifecycleEndMock, 0, 0, "cleanup options"),
+    "cleanup options",
+  );
+  expect(options.sessionKeys).toEqual(sessionKeys);
+  expect(options.onWarn).toBeTypeOf("function");
+}
+
 describe("buildGatewayCronService", () => {
   beforeEach(() => {
     enqueueSystemEventMock.mockClear();
@@ -271,7 +315,7 @@ describe("buildGatewayCronService", () => {
     }
   });
 
-  it("passes custom session targets through to isolated cron runs", async () => {
+  it("passes opaque custom session targets through to isolated cron runs", async () => {
     const tmpDir = path.join(os.tmpdir(), `server-cron-custom-session-${Date.now()}`);
     const cfg = {
       session: {
@@ -289,27 +333,21 @@ describe("buildGatewayCronService", () => {
       broadcast: () => {},
     });
     try {
+      const sessionKey = "agent:main:dingtalk:group:cid3tmd4xb19xjfk/wogxwy2a==";
       const job = await state.cron.add({
         name: "custom-session",
         enabled: true,
         schedule: { kind: "at", at: new Date(1).toISOString() },
-        sessionTarget: "session:project-alpha-monitor",
+        sessionTarget: `session:${sessionKey}`,
         wakeMode: "next-heartbeat",
         payload: { kind: "agentTurn", message: "hello" },
       });
 
       await state.cron.run(job.id, "force");
 
-      expect(runCronIsolatedAgentTurnMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          job: expect.objectContaining({ id: job.id }),
-          sessionKey: "project-alpha-monitor",
-        }),
-      );
-      expect(cleanupBrowserSessionsForLifecycleEndMock).toHaveBeenCalledWith({
-        sessionKeys: ["project-alpha-monitor"],
-        onWarn: expect.any(Function),
-      });
+      const options = expectIsolatedRunFields({ sessionKey });
+      expect(requireRecord(options.job, "isolated job").id).toBe(job.id);
+      expectCleanupForSessionKeys([sessionKey]);
     } finally {
       state.cron.stop();
     }
