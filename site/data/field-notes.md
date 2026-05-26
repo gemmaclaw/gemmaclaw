@@ -456,6 +456,6 @@ The most relevant Gemma-mentioning posts driving this update, with the newest fi
 - [Models and Quants quality test results — the chessboard svg](https://reddit.com/r/LocalLLaMA/comments/1tax6hj) (May 12, 2026, 46 score, 19 comments — Gemma 4 26B Q4_K_L does "very good job" on visual geometry tasks; strong spatial reasoning at Q4 quant)
 - [Strix Halo or DGX Spark for a home LLM server?](https://reddit.com/r/LocalLLaMA/comments/1ta7ce9) (May 11, 2026, 21 score, 91 comments — owner of both confirms Spark faster prompt processing and better long-context scaling; Strix Halo more repurposable; community split on inference-specialization vs. longevity)
 
-The full set of 153 community reports lives in the Community Reports section above, filterable by hardware category and search.
+The full set of 195 community reports lives in the Community Reports section above, filterable by hardware category and search.
 
-_Last updated: 2026-05-18 (May 18 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+_Last updated: 2026-05-26 (May 26 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings._
