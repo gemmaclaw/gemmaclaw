@@ -22,7 +22,9 @@ import {
   getSerializedSessionStore,
   isSessionStoreCacheEnabled,
   setSerializedSessionStore,
+  takeMutableSessionStoreCache,
   writeSessionStoreCache,
+  writeSessionStoreSnapshotCache,
 } from "./store-cache.js";
 import { normalizeStoreSessionKey, resolveSessionStoreEntry } from "./store-entry.js";
 import { loadSessionStore, normalizeSessionStore } from "./store-load.js";
@@ -54,7 +56,12 @@ export {
   drainSessionStoreLockQueuesForTest,
   getSessionStoreLockQueueSizeForTest,
 } from "./store-lock-state.js";
-export { loadSessionStore } from "./store-load.js";
+export {
+  loadSessionStore,
+  readSessionEntries,
+  readSessionEntry,
+  readSessionStoreSnapshot,
+} from "./store-load.js";
 export { normalizeStoreSessionKey, resolveSessionStoreEntry } from "./store-entry.js";
 
 const log = createSubsystemLogger("sessions/store");
@@ -169,6 +176,28 @@ function updateSessionStoreWriteCaches(params: {
     sizeBytes: fileStat?.sizeBytes,
     serialized: params.serialized,
   });
+  writeSessionStoreSnapshotCache({
+    storePath: params.storePath,
+    store: params.store,
+    mtimeMs: fileStat?.mtimeMs,
+    sizeBytes: fileStat?.sizeBytes,
+    serialized: params.serialized,
+  });
+}
+
+function loadMutableSessionStoreForWriter(storePath: string): Record<string, SessionEntry> {
+  if (isSessionStoreCacheEnabled()) {
+    const currentFileStat = getFileStatSnapshot(storePath);
+    const cached = takeMutableSessionStoreCache({
+      storePath,
+      mtimeMs: currentFileStat?.mtimeMs,
+      sizeBytes: currentFileStat?.sizeBytes,
+    });
+    if (cached) {
+      return cached;
+    }
+  }
+  return loadSessionStore(storePath, { skipCache: true, clone: false });
 }
 
 function resolveMutableSessionStoreKey(
@@ -425,7 +454,7 @@ export async function updateSessionStore<T>(
 ): Promise<T> {
   return await withSessionStoreLock(storePath, async () => {
     // Always re-read inside the lock to avoid clobbering concurrent writers.
-    const store = loadSessionStore(storePath, { skipCache: true });
+    const store = loadMutableSessionStoreForWriter(storePath);
     const previousAcpByKey = collectAcpMetadataSnapshot(store);
     const result = await mutator(store);
     preserveExistingAcpMetadata({
@@ -648,7 +677,7 @@ export async function updateSessionStoreEntry(params: {
 }): Promise<SessionEntry | null> {
   const { storePath, sessionKey, update } = params;
   return await withSessionStoreLock(storePath, async () => {
-    const store = loadSessionStore(storePath, { skipCache: true });
+    const store = loadMutableSessionStoreForWriter(storePath);
     const resolved = resolveSessionStoreEntry({ store, sessionKey });
     const existing = resolved.existing;
     if (!existing) {
