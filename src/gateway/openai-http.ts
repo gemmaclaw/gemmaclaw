@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentStreamParams } from "../agents/command/shared-types.js";
 import type { ImageContent } from "../agents/command/types.js";
+import { isFailoverError } from "../agents/failover-error.js";
 import { normalizeUsage, toOpenAiChatCompletionsUsage } from "../agents/usage.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommandFromIngress } from "../commands/agent.js";
@@ -144,6 +145,7 @@ function buildAgentCommandInput(params: {
     senderIsOwner: params.senderIsOwner,
     allowModelOverride: true as const,
     abortSignal: params.abortSignal,
+    streamParams: params.streamParams,
   };
 }
 
@@ -574,6 +576,9 @@ function validateOpenAiSamplingParams(params: {
     if (typeof params.seed !== "number" || !Number.isFinite(params.seed)) {
       return "`seed` must be a finite number.";
     }
+    if (!Number.isInteger(params.seed)) {
+      return "`seed` must be an integer.";
+    }
   }
   return undefined;
 }
@@ -759,6 +764,17 @@ export async function handleOpenAiHttpRequest(
       });
     } catch (err) {
       if (abortController.signal.aborted) {
+        return true;
+      }
+      if (isFailoverError(err) && err.reason === "format") {
+        logWarn(`openai-compat: chat completion format error: ${String(err)}`);
+        sendJson(res, 400, {
+          error: {
+            message: err.rawError ?? err.message,
+            type: "invalid_request_error",
+            code: err.code,
+          },
+        });
         return true;
       }
       logWarn(`openai-compat: chat completion failed: ${String(err)}`);

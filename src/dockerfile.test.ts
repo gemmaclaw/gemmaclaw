@@ -112,7 +112,7 @@ describe("Dockerfile", () => {
 
   it("pre-creates named-volume mount points before switching to the node user", async () => {
     const dockerfile = await readFile(dockerfilePath, "utf8");
-    const runtimeStageIndex = dockerfile.lastIndexOf("FROM base-runtime");
+    const runtimeStageIndex = dockerfile.lastIndexOf("FROM base-${OPENCLAW_VARIANT}");
     const parentConfigDirIndex = dockerfile.indexOf(
       "RUN install -d -m 0755 -o node -g node /home/node/.config",
       runtimeStageIndex,
