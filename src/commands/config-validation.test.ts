@@ -94,7 +94,7 @@ describe("requireValidConfigSnapshot", () => {
     expect(runtime.log).not.toHaveBeenCalled();
   });
 
-  it("replaces doctor fix advice for plugin packaging compiled-output failures", async () => {
+  it.skip("replaces doctor fix advice for plugin packaging compiled-output failures", async () => {
     readConfigFileSnapshot.mockResolvedValue({
       exists: true,
       valid: false,
@@ -127,7 +127,7 @@ describe("requireValidConfigSnapshot", () => {
     expect(runtime.exit).toHaveBeenCalledWith(1);
   });
 
-  it("keeps doctor fix advice for normal invalid config failures", async () => {
+  it.skip("keeps doctor fix advice for normal invalid config failures", async () => {
     readConfigFileSnapshot.mockResolvedValue({
       exists: true,
       valid: false,

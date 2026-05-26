@@ -688,10 +688,26 @@ export class DiscordVoiceManager {
     });
     const generation = beginVoiceCapture(entry.capture, userId, stream);
     let streamAborted = false;
-    stream.on("error", (err) => {
-      streamAborted = analyzeVoiceReceiveError(err).isAbortLike;
+    let receiveFailureHandled = false;
+    let receiveStreamEndHandled = false;
+    const handleStreamError = (err: unknown) => {
+      const analysis = analyzeVoiceReceiveError(err);
+      if (analysis.isAbortLike && !analysis.countsAsDecryptFailure) {
+        if (receiveStreamEndHandled) {
+          return;
+        }
+        receiveStreamEndHandled = true;
+        streamAborted = true;
+        this.handleReceiveError(entry, err);
+        return;
+      }
+      if (receiveFailureHandled) {
+        return;
+      }
+      receiveFailureHandled = true;
       this.handleReceiveError(entry, err);
-    });
+    };
+    stream.on("error", handleStreamError);
 
     try {
       const pcm = await decodeOpusStream(stream);
@@ -716,8 +732,17 @@ export class DiscordVoiceManager {
       this.enqueueProcessing(entry, async () => {
         await this.processSegment({ entry, wavPath, userId, durationSeconds });
       });
+    } catch (err) {
+      if (!receiveFailureHandled) {
+        this.handleReceiveError(entry, err);
+      }
+      throw err;
     } finally {
-      finishVoiceCapture(entry.capture, userId, generation);
+      stream.off?.("error", handleStreamError);
+      const finishedActiveCapture = finishVoiceCapture(entry.capture, userId, generation);
+      if (finishedActiveCapture && !stream.destroyed) {
+        stream.destroy();
+      }
     }
   }
 
