@@ -279,13 +279,15 @@ function createStreamFnWithExtraParams(
   // so transport layers can filter by API type (e.g. openai-responses skips penalty params).
   // Resolve aliased params: camelCase (runtime/request) checked first so
   // per-request gateway overrides take priority over configured snake_case values.
-  const resolvedFrequencyPenalty = resolveAliasedParamValueFromKeys(
+  const resolvedFrequencyPenalty = resolveAliasedParamValue(
     [extraParams],
-    ["frequencyPenalty", "frequency_penalty"],
+    "frequency_penalty",
+    "frequencyPenalty",
   );
-  const resolvedPresencePenalty = resolveAliasedParamValueFromKeys(
+  const resolvedPresencePenalty = resolveAliasedParamValue(
     [extraParams],
-    ["presencePenalty", "presence_penalty"],
+    "presence_penalty",
+    "presencePenalty",
   );
   const resolvedSeed = extraParams.seed;
   if (typeof resolvedFrequencyPenalty === "number") {
