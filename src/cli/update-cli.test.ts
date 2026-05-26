@@ -1779,7 +1779,7 @@ describe("update-cli", () => {
   });
 
   it("creates the parent directory before cloning the default dev checkout", async () => {
-    const root = await createTrackedTempDir("openclaw-update-home-");
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-home-"));
     const home = path.join(root, "custom-openclaw-home");
     const checkoutDir = path.join(home, "openclaw");
 
