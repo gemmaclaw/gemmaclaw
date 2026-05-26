@@ -2,7 +2,7 @@ import { getRuntimeConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   areDiagnosticsEnabledForProcess,
-  emitDiagnosticEvent,
+  emitInternalDiagnosticEvent as emitDiagnosticEvent,
   isDiagnosticsEnabled,
 } from "../infra/diagnostic-events.js";
 import { emitDiagnosticMemorySample, resetDiagnosticMemoryForTest } from "./diagnostic-memory.js";

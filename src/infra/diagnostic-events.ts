@@ -291,6 +291,14 @@ export function onDiagnosticEvent(listener: (evt: DiagnosticEventPayload) => voi
   };
 }
 
+export function emitInternalDiagnosticEvent(event: DiagnosticEventInput) {
+  emitDiagnosticEvent(event);
+}
+
+export function isInternalDiagnosticEventMetadata(_metadata: { trusted?: boolean }): boolean {
+  return false;
+}
+
 export function resetDiagnosticEventsForTest(): void {
   const state = getDiagnosticEventsState();
   state.enabled = true;
