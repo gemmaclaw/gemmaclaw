@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   setupCommandMock: vi.fn(),
   setupWizardCommandMock: vi.fn(),
   setupGemmaCommandMock: vi.fn(),
+  applySetupAgentConfigMock: vi.fn(),
+  applyAgentNameAndBootstrapMock: vi.fn(),
   runtime: {
     log: vi.fn(),
     error: vi.fn(),
@@ -16,6 +18,8 @@ const mocks = vi.hoisted(() => ({
 const setupCommandMock = mocks.setupCommandMock;
 const setupWizardCommandMock = mocks.setupWizardCommandMock;
 const setupGemmaCommandMock = mocks.setupGemmaCommandMock;
+const applySetupAgentConfigMock = mocks.applySetupAgentConfigMock;
+const applyAgentNameAndBootstrapMock = mocks.applyAgentNameAndBootstrapMock;
 const runtime = mocks.runtime;
 
 vi.mock("../../commands/setup.js", () => ({
@@ -28,6 +32,31 @@ vi.mock("../../commands/onboard.js", () => ({
 
 vi.mock("../../commands/setup-gemma.js", () => ({
   setupGemmaCommand: mocks.setupGemmaCommandMock,
+  applySetupAgentConfig: mocks.applySetupAgentConfigMock,
+  applyAgentNameAndBootstrap: mocks.applyAgentNameAndBootstrapMock,
+}));
+
+vi.mock("../../gemmaclaw/provision/vertex-setup.js", () => ({
+  interactiveVertexSetup: vi.fn().mockResolvedValue({
+    ok: true,
+    config: {
+      project: "test-project",
+      region: "us-central1",
+      model: "gemma-3-27b-it",
+    },
+  }),
+  buildVertexConfig: vi.fn().mockReturnValue({}),
+}));
+
+vi.mock("../../config/config.js", () => ({
+  mutateConfigFile: vi.fn().mockImplementation(async ({ mutate }) => {
+    const draft = { agents: { list: [] } };
+    await mutate(draft);
+  }),
+}));
+
+vi.mock("../../config/merge-patch.js", () => ({
+  applyMergePatch: vi.fn().mockReturnValue({}),
 }));
 
 vi.mock("../../runtime.js", () => ({
@@ -137,8 +166,6 @@ describe("registerSetupCommand", () => {
       "high",
       "--bootstrap",
       "coding",
-      "--enhancements",
-      "external_delivery_receipt_verification",
       "--dry-run",
     ]);
 
@@ -149,7 +176,6 @@ describe("registerSetupCommand", () => {
         model: "google/gemini-2.5-pro",
         thinking: "high",
         bootstrap: "coding",
-        enhancements: "external_delivery_receipt_verification",
         dryRun: true,
       }),
       runtime,
@@ -172,20 +198,6 @@ describe("registerSetupCommand", () => {
     expect(setupWizardCommandMock).not.toHaveBeenCalled();
   });
 
-  it("forwards --no-enhancements as an explicit disabled enhancement selection", async () => {
-    await runCli(["setup", "--non-interactive", "--setup-mode", "local", "--no-enhancements"]);
-
-    expect(setupGemmaCommandMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        nonInteractive: true,
-        setupMode: "local",
-        enhancements: "none",
-      }),
-      runtime,
-    );
-    expect(setupWizardCommandMock).not.toHaveBeenCalled();
-  });
-
   it("ignores invalid enum values for --thinking / --bootstrap / --setup-mode", async () => {
     await runCli(["setup", "--setup-mode", "bogus", "--thinking", "ultra", "--bootstrap", "weird"]);
 
@@ -196,6 +208,24 @@ describe("registerSetupCommand", () => {
         bootstrap: undefined,
       }),
       runtime,
+    );
+  });
+
+  it("triggers agent creation and bootstrap during Vertex setup when --vertex is set", async () => {
+    await runCli(["setup", "--vertex", "--agent-name", "vertex-bot"]);
+
+    expect(applySetupAgentConfigMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        agentName: "vertex-bot",
+        backend: "vertex",
+      }),
+    );
+    expect(applyAgentNameAndBootstrapMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "vertex-bot",
+        backend: "vertex",
+      }),
     );
   });
 });

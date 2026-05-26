@@ -121,7 +121,12 @@ export function resolveGoogleGeminiForwardCompatModel(params: {
   ctx: ProviderResolveDynamicModelContext;
 }): ProviderRuntimeModel | undefined {
   const trimmed = params.ctx.modelId.trim();
-  const lower = normalizeOptionalLowercaseString(trimmed) ?? "";
+  let lower = normalizeOptionalLowercaseString(trimmed) ?? "";
+
+  const prefix = "publishers/google/models/";
+  if (lower.startsWith(prefix)) {
+    lower = lower.slice(prefix.length);
+  }
 
   let family: GoogleForwardCompatFamily;
   let patch: Partial<ProviderRuntimeModel> | undefined;
@@ -201,7 +206,11 @@ export function resolveGoogleGeminiForwardCompatModel(params: {
 }
 
 export function isModernGoogleModel(modelId: string): boolean {
-  const lower = normalizeOptionalLowercaseString(modelId) ?? "";
+  let lower = normalizeOptionalLowercaseString(modelId) ?? "";
+  const prefix = "publishers/google/models/";
+  if (lower.startsWith(prefix)) {
+    lower = lower.slice(prefix.length);
+  }
   return (
     lower.startsWith("gemini-2.5") ||
     lower.startsWith("gemini-3") ||

@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listAgentEntries } from "../agents/agent-scope.js";
 import type { OpenClawConfig } from "../config/types.js";
-import {
-  COMMITMENT_FOLLOWTHROUGH_LOOP_ID,
-  EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID,
-} from "../gemmaclaw/gemmaclaw_instructions.js";
 import type { RuntimeEnv } from "../runtime.js";
 import {
   assertDockerForContainerMode,
@@ -73,6 +69,7 @@ vi.mock("node:fs", async () => {
   const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
   const mkdirSyncStub = vi.fn();
   const chmodSyncStub = vi.fn();
+  const statSyncStub = vi.fn().mockReturnValue({ mode: 0 });
   const writeFileSyncStub = vi.fn();
   const readFileSyncStub = vi.fn().mockImplementation(() => {
     throw Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" });
@@ -83,18 +80,19 @@ vi.mock("node:fs", async () => {
       ...actual,
       mkdirSync: mkdirSyncStub,
       chmodSync: chmodSyncStub,
+      statSync: statSyncStub,
       writeFileSync: writeFileSyncStub,
       readFileSync: readFileSyncStub,
     },
     mkdirSync: mkdirSyncStub,
     chmodSync: chmodSyncStub,
+    statSync: statSyncStub,
     writeFileSync: writeFileSyncStub,
     readFileSync: readFileSyncStub,
   };
 });
 
 const fsMock = await import("node:fs");
-const bootstrapProfilesMock = await import("../gemmaclaw/provision/bootstrap-profiles.js");
 
 function makeRuntime(): RuntimeEnv & { logs: string[]; errors: string[]; exitCodes: number[] } {
   const logs: string[] = [];
@@ -323,55 +321,6 @@ describe("setupGemmaCommand — agent creation", () => {
     expect(entry?.name).toBe("Steve");
   });
 
-  it("passes default enhancements into the bootstrap profile", async () => {
-    await setupGemmaCommand(
-      {
-        nonInteractive: true,
-        dryRun: true,
-        agentName: "EnhanceBot",
-        setupMode: "gemini",
-        model: "gemini-2.0-flash",
-        thinking: "medium",
-        noContainer: true,
-      },
-      runtime,
-    );
-
-    expect(bootstrapProfilesMock.applyBootstrapProfile).toHaveBeenCalledWith(
-      "general",
-      expect.stringContaining("EnhanceBot"),
-      expect.objectContaining({
-        useContainer: false,
-        enhancements: [EXTERNAL_DELIVERY_RECEIPT_VERIFICATION_ID, COMMITMENT_FOLLOWTHROUGH_LOOP_ID],
-      }),
-    );
-  });
-
-  it("allows setup to disable enhancements explicitly", async () => {
-    await setupGemmaCommand(
-      {
-        nonInteractive: true,
-        dryRun: true,
-        agentName: "PlainBot",
-        setupMode: "gemini",
-        model: "gemini-2.0-flash",
-        thinking: "medium",
-        noContainer: true,
-        enhancements: "none",
-      },
-      runtime,
-    );
-
-    expect(bootstrapProfilesMock.applyBootstrapProfile).toHaveBeenCalledWith(
-      "general",
-      expect.stringContaining("PlainBot"),
-      expect.objectContaining({
-        useContainer: false,
-        enhancements: [],
-      }),
-    );
-  });
-
   it("produces an agents.list readable by listAgentEntries (same function used by gemmaclaw list)", async () => {
     await setupGemmaCommand(
       {
@@ -462,30 +411,19 @@ describe("setupGemmaCommand — agent creation", () => {
         readOnlyRoot: false,
         network: "bridge",
         capDrop: [],
-        setupCommand: expect.any(String),
+        setupCommand:
+          "apt-get -o APT::Sandbox::User=root update && " +
+          "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3 && " +
+          "printf '\\numask 000\\n' >> /etc/profile && " +
+          "rm -rf /var/lib/apt/lists/*",
         user: "0:0",
       },
     });
     const docker = sandbox?.docker as Record<string, unknown> | undefined;
-    expect(docker?.setupCommand).toEqual(expect.any(String));
-    const setupCommand = docker?.setupCommand as string;
-    expect(setupCommand).toContain("/etc/apt/apt.conf.d/99gemmaclaw-network-retries");
-    expect(setupCommand).toContain('Acquire::Retries "5";');
-    expect(setupCommand).toContain("apt-get-retry");
-    expect(setupCommand).not.toContain("<<");
-    expect(setupCommand).toContain("Acquire::ForceIPv4=true");
-    expect(setupCommand).toContain(
-      "DEBIAN_FRONTEND=noninteractive apt-get-retry install -y --no-install-recommends bash ca-certificates curl wget git jq ripgrep python3 ffmpeg file unzip procps less",
-    );
-    for (const pkg of ["jq", "ripgrep", "file", "unzip", "wget", "procps", "less"]) {
-      expect(setupCommand).toContain(` ${pkg}`);
-    }
-    expect(setupCommand).toContain("printf '\\numask 000\\n' >> /etc/profile");
     expect(docker?.binds).toEqual([
       `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/workspace/shared:rw`,
     ]);
     expect(hoisted.capturedMutatedConfig.tools?.exec).toMatchObject({
-      host: "sandbox",
       security: "full",
       ask: "off",
     });

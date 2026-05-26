@@ -385,4 +385,25 @@ describe("resolveGoogleGeminiForwardCompatModel", () => {
       reasoning: false,
     });
   });
+
+  it("resolves Gemma 4 model with reasoning enabled even when modelId has publishers/google/models/ prefix", () => {
+    const model = resolveGoogleGeminiForwardCompatModel({
+      providerId: "google-vertex",
+      ctx: createContext({
+        provider: "google-vertex",
+        modelId: "publishers/google/models/gemma-4-31b-it",
+        models: [createTemplateModel("google", "gemini-3-flash-preview", { reasoning: false })],
+      }),
+    });
+
+    expect(model).toMatchObject({
+      provider: "google-vertex",
+      id: "publishers/google/models/gemma-4-31b-it",
+      reasoning: true,
+    });
+  });
+
+  it("treats publishers/google/models/gemma prefixed models as modern models", () => {
+    expect(isModernGoogleModel("publishers/google/models/gemma-4-31b-it")).toBe(true);
+  });
 });
