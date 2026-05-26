@@ -506,6 +506,78 @@ function resolveIncludeUsageForStreaming(payload: OpenAiChatCompletionRequest): 
   return (streamOptions as { include_usage?: unknown }).include_usage === true;
 }
 
+function resolveResponseFormat(value: unknown): Record<string, unknown> | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("response_format must be an object");
+  }
+  const obj = value as Record<string, unknown>;
+  const type = obj.type;
+  if (type !== "text" && type !== "json_object" && type !== "json_schema") {
+    throw new Error("response_format.type must be text, json_object, or json_schema");
+  }
+  return obj;
+}
+
+function resolveErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    const message = err.message.trim();
+    if (message) {
+      return message;
+    }
+  }
+  return String(err);
+}
+
+function validateOpenAiSamplingParams(params: {
+  temperature?: unknown;
+  topP?: unknown;
+  frequencyPenalty?: unknown;
+  presencePenalty?: unknown;
+  seed?: unknown;
+}): string | undefined {
+  if (params.temperature != null) {
+    if (typeof params.temperature !== "number" || !Number.isFinite(params.temperature)) {
+      return "`temperature` must be a finite number.";
+    }
+    if (params.temperature < 0 || params.temperature > 2) {
+      return "`temperature` must be between 0 and 2.";
+    }
+  }
+  if (params.topP != null) {
+    if (typeof params.topP !== "number" || !Number.isFinite(params.topP)) {
+      return "`top_p` must be a finite number.";
+    }
+    if (params.topP < 0 || params.topP > 1) {
+      return "`top_p` must be between 0 and 1.";
+    }
+  }
+  if (params.frequencyPenalty != null) {
+    if (typeof params.frequencyPenalty !== "number" || !Number.isFinite(params.frequencyPenalty)) {
+      return "`frequency_penalty` must be a finite number.";
+    }
+    if (params.frequencyPenalty < -2 || params.frequencyPenalty > 2) {
+      return "`frequency_penalty` must be between -2.0 and 2.0.";
+    }
+  }
+  if (params.presencePenalty != null) {
+    if (typeof params.presencePenalty !== "number" || !Number.isFinite(params.presencePenalty)) {
+      return "`presence_penalty` must be a finite number.";
+    }
+    if (params.presencePenalty < -2 || params.presencePenalty > 2) {
+      return "`presence_penalty` must be between -2.0 and 2.0.";
+    }
+  }
+  if (params.seed != null) {
+    if (typeof params.seed !== "number" || !Number.isFinite(params.seed)) {
+      return "`seed` must be a finite number.";
+    }
+  }
+  return undefined;
+}
+
 export async function handleOpenAiHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
