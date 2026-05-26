@@ -49,6 +49,7 @@ const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-12-01-preview";
 
 type BaseStreamOptions = {
   temperature?: number;
+  topP?: number;
   maxTokens?: number;
   signal?: AbortSignal;
   apiKey?: string;
