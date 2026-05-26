@@ -2378,6 +2378,11 @@ export async function runEmbeddedAttempt(
                   `proceeding with pre-compaction state runId=${params.runId} sessionId=${params.sessionId}`,
               );
             }
+          } else if (params.onBlockReplyFlush) {
+            // Retry-generated blocks can still be draining when the compaction
+            // retry wait resolves; this second drain is idempotent when no new
+            // blocks were produced.
+            await params.onBlockReplyFlush();
           }
         } catch (err) {
           if (isRunnerAbortError(err)) {

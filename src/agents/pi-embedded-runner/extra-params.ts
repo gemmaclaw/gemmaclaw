@@ -110,6 +110,11 @@ type CacheRetentionStreamOptions = Partial<SimpleStreamOptions> & {
   cacheRetention?: "none" | "short" | "long";
   cachedContent?: string;
   openaiWsWarmup?: boolean;
+  topP?: number;
+  responseFormat?: Record<string, unknown>;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  seed?: number;
 };
 type SupportedTransport = Exclude<CacheRetentionStreamOptions["transport"], undefined>;
 
@@ -269,6 +274,32 @@ function createStreamFnWithExtraParams(
   if (typeof cachedContent === "string" && cachedContent.trim()) {
     streamParams.cachedContent = cachedContent.trim();
   }
+
+  // Resolve sampling / repetition params and add to streamParams
+  // so transport layers can filter by API type (e.g. openai-responses skips penalty params).
+  // Resolve aliased params: camelCase (runtime/request) checked first so
+  // per-request gateway overrides take priority over configured snake_case values.
+  const resolvedFrequencyPenalty = resolveAliasedParamValue(
+    [extraParams],
+    "frequency_penalty",
+    "frequencyPenalty",
+  );
+  const resolvedPresencePenalty = resolveAliasedParamValue(
+    [extraParams],
+    "presence_penalty",
+    "presencePenalty",
+  );
+  const resolvedSeed = extraParams.seed;
+  if (typeof resolvedFrequencyPenalty === "number") {
+    streamParams.frequencyPenalty = resolvedFrequencyPenalty;
+  }
+  if (typeof resolvedPresencePenalty === "number") {
+    streamParams.presencePenalty = resolvedPresencePenalty;
+  }
+  if (typeof resolvedSeed === "number") {
+    streamParams.seed = resolvedSeed;
+  }
+
   const initialCacheRetention = resolveCacheRetention(
     extraParams,
     provider,
@@ -290,9 +321,11 @@ function createStreamFnWithExtraParams(
       typeof callModel.api === "string" ? callModel.api : undefined,
       typeof callModel.id === "string" ? callModel.id : undefined,
     );
-    if (Object.keys(streamParams).length === 0 && !cacheRetention) {
+    const hasStreamParams = Object.keys(streamParams).length > 0 || cacheRetention;
+    if (!hasStreamParams) {
       return underlying(callModel, context, options);
     }
+
     return underlying(callModel, context, {
       ...streamParams,
       ...(cacheRetention ? { cacheRetention } : {}),

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { AgentStreamParams } from "../agents/command/shared-types.js";
 import type { ImageContent } from "../agents/command/types.js";
+import { isFailoverError } from "../agents/failover-error.js";
 import { normalizeUsage, toOpenAiChatCompletionsUsage } from "../agents/usage.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommandFromIngress } from "../commands/agent.js";
@@ -62,6 +64,14 @@ type OpenAiChatCompletionRequest = {
   stream_options?: unknown;
   messages?: unknown;
   user?: unknown;
+  max_tokens?: unknown;
+  max_completion_tokens?: unknown;
+  temperature?: unknown;
+  top_p?: unknown;
+  response_format?: unknown;
+  frequency_penalty?: unknown;
+  presence_penalty?: unknown;
+  seed?: unknown;
 };
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_BODY_BYTES = 20 * 1024 * 1024;
@@ -120,6 +130,7 @@ function buildAgentCommandInput(params: {
   messageChannel: string;
   senderIsOwner: boolean;
   abortSignal?: AbortSignal;
+  streamParams?: AgentStreamParams;
 }) {
   return {
     message: params.prompt.message,
@@ -134,6 +145,7 @@ function buildAgentCommandInput(params: {
     senderIsOwner: params.senderIsOwner,
     allowModelOverride: true as const,
     abortSignal: params.abortSignal,
+    streamParams: params.streamParams,
   };
 }
 
@@ -496,6 +508,81 @@ function resolveIncludeUsageForStreaming(payload: OpenAiChatCompletionRequest): 
   return (streamOptions as { include_usage?: unknown }).include_usage === true;
 }
 
+function resolveResponseFormat(value: unknown): Record<string, unknown> | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("response_format must be an object");
+  }
+  const obj = value as Record<string, unknown>;
+  const type = obj.type;
+  if (type !== "text" && type !== "json_object" && type !== "json_schema") {
+    throw new Error("response_format.type must be text, json_object, or json_schema");
+  }
+  return obj;
+}
+
+function resolveErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    const message = err.message.trim();
+    if (message) {
+      return message;
+    }
+  }
+  return String(err);
+}
+
+function validateOpenAiSamplingParams(params: {
+  temperature?: unknown;
+  topP?: unknown;
+  frequencyPenalty?: unknown;
+  presencePenalty?: unknown;
+  seed?: unknown;
+}): string | undefined {
+  if (params.temperature != null) {
+    if (typeof params.temperature !== "number" || !Number.isFinite(params.temperature)) {
+      return "`temperature` must be a finite number.";
+    }
+    if (params.temperature < 0 || params.temperature > 2) {
+      return "`temperature` must be between 0 and 2.";
+    }
+  }
+  if (params.topP != null) {
+    if (typeof params.topP !== "number" || !Number.isFinite(params.topP)) {
+      return "`top_p` must be a finite number.";
+    }
+    if (params.topP < 0 || params.topP > 1) {
+      return "`top_p` must be between 0 and 1.";
+    }
+  }
+  if (params.frequencyPenalty != null) {
+    if (typeof params.frequencyPenalty !== "number" || !Number.isFinite(params.frequencyPenalty)) {
+      return "`frequency_penalty` must be a finite number.";
+    }
+    if (params.frequencyPenalty < -2 || params.frequencyPenalty > 2) {
+      return "`frequency_penalty` must be between -2.0 and 2.0.";
+    }
+  }
+  if (params.presencePenalty != null) {
+    if (typeof params.presencePenalty !== "number" || !Number.isFinite(params.presencePenalty)) {
+      return "`presence_penalty` must be a finite number.";
+    }
+    if (params.presencePenalty < -2 || params.presencePenalty > 2) {
+      return "`presence_penalty` must be between -2.0 and 2.0.";
+    }
+  }
+  if (params.seed != null) {
+    if (typeof params.seed !== "number" || !Number.isFinite(params.seed)) {
+      return "`seed` must be a finite number.";
+    }
+    if (!Number.isInteger(params.seed)) {
+      return "`seed` must be an integer.";
+    }
+  }
+  return undefined;
+}
+
 export async function handleOpenAiHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -529,6 +616,62 @@ export async function handleOpenAiHttpRequest(
   const streamIncludeUsage = stream && resolveIncludeUsageForStreaming(payload);
   const model = typeof payload.model === "string" ? payload.model : "openclaw";
   const user = typeof payload.user === "string" ? payload.user : undefined;
+  const maxTokens =
+    typeof payload.max_completion_tokens === "number"
+      ? payload.max_completion_tokens
+      : typeof payload.max_tokens === "number"
+        ? payload.max_tokens
+        : undefined;
+  const temperature = typeof payload.temperature === "number" ? payload.temperature : undefined;
+  const topP = typeof payload.top_p === "number" ? payload.top_p : undefined;
+  const frequencyPenalty =
+    typeof payload.frequency_penalty === "number" ? payload.frequency_penalty : undefined;
+  const presencePenalty =
+    typeof payload.presence_penalty === "number" ? payload.presence_penalty : undefined;
+  const seed = typeof payload.seed === "number" ? payload.seed : undefined;
+  let responseFormat: Record<string, unknown> | undefined;
+  try {
+    responseFormat = resolveResponseFormat(payload.response_format);
+  } catch (err) {
+    sendJson(res, 400, {
+      error: {
+        message: `Invalid response_format: ${resolveErrorMessage(err)}`,
+        type: "invalid_request_error",
+      },
+    });
+    return true;
+  }
+  const samplingError = validateOpenAiSamplingParams({
+    temperature: payload.temperature,
+    topP: payload.top_p,
+    frequencyPenalty: payload.frequency_penalty,
+    presencePenalty: payload.presence_penalty,
+    seed: payload.seed,
+  });
+  if (samplingError) {
+    sendJson(res, 400, {
+      error: { message: samplingError, type: "invalid_request_error" },
+    });
+    return true;
+  }
+  const streamParams =
+    maxTokens !== undefined ||
+    temperature !== undefined ||
+    topP !== undefined ||
+    responseFormat !== undefined ||
+    frequencyPenalty !== undefined ||
+    presencePenalty !== undefined ||
+    seed !== undefined
+      ? {
+          ...(maxTokens !== undefined ? { maxTokens } : {}),
+          ...(temperature !== undefined ? { temperature } : {}),
+          ...(topP !== undefined ? { topP } : {}),
+          ...(responseFormat !== undefined ? { responseFormat } : {}),
+          ...(frequencyPenalty !== undefined ? { frequencyPenalty } : {}),
+          ...(presencePenalty !== undefined ? { presencePenalty } : {}),
+          ...(seed !== undefined ? { seed } : {}),
+        }
+      : undefined;
 
   const { agentId, sessionKey, messageChannel } = resolveGatewayRequestContext({
     req,
@@ -590,6 +733,7 @@ export async function handleOpenAiHttpRequest(
     messageChannel,
     abortSignal: abortController.signal,
     senderIsOwner,
+    streamParams,
   });
 
   if (!stream) {
@@ -620,6 +764,17 @@ export async function handleOpenAiHttpRequest(
       });
     } catch (err) {
       if (abortController.signal.aborted) {
+        return true;
+      }
+      if (isFailoverError(err) && err.reason === "format") {
+        logWarn(`openai-compat: chat completion format error: ${String(err)}`);
+        sendJson(res, 400, {
+          error: {
+            message: err.rawError ?? err.message,
+            type: "invalid_request_error",
+            code: err.code,
+          },
+        });
         return true;
       }
       logWarn(`openai-compat: chat completion failed: ${String(err)}`);

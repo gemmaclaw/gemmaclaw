@@ -192,7 +192,7 @@ const { doctorCommand } = await import("../commands/doctor.js");
 const { defaultRuntime } = await import("../runtime.js");
 const { updateCommand, updateStatusCommand, updateWizardCommand } = await import("./update-cli.js");
 const updateCliShared = await import("./update-cli/shared.js");
-const { resolveGitInstallDir } = updateCliShared;
+const { ensureGitCheckout, resolveGitInstallDir } = updateCliShared;
 const { spawnSync } = await import("node:child_process");
 
 type UpdateCliScenario = {
@@ -1747,9 +1747,57 @@ describe("update-cli", () => {
 
   it("uses ~/openclaw as the default dev checkout directory", async () => {
     const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue("/tmp/oc-home");
-    await withEnvAsync({ OPENCLAW_GIT_DIR: undefined }, async () => {
-      expect(resolveGitInstallDir()).toBe(path.posix.join("/tmp/oc-home", "openclaw"));
+    try {
+      await withEnvAsync(
+        {
+          HOME: undefined,
+          OPENCLAW_GIT_DIR: undefined,
+          OPENCLAW_HOME: undefined,
+          USERPROFILE: undefined,
+        },
+        async () => {
+          expect(resolveGitInstallDir()).toBe(path.posix.join("/tmp/oc-home", "openclaw"));
+        },
+      );
+    } finally {
+      homedirSpy.mockRestore();
+    }
+  });
+
+  it("uses OPENCLAW_HOME for the default dev checkout directory", async () => {
+    const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue("/tmp/oc-home");
+    try {
+      await withEnvAsync(
+        { OPENCLAW_GIT_DIR: undefined, OPENCLAW_HOME: "/srv/openclaw-home" },
+        async () => {
+          expect(resolveGitInstallDir()).toBe(path.posix.join("/srv/openclaw-home", "openclaw"));
+        },
+      );
+    } finally {
+      homedirSpy.mockRestore();
+    }
+  });
+
+  it("creates the parent directory before cloning the default dev checkout", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-home-"));
+    const home = path.join(root, "custom-openclaw-home");
+    const checkoutDir = path.join(home, "openclaw");
+
+    await withEnvAsync({ OPENCLAW_GIT_DIR: undefined, OPENCLAW_HOME: home }, async () => {
+      const dir = resolveGitInstallDir();
+      expect(dir).toBe(checkoutDir);
+      await ensureGitCheckout({ dir, timeoutMs: 1_000, env: process.env });
     });
-    homedirSpy.mockRestore();
+
+    expect((await fs.stat(home)).isDirectory()).toBe(true);
+    const cloneCall = vi
+      .mocked(runCommandWithTimeout)
+      .mock.calls.find((call) => call[0][0] === "git" && call[0][1] === "clone");
+    expect(cloneCall?.[0]).toEqual([
+      "git",
+      "clone",
+      "https://github.com/openclaw/openclaw.git",
+      checkoutDir,
+    ]);
   });
 });
