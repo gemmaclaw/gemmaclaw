@@ -161,6 +161,21 @@ function expectCronJobIdFromResponse(response: { ok?: unknown; payload?: unknown
   return id;
 }
 
+function expectEnqueuedRunPayload(payload: unknown): string {
+  const record = payload as { ok?: unknown; enqueued?: unknown; runId?: unknown } | null;
+  expect(record?.ok).toBe(true);
+  expect(record?.enqueued).toBe(true);
+  expect(typeof record?.runId).toBe("string");
+  return record?.runId as string;
+}
+
+function expectRecordFields(actual: unknown, expected: Record<string, unknown>): void {
+  const record = actual as Record<string, unknown> | null;
+  for (const [key, value] of Object.entries(expected)) {
+    expect(record?.[key], key).toEqual(value);
+  }
+}
+
 async function addMainSystemEventCronJob(params: { ws: WebSocket; name: string; text?: string }) {
   const response = await rpcReq(params.ws, "cron.add", {
     name: params.name,
