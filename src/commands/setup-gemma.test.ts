@@ -424,7 +424,7 @@ describe("setupGemmaCommand — agent creation", () => {
       `${process.env.HOME ?? "/root"}/.gemmaclaw/shared:/workspace/shared:rw`,
     ]);
     expect(hoisted.capturedMutatedConfig.tools?.exec).toMatchObject({
-      security: "full",
+      security: "sandbox",
       ask: "off",
     });
     expect(hoisted.capturedMutatedConfig.hooks?.internal).toMatchObject({
