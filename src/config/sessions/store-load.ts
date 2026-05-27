@@ -3,11 +3,19 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.shared.js";
 import { getFileStatSnapshot } from "../cache-utils.js";
 import {
+  cloneSessionStoreRecord,
+  cloneSessionStoreSnapshot,
   isSessionStoreCacheEnabled,
   readSessionStoreCache,
+  readSessionStoreSnapshotCache,
   setSerializedSessionStore,
   writeSessionStoreCache,
+  writeSessionStoreSnapshotCache,
+  type SessionStoreSnapshot,
+  type SessionStoreSnapshotEntries,
+  type SessionStoreSnapshotEntry,
 } from "./store-cache.js";
+import { resolveSessionStoreEntry } from "./store-entry.js";
 import {
   capEntryCount,
   pruneStaleEntries,
@@ -20,6 +28,7 @@ import { normalizeSessionRuntimeModelFields, type SessionEntry } from "./types.j
 export type LoadSessionStoreOptions = {
   skipCache?: boolean;
   maintenanceConfig?: ResolvedSessionMaintenanceConfig;
+  clone?: boolean;
 };
 
 const log = createSubsystemLogger("sessions/store");
@@ -83,6 +92,7 @@ export function loadSessionStore(
       storePath,
       mtimeMs: currentFileStat?.mtimeMs,
       sizeBytes: currentFileStat?.sizeBytes,
+      clone: opts.clone,
     });
     if (cached) {
       return cached;
@@ -128,6 +138,10 @@ export function loadSessionStore(
 
   applySessionStoreMigrations(store);
   normalizeSessionStore(store);
+  // Migrations and normalization may mutate the store, making the raw disk
+  // serialization stale. Clear it so clones always reflect the post-migration
+  // state and callers never receive pre-migration data.
+  serializedFromDisk = undefined;
   const maintenance = opts.maintenanceConfig ?? resolveMaintenanceConfigFromInput();
   if (maintenance.mode === "enforce" && Object.keys(store).length > maintenance.maxEntries) {
     const beforeCount = Object.keys(store).length;
@@ -155,8 +169,51 @@ export function loadSessionStore(
       mtimeMs,
       sizeBytes: fileStat?.sizeBytes,
       serialized: serializedFromDisk,
+      takeOwnership: opts.clone === false,
     });
   }
 
-  return structuredClone(store);
+  return opts.clone === false ? store : cloneSessionStoreRecord(store, serializedFromDisk);
+}
+
+export function readSessionStoreSnapshot(storePath: string): SessionStoreSnapshot {
+  const currentFileStat = getFileStatSnapshot(storePath);
+  const cacheEnabled = isSessionStoreCacheEnabled();
+  if (cacheEnabled) {
+    const cached = readSessionStoreSnapshotCache({
+      storePath,
+      mtimeMs: currentFileStat?.mtimeMs,
+      sizeBytes: currentFileStat?.sizeBytes,
+    });
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const store = loadSessionStore(storePath, { clone: false });
+  if (!cacheEnabled) {
+    return cloneSessionStoreSnapshot(store);
+  }
+  return writeSessionStoreSnapshotCache({
+    storePath,
+    store,
+    mtimeMs: currentFileStat?.mtimeMs,
+    sizeBytes: currentFileStat?.sizeBytes,
+  });
+}
+
+export function readSessionEntry(
+  storePath: string,
+  sessionKey: string,
+): SessionStoreSnapshotEntry | undefined {
+  const snapshot = readSessionStoreSnapshot(storePath);
+  const resolved = resolveSessionStoreEntry({
+    store: snapshot as Record<string, SessionEntry>,
+    sessionKey,
+  });
+  return resolved.existing as SessionStoreSnapshotEntry | undefined;
+}
+
+export function readSessionEntries(storePath: string): SessionStoreSnapshotEntries {
+  return Object.entries(readSessionStoreSnapshot(storePath)) as SessionStoreSnapshotEntries;
 }

@@ -21,6 +21,7 @@ import { resolvePluginSkillDirs } from "./plugin-skills.js";
 import { serializeByKey } from "./serialize.js";
 import { formatSkillsForPrompt, type Skill } from "./skill-contract.js";
 import type {
+  OpenClawSkillMetadata,
   ParsedSkillFrontmatter,
   SkillEligibilityContext,
   SkillEntry,
@@ -29,6 +30,8 @@ import type {
 
 const fsp = fs.promises;
 const skillsLogger = createSubsystemLogger("skills");
+const SKILL_SOURCE_ORIGIN_RELATIVE_PATH = path.join(".openclaw", "source-origin.json");
+const MAX_SKILL_SOURCE_ORIGIN_BYTES = 16 * 1024;
 
 /**
  * Replace the user's home directory prefix with `~` in skill file paths
@@ -62,12 +65,14 @@ function resolveCompactHomePrefixes(): string[] {
     .filter((home): home is string => !!home);
   return [...resolvedHomes, ...realHomes]
     .filter((home, index, all) => all.indexOf(home) === index)
-    .sort((a, b) => b.length - a.length);
+    .toSorted((a, b) => b.length - a.length);
 }
 
 function compactSkillPaths(skills: Skill[]): Skill[] {
   const homes = resolveCompactHomePrefixes();
-  if (homes.length === 0) return skills;
+  if (homes.length === 0) {
+    return skills;
+  }
   return skills.map((s) => ({
     ...s,
     filePath: compactHomePath(s.filePath, homes),
@@ -90,12 +95,12 @@ function compactPathForConsoleMessage(filePath: string): string {
 
 function isSkillVisibleInAvailableSkillsPrompt(entry: SkillEntry): boolean {
   if (entry.exposure) {
-    return entry.exposure.includeInAvailableSkillsPrompt !== false;
+    return entry.exposure.includeInAvailableSkillsPrompt;
   }
   if (entry.invocation) {
-    return entry.invocation.disableModelInvocation !== true;
+    return !entry.invocation.disableModelInvocation;
   }
-  return entry.skill.disableModelInvocation !== true;
+  return !entry.skill.disableModelInvocation;
 }
 
 function filterSkillEntries(
@@ -163,8 +168,12 @@ function listChildDirectories(dir: string): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     const dirs: string[] = [];
     for (const entry of entries) {
-      if (entry.name.startsWith(".")) continue;
-      if (entry.name === "node_modules") continue;
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+      if (entry.name === "node_modules") {
+        continue;
+      }
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         dirs.push(entry.name);
@@ -309,6 +318,48 @@ function loadContainedSkillRecords(params: {
   return canonicalSkillDir
     ? records.map((record) => canonicalizeLoadedSkillRecord(record, canonicalSkillDir))
     : records;
+}
+
+function readSourceInstallSkillKey(skillDir: string): string | undefined {
+  try {
+    const sourceOriginPath = path.join(skillDir, SKILL_SOURCE_ORIGIN_RELATIVE_PATH);
+    const stat = fs.lstatSync(sourceOriginPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_SKILL_SOURCE_ORIGIN_BYTES) {
+      return undefined;
+    }
+    const skillDirRealPath = tryRealpath(skillDir);
+    const sourceOriginRealPath = tryRealpath(sourceOriginPath);
+    if (
+      !skillDirRealPath ||
+      !sourceOriginRealPath ||
+      !isPathInside(skillDirRealPath, sourceOriginRealPath)
+    ) {
+      return undefined;
+    }
+    const raw = fs.readFileSync(sourceOriginPath, "utf8");
+    const parsed = JSON.parse(raw) as { slug?: unknown };
+    return normalizeOptionalString(parsed.slug);
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveSkillEntryMetadata(params: {
+  frontmatter: ParsedSkillFrontmatter;
+  skillDir: string;
+}): OpenClawSkillMetadata | undefined {
+  const metadata = resolveOpenClawMetadata(params.frontmatter);
+  if (metadata?.skillKey) {
+    return metadata;
+  }
+  const sourceInstallSkillKey = readSourceInstallSkillKey(params.skillDir);
+  if (!sourceInstallSkillKey) {
+    return metadata;
+  }
+  return {
+    ...metadata,
+    skillKey: sourceInstallSkillKey,
+  };
 }
 
 function canonicalizeLoadedSkillRecord(
@@ -498,7 +549,7 @@ function loadSkillEntries(
     const suspicious = childDirs.length > limits.maxCandidatesPerRoot;
 
     const maxCandidates = Math.max(0, limits.maxSkillsLoadedPerSource);
-    const limitedChildren = childDirs.slice().sort().slice(0, maxCandidates);
+    const limitedChildren = childDirs.slice().toSorted().slice(0, maxCandidates);
 
     if (suspicious) {
       skillsLogger.warn("Skills root looks suspiciously large, truncating discovery.", {
@@ -576,7 +627,7 @@ function loadSkillEntries(
     if (loadedSkills.length > limits.maxSkillsLoadedPerSource) {
       return loadedSkills
         .slice()
-        .sort((a, b) => a.skill.name.localeCompare(b.skill.name, "en"))
+        .toSorted((a, b) => a.skill.name.localeCompare(b.skill.name, "en"))
         .slice(0, limits.maxSkillsLoadedPerSource);
     }
 
@@ -651,7 +702,7 @@ function loadSkillEntries(
   }
 
   const skillEntries: SkillEntry[] = Array.from(merged.values())
-    .sort((a, b) => a.skill.name.localeCompare(b.skill.name, "en"))
+    .toSorted((a, b) => a.skill.name.localeCompare(b.skill.name, "en"))
     .map((record) => {
       const skill = record.skill;
       const frontmatter =
@@ -663,22 +714,23 @@ function loadSkillEntries(
         }) ??
         ({} as ParsedSkillFrontmatter);
       const invocation = resolveSkillInvocationPolicy(frontmatter);
-      return {
-        skill,
-        frontmatter,
-        metadata: resolveOpenClawMetadata(frontmatter),
-        invocation,
-        ...(record.syncSourceDir !== undefined ? { syncSourceDir: record.syncSourceDir } : {}),
-        ...(record.syncDirName !== undefined ? { syncDirName: record.syncDirName } : {}),
-        exposure: {
-          includeInRuntimeRegistry: true,
-          // Freshly loaded entries preserve the documented disable-model-invocation
-          // contract, while legacy entries without exposure metadata still use the
-          // fallback in isSkillVisibleInAvailableSkillsPrompt().
-          includeInAvailableSkillsPrompt: invocation.disableModelInvocation !== true,
-          userInvocable: invocation.userInvocable !== false,
+      return Object.assign(
+        {
+          skill,
+          frontmatter,
+          metadata: resolveSkillEntryMetadata({ frontmatter, skillDir: skill.baseDir }),
+          invocation,
         },
-      };
+        record.syncSourceDir !== undefined ? { syncSourceDir: record.syncSourceDir } : {},
+        record.syncDirName !== undefined ? { syncDirName: record.syncDirName } : {},
+        {
+          exposure: {
+            includeInRuntimeRegistry: true,
+            includeInAvailableSkillsPrompt: !invocation.disableModelInvocation,
+            userInvocable: invocation.userInvocable,
+          },
+        },
+      );
     });
   return skillEntries;
 }
@@ -698,7 +750,9 @@ function escapeXml(str: string): string {
  * preserving awareness of all skills before resorting to dropping.
  */
 export function formatSkillsCompact(skills: Skill[]): string {
-  if (skills.length === 0) return "";
+  if (skills.length === 0) {
+    return "";
+  }
   const lines = [
     "\n\nThe following skills provide specialized instructions for specific tasks.",
     "Use the read tool to load a skill's file when the task matches its name.",
@@ -845,7 +899,7 @@ function resolveWorkspaceSkillPromptState(
   // resolvedSkills keeps canonical paths for snapshot / runtime consumers.
   const promptSkills = compactSkillPaths(resolvedSkills)
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name, "en"));
+    .toSorted((a, b) => a.name.localeCompare(b.name, "en"));
   const { skillsForPrompt, truncated, compact } = applySkillsPromptLimits({
     skills: promptSkills,
     config: opts?.config,

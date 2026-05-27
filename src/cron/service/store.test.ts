@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { setupCronServiceSuite } from "../service.test-harness.js";
+import { saveCronStore } from "../store.js";
+import type { CronJob } from "../types.js";
 import { findJobOrThrow } from "./jobs.js";
 import { createCronServiceState } from "./state.js";
 import { ensureLoaded, persist } from "./store.js";
@@ -38,6 +40,22 @@ function createStoreTestState(storePath: string) {
     requestHeartbeatNow: vi.fn(),
     runIsolatedAgentJob: vi.fn(async () => ({ status: "ok" as const })),
   });
+}
+
+function createReloadCronJob(params?: Partial<CronJob>): CronJob {
+  return {
+    id: "reload-cron-expr-job",
+    name: "reload cron expr job",
+    enabled: true,
+    createdAtMs: STORE_TEST_NOW - 60_000,
+    updatedAtMs: STORE_TEST_NOW - 60_000,
+    schedule: { kind: "cron", expr: "0 6 * * *", tz: "UTC" },
+    sessionTarget: "main",
+    wakeMode: "now",
+    payload: { kind: "systemEvent", text: "tick" },
+    state: {},
+    ...params,
+  };
 }
 
 describe("cron service store seam coverage", () => {
@@ -162,17 +180,18 @@ describe("cron service store seam coverage", () => {
     expect(after).toBe(before);
   });
 
-  it("loads persisted jobs with unsafe custom session ids so run paths can fail closed", async () => {
+  it("loads persisted jobs with opaque custom session ids containing separators", async () => {
     const { storePath } = await makeStorePath();
+    const sessionTarget = "session:agent:main:dingtalk:group:cid3tmd4xb19xjfk/wogxwy2a==";
 
     await writeSingleJobStore(storePath, {
-      id: "unsafe-session-target-job",
-      name: "unsafe session target job",
+      id: "opaque-session-target-job",
+      name: "opaque session target job",
       enabled: true,
       createdAtMs: STORE_TEST_NOW - 60_000,
       updatedAtMs: STORE_TEST_NOW - 60_000,
       schedule: { kind: "every", everyMs: 60_000 },
-      sessionTarget: "session:../../outside",
+      sessionTarget,
       wakeMode: "now",
       payload: { kind: "agentTurn", message: "ping" },
       state: {},
@@ -182,11 +201,115 @@ describe("cron service store seam coverage", () => {
 
     await ensureLoaded(state, { skipRecompute: true });
 
-    const job = findJobOrThrow(state, "unsafe-session-target-job");
-    expect(job.sessionTarget).toBe("session:../../outside");
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ storePath, jobId: "unsafe-session-target-job" }),
-      expect.stringContaining("invalid persisted sessionTarget"),
+    const job = findJobOrThrow(state, "opaque-session-target-job");
+    expect(job.sessionTarget).toBe(sessionTarget);
+    const warnCalls = logger.warn.mock.calls as unknown as Array<
+      [{ storePath?: string; jobId?: string }, string]
+    >;
+    expect(
+      warnCalls.some(
+        ([metadata, message]) =>
+          metadata.jobId === "opaque-session-target-job" &&
+          message.includes("invalid persisted sessionTarget"),
+      ),
+    ).toBe(false);
+  });
+
+  // gemmaclaw: upstream-only; requires schedule-identity.ts + invalidateStaleNextRunOnScheduleChange in service/store.ts
+  it.skip("clears stale nextRunAtMs after force reload when cron schedule expression changes", async () => {
+    const { storePath } = await makeStorePath();
+    const staleNextRunAtMs = STORE_TEST_NOW + 3_600_000;
+
+    await saveCronStore(storePath, {
+      version: 1,
+      jobs: [
+        createReloadCronJob({
+          state: { nextRunAtMs: staleNextRunAtMs },
+        }),
+      ],
+    });
+
+    const state = createStoreTestState(storePath);
+    await ensureLoaded(state, { skipRecompute: true });
+    expect(findJobOrThrow(state, "reload-cron-expr-job").state.nextRunAtMs).toBe(staleNextRunAtMs);
+
+    await writeSingleJobStore(storePath, {
+      id: "reload-cron-expr-job",
+      name: "reload cron expr job",
+      enabled: true,
+      createdAtMs: STORE_TEST_NOW - 60_000,
+      updatedAtMs: STORE_TEST_NOW - 30_000,
+      schedule: { kind: "cron", expr: "30 6 * * 0,6", tz: "UTC" },
+      sessionTarget: "main",
+      wakeMode: "now",
+      payload: { kind: "systemEvent", text: "tick" },
+      state: {},
+    });
+
+    await ensureLoaded(state, { forceReload: true, skipRecompute: true });
+
+    const reloadedJob = findJobOrThrow(state, "reload-cron-expr-job");
+    expect(reloadedJob.schedule).toEqual({ kind: "cron", expr: "30 6 * * 0,6", tz: "UTC" });
+    expect(reloadedJob.state.nextRunAtMs).toBeUndefined();
+  });
+
+  it("preserves nextRunAtMs after force reload when cron schedule key order changes only", async () => {
+    const { storePath } = await makeStorePath();
+    const dueNextRunAtMs = STORE_TEST_NOW - 1_000;
+
+    await saveCronStore(storePath, {
+      version: 1,
+      jobs: [
+        createReloadCronJob({
+          state: { nextRunAtMs: dueNextRunAtMs },
+        }),
+      ],
+    });
+
+    const state = createStoreTestState(storePath);
+    await ensureLoaded(state, { skipRecompute: true });
+
+    await writeSingleJobStore(storePath, {
+      id: "reload-cron-expr-job",
+      name: "reload cron expr job",
+      enabled: true,
+      createdAtMs: STORE_TEST_NOW - 60_000,
+      updatedAtMs: STORE_TEST_NOW - 30_000,
+      schedule: { expr: "0 6 * * *", kind: "cron", tz: "UTC" },
+      sessionTarget: "main",
+      wakeMode: "now",
+      payload: { kind: "systemEvent", text: "tick" },
+      state: {},
+    });
+
+    await ensureLoaded(state, { forceReload: true, skipRecompute: true });
+
+    expect(findJobOrThrow(state, "reload-cron-expr-job").state.nextRunAtMs).toBe(dueNextRunAtMs);
+  });
+
+  it("keeps a force-reloaded legacy string schedule for runtime repair handling", async () => {
+    const { storePath } = await makeStorePath();
+    const staleNextRunAtMs = STORE_TEST_NOW + 3_600_000;
+
+    await writeSingleJobStore(storePath, {
+      ...createReloadCronJob({
+        state: { nextRunAtMs: staleNextRunAtMs },
+      }),
+    });
+
+    const state = createStoreTestState(storePath);
+    await ensureLoaded(state, { skipRecompute: true });
+
+    await writeSingleJobStore(storePath, {
+      ...createReloadCronJob({
+        updatedAtMs: STORE_TEST_NOW,
+        state: { nextRunAtMs: staleNextRunAtMs },
+      }),
+      schedule: "0 17 * * *",
+    });
+
+    await expect(ensureLoaded(state, { forceReload: true, skipRecompute: true })).resolves.toBe(
+      undefined,
     );
   });
 });

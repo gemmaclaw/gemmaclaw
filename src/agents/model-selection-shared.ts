@@ -411,7 +411,9 @@ export function resolveConfiguredModelRef(params: {
         model: trimmed,
       });
       if (inferredProvider) {
-        return { provider: inferredProvider, model: trimmed };
+        return normalizeModelRef(inferredProvider, trimmed, {
+          allowPluginNormalization: params.allowPluginNormalization,
+        });
       }
 
       const safeTrimmed = sanitizeModelWarningValue(trimmed);
