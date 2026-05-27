@@ -87,6 +87,33 @@ describe("openai transport stream", () => {
     });
   });
 
+  it("does not convert non-Google OpenAI-compatible keys into Google headers", () => {
+    const auth = __testing.resolveOpenAICompatAuth(
+      { provider: "openai" } as Model<"openai-completions">,
+      "sk-test-key",
+    );
+
+    expect(auth).toEqual({
+      apiKey: "sk-test-key",
+      headers: {},
+    });
+  });
+
+  it("extracts Google OAuth bearer tokens for OpenAI-compatible clients", () => {
+    const auth = __testing.resolveOpenAICompatAuth(
+      { provider: "google-vertex" } as Model<"openai-completions">,
+      "ya29.mock-token",
+    );
+
+    expect(auth).toEqual({
+      apiKey: "ya29.mock-token",
+      headers: {
+        Authorization: "Bearer ya29.mock-token",
+        "Content-Type": "application/json",
+      },
+    });
+  });
+
   it("reports the supported transport-aware APIs", () => {
     expect(isTransportAwareApiSupported("openai-responses")).toBe(true);
     expect(isTransportAwareApiSupported("openai-codex-responses")).toBe(true);

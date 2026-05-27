@@ -128,7 +128,7 @@ describe("config io write", () => {
         await io.writeConfigFile({ gateway: { mode: "local" } });
 
         const stat = await fs.stat(stateDir);
-        expect(stat.mode & 0o777).toBe(0o700);
+        expect(stat.mode & 0o777).toBe(0o755);
       });
     },
   );

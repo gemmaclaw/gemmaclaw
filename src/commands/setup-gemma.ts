@@ -344,7 +344,7 @@ function persistThinkingDefault(thinking: OnboardingThinking): "off" | "low" | "
   return thinking;
 }
 
-function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
+export function applySetupAgentConfig(draft: OpenClawConfig, choices: OnboardingChoices): void {
   const existingEntries = listAgentEntries(draft);
   const agentId = normalizeAgentId(choices.agentName);
   const stateDir = resolveStateDir(process.env);
@@ -705,7 +705,8 @@ async function setupVertexBackend(
   }
   const { interactiveVertexSetup, buildVertexConfig } =
     await import("../gemmaclaw/provision/vertex-setup.js");
-  const { writeConfigFile } = await import("../config/config.js");
+  const { mutateConfigFile } = await import("../config/config.js");
+  const { applyMergePatch } = await import("../config/merge-patch.js");
 
   const result = await interactiveVertexSetup({ model: choices.model });
   if (!result.ok || !result.config) {
@@ -715,9 +716,13 @@ async function setupVertexBackend(
   }
 
   const vertexConfigPatch = buildVertexConfig(result.config);
-  await writeConfigFile(vertexConfigPatch);
+  await mutateConfigFile({
+    mutate: (draft) => {
+      Object.assign(draft, applyMergePatch(draft, vertexConfigPatch));
+    },
+  });
 
-  if (result.config.accessToken) {
+  if (result.config.accessToken && !result.config.useAutomatedCredentials) {
     await writeVertexAuthProfile(choices.agentName, result.config.accessToken);
   }
 }

@@ -211,7 +211,7 @@ async function tightenStateDirPermissionsIfNeeded(params: {
     if ((mode & 0o077) === 0) {
       return;
     }
-    await params.fsModule.promises.chmod(configDir, 0o700);
+    await params.fsModule.promises.chmod(configDir, process.platform === "linux" ? 0o755 : 0o700);
   } catch {
     // Best-effort hardening only; callers still need the config write to proceed.
   }

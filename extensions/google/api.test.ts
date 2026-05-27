@@ -1,5 +1,6 @@
+import { execSync } from "node:child_process";
 import type { ProviderRequestTransportOverrides } from "openclaw/plugin-sdk/provider-http";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   isGoogleGenerativeAiApi,
   normalizeGoogleApiBaseUrl,
@@ -12,7 +13,19 @@ import {
   shouldNormalizeGoogleGenerativeAiProviderConfig,
 } from "./api.js";
 
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
+  return {
+    ...actual,
+    execSync: vi.fn(),
+  };
+});
+
 describe("google generative ai helpers", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("detects the Google Generative AI transport id", () => {
     expect(isGoogleGenerativeAiApi("google-generative-ai")).toBe(true);
     expect(isGoogleGenerativeAiApi("google-gemini-cli")).toBe(false);
@@ -156,6 +169,29 @@ describe("google generative ai helpers", () => {
         "Content-Type": "application/json",
       },
     });
+  });
+
+  it("resolves token via gcloud for gcp-vertex-credentials marker", () => {
+    vi.mocked(execSync).mockReturnValue("mocked-token\n" as any);
+
+    const result = parseGeminiAuth("gcp-vertex-credentials");
+
+    expect(execSync).toHaveBeenCalledWith(
+      "gcloud auth application-default print-access-token",
+      expect.any(Object),
+    );
+    expect(result.headers.Authorization).toBe("Bearer mocked-token");
+    expect(result.headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("fails loudly when gcloud automated credentials cannot resolve a token", () => {
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error("gcloud failed");
+    });
+
+    expect(() => parseGeminiAuth("gcp-vertex-credentials")).toThrow(
+      "Failed to resolve Vertex AI credentials via gcloud",
+    );
   });
 
   it("falls back to API key headers for raw tokens", () => {

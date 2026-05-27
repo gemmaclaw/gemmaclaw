@@ -19,6 +19,7 @@ export type OpenAICompletionsCompatDefaults = {
   thinkingFormat: "openai" | "openrouter" | "zai";
   visibleReasoningDetailTypes: string[];
   supportsStrictMode: boolean;
+  requiresStringContent: boolean;
 };
 
 export type DetectedOpenAICompletionsCompat = {
@@ -83,31 +84,41 @@ export function resolveOpenAICompletionsCompatDefaults(
     (isDefaultRoute &&
       isDefaultRouteProvider(input.provider, "cerebras", "chutes", "deepseek", "opencode", "xai"));
   const isOpenRouterLike = input.provider === "openrouter" || endpointClass === "openrouter";
-  const usesMaxTokens =
-    endpointClass === "chutes-native" ||
-    endpointClass === "mistral-public" ||
-    knownProviderFamily === "mistral" ||
-    (isDefaultRoute && isDefaultRouteProvider(provider, "chutes"));
   const supportsKnownLocalStreamingUsage = isKnownLocalStreamingUsageProvider(
     provider,
     knownProviderFamily,
   );
+  const isGoogleVertex = endpointClass === "google-vertex";
+  const usesMaxTokens =
+    endpointClass === "chutes-native" ||
+    endpointClass === "mistral-public" ||
+    knownProviderFamily === "mistral" ||
+    isGoogleVertex ||
+    (isDefaultRoute && isDefaultRouteProvider(provider, "chutes"));
   return {
     supportsStore:
-      !isNonStandard && knownProviderFamily !== "mistral" && !usesExplicitProxyLikeEndpoint,
-    supportsDeveloperRole: !isNonStandard && !isMoonshotLike && !usesConfiguredNonOpenAIEndpoint,
+      !isNonStandard &&
+      knownProviderFamily !== "mistral" &&
+      !usesExplicitProxyLikeEndpoint &&
+      !isGoogleVertex,
+    supportsDeveloperRole:
+      !isNonStandard && !isMoonshotLike && !usesConfiguredNonOpenAIEndpoint && !isGoogleVertex,
     supportsReasoningEffort:
       !isZai &&
       knownProviderFamily !== "mistral" &&
       endpointClass !== "xai-native" &&
-      !usesExplicitProxyLikeEndpoint,
+      !usesExplicitProxyLikeEndpoint &&
+      !isGoogleVertex,
     supportsUsageInStreaming:
       supportsKnownLocalStreamingUsage ||
-      (!isNonStandard && (!usesConfiguredNonOpenAIEndpoint || supportsNativeStreamingUsageCompat)),
+      (!isNonStandard &&
+        (!usesConfiguredNonOpenAIEndpoint || supportsNativeStreamingUsageCompat) &&
+        !isGoogleVertex),
     maxTokensField: usesMaxTokens ? "max_tokens" : "max_completion_tokens",
     thinkingFormat: isZai ? "zai" : isOpenRouterLike ? "openrouter" : "openai",
     visibleReasoningDetailTypes: isOpenRouterLike ? ["response.output_text", "response.text"] : [],
-    supportsStrictMode: !isZai && !usesConfiguredNonOpenAIEndpoint,
+    supportsStrictMode: !isZai && !usesConfiguredNonOpenAIEndpoint && !isGoogleVertex,
+    requiresStringContent: isGoogleVertex,
   };
 }
 
