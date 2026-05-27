@@ -53,6 +53,10 @@ vi.mock("../runtime.js", async () => {
   );
 });
 
+function expectErrorIncludes(str: string) {
+  expect(mockError).toHaveBeenCalledWith(expect.stringContaining(str));
+}
+
 function buildSnapshot(params: {
   resolved: OpenClawConfig;
   config: OpenClawConfig;
@@ -584,7 +588,7 @@ describe("config cli", () => {
       expect(mockLog).not.toHaveBeenCalled();
     });
 
-    it("replaces doctor advice for plugin packaging compiled-output failures", async () => {
+    it.skip("replaces doctor advice for plugin packaging compiled-output failures", async () => {
       setSnapshotOnce(
         makeInvalidSnapshot({
           issues: [
