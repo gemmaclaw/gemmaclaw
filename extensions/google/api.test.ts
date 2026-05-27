@@ -184,6 +184,16 @@ describe("google generative ai helpers", () => {
     expect(result.headers["Content-Type"]).toBe("application/json");
   });
 
+  it("fails loudly when gcloud automated credentials cannot resolve a token", () => {
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error("gcloud failed");
+    });
+
+    expect(() => parseGeminiAuth("gcp-vertex-credentials")).toThrow(
+      "Failed to resolve Vertex AI credentials via gcloud",
+    );
+  });
+
   it("falls back to API key headers for raw tokens", () => {
     expect(parseGeminiAuth("api-key-123")).toEqual({
       headers: {

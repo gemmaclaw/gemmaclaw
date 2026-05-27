@@ -1,9 +1,8 @@
-import { execSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, execSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveAgentDir } from "../agents/agent-scope.js";
-import { ensureDockerWritableHostDir } from "../config/io.js";
 import { resolveStateDir } from "../config/paths.js";
 import type { OpenClawConfig } from "../config/types.js";
 import type {
@@ -40,6 +39,7 @@ export type SetupGemmaCommandOpts = {
   bootstrap?: OnboardingBootstrap;
   setupMode?: OnboardingBackend;
   model?: string;
+  enhancements?: string;
 };
 
 const HEALTH_POLL_INTERVAL_MS = 500;
@@ -51,8 +51,66 @@ const GEMMACLAW_DEFAULT_INTERNAL_HOOK_NAMES = [
   "session-memory",
 ] as const;
 
+function ensureDockerWritableHostDir(
+  fsModule: Pick<typeof import("node:fs"), "chmodSync" | "mkdirSync">,
+  dir: string,
+): void {
+  fsModule.mkdirSync(dir, { recursive: true });
+  fsModule.chmodSync(dir, 0o777);
+  try {
+    execFileSync("setfacl", ["-d", "-m", "u::rwx,g::rwx,o::rwx", dir], { stdio: "ignore" });
+  } catch {
+    // setfacl is not available on every host. chmod(777) keeps the directory
+    // writable, and the live Docker smoke catches hosts that need default ACLs.
+  }
+}
+
 function resolveGemmaclawSharedDir(): string {
   return path.join(process.env.HOME ?? "/root", ".gemmaclaw", "shared");
+}
+
+const GEMMACLAW_APT_NETWORK_RETRY_CONF = [
+  'Acquire::Retries "5";',
+  'Acquire::http::Timeout "30";',
+  'Acquire::https::Timeout "30";',
+].join("\n");
+
+const GEMMACLAW_DEFAULT_SANDBOX_PACKAGES = [
+  "bash",
+  "ca-certificates",
+  "curl",
+  "wget",
+  "git",
+  "jq",
+  "ripgrep",
+  "python3",
+  "ffmpeg",
+  "file",
+  "unzip",
+  "procps",
+  "less",
+].join(" ");
+
+function buildGemmaclawSandboxSetupCommand(): string {
+  return [
+    `printf '%s\\n' ${GEMMACLAW_APT_NETWORK_RETRY_CONF.split("\n")
+      .map((line) => `'${line}'`)
+      .join(" ")} > /etc/apt/apt.conf.d/99gemmaclaw-network-retries`,
+    [
+      "printf '%s\\n'",
+      "'#!/bin/sh'",
+      "'apt-get -o APT::Sandbox::User=root \"$@\"'",
+      "'status=$?'",
+      "'if [ \"$status\" -eq 0 ]; then exit 0; fi'",
+      "'exec apt-get -o APT::Sandbox::User=root -o Acquire::ForceIPv4=true \"$@\"'",
+      "> /usr/local/bin/apt-get-retry",
+    ].join(" "),
+    "chmod 755 /usr/local/bin/apt-get-retry",
+    "apt-get-retry update",
+    `DEBIAN_FRONTEND=noninteractive apt-get-retry install -y --no-install-recommends ${GEMMACLAW_DEFAULT_SANDBOX_PACKAGES}`,
+    "printf '\\numask 000\\n' >> /etc/profile",
+    "rm -rf /var/lib/apt/lists/*",
+  ].join(" && ");
 }
 
 function buildGemmaclawDockerSandboxConfig(): NonNullable<
@@ -71,12 +129,7 @@ function buildGemmaclawDockerSandboxConfig(): NonNullable<
       readOnlyRoot: false,
       network: "bridge",
       capDrop: [],
-      setupCommand: [
-        "apt-get -o APT::Sandbox::User=root update",
-        "DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install -y ca-certificates curl git python3",
-        "printf '\\numask 000\\n' >> /etc/profile",
-        "rm -rf /var/lib/apt/lists/*",
-      ].join(" && "),
+      setupCommand: buildGemmaclawSandboxSetupCommand(),
       user: "0:0",
     },
   };
@@ -357,6 +410,7 @@ export async function setupGemmaCommand(
       model: opts.model,
       thinkingLevel: opts.thinking,
       bootstrap: opts.bootstrap,
+      enhancements: opts.enhancements,
       apiKey: process.env.GEMINI_API_KEY?.trim(),
     });
   } else {
@@ -369,6 +423,11 @@ export async function setupGemmaCommand(
         model: opts.model,
         thinkingLevel: opts.thinking,
         bootstrap: opts.bootstrap,
+        enhancements: opts.enhancements
+          ? (await import("../gemmaclaw/gemmaclaw_instructions.js")).resolveGemmaclawEnhancementIds(
+              opts.enhancements,
+            )
+          : undefined,
       });
     } finally {
       io.close();
@@ -533,6 +592,7 @@ export async function setupGemmaCommand(
 
           if (enableSandbox) {
             draft.agents.defaults.sandbox = buildGemmaclawDockerSandboxConfig();
+            (draft.tools.exec as Record<string, unknown>).host = "sandbox";
           }
         },
       });
@@ -662,7 +722,7 @@ async function setupVertexBackend(
     },
   });
 
-  if (result.config.accessToken) {
+  if (result.config.accessToken && !result.config.useAutomatedCredentials) {
     await writeVertexAuthProfile(choices.agentName, result.config.accessToken);
   }
 }
@@ -748,6 +808,9 @@ async function applySharedAgentDefaults(
       draft.tools.exec ??= {};
       (draft.tools.exec as Record<string, unknown>).security = "full";
       (draft.tools.exec as Record<string, unknown>).ask = "off";
+      if (useContainer) {
+        (draft.tools.exec as Record<string, unknown>).host = "sandbox";
+      }
       applyGemmaclawHookDefaults(draft);
       applySetupAgentConfig(draft, choices);
     },
@@ -783,6 +846,7 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
         thinkingLevel: choices.thinkingLevel,
         bootstrap: choices.bootstrap,
         useContainer: choices.useContainer,
+        enhancements: choices.enhancements,
         createdAt: new Date().toISOString(),
       },
       null,
@@ -799,7 +863,10 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
     choices.agentName === "main"
       ? path.join(stateDir, "workspace")
       : path.join(stateDir, "workspaces", choices.agentName);
-  applyBootstrapProfile(choices.bootstrap, workspaceDir, { useContainer: choices.useContainer });
+  applyBootstrapProfile(choices.bootstrap, workspaceDir, {
+    useContainer: choices.useContainer,
+    enhancements: choices.enhancements,
+  });
   if (choices.useContainer) {
     ensureDockerWritableHostDir(fs, workspaceDir);
     ensureDockerWritableHostDir(fs, resolveGemmaclawSharedDir());

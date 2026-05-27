@@ -373,6 +373,7 @@ export async function setupVertex(opts: {
   region?: string;
   model?: string;
   apiFormat?: "native" | "openai";
+  dedicatedUrl?: string;
 }): Promise<VertexSetupResult> {
   return interactiveVertexSetup({ ...opts, nonInteractive: !process.stdin.isTTY });
 }

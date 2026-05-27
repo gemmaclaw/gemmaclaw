@@ -97,7 +97,7 @@ function buildGoogleTemplateSources(params: {
     params.family.preferExternalFirstForCli === true;
   const orderedTemplateProviderIds = preferredExternalFirst
     ? [defaultTemplateProviderId, params.providerId]
-    : [params.providerId, defaultTemplateProviderId];
+    : [params.providerId, defaultTemplateProviderId, "google"];
 
   const seen = new Set<string>();
   const sources: GoogleTemplateSource[] = [];

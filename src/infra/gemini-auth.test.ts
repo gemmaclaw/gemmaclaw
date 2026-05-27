@@ -33,20 +33,14 @@ describe("parseGeminiAuth", () => {
     expect(result.headers["Content-Type"]).toBe("application/json");
   });
 
-  it("returns empty headers and logs error when gcloud fails", () => {
+  it("fails loudly when gcloud automated credentials cannot resolve a token", () => {
     vi.mocked(execSync).mockImplementation(() => {
       throw new Error("gcloud failed");
     });
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = parseGeminiAuth("gcp-vertex-credentials");
-
-    expect(result.headers["x-goog-api-key"]).toBe("gcp-vertex-credentials");
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to resolve Vertex AI credentials"),
-      expect.any(Error),
+    expect(() => parseGeminiAuth("gcp-vertex-credentials")).toThrow(
+      "Failed to resolve Vertex AI credentials via gcloud",
     );
-    consoleSpy.mockRestore();
   });
 
   it.each(['{"token":"","projectId":"demo"}', "{not-json}", ' {"token":"oauth-token"}'])(

@@ -1,16 +1,11 @@
 import type { Command } from "commander";
 import { setupWizardCommand } from "../../commands/onboard.js";
 import { setupCommand } from "../../commands/setup.js";
-import {
-  OnboardingBootstrap,
-  OnboardingThinking,
-} from "../../gemmaclaw/provision/onboarding-wizard.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatDocsLink } from "../../terminal/links.js";
 import { theme } from "../../terminal/theme.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { hasExplicitOptions } from "../command-options.js";
-import { getDefaultGemmaclawEnhancementIds } from "../../gemmaclaw/gemmaclaw_instructions.js";
 
 export function registerSetupCommand(program: Command) {
   program
@@ -59,6 +54,11 @@ export function registerSetupCommand(program: Command) {
     .option("--model <id>", "Model id (e.g. gemma3:4b, google/gemini-2.5-flash)")
     .option("--thinking <level>", "Thinking level: off|low|medium|high (default: medium)")
     .option("--bootstrap <profile>", "Bootstrap profile: general|coding|minimal (default: general)")
+    .option(
+      "--enhancements <selection>",
+      "Gemmaclaw enhancements: default|all|none|comma-separated ids (default: default)",
+    )
+    .option("--no-enhancements", "Disable all Gemmaclaw setup enhancements")
     .option("--dry-run", "Run wizard + write config without provisioning the backend", false)
     .action(async (opts, command) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
@@ -79,6 +79,7 @@ export function registerSetupCommand(program: Command) {
           "agentName",
           "thinking",
           "bootstrap",
+          "enhancements",
           "dryRun",
           "model",
         ]);
@@ -107,85 +108,29 @@ export function registerSetupCommand(program: Command) {
 
         // Vertex AI setup
         if (opts.vertex) {
-          const { interactiveVertexSetup, buildVertexConfig } =
-            await import("../../gemmaclaw/provision/vertex-setup.js");
-          const fs = await import("node:fs");
-          const path = await import("node:path");
-
-          const result = await interactiveVertexSetup({
-            project: opts.vertexProject as string | undefined,
-            region: opts.vertexRegion as string | undefined,
-            model: opts.vertexModel as string | undefined,
-            apiFormat: opts.vertexApiFormat as "native" | "openai" | undefined,
-            dedicatedUrl: opts.vertexDedicatedUrl as string | undefined,
-            nonInteractive: Boolean(opts.nonInteractive),
-          });
-          if (!result.ok || !result.config) {
-            console.error(`\nVertex AI setup failed: ${result.error}`);
-            process.exit(1);
-          }
-
-          // Write config
-          const { mutateConfigFile } = await import("../../config/config.js");
-          const { applyMergePatch } = await import("../../config/merge-patch.js");
-          const { applySetupAgentConfig, applyAgentNameAndBootstrap } =
-            await import("../../commands/setup-gemma.js");
-
-          const choices = {
-            agentName: (opts.agentName as string) || "main",
-            useContainer: opts.container !== false,
-            backend: "vertex" as const,
-            model: result.config.model,
-            thinkingLevel: (opts.thinking as OnboardingThinking) || "medium",
-            bootstrap: (opts.bootstrap as OnboardingBootstrap) || "general",
-            enhancements: getDefaultGemmaclawEnhancementIds(),
-          };
-
-          const vertexConfigPatch = buildVertexConfig(result.config);
-          await mutateConfigFile({
-            mutate: (draft) => {
-              Object.assign(draft, applyMergePatch(draft, vertexConfigPatch));
-              applySetupAgentConfig(draft, choices);
+          const { runVertexSetupCommand } =
+            await import("../../gemmaclaw/provision/vertex-command.js");
+          await runVertexSetupCommand(
+            {
+              agentName: opts.agentName as string | undefined,
+              noContainer: opts.container === false,
+              thinking: opts.thinking as string | undefined,
+              bootstrap: opts.bootstrap as string | undefined,
+              nonInteractive: Boolean(opts.nonInteractive),
+              acceptRisk: Boolean(opts.acceptRisk),
+              dryRun: Boolean(opts.dryRun),
+              enhancements:
+                opts.enhancements === false ? "none" : (opts.enhancements as string | undefined),
             },
-          });
-          console.log("\nConfig updated with Vertex AI provider.");
-
-          // Write bootstrap files (AGENTS.md etc)
-          await applyAgentNameAndBootstrap(choices);
-
-          // Write auth profile with gcloud access token
-          if (result.config.accessToken && !result.config.useAutomatedCredentials) {
-            const { resolveStateDir } = await import("../../config/paths.js");
-            const stateDir = resolveStateDir(process.env);
-            const agentName = (opts.agentName as string) || "main";
-            const authPath = path.join(stateDir, "agents", agentName, "agent/auth-profiles.json");
-            let existing: Record<string, unknown> = { version: 1, profiles: {} };
-            try {
-              existing = JSON.parse(fs.readFileSync(authPath, "utf-8"));
-            } catch {
-              /* first time */
-            }
-            const profiles = (existing.profiles ?? {}) as Record<string, unknown>;
-            profiles["google-vertex:gcloud"] = {
-              type: "token",
-              provider: "google-vertex",
-              token: result.config.accessToken,
-            };
-            existing.profiles = profiles;
-            fs.mkdirSync(path.dirname(authPath), { recursive: true });
-            fs.writeFileSync(authPath, JSON.stringify(existing, null, 2));
-            console.log("Auth profile saved (google-vertex:gcloud).");
-            console.log(
-              "\nNote: Access tokens expire in ~1 hour. " +
-                "Run 'gemmaclaw setup --vertex' again to refresh, " +
-                "or set GOOGLE_APPLICATION_CREDENTIALS for auto-refresh.",
-            );
-          }
-
-          console.log(
-            `\nVertex AI ready: ${result.config.model} on ${result.config.project} (${result.config.region})`,
+            {
+              project: opts.vertexProject as string | undefined,
+              region: opts.vertexRegion as string | undefined,
+              model: opts.vertexModel as string | undefined,
+              apiFormat: opts.vertexApiFormat as "native" | "openai" | undefined,
+              dedicatedUrl: opts.vertexDedicatedUrl as string | undefined,
+            },
+            defaultRuntime,
           );
-          console.log("Test it: gemmaclaw agent --local --message 'Hello'");
           return;
         }
 
@@ -209,6 +154,8 @@ export function registerSetupCommand(program: Command) {
           bootstrapRaw === "general" || bootstrapRaw === "coding" || bootstrapRaw === "minimal"
             ? bootstrapRaw
             : undefined;
+        const enhancementSelection =
+          opts.enhancements === false ? "none" : (opts.enhancements as string | undefined);
         await setupGemmaCommand(
           {
             advanced: Boolean(opts.advanced),
@@ -220,6 +167,7 @@ export function registerSetupCommand(program: Command) {
             model: opts.model as string | undefined,
             thinking,
             bootstrap,
+            enhancements: enhancementSelection,
           },
           defaultRuntime,
         );

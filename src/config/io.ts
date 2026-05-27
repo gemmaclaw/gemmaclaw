@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -27,6 +26,7 @@ import { maintainConfigBackups } from "./backup-rotation.js";
 import { restoreEnvVarRefs } from "./env-preserve.js";
 import {
   type EnvSubstitutionWarning,
+  MissingEnvVarError,
   containsEnvVarReference,
   resolveConfigEnvVars,
 } from "./env-substitution.js";
@@ -211,59 +211,9 @@ async function tightenStateDirPermissionsIfNeeded(params: {
     if ((mode & 0o077) === 0) {
       return;
     }
-    const isLinux = process.platform === "linux";
-    await params.fsModule.promises.chmod(configDir, isLinux ? 0o755 : 0o700);
+    await params.fsModule.promises.chmod(configDir, process.platform === "linux" ? 0o755 : 0o700);
   } catch {
     // Best-effort hardening only; callers still need the config write to proceed.
-  }
-}
-
-/**
- * Ensures a directory exists and is writable by others (0o777), which is
- * often required for Docker host binds when the container runs as a
- * different UID/GID.
- */
-export function ensureDockerWritableHostDir(
-  fsModule: Pick<typeof import("node:fs"), "chmodSync" | "mkdirSync" | "statSync">,
-  dir: string,
-): void {
-  fsModule.mkdirSync(dir, { recursive: true });
-
-  try {
-    const stats = fsModule.statSync(dir);
-    if ((stats.mode & 0o777) === 0o777) {
-      return;
-    }
-
-    fsModule.chmodSync(dir, 0o777);
-  } catch (err: unknown) {
-    if (
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      (err.code === "EPERM" || err.code === "EACCES")
-    ) {
-      try {
-        const stats = fsModule.statSync(dir);
-        if (stats.mode & 0o002) {
-          // Already writable by others, ignore the permission error.
-          console.warn(
-            `[setup] Warning: Permission denied when setting 0o777 on ${dir}, but it is already writable by others. Proceeding anyway.`,
-          );
-          return;
-        }
-      } catch {
-        // If statSync fails here, we'll just throw the original error.
-      }
-    }
-    throw err;
-  }
-
-  try {
-    execFileSync("setfacl", ["-d", "-m", "u::rwx,g::rwx,o::rwx", dir], { stdio: "ignore" });
-  } catch {
-    // setfacl is not available on every host. chmod(777) keeps the directory
-    // writable, and the live Docker smoke catches hosts that need default ACLs.
   }
 }
 

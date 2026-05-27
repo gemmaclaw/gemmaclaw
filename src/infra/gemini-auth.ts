@@ -43,8 +43,10 @@ export function parseGeminiAuth(apiKey: string): { headers: Record<string, strin
         },
       };
     } catch (e) {
-      // In case gcloud fails, we log it and return empty headers (which will likely result in a 401).
-      console.error("Failed to resolve Vertex AI credentials via gcloud", e);
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(`Failed to resolve Vertex AI credentials via gcloud: ${message}`, {
+        cause: e,
+      });
     }
   }
 

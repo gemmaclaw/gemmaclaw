@@ -627,6 +627,20 @@ function buildOpenAIClientHeaders(
   return headers;
 }
 
+function resolveOpenAICompatAuth(
+  model: Pick<Model<Api>, "provider">,
+  rawApiKey: string,
+): { apiKey: string; headers: Record<string, string> } {
+  if (model.provider !== "google" && model.provider !== "google-vertex") {
+    return { apiKey: rawApiKey, headers: {} };
+  }
+
+  const authHeaders = parseGeminiAuth(rawApiKey).headers;
+  const bearer = authHeaders["Authorization"] ?? authHeaders["authorization"];
+  const apiKey = bearer?.startsWith("Bearer ") ? bearer.slice(7) : rawApiKey;
+  return { apiKey, headers: authHeaders };
+}
+
 function resolveProviderTransportTurnState(
   model: Model<Api>,
   params: {
@@ -690,11 +704,7 @@ export function createOpenAIResponsesTransportStreamFn(): StreamFn {
       };
       try {
         const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-        const auth = parseGeminiAuth(rawApiKey);
-        const authHeaders = auth.headers;
-        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
-          ? authHeaders["Authorization"].slice(7)
-          : rawApiKey;
+        const auth = resolveOpenAICompatAuth(model, rawApiKey);
 
         const turnState = resolveProviderTransportTurnState(model, {
           sessionId: options?.sessionId,
@@ -705,8 +715,8 @@ export function createOpenAIResponsesTransportStreamFn(): StreamFn {
         const client = createOpenAIResponsesClient(
           model,
           context,
-          apiKey,
-          { ...options?.headers, ...authHeaders },
+          auth.apiKey,
+          { ...options?.headers, ...auth.headers },
           turnState?.headers,
         );
         let params = buildOpenAIResponsesParams(
@@ -924,12 +934,7 @@ export function createAzureOpenAIResponsesTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-        const auth = parseGeminiAuth(rawApiKey);
-        const authHeaders = auth.headers;
-        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
-          ? authHeaders["Authorization"].slice(7)
-          : rawApiKey;
+        const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
 
         const turnState = resolveProviderTransportTurnState(model, {
           sessionId: options?.sessionId,
@@ -941,7 +946,7 @@ export function createAzureOpenAIResponsesTransportStreamFn(): StreamFn {
           model,
           context,
           apiKey,
-          { ...options?.headers, ...authHeaders },
+          options?.headers,
           turnState?.headers,
         );
         const deploymentName = resolveAzureDeploymentName(model);
@@ -1145,15 +1150,11 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
       };
       try {
         const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-        const auth = parseGeminiAuth(rawApiKey);
-        const authHeaders = auth.headers;
-        const apiKey = authHeaders["Authorization"]?.startsWith("Bearer ")
-          ? authHeaders["Authorization"].slice(7)
-          : rawApiKey;
+        const auth = resolveOpenAICompatAuth(model, rawApiKey);
 
-        const client = createOpenAICompletionsClient(model, context, apiKey, {
+        const client = createOpenAICompletionsClient(model, context, auth.apiKey, {
           ...options?.headers,
-          ...authHeaders,
+          ...auth.headers,
         });
 
         let params = buildOpenAICompletionsParams(
@@ -1165,7 +1166,6 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         if (nextParams !== undefined) {
           params = nextParams as typeof params;
         }
-        process.stderr.write(`DEBUG: [openai-completions] Final Body: ${JSON.stringify(params)}\n`);
         const responseStream = (await client.chat.completions.create(params as never, {
           signal: options?.signal,
         })) as unknown as AsyncIterable<ChatCompletionChunk>;
@@ -1761,4 +1761,5 @@ function mapStopReason(reason: string | null) {
 export const __testing = {
   buildOpenAICompletionsClientConfig,
   processOpenAICompletionsStream,
+  resolveOpenAICompatAuth,
 };
