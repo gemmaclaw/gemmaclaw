@@ -195,6 +195,30 @@ export function readPositiveIntegerParam(
   return n;
 }
 
+export function readNonNegativeIntegerParam(
+  params: Record<string, unknown>,
+  key: string,
+  options: { message?: string; max?: number } = {},
+): number | undefined {
+  const raw = readParamRaw(params, key);
+  if (raw == null) {
+    return undefined;
+  }
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw.trim())
+        : Number.NaN;
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    throw new ToolInputError(options.message ?? `${key} must be a non-negative integer`);
+  }
+  if (options.max !== undefined && n > options.max) {
+    throw new ToolInputError(options.message ?? `${key} must be a non-negative integer`);
+  }
+  return n;
+}
+
 export function readStringArrayParam(
   params: Record<string, unknown>,
   key: string,

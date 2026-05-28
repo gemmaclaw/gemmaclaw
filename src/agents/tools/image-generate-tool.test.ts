@@ -510,6 +510,19 @@ describe("createImageGenerateTool", () => {
     });
   });
 
+  it.each([2.5, "2cats", null])("rejects malformed image count %s", async (count) => {
+    const tool = createToolWithPrimaryImageModel("google/gemini-3.1-flash-image-preview");
+    await expect(
+      tool.execute("call-fractional-count", {
+        prompt: "A cat wearing sunglasses",
+        count,
+      }),
+    ).rejects.toThrow("count must be between 1 and 4");
+    if (!tool) {
+      throw new Error("expected image_generate tool");
+    }
+  });
+
   it("rejects counts outside the supported range", async () => {
     vi.spyOn(imageGenerationRuntime, "listRuntimeImageGenerationProviders").mockReturnValue([
       {
