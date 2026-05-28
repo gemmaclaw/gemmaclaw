@@ -103,3 +103,23 @@ function killProcessTreeWindows(pid: number, graceMs: number): void {
     runTaskkill(["/F", "/T", "/PID", String(pid)]);
   }, graceMs).unref(); // Don't block event loop exit
 }
+
+/**
+ * Send a signal synchronously to a process tree (process group first, then pid).
+ * Unlike killProcessTree(), this does NOT use setTimeout — it fires immediately.
+ * Useful as a last-resort after killProcessTree's delayed SIGKILL may have raced shutdown.
+ */
+export function signalProcessTree(pid: number, signal: NodeJS.Signals | number): void {
+  if (!Number.isFinite(pid) || pid <= 0) {
+    return;
+  }
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // Process already gone
+    }
+  }
+}

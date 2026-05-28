@@ -900,6 +900,14 @@ export async function runHeartbeatOnce(opts: {
       isolatedSessionKey,
       isolatedBaseSessionKey,
     });
+    if (isReplyRunActive(isolatedSessionKey)) {
+      emitHeartbeatEvent({
+        status: "skipped",
+        reason: HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT,
+        durationMs: Date.now() - startedAt,
+      });
+      return { status: "skipped", reason: HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT };
+    }
     const removedSessionFiles = new Map<string, string | undefined>();
     if (staleIsolatedSessionKey) {
       const staleEntry = cronSession.store[staleIsolatedSessionKey];
