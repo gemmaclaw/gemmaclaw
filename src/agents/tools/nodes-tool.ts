@@ -98,7 +98,7 @@ const NodesToolSchema = Type.Object({
   deviceId: Type.Optional(Type.String()),
   limit: Type.Optional(Type.Number()),
   duration: Type.Optional(Type.String()),
-  durationMs: Type.Optional(Type.Number({ maximum: 300_000 })),
+  durationMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 300_000 })),
   includeAudio: Type.Optional(Type.Boolean()),
   // screen_record
   fps: Type.Optional(Type.Number()),

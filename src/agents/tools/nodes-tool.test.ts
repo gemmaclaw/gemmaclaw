@@ -129,15 +129,19 @@ describe("createNodesTool screen_record duration guardrails", () => {
     expect(tool.ownerOnly).toBe(true);
   });
 
-  it("caps durationMs schema at 300000", () => {
+  it("bounds durationMs schema to positive values capped at 300000", () => {
     const tool = createNodesTool();
     const schema = tool.parameters as {
       properties?: {
         durationMs?: {
+          minimum?: number;
           maximum?: number;
+          type?: string;
         };
       };
     };
+    expect(schema.properties?.durationMs?.type).toBe("integer");
+    expect(schema.properties?.durationMs?.minimum).toBe(1);
     expect(schema.properties?.durationMs?.maximum).toBe(300_000);
   });
 
@@ -160,6 +164,48 @@ describe("createNodesTool screen_record duration guardrails", () => {
         }),
       }),
     );
+  });
+
+  it("clamps camera_clip durationMs argument to 300000 before gateway invoke", async () => {
+    gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { ok: true } });
+    nodesCameraMocks.parseCameraClipPayload.mockReturnValue({
+      base64: "ZmFrZQ==",
+      format: "mp4",
+      durationMs: 300_000,
+      hasAudio: true,
+    });
+    nodesCameraMocks.writeCameraClipPayloadToFile.mockResolvedValue("/tmp/clip.mp4");
+    const tool = createNodesTool();
+
+    await tool.execute("call-clip", {
+      action: "camera_clip",
+      node: "macbook",
+      durationMs: 900_000,
+    });
+
+    const call = gatewayMocks.callGatewayTool.mock.calls[0] as
+      | [string, unknown, { params?: { durationMs?: unknown } }]
+      | undefined;
+    expect(call?.[0]).toBe("node.invoke");
+    expect(call?.[2].params?.durationMs).toBe(300_000);
+  });
+
+  it.each([
+    ["screen_record", 0],
+    ["screen_record", 1.5],
+    ["camera_clip", -1],
+    ["camera_clip", "1sec"],
+  ])("rejects invalid %s durationMs value %s", async (action, durationMs) => {
+    const tool = createNodesTool();
+
+    await expect(
+      tool.execute("call-invalid-duration", {
+        action,
+        node: "macbook",
+        durationMs,
+      }),
+    ).rejects.toThrow("durationMs must be a positive integer");
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
   });
 
   it("rejects the removed run action", async () => {

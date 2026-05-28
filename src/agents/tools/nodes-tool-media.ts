@@ -18,6 +18,7 @@ import { imageMimeFromFormat } from "../../media/mime.js";
 import { normalizeLowercaseStringOrEmpty } from "../../shared/string-coerce.js";
 import type { ImageSanitizationLimits } from "../image-sanitization.js";
 import { sanitizeToolResultImages } from "../tool-images.js";
+import { readPositiveIntegerParam } from "./common.js";
 import type { GatewayCallOptions } from "./gateway.js";
 import { callGatewayTool } from "./gateway.js";
 import { resolveNode, resolveNodeId } from "./nodes-utils.js";
@@ -30,6 +31,7 @@ export const MEDIA_INVOKE_ACTIONS = {
 } as const;
 
 export type NodeMediaAction = "camera_snap" | "photos_latest" | "camera_clip" | "screen_record";
+const MAX_RECORDING_DURATION_MS = 300_000;
 
 type ExecuteNodeMediaActionParams = {
   action: NodeMediaAction;
@@ -278,12 +280,11 @@ async function executeCameraClip({
   if (facing !== "front" && facing !== "back") {
     throw new Error("invalid facing (front|back)");
   }
-  const durationMs =
-    typeof params.durationMs === "number" && Number.isFinite(params.durationMs)
-      ? params.durationMs
-      : typeof params.duration === "string"
-        ? parseDurationMs(params.duration)
-        : 3000;
+  const durationMs = Math.min(
+    readPositiveIntegerParam(params, "durationMs") ??
+      (typeof params.duration === "string" ? parseDurationMs(params.duration) : 3000),
+    MAX_RECORDING_DURATION_MS,
+  );
   const includeAudio = typeof params.includeAudio === "boolean" ? params.includeAudio : true;
   const deviceId =
     typeof params.deviceId === "string" && params.deviceId.trim()
@@ -325,12 +326,9 @@ async function executeScreenRecord({
   const node = requireString(params, "node");
   const nodeId = await resolveNodeId(gatewayOpts, node);
   const durationMs = Math.min(
-    typeof params.durationMs === "number" && Number.isFinite(params.durationMs)
-      ? params.durationMs
-      : typeof params.duration === "string"
-        ? parseDurationMs(params.duration)
-        : 10_000,
-    300_000,
+    readPositiveIntegerParam(params, "durationMs") ??
+      (typeof params.duration === "string" ? parseDurationMs(params.duration) : 10_000),
+    MAX_RECORDING_DURATION_MS,
   );
   const fps = typeof params.fps === "number" && Number.isFinite(params.fps) ? params.fps : 10;
   const screenIndex =
