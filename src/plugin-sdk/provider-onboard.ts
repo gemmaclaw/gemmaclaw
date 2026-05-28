@@ -48,6 +48,10 @@ function extractAgentDefaultModelFallbacks(model: unknown): string[] | undefined
   return Array.isArray(fallbacks) ? fallbacks.map((value) => String(value)) : undefined;
 }
 
+function hasAgentDefaultModelPrimary(cfg: OpenClawConfig): boolean {
+  return resolvePrimaryStringValue(cfg.agents?.defaults?.model) !== undefined;
+}
+
 function normalizeAgentModelAliasEntry(entry: AgentModelAliasEntry): {
   modelRef: string;
   alias?: string;
@@ -316,7 +320,9 @@ export function applyProviderConfigWithDefaultModelPreset(
     defaultModelId: params.defaultModelId,
   });
   return params.primaryModelRef
-    ? applyAgentDefaultModelPrimary(next, params.primaryModelRef)
+    ? hasAgentDefaultModelPrimary(cfg)
+      ? next
+      : applyAgentDefaultModelPrimary(next, params.primaryModelRef)
     : next;
 }
 
@@ -358,7 +364,9 @@ export function applyProviderConfigWithDefaultModelsPreset(
     defaultModelId: params.defaultModelId,
   });
   return params.primaryModelRef
-    ? applyAgentDefaultModelPrimary(next, params.primaryModelRef)
+    ? hasAgentDefaultModelPrimary(cfg)
+      ? next
+      : applyAgentDefaultModelPrimary(next, params.primaryModelRef)
     : next;
 }
 
@@ -430,7 +438,9 @@ export function applyProviderConfigWithModelCatalogPreset(
     catalogModels: params.catalogModels,
   });
   return params.primaryModelRef
-    ? applyAgentDefaultModelPrimary(next, params.primaryModelRef)
+    ? hasAgentDefaultModelPrimary(cfg)
+      ? next
+      : applyAgentDefaultModelPrimary(next, params.primaryModelRef)
     : next;
 }
 
