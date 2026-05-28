@@ -169,11 +169,10 @@ async function executePhotosLatest({
   const node = requireString(params, "node");
   const resolvedNode = await resolveNode(gatewayOpts, node);
   const nodeId = resolvedNode.nodeId;
-  const limitRaw =
-    typeof params.limit === "number" && Number.isFinite(params.limit)
-      ? Math.floor(params.limit)
-      : DEFAULT_PHOTOS_LIMIT;
-  const limit = Math.max(1, Math.min(limitRaw, MAX_PHOTOS_LIMIT));
+  const limit = Math.min(
+    readPositiveIntegerParam(params, "limit") ?? DEFAULT_PHOTOS_LIMIT,
+    MAX_PHOTOS_LIMIT,
+  );
   const maxWidth =
     typeof params.maxWidth === "number" && Number.isFinite(params.maxWidth)
       ? params.maxWidth

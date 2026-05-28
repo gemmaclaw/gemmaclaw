@@ -145,6 +145,22 @@ describe("createNodesTool screen_record duration guardrails", () => {
     expect(schema.properties?.durationMs?.maximum).toBe(300_000);
   });
 
+  it("bounds photos_latest limit schema to positive values capped at 20", () => {
+    const tool = createNodesTool();
+    const schema = tool.parameters as {
+      properties?: {
+        limit?: {
+          minimum?: number;
+          maximum?: number;
+          type?: string;
+        };
+      };
+    };
+    expect(schema.properties?.limit?.type).toBe("integer");
+    expect(schema.properties?.limit?.minimum).toBe(1);
+    expect(schema.properties?.limit?.maximum).toBe(20);
+  });
+
   it("clamps screen_record durationMs argument to 300000 before gateway invoke", async () => {
     gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { ok: true } });
     const tool = createNodesTool();
@@ -297,6 +313,36 @@ describe("createNodesTool screen_record duration guardrails", () => {
       },
     });
     expect(JSON.stringify(result?.content ?? [])).not.toContain("MEDIA:");
+  });
+
+  it("rejects invalid photos_latest limit values before gateway invoke", async () => {
+    const tool = createNodesTool();
+
+    await expect(
+      tool.execute("call-photos-limit", {
+        action: "photos_latest",
+        node: "macbook",
+        limit: 1.5,
+      }),
+    ).rejects.toThrow("limit must be a positive integer");
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+  });
+
+  it("caps photos_latest limit at 20 before gateway invoke", async () => {
+    gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { photos: [] } });
+    const tool = createNodesTool();
+
+    await tool.execute("call-photos-limit", {
+      action: "photos_latest",
+      node: "macbook",
+      limit: 99,
+    });
+
+    const call = gatewayMocks.callGatewayTool.mock.calls[0] as
+      | [string, unknown, { params?: { limit?: unknown } }]
+      | undefined;
+    expect(call?.[0]).toBe("node.invoke");
+    expect(call?.[2].params?.limit).toBe(20);
   });
 
   it("uses operator.pairing plus operator.admin to approve exec-capable node pair requests", async () => {

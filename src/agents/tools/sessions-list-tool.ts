@@ -13,6 +13,10 @@ import { deriveSessionTitle } from "../../gateway/session-utils.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { normalizeOptionalLowercaseString, readStringValue } from "../../shared/string-coerce.js";
 import {
+  optionalNonNegativeIntegerSchema,
+  optionalPositiveIntegerSchema,
+} from "../schema/typebox.js";
+import {
   describeSessionsListTool,
   SESSIONS_LIST_TOOL_DISPLAY_SUMMARY,
 } from "../tool-description-presets.js";
@@ -40,9 +44,9 @@ import {
 
 const SessionsListToolSchema = Type.Object({
   kinds: Type.Optional(Type.Array(Type.String())),
-  limit: Type.Optional(Type.Integer({ minimum: 1 })),
-  activeMinutes: Type.Optional(Type.Integer({ minimum: 1 })),
-  messageLimit: Type.Optional(Type.Integer({ minimum: 0 })),
+  limit: optionalPositiveIntegerSchema(),
+  activeMinutes: optionalPositiveIntegerSchema(),
+  messageLimit: optionalNonNegativeIntegerSchema(),
   label: Type.Optional(Type.String({ minLength: 1 })),
   agentId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   search: Type.Optional(Type.String({ minLength: 1 })),

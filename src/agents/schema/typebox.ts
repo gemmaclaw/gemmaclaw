@@ -16,3 +16,26 @@ export function channelTargetsSchema(options?: { description?: string }) {
     channelTargetSchema({ description: options?.description ?? CHANNEL_TARGETS_DESCRIPTION }),
   );
 }
+
+type IntegerSchemaOptions = {
+  description?: string;
+  maximum?: number;
+};
+
+export function optionalPositiveIntegerSchema(options: IntegerSchemaOptions = {}) {
+  return Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      ...options,
+    }),
+  );
+}
+
+export function optionalNonNegativeIntegerSchema(options: IntegerSchemaOptions = {}) {
+  return Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      ...options,
+    }),
+  );
+}
