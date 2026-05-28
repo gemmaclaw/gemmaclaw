@@ -12,7 +12,7 @@ import {
   SESSIONS_HISTORY_TOOL_DISPLAY_SUMMARY,
 } from "../tool-description-presets.js";
 import type { AnyAgentTool } from "./common.js";
-import { jsonResult, readStringParam } from "./common.js";
+import { jsonResult, readPositiveIntegerParam, readStringParam } from "./common.js";
 import {
   createSessionVisibilityGuard,
   createAgentToAgentPolicy,
@@ -25,7 +25,7 @@ import {
 
 const SessionsHistoryToolSchema = Type.Object({
   sessionKey: Type.String(),
-  limit: Type.Optional(Type.Number({ minimum: 1 })),
+  limit: Type.Optional(Type.Integer({ minimum: 1 })),
   includeTools: Type.Optional(Type.Boolean()),
 });
 
@@ -243,10 +243,7 @@ export function createSessionsHistoryTool(opts?: {
         });
       }
 
-      const limit =
-        typeof params.limit === "number" && Number.isFinite(params.limit)
-          ? Math.max(1, Math.floor(params.limit))
-          : undefined;
+      const limit = readPositiveIntegerParam(params, "limit");
       const includeTools = Boolean(params.includeTools);
       const result = await gatewayCall<{ messages: Array<unknown> }>({
         method: "chat.history",
