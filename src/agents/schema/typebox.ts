@@ -22,6 +22,18 @@ type IntegerSchemaOptions = {
   maximum?: number;
 };
 
+type NumberSchemaOptions = {
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+};
+
+export function optionalFiniteNumberSchema(options: NumberSchemaOptions = {}) {
+  return Type.Optional(Type.Number(options));
+}
+
 export function optionalPositiveIntegerSchema(options: IntegerSchemaOptions = {}) {
   return Type.Optional(
     Type.Integer({

@@ -161,6 +161,24 @@ describe("createNodesTool screen_record duration guardrails", () => {
     expect(schema.properties?.limit?.maximum).toBe(20);
   });
 
+  it("advertises node media numeric constraints in the tool schema", () => {
+    const tool = createNodesTool();
+    const schema = tool.parameters as {
+      properties?: {
+        maxWidth?: { minimum?: number; type?: string };
+        quality?: { minimum?: number; maximum?: number; type?: string };
+        delayMs?: { minimum?: number; type?: string };
+        fps?: { exclusiveMinimum?: number; type?: string };
+        screenIndex?: { minimum?: number; type?: string };
+      };
+    };
+    expect(schema.properties?.maxWidth).toMatchObject({ type: "integer", minimum: 1 });
+    expect(schema.properties?.quality).toMatchObject({ type: "number", minimum: 0, maximum: 1 });
+    expect(schema.properties?.delayMs).toMatchObject({ type: "integer", minimum: 0 });
+    expect(schema.properties?.fps).toMatchObject({ type: "number", exclusiveMinimum: 0 });
+    expect(schema.properties?.screenIndex).toMatchObject({ type: "integer", minimum: 0 });
+  });
+
   it("clamps screen_record durationMs argument to 300000 before gateway invoke", async () => {
     gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { ok: true } });
     const tool = createNodesTool();
@@ -343,6 +361,51 @@ describe("createNodesTool screen_record duration guardrails", () => {
       | undefined;
     expect(call?.[0]).toBe("node.invoke");
     expect(call?.[2].params?.limit).toBe(20);
+  });
+
+  it.each([
+    ["camera_snap", { maxWidth: 640.5 }, "maxWidth must be a positive integer"],
+    ["camera_snap", { delayMs: -1 }, "delayMs must be a non-negative integer"],
+    ["camera_snap", { quality: 1.1 }, "quality must be between 0 and 1"],
+    ["photos_latest", { maxWidth: "wide" }, "maxWidth must be a positive integer"],
+    ["photos_latest", { quality: -0.1 }, "quality must be between 0 and 1"],
+    ["screen_record", { fps: 0 }, "fps must be greater than 0"],
+    ["screen_record", { screenIndex: 1.5 }, "screenIndex must be a non-negative integer"],
+  ])("rejects invalid %s numeric params %s", async (action, params, message) => {
+    const tool = createNodesTool();
+
+    await expect(
+      tool.execute("call-invalid-media-number", {
+        action,
+        node: "macbook",
+        ...params,
+      }),
+    ).rejects.toThrow(message);
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+  });
+
+  it("forwards validated camera_snap numeric params to gateway invoke", async () => {
+    gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { ok: true } });
+    const tool = createNodesTool();
+
+    await tool.execute("call-camera-numbers", {
+      action: "camera_snap",
+      node: "macbook",
+      facing: "front",
+      maxWidth: "640",
+      quality: "0.8",
+      delayMs: "2000",
+    });
+
+    const call = gatewayMocks.callGatewayTool.mock.calls[0] as
+      | [string, unknown, { params?: { maxWidth?: unknown; quality?: unknown; delayMs?: unknown } }]
+      | undefined;
+    expect(call?.[0]).toBe("node.invoke");
+    expect(call?.[2].params).toMatchObject({
+      maxWidth: 640,
+      quality: 0.8,
+      delayMs: 2000,
+    });
   });
 
   it("uses operator.pairing plus operator.admin to approve exec-capable node pair requests", async () => {

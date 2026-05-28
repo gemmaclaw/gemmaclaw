@@ -9,6 +9,8 @@ import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { resolveImageSanitizationLimits } from "../image-sanitization.js";
 import {
+  optionalFiniteNumberSchema,
+  optionalNonNegativeIntegerSchema,
   optionalPositiveIntegerSchema,
   optionalStringEnum,
   stringEnum,
@@ -96,17 +98,17 @@ const NodesToolSchema = Type.Object({
   facing: optionalStringEnum(CAMERA_FACING, {
     description: "camera_snap: front/back/both; camera_clip: front/back only.",
   }),
-  maxWidth: Type.Optional(Type.Number()),
-  quality: Type.Optional(Type.Number()),
-  delayMs: Type.Optional(Type.Number()),
+  maxWidth: optionalPositiveIntegerSchema(),
+  quality: optionalFiniteNumberSchema({ minimum: 0, maximum: 1 }),
+  delayMs: optionalNonNegativeIntegerSchema(),
   deviceId: Type.Optional(Type.String()),
   limit: optionalPositiveIntegerSchema({ maximum: 20 }),
   duration: Type.Optional(Type.String()),
   durationMs: optionalPositiveIntegerSchema({ maximum: 300_000 }),
   includeAudio: Type.Optional(Type.Boolean()),
   // screen_record
-  fps: Type.Optional(Type.Number()),
-  screenIndex: Type.Optional(Type.Number()),
+  fps: optionalFiniteNumberSchema({ exclusiveMinimum: 0 }),
+  screenIndex: optionalNonNegativeIntegerSchema(),
   outPath: Type.Optional(Type.String()),
   // location_get
   maxAgeMs: Type.Optional(Type.Number()),
