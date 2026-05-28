@@ -179,6 +179,20 @@ describe("createNodesTool screen_record duration guardrails", () => {
     expect(schema.properties?.screenIndex).toMatchObject({ type: "integer", minimum: 0 });
   });
 
+  it("advertises node command timeout constraints in the tool schema", () => {
+    const tool = createNodesTool();
+    const schema = tool.parameters as {
+      properties?: {
+        maxAgeMs?: { minimum?: number; type?: string };
+        locationTimeoutMs?: { minimum?: number; type?: string };
+        invokeTimeoutMs?: { minimum?: number; type?: string };
+      };
+    };
+    expect(schema.properties?.maxAgeMs).toMatchObject({ type: "integer", minimum: 0 });
+    expect(schema.properties?.locationTimeoutMs).toMatchObject({ type: "integer", minimum: 1 });
+    expect(schema.properties?.invokeTimeoutMs).toMatchObject({ type: "integer", minimum: 1 });
+  });
+
   it("clamps screen_record durationMs argument to 300000 before gateway invoke", async () => {
     gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { ok: true } });
     const tool = createNodesTool();
@@ -405,6 +419,48 @@ describe("createNodesTool screen_record duration guardrails", () => {
       maxWidth: 640,
       quality: 0.8,
       delayMs: 2000,
+    });
+  });
+
+  it.each([
+    ["location_get", { maxAgeMs: -1 }, "maxAgeMs must be a non-negative integer"],
+    ["location_get", { locationTimeoutMs: 0 }, "locationTimeoutMs must be a positive integer"],
+    [
+      "invoke",
+      { invokeCommand: "device.status", invokeTimeoutMs: "15s" },
+      "invokeTimeoutMs must be a positive integer",
+    ],
+  ])("rejects invalid %s command numeric params %s", async (action, params, message) => {
+    const tool = createNodesTool();
+
+    await expect(
+      tool.execute("call-invalid-command-number", {
+        action,
+        node: "macbook",
+        ...params,
+      }),
+    ).rejects.toThrow(message);
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+  });
+
+  it("forwards validated location_get numeric params to gateway invoke", async () => {
+    gatewayMocks.callGatewayTool.mockResolvedValue({ payload: { lat: 1, lon: 2 } });
+    const tool = createNodesTool();
+
+    await tool.execute("call-location-numbers", {
+      action: "location_get",
+      node: "macbook",
+      maxAgeMs: "5000",
+      locationTimeoutMs: "10000",
+    });
+
+    const call = gatewayMocks.callGatewayTool.mock.calls[0] as
+      | [string, unknown, { params?: { maxAgeMs?: unknown; timeoutMs?: unknown } }]
+      | undefined;
+    expect(call?.[0]).toBe("node.invoke");
+    expect(call?.[2].params).toMatchObject({
+      maxAgeMs: 5000,
+      timeoutMs: 10000,
     });
   });
 
