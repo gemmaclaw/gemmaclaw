@@ -207,7 +207,7 @@ describe("sessions tools", () => {
     expect(schemaProp("sessions_list", "search").type).toBe("string");
     expect(schemaProp("sessions_list", "includeDerivedTitles").type).toBe("boolean");
     expect(schemaProp("sessions_list", "includeLastMessage").type).toBe("boolean");
-    expect(schemaProp("sessions_send", "timeoutSeconds").type).toBe("number");
+    expect(schemaProp("sessions_send", "timeoutSeconds").type).toBe("integer");
   });
 
   it("sessions_list forwards mailbox filters and includes messages", async () => {
