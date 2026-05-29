@@ -171,6 +171,89 @@ export function readNumberParam(
   return integer ? Math.trunc(value) : value;
 }
 
+export function readPositiveIntegerParam(
+  params: Record<string, unknown>,
+  key: string,
+  options: { message?: string; max?: number } = {},
+): number | undefined {
+  const raw = readParamRaw(params, key);
+  if (raw == null) {
+    return undefined;
+  }
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw.trim())
+        : Number.NaN;
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+    throw new ToolInputError(options.message ?? `${key} must be a positive integer`);
+  }
+  if (options.max !== undefined && n > options.max) {
+    throw new ToolInputError(options.message ?? `${key} must be a positive integer`);
+  }
+  return n;
+}
+
+export function readNonNegativeIntegerParam(
+  params: Record<string, unknown>,
+  key: string,
+  options: { message?: string; max?: number } = {},
+): number | undefined {
+  const raw = readParamRaw(params, key);
+  if (raw == null) {
+    return undefined;
+  }
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw.trim())
+        : Number.NaN;
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    throw new ToolInputError(options.message ?? `${key} must be a non-negative integer`);
+  }
+  if (options.max !== undefined && n > options.max) {
+    throw new ToolInputError(options.message ?? `${key} must be a non-negative integer`);
+  }
+  return n;
+}
+
+export function readFiniteNumberParam(
+  params: Record<string, unknown>,
+  key: string,
+  options: {
+    message?: string;
+    min?: number;
+    max?: number;
+    minExclusive?: boolean;
+    maxExclusive?: boolean;
+  } = {},
+): number | undefined {
+  const value = readNumberParam(params, key, {
+    strict: true,
+  });
+  if (value === undefined) {
+    if (readParamRaw(params, key) != null) {
+      throw new ToolInputError(options.message ?? `${key} must be a finite number`);
+    }
+    return undefined;
+  }
+  if (options.min !== undefined) {
+    const below = options.minExclusive ? value <= options.min : value < options.min;
+    if (below) {
+      throw new ToolInputError(options.message ?? `${key} must be a finite number`);
+    }
+  }
+  if (options.max !== undefined) {
+    const above = options.maxExclusive ? value >= options.max : value > options.max;
+    if (above) {
+      throw new ToolInputError(options.message ?? `${key} must be a finite number`);
+    }
+  }
+  return value;
+}
+
 export function readStringArrayParam(
   params: Record<string, unknown>,
   key: string,

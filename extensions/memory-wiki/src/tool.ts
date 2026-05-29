@@ -35,7 +35,7 @@ const WikiSearchCorpusSchema = Type.Union(WIKI_SEARCH_CORPORA.map((value) => Typ
 const WikiSearchSchema = Type.Object(
   {
     query: Type.String({ minLength: 1 }),
-    maxResults: Type.Optional(Type.Number({ minimum: 1 })),
+    maxResults: Type.Optional(Type.Integer({ minimum: 1 })),
     backend: Type.Optional(WikiSearchBackendSchema),
     corpus: Type.Optional(WikiSearchCorpusSchema),
   },
@@ -44,8 +44,8 @@ const WikiSearchSchema = Type.Object(
 const WikiGetSchema = Type.Object(
   {
     lookup: Type.String({ minLength: 1 }),
-    fromLine: Type.Optional(Type.Number({ minimum: 1 })),
-    lineCount: Type.Optional(Type.Number({ minimum: 1 })),
+    fromLine: Type.Optional(Type.Integer({ minimum: 1 })),
+    lineCount: Type.Optional(Type.Integer({ minimum: 1 })),
     backend: Type.Optional(WikiSearchBackendSchema),
     corpus: Type.Optional(WikiSearchCorpusSchema),
   },

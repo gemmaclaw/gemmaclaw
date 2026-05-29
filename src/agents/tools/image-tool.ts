@@ -15,6 +15,8 @@ import {
 } from "../../plugin-sdk/media-understanding.js";
 import { resolveUserPath } from "../../utils.js";
 import { isMinimaxVlmProvider } from "../minimax-vlm.js";
+import { optionalFiniteNumberSchema, optionalPositiveIntegerSchema } from "../schema/typebox.js";
+import { readFiniteNumberParam, readPositiveIntegerParam } from "./common.js";
 import {
   coerceImageAssistantText,
   coerceImageModelConfig,
@@ -323,8 +325,8 @@ export function createImageTool(options?: {
         }),
       ),
       model: Type.Optional(Type.String()),
-      maxBytesMb: Type.Optional(Type.Number()),
-      maxImages: Type.Optional(Type.Number()),
+      maxBytesMb: optionalFiniteNumberSchema({ exclusiveMinimum: 0 }),
+      maxImages: optionalPositiveIntegerSchema(),
     }),
     execute: async (_toolCallId, args) => {
       const record = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
@@ -356,11 +358,7 @@ export function createImageTool(options?: {
       }
 
       // MARK: - Enforce max images cap
-      const maxImagesRaw = typeof record.maxImages === "number" ? record.maxImages : undefined;
-      const maxImages =
-        typeof maxImagesRaw === "number" && Number.isFinite(maxImagesRaw) && maxImagesRaw > 0
-          ? Math.floor(maxImagesRaw)
-          : DEFAULT_MAX_IMAGES;
+      const maxImages = readPositiveIntegerParam(record, "maxImages") ?? DEFAULT_MAX_IMAGES;
       if (imageInputs.length > maxImages) {
         return {
           content: [
@@ -377,7 +375,11 @@ export function createImageTool(options?: {
         record,
         DEFAULT_PROMPT,
       );
-      const maxBytesMb = typeof record.maxBytesMb === "number" ? record.maxBytesMb : undefined;
+      const maxBytesMb = readFiniteNumberParam(record, "maxBytesMb", {
+        min: 0,
+        minExclusive: true,
+        message: "maxBytesMb must be greater than 0",
+      });
       const maxBytes = pickMaxBytes(options?.config, maxBytesMb);
 
       const sandboxConfig: SandboxedBridgeMediaPathConfig | null =

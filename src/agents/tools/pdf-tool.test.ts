@@ -25,6 +25,24 @@ type PdfToolModule = typeof import("./pdf-tool.js");
 let createPdfTool: PdfToolModule["createPdfTool"];
 let PdfToolSchema: PdfToolModule["PdfToolSchema"];
 
+function expectFields(value: unknown, expected: Record<string, unknown>): void {
+  if (!value || typeof value !== "object") {
+    throw new Error("expected fields object");
+  }
+  const record = value as Record<string, unknown>;
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    expect(record[key], key).toEqual(expectedValue);
+  }
+}
+
+function firstMockCall(mock: { mock: { calls: unknown[][] } }, label: string): unknown[] {
+  const call = mock.mock.calls.at(0);
+  if (!call) {
+    throw new Error(`expected ${label} to be called`);
+  }
+  return call;
+}
+
 async function loadCreatePdfTool() {
   if (!createPdfTool || !PdfToolSchema) {
     ({ createPdfTool, PdfToolSchema } = await import("./pdf-tool.js"));
@@ -154,6 +172,42 @@ describe("createPdfTool", () => {
     });
   });
 
+  it("rejects invalid maxBytesMb before loading PDFs", async () => {
+    await withConfiguredPdfTool(async (tool) => {
+      const loadSpy = vi.spyOn(webMedia, "loadWebMediaRaw");
+
+      await expect(
+        tool.execute("t1", {
+          prompt: "test",
+          pdf: "/tmp/doc.pdf",
+          maxBytesMb: 0,
+        }),
+      ).rejects.toThrow("maxBytesMb must be greater than 0");
+      expect(loadSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("passes validated maxBytesMb to PDF loading", async () => {
+    await withTempPdfAgentDir(async (agentDir) => {
+      const { loadSpy } = await stubPdfToolInfra(agentDir, {
+        provider: "anthropic",
+        input: ["text", "document"],
+      });
+      vi.spyOn(pdfNativeProviders, "anthropicAnalyzePdf").mockResolvedValue("native summary");
+      const cfg = withPdfModel(ANTHROPIC_PDF_MODEL);
+      const tool = requirePdfTool((await loadCreatePdfTool())({ config: cfg, agentDir }));
+
+      await tool.execute("t1", {
+        prompt: "summarize",
+        pdf: "/tmp/doc.pdf",
+        maxBytesMb: "0.5",
+      });
+
+      const [, loadOptions] = firstMockCall(loadSpy, "loadWebMediaRaw");
+      expectFields(loadOptions, { maxBytes: 524_288 });
+    });
+  });
+
   it("respects fsPolicy.workspaceOnly for non-sandbox pdf paths", async () => {
     await withTempPdfAgentDir(async (agentDir) => {
       const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-pdf-ws-"));
@@ -266,11 +320,15 @@ describe("createPdfTool", () => {
     expect(schema.type).toBe("object");
     expect(schema.properties).toBeDefined();
     const props = schema.properties as Record<string, { type?: string }>;
-    expect(props.prompt).toBeDefined();
-    expect(props.pdf).toBeDefined();
-    expect(props.pdfs).toBeDefined();
-    expect(props.pages).toBeDefined();
-    expect(props.model).toBeDefined();
-    expect(props.maxBytesMb).toBeDefined();
+    expect(props).toHaveProperty("prompt");
+    expect(props).toHaveProperty("pdf");
+    expect(props).toHaveProperty("pdfs");
+    expect(props).toHaveProperty("pages");
+    expect(props).toHaveProperty("model");
+    expect(props).toHaveProperty("maxBytesMb");
+    expect(PdfToolSchema.properties.maxBytesMb).toMatchObject({
+      type: "number",
+      exclusiveMinimum: 0,
+    });
   });
 });

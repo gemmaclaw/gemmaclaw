@@ -101,6 +101,13 @@ describe("resolveVitestIsolation", () => {
   });
 });
 
+function requireTestConfig<T extends { test?: unknown }>(config: T): NonNullable<T["test"]> {
+  if (!config.test) {
+    throw new Error("expected scoped vitest test config");
+  }
+  return config.test as NonNullable<T["test"]>;
+}
+
 describe("createScopedVitestConfig", () => {
   it("applies the non-isolated runner by default", () => {
     const config = createScopedVitestConfig(["src/example.test.ts"], { env: {} });
@@ -388,6 +395,10 @@ describe("scoped vitest configs", () => {
     expect(normalizeConfigPath(defaultExtensionsConfig.test?.runner)).toBe(
       "test/non-isolated-runner.ts",
     );
+  });
+
+  it("serializes Slack extension files that share process globals", () => {
+    expect(requireTestConfig(defaultExtensionSlackConfig).fileParallelism).toBe(false);
   });
 
   it("normalizes split extension channel include patterns relative to the scoped dir", () => {

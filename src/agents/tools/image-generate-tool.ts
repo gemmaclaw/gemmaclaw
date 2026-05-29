@@ -18,7 +18,7 @@ import { saveMediaBuffer } from "../../media/store.js";
 import { loadWebMedia } from "../../media/web-media.js";
 import { getProviderEnvVars } from "../../secrets/provider-env-vars.js";
 import { resolveUserPath } from "../../utils.js";
-import { ToolInputError, readNumberParam, readStringParam } from "./common.js";
+import { ToolInputError, readPositiveIntegerParam, readStringParam } from "./common.js";
 import { decodeDataUrl } from "./image-tool.helpers.js";
 import {
   applyImageGenerationModelConfigDefaults,
@@ -135,11 +135,13 @@ function resolveAction(args: Record<string, unknown>): "generate" | "list" {
 }
 
 function resolveRequestedCount(args: Record<string, unknown>): number {
-  const count = readNumberParam(args, "count", { integer: true });
+  const count = readPositiveIntegerParam(args, "count", {
+    message: `count must be between 1 and ${MAX_COUNT}`,
+  });
   if (count === undefined) {
     return DEFAULT_COUNT;
   }
-  if (count < 1 || count > MAX_COUNT) {
+  if (count > MAX_COUNT) {
     throw new ToolInputError(`count must be between 1 and ${MAX_COUNT}`);
   }
   return count;
