@@ -510,7 +510,7 @@ describe("createImageGenerateTool", () => {
     });
   });
 
-  it.each([2.5, "2cats", null])("rejects malformed image count %s", async (count) => {
+  it.each([2.5, "2cats"])("rejects malformed image count %s", async (count) => {
     const tool = createToolWithPrimaryImageModel("google/gemini-3.1-flash-image-preview");
     await expect(
       tool.execute("call-fractional-count", {

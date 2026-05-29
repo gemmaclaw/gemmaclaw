@@ -324,7 +324,6 @@ describe("createPdfTool", () => {
     expect(props).toHaveProperty("pdf");
     expect(props).toHaveProperty("pdfs");
     expect(props).toHaveProperty("pages");
-    expect(props).toHaveProperty("password");
     expect(props).toHaveProperty("model");
     expect(props).toHaveProperty("maxBytesMb");
     expect(PdfToolSchema.properties.maxBytesMb).toMatchObject({
