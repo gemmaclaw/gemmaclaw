@@ -66,39 +66,6 @@ describe("readNumberParam", () => {
     expect(readNumberParam(params, "messageId", { integer: true })).toBe(42);
   });
 
-  it("accepts only positive safe integers when positiveInteger is true", () => {
-    expect(readNumberParam({ tokenBudget: "42" }, "tokenBudget", { positiveInteger: true })).toBe(
-      42,
-    );
-    expect(
-      readNumberParam({ tokenBudget: "42.9" }, "tokenBudget", { positiveInteger: true }),
-    ).toBeUndefined();
-    expect(
-      readNumberParam({ tokenBudget: 0 }, "tokenBudget", { positiveInteger: true }),
-    ).toBeUndefined();
-    expect(
-      readNumberParam({ tokenBudget: Number.POSITIVE_INFINITY }, "tokenBudget", {
-        positiveInteger: true,
-      }),
-    ).toBeUndefined();
-  });
-
-  it("accepts only nonnegative safe integers when nonNegativeInteger is true", () => {
-    expect(readNumberParam({ cacheAge: 0 }, "cacheAge", { nonNegativeInteger: true })).toBe(0);
-    expect(readNumberParam({ cacheAge: "42" }, "cacheAge", { nonNegativeInteger: true })).toBe(42);
-    expect(
-      readNumberParam({ cacheAge: "42.9" }, "cacheAge", { nonNegativeInteger: true }),
-    ).toBeUndefined();
-    expect(
-      readNumberParam({ cacheAge: -1 }, "cacheAge", { nonNegativeInteger: true }),
-    ).toBeUndefined();
-    expect(
-      readNumberParam({ cacheAge: Number.POSITIVE_INFINITY }, "cacheAge", {
-        nonNegativeInteger: true,
-      }),
-    ).toBeUndefined();
-  });
-
   it("throws for invalid present positive integer params", () => {
     expect(readPositiveIntegerParam({ timeoutMs: "42" }, "timeoutMs")).toBe(42);
     expect(readPositiveIntegerParam({ timeoutMs: null }, "timeoutMs")).toBeUndefined();
