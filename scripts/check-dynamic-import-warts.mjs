@@ -40,6 +40,10 @@ function isTypeOnlyImportDeclaration(node) {
   );
 }
 
+function isTypeOnlyExportDeclaration(node) {
+  return node.isTypeOnly === true;
+}
+
 function readDeclarationName(node) {
   if (
     (ts.isFunctionDeclaration(node) ||
@@ -100,6 +104,15 @@ export function findDynamicImportAdvisories(content, fileName = "source.ts") {
       ts.isImportDeclaration(node) &&
       ts.isStringLiteral(node.moduleSpecifier) &&
       !isTypeOnlyImportDeclaration(node)
+    ) {
+      addLine(staticRuntimeImports, node.moduleSpecifier.text, toLine(sourceFile, node));
+    }
+
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      !isTypeOnlyExportDeclaration(node)
     ) {
       addLine(staticRuntimeImports, node.moduleSpecifier.text, toLine(sourceFile, node));
     }

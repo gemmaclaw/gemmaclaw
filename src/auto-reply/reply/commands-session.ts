@@ -21,6 +21,7 @@ import {
 } from "../../infra/restart-sentinel.js";
 import { scheduleGatewaySigusr1Restart, triggerOpenClawRestart } from "../../infra/restart.js";
 import { loadCostUsageSummary, loadSessionCostSummary } from "../../infra/session-cost-usage.js";
+import { MAX_DATE_TIMESTAMP_MS, timestampMsToIsoString } from "../../shared/number-coercion.js";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
@@ -78,18 +79,15 @@ function parseSessionDurationMs(raw: string): number {
   if (SESSION_DURATION_OFF_VALUES.has(normalized)) {
     return 0;
   }
-  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
-    const hours = Number(normalized);
-    if (!Number.isFinite(hours) || hours < 0) {
-      throw new Error("invalid duration");
-    }
-    return Math.round(hours * 60 * 60 * 1000);
+  const ms = parseDurationMs(normalized, { defaultUnit: "h" });
+  if (ms > MAX_DATE_TIMESTAMP_MS) {
+    throw new Error("duration exceeds safe timestamp range");
   }
-  return parseDurationMs(normalized, { defaultUnit: "h" });
+  return ms;
 }
 
 function formatSessionExpiry(expiresAt: number) {
-  return new Date(expiresAt).toISOString();
+  return timestampMsToIsoString(expiresAt) ?? "n/a";
 }
 
 function resolveSessionBindingDurationMs(

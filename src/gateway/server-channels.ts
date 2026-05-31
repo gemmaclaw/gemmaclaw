@@ -189,6 +189,8 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   const restartAttempts = new Map<string, number>();
   // Tracks accounts that were manually stopped so we don't auto-restart them.
   const manuallyStopped = new Set<string>();
+  // Tracks channels whose reload stop timed out, so the next recovery restart is handled correctly.
+  const recoveryStopTimedOut = new Set<string>();
 
   const restartKey = (channelId: ChannelId, accountId: string) => `${channelId}:${accountId}`;
 
@@ -444,6 +446,26 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
             })
             .then(async () => {
               if (manuallyStopped.has(rKey)) {
+                return;
+              }
+              if (recoveryStopTimedOut.has(rKey)) {
+                recoveryStopTimedOut.delete(rKey);
+                restartAttempts.delete(rKey);
+                log.info?.(`[${id}] restarting after timed-out channel stop completed`);
+                setRuntime(channelId, id, {
+                  accountId: id,
+                  restartPending: true,
+                  reconnectAttempts: 0,
+                });
+                if (store.tasks.get(id) === trackedPromise) {
+                  store.tasks.delete(id);
+                }
+                if (store.aborts.get(id) === abort) {
+                  store.aborts.delete(id);
+                }
+                await startChannelInternal(channelId, id, {
+                  preserveManualStop: true,
+                });
                 return;
               }
               const attempt = (restartAttempts.get(rKey) ?? 0) + 1;

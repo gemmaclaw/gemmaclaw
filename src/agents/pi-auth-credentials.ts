@@ -1,3 +1,4 @@
+import { asDateTimestampMs } from "../shared/number-coercion.js";
 import { normalizeOptionalString } from "../shared/string-coerce.js";
 import type { AuthProfileCredential, AuthProfileStore } from "./auth-profiles.js";
 import { normalizeProviderId } from "./provider-id.js";
@@ -27,12 +28,11 @@ export function convertAuthProfileCredentialToPi(cred: AuthProfileCredential): P
     if (!token) {
       return null;
     }
-    if (
-      typeof cred.expires === "number" &&
-      Number.isFinite(cred.expires) &&
-      Date.now() >= cred.expires
-    ) {
-      return null;
+    if (cred.expires !== undefined) {
+      const expires = asDateTimestampMs(cred.expires);
+      if (expires === undefined || Date.now() >= expires) {
+        return null;
+      }
     }
     return { type: "api_key", key: token };
   }
@@ -40,14 +40,15 @@ export function convertAuthProfileCredentialToPi(cred: AuthProfileCredential): P
   if (cred.type === "oauth") {
     const access = normalizeOptionalString(cred.access) ?? "";
     const refresh = normalizeOptionalString(cred.refresh) ?? "";
-    if (!access || !refresh || !Number.isFinite(cred.expires) || cred.expires <= 0) {
+    const expires = asDateTimestampMs(cred.expires);
+    if (!access || !refresh || expires === undefined || expires <= 0) {
       return null;
     }
     return {
       type: "oauth",
       access,
       refresh,
-      expires: cred.expires,
+      expires,
     };
   }
 
