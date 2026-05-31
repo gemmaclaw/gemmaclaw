@@ -3,6 +3,7 @@ import { parseAbsoluteTimeMs } from "../cron/parse.js";
 import { coerceFiniteScheduleNumber } from "../cron/schedule.js";
 import { inferLegacyName } from "../cron/service/normalize.js";
 import { normalizeCronStaggerMs, resolveDefaultCronStaggerMs } from "../cron/stagger.js";
+import { timestampMsToIsoString } from "../shared/number-coercion.js";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
@@ -16,6 +17,7 @@ type CronStoreIssueKey =
   | "jobId"
   | "missingId"
   | "nonStringId"
+  | "invalidSchedule"
   | "legacyScheduleString"
   | "legacyScheduleCron"
   | "legacyPayloadKind"
@@ -232,7 +234,9 @@ export function normalizeStoredCronJobs(
   const issues: CronStoreIssues = {};
   let mutated = false;
 
-  for (const raw of jobs) {
+  const invalidIndices: number[] = [];
+  for (let jobIndex = 0; jobIndex < jobs.length; jobIndex++) {
+    const raw = jobs[jobIndex];
     const jobIssues = new Set<CronStoreIssueKey>();
     const trackIssue = (key: CronStoreIssueKey) => {
       if (jobIssues.has(key)) {
@@ -406,12 +410,21 @@ export function normalizeStoredCronJobs(
             : atRaw
               ? parseAbsoluteTimeMs(atRaw)
               : null;
-      if (parsedAtMs !== null) {
-        sched.at = new Date(parsedAtMs).toISOString();
+      const parsedAt = parsedAtMs !== null ? timestampMsToIsoString(parsedAtMs) : undefined;
+      const fallbackAtMs = !parsedAt && atRaw ? parseAbsoluteTimeMs(atRaw) : null;
+      const fallbackAt = fallbackAtMs !== null ? timestampMsToIsoString(fallbackAtMs) : undefined;
+      const normalizedAt = parsedAt ?? fallbackAt;
+      if (normalizedAt) {
+        sched.at = normalizedAt;
         if ("atMs" in sched) {
           delete sched.atMs;
         }
         mutated = true;
+      } else if ((sched.kind === "at" || kind === "at") && (atMsRaw !== undefined || atRaw)) {
+        incrementIssue(issues, "invalidSchedule");
+        invalidIndices.push(jobIndex);
+        mutated = true;
+        continue;
       }
 
       const everyMsRaw = sched.everyMs;
@@ -552,6 +565,10 @@ export function normalizeStoredCronJobs(
       raw.delivery = normalizedLegacy.delivery;
       mutated = true;
     }
+  }
+
+  for (let i = invalidIndices.length - 1; i >= 0; i--) {
+    jobs.splice(invalidIndices[i], 1);
   }
 
   return { issues, jobs, mutated };

@@ -8,7 +8,20 @@ import { setTimeout as nativeSleep } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveConfigPath, resolveStateDir } from "../config/paths.js";
 import { createSuiteTempRootTracker } from "../test-helpers/temp-dir.js";
-import { acquireGatewayLock, GatewayLockError, type GatewayLockOptions } from "./gateway-lock.js";
+import {
+  acquireGatewayLock,
+  type GatewayLockHandle,
+  GatewayLockError,
+  type GatewayLockOptions,
+} from "./gateway-lock.js";
+
+function expectGatewayLock(lock: Awaited<ReturnType<typeof acquireGatewayLock>>): GatewayLockHandle {
+  if (lock === null) {
+    throw new Error("Expected gateway lock");
+  }
+  expect(typeof lock.release).toBe("function");
+  return lock;
+}
 
 const fixtureRootTracker = createSuiteTempRootTracker({ prefix: "openclaw-gateway-lock-" });
 let fixtureRoot = "";
@@ -300,6 +313,32 @@ describe("gateway lock", () => {
       lockDir: resolveTestLockDir(),
     });
     expect(lock).toBeNull();
+  });
+
+  it("falls back instead of throwing when lock payload clock is outside Date range", async () => {
+    const env = await makeEnv();
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-05-30T12:00:00Z"));
+    const lock = expectGatewayLock(
+      await acquireGatewayLock({
+        env,
+        allowInTests: true,
+        timeoutMs: 30,
+        pollIntervalMs: 2,
+        now: () => 8_640_000_000_000_001,
+        sleep: async () => {},
+        lockDir: resolveTestLockDir(),
+      }),
+    );
+
+    try {
+      const payload = JSON.parse(await fs.readFile(lock.lockPath, "utf8")) as {
+        createdAt?: string;
+      };
+      expect(payload.createdAt).toBe("2026-05-30T12:00:00.000Z");
+    } finally {
+      dateNowSpy.mockRestore();
+      await lock.release();
+    }
   });
 
   it("wraps unexpected fs errors as GatewayLockError", async () => {

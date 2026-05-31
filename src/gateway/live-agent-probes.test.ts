@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   assertCronJobMatches,
   assertLiveImageProbeReply,
@@ -57,6 +57,22 @@ describe("live-agent-probes", () => {
         }),
       }),
     );
+  });
+
+  it("builds a cron probe spec when the process clock is outside the Date range", () => {
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(8_640_000_000_000_001);
+
+    try {
+      const spec = createLiveCronProbeSpec();
+      const args = JSON.parse(spec.argsJson) as {
+        job?: { schedule?: { at?: string } };
+      };
+
+      expect(spec.at).toBe("1970-01-01T00:00:00.000Z");
+      expect(args.job?.schedule?.at).toBe("1970-01-01T00:00:00.000Z");
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it("validates cron cli job shape for the shared live probe", () => {

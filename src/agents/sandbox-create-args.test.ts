@@ -38,6 +38,26 @@ describe("buildSandboxCreateArgs", () => {
     ).toThrow(expectedMessage);
   }
 
+  function valuesForFlag(args: string[], flag: string): string[] {
+    const values: string[] = [];
+    for (let i = 0; i < args.length; i += 1) {
+      if (args[i] === flag) {
+        const value = args[i + 1];
+        if (value) {
+          values.push(value);
+        }
+      }
+    }
+    return values;
+  }
+
+  function expectFlagValues(args: string[], flag: string, expectedValues: string[]): void {
+    const values = valuesForFlag(args, flag);
+    for (const value of expectedValues) {
+      expect(values).toContain(value);
+    }
+  }
+
   it("includes hardening and resource flags", () => {
     const cfg: SandboxDockerConfig = {
       image: "openclaw-sandbox:bookworm-slim",
@@ -137,7 +157,40 @@ describe("buildSandboxCreateArgs", () => {
     );
   });
 
-  it("preserves the OpenClaw exec marker when strict env sanitization is enabled", () => {
+  it("omits non-finite numeric Docker resource flags", () => {
+    const cfg = createSandboxConfig({
+      pidsLimit: Number.POSITIVE_INFINITY,
+      cpus: Number.NaN,
+      ulimits: {
+        nofile: {
+          soft: Number.NaN,
+          hard: Number.POSITIVE_INFINITY,
+        },
+        fsize: Number.NaN,
+        core: Number.POSITIVE_INFINITY,
+        nproc: {
+          soft: Number.NEGATIVE_INFINITY,
+          hard: 1024,
+        },
+      },
+    });
+
+    const args = buildSandboxCreateArgs({
+      name: "openclaw-sbx-non-finite-limits",
+      cfg,
+      scopeKey: "main",
+      createdAtMs: 1700000000000,
+    });
+
+    expect(args).not.toContain("--pids-limit");
+    expect(args).not.toContain("--cpus");
+    expectFlagValues(args, "--ulimit", ["nproc=1024"]);
+    expect(valuesForFlag(args, "--ulimit")).not.toContain("nofile=NaN:Infinity");
+    expect(valuesForFlag(args, "--ulimit")).not.toContain("fsize=NaN");
+    expect(valuesForFlag(args, "--ulimit")).not.toContain("core=Infinity");
+  });
+
+  it("passes explicit configured sandbox env through even when names look sensitive", () => {
     const cfg = createSandboxConfig({
       env: {
         NODE_ENV: "test",

@@ -4,6 +4,7 @@ import type { RuntimeEnv } from "../../runtime.js";
 import {
   coerceCronDeliveryPreviews,
   getCronChannelOptions,
+  parseAt,
   parseCronToolsAllow,
   printCronList,
 } from "./shared.js";
@@ -209,6 +210,13 @@ describe("printCronList", () => {
 
     printCronList([job], runtime);
     expect(logs.some((line) => line.includes("(exact)"))).toBe(true);
+  });
+
+  it("rejects relative durations outside the Date range", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-25T00:00:00.000Z"));
+
+    expect(parseAt("+999999999999999999d")).toBeNull();
   });
 });
 

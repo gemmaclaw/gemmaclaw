@@ -19,7 +19,6 @@ import type {
   ResponseInput,
   ResponseInputMessageContentList,
 } from "openai/resources/responses/responses.js";
-import { parseGeminiAuth } from "../infra/gemini-auth.js";
 import type { ProviderRuntimeModel } from "../plugins/provider-runtime-model.types.js";
 import { resolveProviderTransportTurnStateWithPlugin } from "../plugins/provider-runtime.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./copilot-dynamic-headers.js";
@@ -50,7 +49,6 @@ const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-12-01-preview";
 
 type BaseStreamOptions = {
   temperature?: number;
-  topP?: number;
   maxTokens?: number;
   signal?: AbortSignal;
   apiKey?: string;
@@ -58,11 +56,6 @@ type BaseStreamOptions = {
   sessionId?: string;
   onPayload?: (payload: unknown, model: Model<Api>) => unknown;
   headers?: Record<string, string>;
-  openclawCodeModeToolSurface?: boolean;
-  responseFormat?: Record<string, unknown>;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-  seed?: number;
 };
 
 type OpenAIResponsesOptions = BaseStreamOptions & {
@@ -616,29 +609,7 @@ function buildOpenAIClientHeaders(
   if (turnHeaders) {
     Object.assign(headers, turnHeaders);
   }
-
-  // If we have an Authorization header (token-based auth), strip the
-  // vendor-specific x-goog-api-key to avoid credential interference
-  // at the bridge/proxy layer.
-  if (headers["Authorization"] || headers["authorization"]) {
-    delete headers["x-goog-api-key"];
-  }
-
   return headers;
-}
-
-function resolveOpenAICompatAuth(
-  model: Pick<Model<Api>, "provider">,
-  rawApiKey: string,
-): { apiKey: string; headers: Record<string, string> } {
-  if (model.provider !== "google" && model.provider !== "google-vertex") {
-    return { apiKey: rawApiKey, headers: {} };
-  }
-
-  const authHeaders = parseGeminiAuth(rawApiKey).headers;
-  const bearer = authHeaders["Authorization"] ?? authHeaders["authorization"];
-  const apiKey = bearer?.startsWith("Bearer ") ? bearer.slice(7) : rawApiKey;
-  return { apiKey, headers: authHeaders };
 }
 
 function resolveProviderTransportTurnState(
@@ -703,9 +674,7 @@ export function createOpenAIResponsesTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-        const auth = resolveOpenAICompatAuth(model, rawApiKey);
-
+        const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
         const turnState = resolveProviderTransportTurnState(model, {
           sessionId: options?.sessionId,
           turnId: randomUUID(),
@@ -715,8 +684,8 @@ export function createOpenAIResponsesTransportStreamFn(): StreamFn {
         const client = createOpenAIResponsesClient(
           model,
           context,
-          auth.apiKey,
-          { ...options?.headers, ...auth.headers },
+          apiKey,
+          options?.headers,
           turnState?.headers,
         );
         let params = buildOpenAIResponsesParams(
@@ -935,7 +904,6 @@ export function createAzureOpenAIResponsesTransportStreamFn(): StreamFn {
       };
       try {
         const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-
         const turnState = resolveProviderTransportTurnState(model, {
           sessionId: options?.sessionId,
           turnId: randomUUID(),
@@ -1077,17 +1045,6 @@ function buildOpenAICompletionsClientConfig(
   defaultQuery?: Record<string, string>;
 } {
   const headers = buildOpenAIClientHeaders(model, context, optionHeaders);
-
-  // OpenAI SDK always generates an Authorization header from the apiKey
-  // constructor argument. Strip it from defaultHeaders to avoid sending
-  // duplicate or conflicting authorization headers.
-  if (headers["Authorization"]) {
-    delete headers["Authorization"];
-  }
-  if (headers["authorization"]) {
-    delete headers["authorization"];
-  }
-
   const defaultQuery: Record<string, string> = {};
   let baseURL = model.baseUrl;
   let isAzureHost = false;
@@ -1149,14 +1106,8 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
-        const rawApiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
-        const auth = resolveOpenAICompatAuth(model, rawApiKey);
-
-        const client = createOpenAICompletionsClient(model, context, auth.apiKey, {
-          ...options?.headers,
-          ...auth.headers,
-        });
-
+        const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+        const client = createOpenAICompletionsClient(model, context, apiKey, options?.headers);
         let params = buildOpenAICompletionsParams(
           model as OpenAIModeModel,
           context,
@@ -1517,7 +1468,6 @@ function detectCompat(model: OpenAIModeModel) {
     openRouterRouting: {},
     vercelGatewayRouting: {},
     supportsStrictMode: compatDefaults.supportsStrictMode,
-    requiresStringContent: compatDefaults.requiresStringContent,
   };
 }
 
@@ -1569,8 +1519,7 @@ function getCompat(model: OpenAIModeModel): {
       detected.vercelGatewayRouting,
     supportsStrictMode:
       (compat.supportsStrictMode as boolean | undefined) ?? detected.supportsStrictMode,
-    requiresStringContent:
-      (compat.requiresStringContent as boolean | undefined) ?? detected.requiresStringContent,
+    requiresStringContent: (compat.requiresStringContent as boolean | undefined) ?? false,
     visibleReasoningDetailTypes:
       (compat.visibleReasoningDetailTypes as string[] | undefined) ??
       detected.visibleReasoningDetailTypes,
@@ -1638,18 +1587,13 @@ export function buildOpenAICompletionsParams(
       }
     : context;
   const messages = convertMessages(model as never, completionsContext, compat as never);
-  const isGoogleVertex = model.provider === "google-vertex";
-  let modelId = model.id;
-  if (isGoogleVertex && model.id.includes("publishers/")) {
-    modelId = model.id.slice(model.id.indexOf("publishers/"));
-  }
   const params: Record<string, unknown> = {
-    model: modelId,
+    model: model.id,
     messages: compat.requiresStringContent
       ? flattenCompletionMessagesToStringContent(messages)
       : messages,
     stream: true,
-    ...(isGoogleVertex ? {} : { stream_options: { include_usage: true } }),
+    stream_options: { include_usage: true },
   };
   if (compat.supportsStore) {
     params.store = false;
@@ -1664,27 +1608,12 @@ export function buildOpenAICompletionsParams(
   if (options?.temperature !== undefined) {
     params.temperature = options.temperature;
   }
-  if (options?.topP !== undefined) {
-    params.top_p = options.topP;
-  }
-  if (options?.responseFormat !== undefined) {
-    params.response_format = options.responseFormat;
-  }
-  if (options?.frequencyPenalty !== undefined) {
-    params.frequency_penalty = options.frequencyPenalty;
-  }
-  if (options?.presencePenalty !== undefined) {
-    params.presence_penalty = options.presencePenalty;
-  }
-  if (options?.seed !== undefined) {
-    params.seed = options.seed;
-  }
-  if (context.tools && model.provider !== "google-vertex") {
+  if (context.tools) {
     params.tools = convertTools(context.tools, compat, model);
     if (options?.toolChoice) {
       params.tool_choice = options.toolChoice;
     }
-  } else if (model.provider !== "google-vertex" && hasToolHistory(context.messages)) {
+  } else if (hasToolHistory(context.messages)) {
     params.tools = [];
   }
   const completionsReasoningEffort = resolveOpenAICompletionsReasoningEffort(options);
@@ -1761,5 +1690,4 @@ function mapStopReason(reason: string | null) {
 export const __testing = {
   buildOpenAICompletionsClientConfig,
   processOpenAICompletionsStream,
-  resolveOpenAICompatAuth,
 };

@@ -1,4 +1,5 @@
 import { readErrorName } from "../infra/errors.js";
+import { parseStrictNonNegativeInteger } from "../shared/number-coercion.js";
 import {
   classifyFailoverSignal,
   type FailoverClassification,
@@ -114,8 +115,8 @@ function readDirectStatusCode(err: unknown): number | undefined {
   if (typeof candidate === "number") {
     return candidate;
   }
-  if (typeof candidate === "string" && /^\d+$/.test(candidate)) {
-    return Number(candidate);
+  if (typeof candidate === "string") {
+    return parseStrictNonNegativeInteger(candidate);
   }
   return undefined;
 }

@@ -6,6 +6,10 @@ import type {
   TelegramTopicConfig,
 } from "openclaw/plugin-sdk/config-runtime";
 import { readChannelAllowFromStore } from "openclaw/plugin-sdk/conversation-runtime";
+import {
+  asDateTimestampMs,
+  resolveExpiresAtMsFromDurationMs,
+} from "openclaw/plugin-sdk/number-runtime";
 import { normalizeAccountId } from "openclaw/plugin-sdk/routing";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
 import { firstDefined, normalizeAllowFrom, type NormalizedAllowFrom } from "../bot-access.js";
@@ -50,6 +54,13 @@ export function resetTelegramForumFlagCacheForTest(): void {
 
 function cacheTelegramForumFlag(chatId: string | number, isForum: boolean, nowMs = Date.now()) {
   const cacheKey = String(chatId);
+  const expiresAtMs = resolveExpiresAtMsFromDurationMs(TELEGRAM_FORUM_FLAG_CACHE_TTL_MS, {
+    nowMs,
+  });
+  if (expiresAtMs === undefined) {
+    telegramForumFlagByChatId.delete(cacheKey);
+    return;
+  }
   if (
     !telegramForumFlagByChatId.has(cacheKey) &&
     telegramForumFlagByChatId.size >= TELEGRAM_FORUM_FLAG_CACHE_MAX_CHATS
@@ -60,7 +71,7 @@ function cacheTelegramForumFlag(chatId: string | number, isForum: boolean, nowMs
     }
   }
   telegramForumFlagByChatId.set(cacheKey, {
-    expiresAtMs: nowMs + TELEGRAM_FORUM_FLAG_CACHE_TTL_MS,
+    expiresAtMs,
     isForum,
   });
 }
@@ -99,17 +110,22 @@ export async function resolveTelegramForumFlag(params: {
     return false;
   }
   const cacheKey = String(params.chatId);
-  const nowMs = Date.now();
+  const rawNowMs = Date.now();
+  const nowMs = asDateTimestampMs(rawNowMs);
   const cached = telegramForumFlagByChatId.get(cacheKey);
-  if (cached && cached.expiresAtMs > nowMs) {
-    return cached.isForum;
-  }
   if (cached) {
+    if (
+      nowMs !== undefined &&
+      asDateTimestampMs(cached.expiresAtMs) !== undefined &&
+      cached.expiresAtMs > nowMs
+    ) {
+      return cached.isForum;
+    }
     telegramForumFlagByChatId.delete(cacheKey);
   }
   try {
     const resolved = extractTelegramForumFlag(await params.getChat(params.chatId)) === true;
-    cacheTelegramForumFlag(params.chatId, resolved, nowMs);
+    cacheTelegramForumFlag(params.chatId, resolved, rawNowMs);
     return resolved;
   } catch {
     return false;

@@ -9,6 +9,7 @@ import {
   parseOffsetlessIsoDateTimeInTimeZone,
 } from "../../infra/format-time/parse-offsetless-zoned-datetime.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
+import { timestampMsToIsoString } from "../../shared/number-coercion.js";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
@@ -136,11 +137,11 @@ export function parseAt(input: string, tz?: string): string | null {
 
   const absolute = parseAbsoluteTimeMs(raw);
   if (absolute !== null) {
-    return new Date(absolute).toISOString();
+    return timestampMsToIsoString(absolute) ?? null;
   }
   const dur = parseDurationMs(raw);
   if (dur !== null) {
-    return new Date(Date.now() + dur).toISOString();
+    return timestampMsToIsoString(Date.now() + dur) ?? null;
   }
   return null;
 }
