@@ -1358,7 +1358,15 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-05-31</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-01</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (6 new/updated since 2026-05-31, 213 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>June 1 sweep, 2026-06-01 00:00 EDT:</em> six posts surface new hardware data and practical limits: an AMD 7900 XTX head-to-head confirms Gemma 4 26B-A4B wins overall wall-clock time against Qwen 3.6 35B-A3B by ~20% despite generating half the tokens; a mixed GPU+CPU offload report establishes that Gemma 4 26B-A4B Q5_K_XL runs at ~20 tok/s on an 8GB AMD card with system RAM offload; two independent threads confirm tool calling reliability is a genuine gap for E2B and E4B in agentic harnesses; a structured benchmark of 13 abliterated E2B variants on an RTX 5090 maps the capability-vs-safety tradeoff; and a beginner's GPU buying question surfaces the community's consensus on 12GB as the minimum usable VRAM floor for Gemma 4 text inference.</p>
+<p><strong>AMD 7900 XTX: Gemma 4 26B-A4B wins wall-clock by ~20% against Qwen 3.6 35B-A3B despite lower token throughput.</strong> A detailed hardware comparison post (u/IvGranite, <a href="https://reddit.com/r/LocalLLaMA/comments/1tszlsa" target="_blank" rel="noopener">source</a>) ran a six-prompt real-world evaluation across both models on a Ryzen 9600X + Sapphire NITRO+ Radeon 7900 XTX 24GB, 96GB DDR5-6800, ROCm 7.2.3, HIP gfx1100, llama.cpp build 9425. Quants: Qwen 3.6 35B-A3B IQ4_XS+Q8nextn hybrid MTP (~20GB), draft-n-max 3; Gemma 4 26B-A4B UD-Q4_K_XL (~17GB), no MTP. Throughput: Qwen 130 tok/s vs Gemma 78 tok/s generation. The key finding is counter-intuitive: Qwen generated 14,811 total tokens across all six prompts versus Gemma's 7,386 — approximately 2x more — because Qwen spends 74% of output on internal thinking versus Gemma's 57%, producing verbose reasoning for each prompt. Net wall-clock across all six workloads: Qwen 118.8 seconds vs Gemma 95.6 seconds, giving Gemma a 20% wall-clock advantage. Per-task results favor Gemma on meeting notes (12.2 vs 10.8s), incident postmortem (28.2 vs 21.6s), and log triage to JSON — Qwen wins only on the build-vs-buy analysis prompt where its extended reasoning may have added value. Practical guidance for AMD 7900 XTX users: if your primary workloads are short-to-medium chat, creative writing, or structured extraction where output quality matters more than reasoning depth, Gemma 4 26B-A4B at Q4_K_XL is the faster end-to-end choice. Qwen 3.6 35B-A3B's MTP throughput advantage is absorbed by its verbose reasoning output. Confidence: single-author benchmark, well-described methodology, six realistic workloads; result is consistent with prior community reports on token-efficiency differences. (anecdotal)</p>
+<p><strong>Mixed CPU+GPU offload: Gemma 4 26B-A4B Q5_K_XL (~21GB) at ~20 tok/s on RX6600XT 8GB + 32GB DDR4 system RAM.</strong> A practitioner report (u/Mrinohk, <a href="https://reddit.com/r/LocalLLaMA/comments/1tt50bu" target="_blank" rel="noopener">source</a>) describes running Gemma 4 26B-A4B Q5_K_XL for a personal project management and smarthome agent on an RX6600XT 8GB + Ryzen 7 5700X, 32GB DDR4-3200. The model file is ~21GB, substantially exceeding the card's 8GB VRAM, so most weights offload to system RAM. Decode speed: approximately 20 tok/s, prefill ~235 tok/s. The command-line configuration includes ngram speculative decoding (<code>--spec-type ngram-mod</code>), flash attention, 40k context, and 192-token KV cache slots. The author acknowledges the configuration is partly intuition-based. This is a practical lower bound: 8GB of VRAM accelerates the layers that fit, while the remaining layers run on CPU, producing a workable but not fast inference experience. For context, the same model on 24GB cards runs 70-90 tok/s generation without offload. The ~20 tok/s figure establishes that the mixed-offload path is viable for low-throughput agent workloads (agents rarely need fast streaming), but not suitable for interactive conversation or high-context agentic coding. Confidence: single anecdotal self-report; no independent validation of the command-line configuration. (anecdotal)</p>
+<p><strong>E2B and E4B tool calling reliability gap confirmed by two independent reports — fine-tuning on harness tools proposed as a fix.</strong> Two posts this cycle independently surface the same problem: Gemma 4's small E-class models (E2B and E4B) struggle with tool calling reliability under agentic harnesses. A practitioner running E4B at Q8_0 on llama.cpp with a custom Jinja template (u/BitGreen1270, <a href="https://reddit.com/r/LocalLLaMA/comments/1tskbf9" target="_blank" rel="noopener">source</a>) reports that tool calling performance is &quot;not the best&quot; for calendar, messaging, and scheduling tasks. A second report (u/AnticitizenPrime, <a href="https://reddit.com/r/LocalLLaMA/comments/1tsyqxh" target="_blank" rel="noopener">source</a>) describes a more specific failure mode: when Gemma 4 is plugged into Hermes Agent, it ignores the harness's provided tool schemas and attempts to call tools it was trained on (such as <code>google-search</code>) instead of the harness-provided web-search tool. The author proposes fine-tuning the model specifically on the target harness's tool call format as a potential fix. This failure mode is distinct from the 31B-class tool call bugs documented in prior sweeps: E-class models appear to have a more fundamental difficulty resolving tool call schema conflicts between training and runtime. For E2B and E4B practitioners: use the custom Jinja chat template circulating in the community (referenced in the post), keep tool schemas minimal, and treat E-class tool calling as best-effort rather than production-reliable until a fine-tuned variant specifically targeting harness compatibility is available. Confidence: two independent anecdotal reports; consistent with prior community reports on E-class agentic limitations.</p>
+<p><strong>13 abliterated Gemma 4 E2B variants benchmarked on RTX 5090 — coder3101 variant leads with 96% ASR and full capability preserved.</strong> A structured evaluation (u/nathandreamfast, <a href="https://reddit.com/r/LocalLLaMA/comments/1tsvs3j" target="_blank" rel="noopener">source</a>) tested 13 abliterated Gemma 4 E2B variants across weight analysis, KL divergence, HarmBench (400 prompts, full LLM review of 5,600 responses), and 8 benchmark tasks via lm-eval on native BF16. Hardware: RTX 5090, 44 GPU hours total. Key findings: all 13 variants successfully lift HarmBench ASR from the base model's 32.2% to between 82% and 100%. The leading variant (coder3101, using the Heretic tool) achieves 96% ASR with full capability preserved — it actually improves math benchmark scores versus the base model. The second-best for capability preservation (treadon) hits 100% ASR but loses 3 points on GSM8K. The benchmark validates the community rule of thumb: &quot;most &#39;capabilities preserved&#39; claims on model cards don&#39;t hold up&quot; and structured evaluation is required to distinguish variants that genuinely preserve quality from those that claim to. For users who need abliterated E2B for creative or uncensored use cases: coder3101 is the current best-evidenced choice; check the full report at HuggingFace/DreamFast/Gemma4-e2b-abliterlitics for the complete capability and safety tradeoff table across all 13 variants. Confidence: structured benchmark with explicit methodology; single author, hardware documented. (community benchmark, well-evidenced)</p>
+<p><strong>Community confirms 12GB VRAM as the practical minimum floor for Gemma 4 text inference.</strong> A buying-advice thread (u/Bharat01123, <a href="https://reddit.com/r/LocalLLaMA/comments/1tsp869" target="_blank" rel="noopener">source</a>) comparing an RTX 2060 12GB at ~$260 versus an RTX 3060 12GB at roughly double the price surfaces the community's practical guidance: 12GB of VRAM is the usable minimum for running Gemma 4 26B-A4B at Q4_K_M with some CPU offload, or the E4B/E2B class fully on-GPU. The Gemma 4 26B-A4B MoE architecture fits in approximately 15-17GB at Q4 quants, meaning 12GB cards will offload some layers to system RAM and see reduced generation speed (typically 20-40 tok/s depending on CPU and RAM speed), compared to 70-90 tok/s on a 24GB card. For text-only inference as described in the post, the RTX 2060 12GB is viable; the RTX 3060 12GB offers no VRAM headroom advantage at this size tier but may offer modestly better bandwidth and compute. An RTX 4070 (12GB) would match VRAM but significantly outperform both on compute efficiency and power draw. Confidence: community consensus confirmed across multiple prior threads; specific numbers are representative estimates, not benchmarks. (community consensus)</p>
+<h2>Field Notes — 2026-05-31</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (2 new/updated since 2026-05-30, 235 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>May 31 sweep, 2026-05-31 00:00 EDT:</em> two posts add practical hardware signal: a Q8 quantization access question confirms the community-wide expectation that single-consumer-GPU users are limited to Q4_K_M for Gemma 4 31B (Q8 requires 31+ GB VRAM, not listed on Ollama by default); and a new MTP benchmark on an RTX 6000 PRO reports 3.34x faster inference for Gemma 4 31B on llama.cpp — consistent with the prior dense-model MTP pattern. Two posts from the May 29-30 window not yet covered in field notes are also worth noting: an M5 Pro practitioner confirms Gemma 4 26B-A4B runs &quot;blazingly fast&quot; at that chip tier with strong generalist quality, and the community broadly acknowledges Gemma 4 31B as among the leading western open-weight models in the 27-35B size class.</p>
 <p><strong>Gemma 4 26B-A4B on M5 Pro: &quot;blazingly fast&quot; generalist, slight Qwen 3.6 coding lead but Gemma wins non-coding tasks.</strong> A practitioner post (u/goldcakes) describes running Gemma 4 26B-A4B on an Apple M5 Pro as &quot;blazingly fast&quot; — notably the M5 Pro has substantially lower memory bandwidth than the M5 Max or M3 Ultra configurations that dominate most Apple Silicon benchmark reports. The author tested across creative writing, debugging, coding, conversation, and vision tasks, comparing directly against Qwen 3.6 35B-A3B on the same machine. Result: Qwen 3.6 has a &quot;slight lead&quot; on coding, but Gemma 4 26B-A4B is &quot;noticeably&quot; better on non-coding tasks and &quot;generally feels a bit more 'robotic' to chat to&quot; for Qwen. The web-search-tool pattern is highlighted: pairing Gemma 4 26B-A4B with a search API &quot;really sings as an everyday local LLM.&quot; This is consistent with the broader community pattern: Gemma 4 tends to win on personality, general instruction following, and multimodal tasks while Qwen 3.6 leads on structured tool calls and extended coding sessions. The M5 Pro finding is practically useful because it establishes that the 26B MoE variant is viable without the higher-bandwidth M5 Max/Ultra hardware. Confidence: single anecdotal report; no throughput figures provided. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tqy2iv" target="_blank" rel="noopener">source</a>, May 29, anecdotal)</p>
@@ -1672,10 +1680,10 @@
 <li><a href="https://reddit.com/r/LocalLLaMA/comments/1tax6hj" target="_blank" rel="noopener">Models and Quants quality test results — the chessboard svg</a> (May 12, 2026, 46 score, 19 comments — Gemma 4 26B Q4_K_L does &quot;very good job&quot; on visual geometry tasks; strong spatial reasoning at Q4 quant)</li>
 <li><a href="https://reddit.com/r/LocalLLaMA/comments/1ta7ce9" target="_blank" rel="noopener">Strix Halo or DGX Spark for a home LLM server?</a> (May 11, 2026, 21 score, 91 comments — owner of both confirms Spark faster prompt processing and better long-context scaling; Strix Halo more repurposable; community split on inference-specialization vs. longevity)</li>
 </ul>
-<p>The full set of 207 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
-<p><em>Last updated: 2026-05-31 (May 31 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
+<p>The full set of 213 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
+<p><em>Last updated: 2026-06-01 (June 1 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (207 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (213 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
       <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (36)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (28)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (17)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (7)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (13)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (142)</button><button class="cat-filter-btn" data-cat="general">Other (52)</button></div>
@@ -5186,6 +5194,102 @@
   </div>
   <p class="cr-summary">SGLang backend compatibility report from AI Router Switzerland. The author reports FP8 KV cache corruption with radix-cache prefix hits on Qwen3.6-27B-FP8, and explicitly says the bug seems to affect FP8 models such as DeepSeek-V4, Gemma 4, and Qwen3...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t0s1oa" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="qwen3.6-35b vs gemma4-26b on 7900 xtx ryzen 9600x sapphire nitro+ radeon 7900 xtx 24gb 96gb ddr5-6800 rocm 7.2.3 hip gfx1100 llama.cpp build 9425. gemma 4 26b-a4b ud-q4_k_xl ~17gb 78 tok/s wall clock 95.6s total. qwen 3.6 35b-a3b iq4_xs+q8nextn mtp ~20gb 130 tok/s wall clock 118.8s total. gemma wins end-to-end despite lower throughput because qwen generates 2x tokens on reasoning. six real-world workloads meeting notes incident postmortem log triage build vs buy code review creative prompt. amd rocm inference comparison gemma vs qwen" data-cats="high-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tszlsa" target="_blank" rel="noopener">Qwen3.6-35B vs Gemma4-26B on 7900 XTX</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/IvGranite</span>
+      <span class="cr-date">2026-05-31</span>
+      <span class="cr-flair">Discussion</span>
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Fair comparison of Qwen 3.6 35B-A3B vs Gemma 4 26B-A4B on AMD Radeon 7900 XTX 24GB with ROCm 7.2.3. Both reasoning-enabled at matching 32K budgets, six real-world prompts. Gemma 4 26B-A4B at 78 tok/s wins wall-clock by ~20% (95.6s vs 118.8s) despite Qwen generating 130 tok/s — Qwen produces 2x more tokens on reasoning. Practical finding: verbose MTP throughput does not translate to faster end-to-end for short-to-medium tasks.</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tszlsa" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="what happens when a model spills out of vram into system memory rx6600xt 8gb ryzen 7 5700x 32gb ddr4-3200 gemma 4 26b-a4b q5_k_xl 21gb mixed cpu gpu offload 20 tok/s decode 235 tok/s prefill ngram speculative decoding spec-type ngram-mod flash attention 40k context 192 kv cache slots smarthome agent project management llama.cpp amd radeon 8gb vram offload" data-cats="mid-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tt50bu" target="_blank" rel="noopener">Whats actually happening when a model spills out of VRAM into system memory?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Mrinohk</span>
+      <span class="cr-date">2026-05-31</span>
+      <span class="cr-flair">Question | Help</span>
+      <span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Running Gemma 4 26B-A4B Q5_K_XL (~21GB) on an RX6600XT 8GB + 32GB DDR4-3200 with mixed CPU+GPU offload for a smarthome agent. Achieves ~20 tok/s decode, ~235 tok/s prefill with ngram speculative decoding and flash attention. Practical lower bound: 8GB card offloads most weights to RAM, workable for low-throughput agentic tasks.</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tt50bu" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="should i buy rtx 2060 12gb for ai gemma 4 text only $260 rtx 3060 12gb double price gpu buying advice minimum vram floor gemma4 26b inference 12gb consumer gpu q4_k_m offload cpu system ram text generation" data-cats="mid-gpu general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tsp869" target="_blank" rel="noopener">Should I buy this RTX 2060 12GB graphics card at around $260 for AI purpose?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Bharat01123</span>
+      <span class="cr-date">2026-05-31</span>
+      <span class="cr-flair">Question | Help</span>
+      <span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span><span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Buying-advice thread for running Gemma 4 text inference on 12GB VRAM. Community confirms 12GB as the practical minimum: Gemma 4 26B-A4B at Q4_K_M with CPU offload achieves 20-40 tok/s on 12GB cards; E4B/E2B class fits fully on-GPU. RTX 2060 12GB at ~$260 vs RTX 3060 12GB (nearly double price) — same VRAM, modest compute difference. Community guidance: upgrade to RTX 4070 12GB if budget allows.</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tsp869" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="13 abliterated gemma 4 e2b variants 44 gpu hours benchmark comparison abliterlitics rtx 5090 harmbench 400 prompts lm-eval 8 benchmark tasks kl divergence weight analysis coder3101 heretic tool 96% asr capability preserved math benchmark treadon 100% asr -3 gsm8k huggingface dreamfast gemma4-e2b-abliterlitics safety removal capability preservation fine-tuning abliteration" data-cats="high-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tsvs3j" target="_blank" rel="noopener">13 abliterated Gemma 4 E2B variants, 44 GPU hours, Benchmark and Comparison — Abliterlitics</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/nathandreamfast</span>
+      <span class="cr-date">2026-05-31</span>
+      <span class="cr-flair">Resources</span>
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Structured evaluation of 13 abliterated Gemma 4 E2B variants on an RTX 5090 (44 GPU hours): weight analysis, KL divergence, HarmBench (400 prompts, 5,600 LLM-reviewed responses), 8 lm-eval benchmarks. All 13 lift ASR from 32.2% to 82-100%. Leading result: coder3101 (Heretic tool) at 96% ASR with full capability preserved and improved math scores. Full report at HuggingFace/DreamFast/Gemma4-e2b-abliterlitics.</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tsvs3j" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="best small model 4b params agentic tasks personal assistant gemma-4-e2b gemma-4-e4b tool calling not the best calendar schedule whatsapp message llama-server q8_0 custom jinja template llama.cpp agentic personal assistant small model tool call reliability" data-cats="quantization general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tskbf9" target="_blank" rel="noopener">Best small model right now (~4B params) that is good with agentic tasks for personal assistant?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/BitGreen1270</span>
+      <span class="cr-date">2026-05-31</span>
+      <span class="cr-flair">Question | Help</span>
+      <span class="cr-cat-badge">Quantization &amp; Backends</span><span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Practitioner report: Gemma 4 E2B and E4B Q8_0 tool calling performance is "not the best" for agentic personal assistant tasks (calendar updates, scheduling, WhatsApp messages) using llama-server with a custom Jinja template. Surfaces E-class tool calling reliability as a practical gap for agentic use cases.</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tskbf9" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="fine-tuning framework-specific toolsets gemma 4 hermes agent ignores harness tools calls google-search instead of web-search tool call schema conflict training vs runtime tool schema mismatch fine-tuning agentic harness compatibility hermes agent gemma 4 e-class tool calling" data-cats="quantization general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tsyqxh" target="_blank" rel="noopener">Has anyone tried fine-tuning on framework-specific toolsets?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/AnticitizenPrime</span>
+      <span class="cr-date">2026-05-31</span>
+      <span class="cr-flair">Discussion</span>
+      <span class="cr-cat-badge">Quantization &amp; Backends</span><span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Gemma 4 plugged into Hermes Agent ignores the harness's provided tool schemas and calls its trained tools (like 'google-search') instead of the harness-provided web-search tool. Author proposes fine-tuning specifically on the target harness's tool call format as a fix. Surfaces a fundamental E-class tool schema conflict between training and runtime environments.</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tsyqxh" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div></div>
     </div>
     </section>
