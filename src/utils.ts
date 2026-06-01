@@ -7,6 +7,7 @@ import {
   resolveRequiredHomeDir,
 } from "./infra/home-dir.js";
 import { isPlainObject } from "./infra/plain-object.js";
+import { resolveTimerTimeoutMs } from "./shared/number-coercion.js";
 
 export async function ensureDir(dir: string) {
   await fs.promises.mkdir(dir, { recursive: true });
@@ -74,7 +75,7 @@ export function normalizeE164(number: string): string {
 }
 
 export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, resolveTimerTimeoutMs(ms, 0, 0)));
 }
 
 function isHighSurrogate(codeUnit: number): boolean {

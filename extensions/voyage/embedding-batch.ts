@@ -229,7 +229,7 @@ export async function runVoyageEmbeddingBatches(
       maxRequests: VOYAGE_BATCH_MAX_REQUESTS,
       debugLabel: "memory embeddings: voyage batch submit",
     }),
-    runGroup: async ({ group, groupIndex, groups, byCustomId }) => {
+    runGroup: async ({ group, groupIndex, groups, byCustomId, pollIntervalMs, timeoutMs }) => {
       const batchInfo = await submitVoyageBatch({
         client: params.client,
         requests: group,
@@ -258,8 +258,8 @@ export async function runVoyageEmbeddingBatches(
             client: params.client,
             batchId,
             wait: params.wait,
-            pollIntervalMs: params.pollIntervalMs,
-            timeoutMs: params.timeoutMs,
+            pollIntervalMs,
+            timeoutMs,
             debug: params.debug,
             initial: batchInfo,
             deps,

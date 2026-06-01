@@ -14,6 +14,7 @@ import type { GuardedFetchMode, GuardedFetchResult } from "../infra/net/fetch-gu
 import { fetchWithSsrFGuard, GUARDED_FETCH_MODE } from "../infra/net/fetch-guard.js";
 import { hasEnvHttpProxyConfigured, matchesNoProxy } from "../infra/net/proxy-env.js";
 import type { LookupFn, PinnedDispatcherPolicy, SsrFPolicy } from "../infra/net/ssrf.js";
+import { resolveTimerTimeoutMs } from "../shared/number-coercion.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 export { fetchWithTimeout };
 export { normalizeBaseUrl } from "../agents/provider-request-config.js";
@@ -102,16 +103,17 @@ export async function waitProviderOperationPollInterval(params: {
   deadline: ProviderOperationDeadline;
   pollIntervalMs: number;
 }): Promise<void> {
+  const pollIntervalMs = resolveTimerTimeoutMs(params.pollIntervalMs, 1);
   const deadlineAtMs = params.deadline.deadlineAtMs;
   if (typeof deadlineAtMs !== "number") {
-    await new Promise((resolve) => setTimeout(resolve, params.pollIntervalMs));
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
     return;
   }
   const remainingMs = deadlineAtMs - Date.now();
   if (remainingMs <= 0) {
     throw new Error(`${params.deadline.label} timed out after ${params.deadline.timeoutMs}ms`);
   }
-  await new Promise((resolve) => setTimeout(resolve, Math.min(params.pollIntervalMs, remainingMs)));
+  await new Promise((resolve) => setTimeout(resolve, Math.min(pollIntervalMs, remainingMs)));
 }
 
 export async function pollProviderOperationJson<TPayload>(params: {
