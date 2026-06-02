@@ -1919,14 +1919,16 @@ export async function dispatchTask(
   // Dispatch via gemmaclaw CLI
   const gemmaclawArgs = gemmaclawCommandArgs();
 
+  const promptFile = path.join(benchHome, "prompt.txt");
+  fs.writeFileSync(promptFile, task.prompt, "utf8");
   const args = [
     ...gemmaclawArgs,
     "agent",
     "--local",
     "--session-id",
     sessionId,
-    "--message",
-    task.prompt,
+    "--message-file",
+    promptFile,
   ];
   // Ollama/Gemma benchmark runs record the requested thinking level in the
   // benchmark metadata, but the embedded agent CLI may reject reasoning flags

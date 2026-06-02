@@ -34,6 +34,7 @@ const NO_GATEWAY_TIMEOUT_MS = 2_147_000_000;
 
 export type AgentCliOpts = {
   message: string;
+  messageFile?: string;
   agent?: string;
   to?: string;
   sessionId?: string;
@@ -87,7 +88,7 @@ function formatPayloadForLog(payload: {
 export async function agentViaGatewayCommand(opts: AgentCliOpts, runtime: RuntimeEnv) {
   const body = (opts.message ?? "").trim();
   if (!body) {
-    throw new Error("Message (--message) is required");
+    throw new Error("Message (--message or --message-file) is required");
   }
   if (!opts.to && !opts.sessionId && !opts.agent) {
     throw new Error("Pass --to <E.164>, --session-id, or --agent to choose a session");
@@ -178,6 +179,12 @@ export async function agentViaGatewayCommand(opts: AgentCliOpts, runtime: Runtim
 }
 
 export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, deps?: CliDeps) {
+  if (opts.messageFile) {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    opts.message = fs.readFileSync(path.resolve(opts.messageFile), "utf8");
+  }
+
   const localOpts = {
     ...opts,
     agentId: opts.agent,
