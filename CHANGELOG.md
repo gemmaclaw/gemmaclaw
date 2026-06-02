@@ -6,6 +6,13 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Upstream sync 2026-06-02: reviewed openclaw/openclaw 2026.6.2 release (14,286 commits). Applied compatible fixes: bootstrap-token rate-limit scope for gateway security hardening, and Gemini 3.1 model ID normalization corrections (Flash Lite GA endpoint, Pro preview alias, google/ prefix handling).
+
+### Fixes
+
+- Gateway/security: add `AUTH_RATE_LIMIT_SCOPE_BOOTSTRAP_TOKEN` rate-limit scope to prevent DoS on the bootstrap-token verify path, preserving device-token fallback. (upstream ecbd97e9)
+- Google/providers: fix Gemini model ID normalization — `gemini-3.1-flash-lite` no longer maps to the deprecated preview endpoint (shutdown 2026-05-25), `gemini-3-pro-preview` now normalizes to `gemini-3.1-pro-preview`, and `google/` prefix is handled recursively. (upstream fix)
+
 - Voice: expose shared realtime turn-context tracking through the realtime voice SDK and reuse it for Discord speaker attribution and wake-name context recovery.
 - Voice: reuse shared realtime output activity tracking in Google Meet command and node audio bridges, including recent-output checks for local barge-in detection.
 - Voice: expose shared realtime output activity tracking through the realtime voice SDK and reuse it for Discord playback activity and barge-in decisions.

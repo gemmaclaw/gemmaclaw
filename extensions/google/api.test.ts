@@ -144,7 +144,7 @@ describe("google generative ai helpers", () => {
         "https://aiplatform.googleapis.com/v1/projects/test/locations/us-central1/endpoints/openapi",
       models: [
         expect.objectContaining({
-          id: "gemini-3.1-flash-lite-preview",
+          id: "gemini-3.1-flash-lite",
         }),
       ],
     });
