@@ -23,7 +23,8 @@ describe("google model id helpers", () => {
     expect(normalizeGoogleModelId("gemini-3.1-flash-preview")).toBe("gemini-3-flash-preview");
   });
 
-  it("adds the preview suffix for gemini 3.1 flash-lite", () => {
-    expect(normalizeGoogleModelId("gemini-3.1-flash-lite")).toBe("gemini-3.1-flash-lite-preview");
+  it("gemini-3.1-flash-lite-preview maps to GA endpoint; bare GA id passes through", () => {
+    expect(normalizeGoogleModelId("gemini-3.1-flash-lite-preview")).toBe("gemini-3.1-flash-lite");
+    expect(normalizeGoogleModelId("gemini-3.1-flash-lite")).toBe("gemini-3.1-flash-lite");
   });
 });
