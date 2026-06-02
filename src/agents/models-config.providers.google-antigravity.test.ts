@@ -78,9 +78,9 @@ describe("google-antigravity provider normalization", () => {
 });
 
 describe("google-vertex provider normalization", () => {
-  it("normalizes gemini flash-lite IDs for google-vertex providers", () => {
+  it("maps deprecated flash-lite-preview to the GA endpoint for google-vertex providers", () => {
     const providers = {
-      "google-vertex": buildProvider(["gemini-3.1-flash-lite", "gemini-3-flash-preview"], {
+      "google-vertex": buildProvider(["gemini-3.1-flash-lite-preview", "gemini-3-flash-preview"], {
         api: undefined,
       }),
       openai: buildProvider(["gpt-5"]),
@@ -90,7 +90,7 @@ describe("google-vertex provider normalization", () => {
 
     expect(normalized).not.toBe(providers);
     expect(normalized?.["google-vertex"]?.models.map((model) => model.id)).toEqual([
-      "gemini-3.1-flash-lite-preview",
+      "gemini-3.1-flash-lite",
       "gemini-3-flash-preview",
     ]);
     expect(normalized?.openai).toBe(providers.openai);
@@ -98,7 +98,7 @@ describe("google-vertex provider normalization", () => {
 
   it("returns original providers object when no google-vertex IDs need normalization", () => {
     const providers = {
-      "google-vertex": buildProvider(["gemini-3.1-flash-lite-preview", "gemini-3-flash-preview"], {
+      "google-vertex": buildProvider(["gemini-3.1-flash-lite", "gemini-3-flash-preview"], {
         api: undefined,
       }),
     };
