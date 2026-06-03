@@ -24,7 +24,8 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
   program
     .command("agent")
     .description("Run an agent turn via the Gateway (use --local for embedded)")
-    .requiredOption("-m, --message <text>", "Message body for the agent")
+    .option("-m, --message <text>", "Message body for the agent")
+    .option("--message-file <path>", "File path containing the message body")
     .option("-t, --to <number>", "Recipient number in E.164 used to derive the session key")
     .option("--session-id <id>", "Use an explicit session id")
     .option("--agent <id>", "Agent id (overrides routing bindings)")

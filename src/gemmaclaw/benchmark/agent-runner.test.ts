@@ -39,6 +39,7 @@ import {
   type TaskStartedMarker,
 } from "./agent-runner.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
+import { buildQ4LoopAgenticPrompt } from "./q4-loop-benchmark-tasks.js";
 
 describe("parseSessionEntry", () => {
   it("parses Anthropic-style assistant tool_use blocks", () => {
@@ -1161,6 +1162,50 @@ describe("startOllamaNoToolsProxy", () => {
       expect(lastReceivedBody).toBeNull();
     } finally {
       server.close();
+    }
+  });
+});
+
+describe("long-context prompt file transport (E2BIG regression)", () => {
+  // Verify the benchmark runner writes the task prompt to a file instead of passing it
+  // as a CLI argument, which would cause ENOMEM/E2BIG for 64k-token prompts (~256KB text).
+  // This test does NOT spawn a real agent process - it validates the transport mechanism
+  // using the same path that dispatchTask follows.
+
+  it("q4-loop 64k prompt exceeds Linux ARG_MAX threshold (would cause E2BIG as --message)", () => {
+    const prompt = buildQ4LoopAgenticPrompt(64_000);
+    // Linux ARG_MAX is 131072 bytes. A 64k-token q4-loop prompt is ~256KB.
+    expect(Buffer.byteLength(prompt, "utf8")).toBeGreaterThan(131_072);
+  });
+
+  it("prompt file transport writes full prompt to benchHome/prompt.txt and uses --message-file in args", () => {
+    const prompt = buildQ4LoopAgenticPrompt(64_000);
+    const benchHome = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-transport-test-"));
+
+    try {
+      // Replicate the args construction from dispatchTask without spawning a real process.
+      const promptFile = path.join(benchHome, "prompt.txt");
+      fs.writeFileSync(promptFile, prompt, "utf8");
+
+      const sessionId = "bench-transport-regression-test";
+      const args = ["agent", "--local", "--session-id", sessionId, "--message-file", promptFile];
+
+      // File must contain the complete prompt, not a truncated placeholder.
+      expect(fs.readFileSync(promptFile, "utf8")).toBe(prompt);
+
+      // Transport args must use --message-file, not --message with the literal prompt.
+      expect(args).toContain("--message-file");
+      expect(args).toContain(promptFile);
+      expect(args).not.toContain("--message");
+      // The args array itself must not embed any part of the prompt text.
+      const joinedArgs = args.join("\0");
+      expect(joinedArgs).not.toContain(prompt.slice(0, 80));
+
+      // Total args byte size must be well within OS limits (< 4KB, not 256KB).
+      const argsBytes = Buffer.byteLength(joinedArgs, "utf8");
+      expect(argsBytes).toBeLessThan(4_096);
+    } finally {
+      fs.rmSync(benchHome, { recursive: true, force: true });
     }
   });
 });

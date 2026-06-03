@@ -57,6 +57,7 @@ import {
   GENERATED_AGENT_VARIATION_TASKS,
   type AgentBenchmarkTask,
 } from "./agent-tasks.js";
+import { Q4_LOOP_BENCHMARK_TASKS } from "./q4-loop-benchmark-tasks.js";
 
 const DEFAULT_AGENT_BENCHMARK_DOCKER_BUILD_TIMEOUT_MS = 45 * 60 * 1000;
 
@@ -186,6 +187,9 @@ export function resolveAgentBenchmarkTasks(
   }
   if (suite === "all") {
     return ALL_AGENT_BENCHMARK_TASKS;
+  }
+  if (suite === "q4-loop") {
+    return Q4_LOOP_BENCHMARK_TASKS;
   }
   throw new Error(`Unsupported agent benchmark suite: ${opts.suite}`);
 }

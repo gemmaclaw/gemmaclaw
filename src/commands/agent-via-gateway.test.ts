@@ -153,4 +153,27 @@ describe("agentCliCommand", () => {
       });
     });
   });
+
+  it("reads full message from --message-file and passes it as message (E2BIG fix)", async () => {
+    await withTempStore(async ({ dir }) => {
+      // Simulate a large prompt that would cause E2BIG if passed via --message on the CLI.
+      // Linux ARG_MAX is typically 131072 bytes; a 64k-token prompt is ~256KB of text.
+      const largePrompt = "Prior agent transcript shard. ".repeat(8_000); // ~240KB
+      const promptFile = path.join(dir, "prompt.txt");
+      fs.writeFileSync(promptFile, largePrompt, "utf8");
+
+      // Verify the prompt exceeds the OS argv limit (proving it would cause E2BIG as --message)
+      expect(Buffer.byteLength(largePrompt, "utf8")).toBeGreaterThan(131_072);
+
+      mockLocalAgentReply();
+
+      await agentCliCommand({ messageFile: promptFile, to: "+1555", local: true }, runtime);
+
+      expect(callGateway).not.toHaveBeenCalled();
+      expect(agentCommand).toHaveBeenCalledTimes(1);
+      const opts = agentCommand.mock.calls[0]?.[0] as { message?: string };
+      // The full prompt must be passed as the message, not a truncated placeholder
+      expect(opts.message).toBe(largePrompt);
+    });
+  });
 });
