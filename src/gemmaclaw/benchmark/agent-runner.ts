@@ -1919,6 +1919,7 @@ export async function dispatchTask(
   // Dispatch via gemmaclaw CLI
   const gemmaclawArgs = gemmaclawCommandArgs();
 
+  fs.mkdirSync(benchHome, { recursive: true });
   const promptFile = path.join(benchHome, "prompt.txt");
   fs.writeFileSync(promptFile, task.prompt, "utf8");
   const args = [
