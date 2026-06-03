@@ -1,6 +1,6 @@
 import type { AgentBenchmarkTask } from "./agent-task-types.js";
 
-export const Q4_LOOP_CONTEXT_BANDS = [16_000, 32_000] as const;
+export const Q4_LOOP_CONTEXT_BANDS = [16_000, 32_000, 64_000] as const;
 
 const DONE_MARKER = "Q4_LOOP_BENCHMARK_DONE";
 
