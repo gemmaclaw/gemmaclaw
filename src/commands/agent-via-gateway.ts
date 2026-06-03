@@ -33,7 +33,7 @@ type GatewayAgentResponse = {
 const NO_GATEWAY_TIMEOUT_MS = 2_147_000_000;
 
 export type AgentCliOpts = {
-  message: string;
+  message?: string;
   messageFile?: string;
   agent?: string;
   to?: string;
@@ -185,8 +185,10 @@ export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, d
     opts.message = fs.readFileSync(path.resolve(opts.messageFile), "utf8");
   }
 
+  const message = opts.message ?? "";
   const localOpts = {
     ...opts,
+    message,
     agentId: opts.agent,
     replyAccountId: opts.replyAccount,
     cleanupBundleMcpOnRunEnd: opts.local === true,
