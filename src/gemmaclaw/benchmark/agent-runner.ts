@@ -743,7 +743,8 @@ export function seedMockGog(seedScript?: string, stateDir?: string): void {
 
 function benchmarkSeedStateDir(config: AgentBenchmarkConfig): string {
   const base =
-    config.gemmaclawHome ?? path.join(os.tmpdir(), `gemmaclaw-bench-state-${Date.now()}`);
+    config.gemmaclawHome ??
+    path.join(config.outputDir ?? "benchmark-results", ".workspaces", `bench-state-${Date.now()}`);
   return path.join(base, ".config/gogcli/state");
 }
 
@@ -1184,7 +1185,9 @@ function gemmaclawCommandArgs(): string[] {
  * (gog, file writes) are sandboxed but the gateway runs on the host.
  */
 export function createBenchmarkHome(config: AgentBenchmarkConfig): string {
-  const homeDir = config.gemmaclawHome ?? path.join(os.tmpdir(), `gemmaclaw-bench-${Date.now()}`);
+  const homeDir =
+    config.gemmaclawHome ??
+    path.join(config.outputDir ?? "benchmark-results", ".workspaces", `bench-home-${Date.now()}`);
   fs.mkdirSync(path.join(homeDir, "agents/main/sessions"), { recursive: true });
   writeBenchmarkWorkspaceFiles(
     path.join(homeDir, "workspace"),
@@ -1914,7 +1917,7 @@ export async function dispatchTask(
   // Create isolated benchmark home for this task
   const benchHome = config.gemmaclawHome
     ? path.join(config.gemmaclawHome, "tasks", sessionId)
-    : path.join(os.tmpdir(), `gemmaclaw-bench-${sessionId}`);
+    : path.join(config.outputDir ?? "benchmark-results", ".workspaces", sessionId);
 
   // Dispatch via gemmaclaw CLI
   const gemmaclawArgs = gemmaclawCommandArgs();
