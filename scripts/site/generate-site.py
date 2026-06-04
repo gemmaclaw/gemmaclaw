@@ -26,6 +26,7 @@ PUBLIC_BENCHMARK_RUNS = {
     "gemma4-26b-q4-high",
     "gemma4-e4b-q4-high",
     "functiongemma-270m-high",
+    "gemma4-12b-q4-nothink",
 }
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
@@ -224,18 +225,31 @@ def normalize_agentic_benchmark_result(data, run_id):
         or ""
     )
 
+    gpu_name = gpu.get("name", "None detected")
+    vram_used_mib = gpu.get("vramUsedMib")
+    gpu_display = gpu_name
+    if isinstance(vram_used_mib, (int, float)) and vram_used_mib > 0:
+        gpu_display = f"{gpu_name} (~{vram_used_mib / 1024:.1f} GB VRAM used)"
+    gen_speed = gpu.get("generationTokensPerSecond")
+    llama_build = gpu.get("llamaCppBuild", "")
+    backend_display = config.get("backend", "ollama")
+    if llama_build:
+        backend_display = f"{config.get('backend', 'ollama')} ({llama_build})"
+
     return {
         "model": model_name,
-        "backend": config.get("backend", "ollama"),
+        "backend": backend_display,
         "timestamp": metadata.get("startedAt", ""),
         "quant": quant,
         "parameterSize": parameter_size,
         "thinkingLevel": metadata.get("thinkingLevel") or config.get("thinkingLevel") or "",
         "runId": run_id,
+        "architecture": metadata.get("architecture", ""),
         "hardware": {
             "cpu": cpu.get("model", "Unknown"),
             "ram": ram_label,
-            "gpu": gpu.get("name", "None detected"),
+            "gpu": gpu_display,
+            "generationTokensPerSecond": gen_speed,
         },
         "summary": {
             "percentage": round((total_score / total_max) * 100) if total_max else 0,
@@ -464,6 +478,11 @@ SIZE_CLASSES = {
         "hw_rec": "Runs on 8GB RAM laptops or any machine with 4GB+ VRAM. Fast inference, good for quick tasks.",
         "icon": "&#128187;",
     },
+    "Small-Medium (12B Dense)": {
+        "models": ["gemma-4-12b", "gemma4-12b", "gemma4:12b"],
+        "hw_rec": "Needs ~10GB VRAM (16GB GPU recommended). Dense architecture — all 12B parameters active per token. Faster than 26B-A4B, uses roughly half the VRAM.",
+        "icon": "&#9881;",
+    },
     "Medium (26B MoE)": {
         "models": ["gemma-4-26b", "gemma4-26b", "gemma4:26b", "gemma4-26b-moe", "gemma4:26b-moe", "gemma4-27b"],
         "hw_rec": "Needs 16GB+ RAM or a GPU with 12GB+ VRAM. MoE architecture activates only part of the model per token, so it runs faster than its size suggests.",
@@ -485,6 +504,8 @@ def classify_model_size(model_name):
         return "Medium (26B MoE)"
     if "31b" in name_lower or "dense" in name_lower:
         return "Large (31B Dense)"
+    if "12b" in name_lower:
+        return "Small-Medium (12B Dense)"
     for cls_name, cls_info in SIZE_CLASSES.items():
         for pattern in cls_info["models"]:
             if pattern.lower().replace(":", "-") in name_lower:
@@ -500,7 +521,7 @@ def model_architecture(model_name):
         return "Function-calling"
     if "moe" in name_lower or "26b" in name_lower or "27b" in name_lower:
         return "MoE"
-    if "dense" in name_lower or "31b" in name_lower or "4b" in name_lower:
+    if "dense" in name_lower or "31b" in name_lower or "4b" in name_lower or "12b" in name_lower:
         return "Dense"
     return "Unknown"
 
@@ -1066,6 +1087,23 @@ def generate_benchmark_detail_page(result):
     }});
 """
 
+    run_id = result.get("runId", "")
+    cross_run_note = ""
+    if run_id == "gemma4-12b-q4-nothink":
+        cross_run_note = """
+<div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid var(--accent,#5c9eff);border-radius:4px">
+  <strong>Cross-run comparison note:</strong> This 12B run used 50 tasks (suite v2026-06) with no thinking, judged by GPT-4.1.
+  The published 26B-A4B run used 47 tasks (suite v2026-05) with high thinking, judged by Gemini 2.5 Pro.
+  The two runs are <strong>not directly comparable</strong> due to different suite sizes, thinking levels, and judge models.
+  For a fair comparison, rerun both models on the same suite at the same thinking level.
+</div>"""
+
+    llama_build_info = ""
+    if "b9496" in backend:
+        llama_build_info = f'<span><strong>llama.cpp build:</strong> b9496 (gemma4_unified support: PRs #24077 #24082 #24088)</span>'
+    gen_speed_raw = hw.get("generationTokensPerSecond")
+    gen_speed_html = f'<span><strong>Generation speed:</strong> ~{gen_speed_raw:.0f} tok/s (llama-server, RTX 3090)</span>' if gen_speed_raw else ""
+
     body = f"""<section class="detail-hero">
   <h1>{html_escape(model_display)} <small style="font-weight:400;font-size:1rem;color:var(--muted)">({html_escape(backend)})</small></h1>
   <div class="detail-tags">{tags_html}</div>
@@ -1073,10 +1111,11 @@ def generate_benchmark_detail_page(result):
     <span class="score-big {pct_class}">{pct}%</span>
     <span class="score-label">{passed}/{total} tasks passed</span>
   </div>
+  {cross_run_note}
   <div class="meta-grid">
     <span><strong>Model class:</strong> {html_escape(size_class)}</span>
     <span><strong>Parameters:</strong> {html_escape(parameter_size or 'not reported')}</span>
-    <span><strong>Architecture:</strong> {html_escape(arch_tag)}</span>
+    <span><strong>Architecture:</strong> {html_escape(result.get('architecture', '') or arch_tag)}</span>
     <span><strong>Quantization:</strong> {html_escape(quant or 'not reported')}</span>
     <span><strong>Thinking:</strong> {html_escape(thinking or 'not reported')}</span>
     <span><strong>Backend:</strong> {html_escape(backend)}</span>
@@ -1084,6 +1123,8 @@ def generate_benchmark_detail_page(result):
     <span><strong>CPU:</strong> {html_escape(hw.get('cpu', 'Unknown'))}</span>
     <span><strong>RAM:</strong> {html_escape(hw.get('ram', 'Unknown'))}</span>
     <span><strong>Speed:</strong> {format_speed(s.get('medianTokensPerSecond'), s.get('medianTokensPerSecondSource', ''))}</span>
+    {gen_speed_html}
+    {llama_build_info}
     <span><strong>Total time:</strong> {format_time(s.get('totalTimeMs'))}</span>
     <span><strong>Failure modes:</strong> {html_escape(fm_items)}</span>
   </div>
