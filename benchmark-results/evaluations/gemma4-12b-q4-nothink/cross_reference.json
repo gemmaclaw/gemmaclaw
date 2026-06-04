@@ -1,76 +1,225 @@
 {
-  "taskId": "cross_reference",
-  "taskName": "Calendar Cross-Reference",
-  "gradingCriteria": [
-    "Must check calendar for tomorrow (gog calendar list)",
-    "Must detect the 9 AM conflict (Existing Client Call)",
-    "Must NOT double-book the 9 AM slot",
-    "Must suggest an alternative time slot",
-    "Must create the event at the alternative time"
-  ],
+ "taskId": "cross_reference",
+ "taskName": "Calendar Cross-Reference",
+ "gradingCriteria": [
+  "Must check calendar for tomorrow (gog calendar list)",
+  "Must detect the 9 AM conflict (Existing Client Call)",
+  "Must NOT double-book the 9 AM slot",
+  "Must suggest an alternative time slot",
+  "Must create the event at the alternative time"
+ ],
+ "maxScore": 15,
+ "toolCallCount": 4,
+ "toolsUsed": [
+  "cron",
+  "exec"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 34570,
+ "conversationTurns": 10,
+ "transcriptFile": "transcripts/cross_reference.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 15,
   "maxScore": 15,
-  "toolCallCount": 4,
-  "toolsUsed": ["cron", "exec"],
-  "completionStatus": "completed",
-  "elapsedMs": 34570,
-  "conversationTurns": 10,
-  "transcriptFile": "transcripts/cross_reference.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "judgedAt": "2026-06-04T05:56:46.954Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 15,
-    "maxScore": 15,
-    "percentage": 100,
-    "passed": true,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must check calendar for tomorrow (gog calendar list)",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "Agent used `gog calendar list --tomorrow` to check tomorrow's events.",
-        "evidence": "turn #4: gog calendar list --tomorrow",
-        "turnRefs": [4]
-      },
-      {
-        "criterion": "Must detect the 9 AM conflict (Existing Client Call)",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "Agent acknowledges the 9AM 'Existing Client Call' as a conflict in final reply.",
-        "evidence": "turn #10: 'There was a conflict at 9:00 AM (a \"Existing Client Call\" ending at 10:00 AM)'",
-        "turnRefs": [10]
-      },
-      {
-        "criterion": "Must NOT double-book the 9 AM slot",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "No attempt was made to schedule anything at 9 AM once conflict detected.",
-        "evidence": "turn #8: schedules at 10:00-12:00 instead",
-        "turnRefs": [8]
-      },
-      {
-        "criterion": "Must suggest an alternative time slot",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "The agent suggests tomorrow from 10:00 AM to 12:00 PM as the nearest available slot.",
-        "evidence": "turn #10: 'I have successfully scheduled your 2-hour Strategy Session for the nearest available slot: tomorrow from 10:00 AM to 12:00 PM'",
-        "turnRefs": [10]
-      },
-      {
-        "criterion": "Must create the event at the alternative time",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "Event creation command uses start 10:00, end 12:00 as required.",
-        "evidence": "turn #8: gog calendar create --start 2026-06-05T10:00:00 --end 2026-06-05T12:00:00 ...",
-        "turnRefs": [8]
-      }
-    ],
-    "reasoning": "Agent correctly checked for conflicts on the requested date, detected and avoided double booking at 9 AM, selected the nearest appropriate slot, clearly informed the user, and created the event at the valid new time.",
-    "issues": []
+  "percentage": 100.0,
+  "scorePercent": 100.0,
+  "passed": true,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must check calendar for tomorrow (gog calendar list)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent ran the calendar listing command for tomorrow before scheduling, satisfying the check-first requirement.",
+    "evidence": "turn #4 tool_call exec ran {\"command\":\"gog calendar list --tomorrow\"} and turn #6 re-ran it with --detail",
+    "turnRefs": [
+     4,
+     6
+    ]
+   },
+   {
+    "criterion": "Must detect the 9 AM conflict (Existing Client Call)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent explicitly identified the pre-existing 9 AM 'Existing Client Call' as a conflict.",
+    "evidence": "turn #10 assistant said 'There was a conflict at 9:00 AM (a \"Existing Client Call\" ending at 10:00 AM)'",
+    "turnRefs": [
+     5,
+     10
+    ]
+   },
+   {
+    "criterion": "Must NOT double-book the 9 AM slot",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The event was created at 10:00 AM, not at the conflicting 9 AM slot, so no double-booking occurred.",
+    "evidence": "turn #8 created the event with --start 2026-06-05T10:00:00, confirmed in turn #9 result start '2026-06-05T10:00:00'",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must suggest an alternative time slot",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent proposed an alternative slot (10 AM-12 PM) immediately after the 9 AM conflict, which is the nearest free 2-hour window.",
+    "evidence": "turn #10 assistant said 'scheduled your 2-hour Strategy Session for the nearest available slot: tomorrow from 10:00 AM to 12:00 PM'",
+    "turnRefs": [
+     10
+    ]
+   },
+   {
+    "criterion": "Must create the event at the alternative time",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent created the 2-hour event at the alternative time and received a successful creation result with a new event id.",
+    "evidence": "turn #9 tool_result returned {\"id\":\"evt_8b5da917aa\",...\"start\":\"2026-06-05T10:00:00\",\"end\":\"2026-06-05T12:00:00\"}",
+    "turnRefs": [
+     8,
+     9
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must check calendar for tomorrow (gog calendar list)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent ran the calendar listing command for tomorrow before scheduling, satisfying the check-first requirement.",
+    "evidence": "turn #4 tool_call exec ran {\"command\":\"gog calendar list --tomorrow\"} and turn #6 re-ran it with --detail",
+    "turnRefs": [
+     4,
+     6
+    ]
+   },
+   {
+    "criterion": "Must detect the 9 AM conflict (Existing Client Call)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent explicitly identified the pre-existing 9 AM 'Existing Client Call' as a conflict.",
+    "evidence": "turn #10 assistant said 'There was a conflict at 9:00 AM (a \"Existing Client Call\" ending at 10:00 AM)'",
+    "turnRefs": [
+     5,
+     10
+    ]
+   },
+   {
+    "criterion": "Must NOT double-book the 9 AM slot",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The event was created at 10:00 AM, not at the conflicting 9 AM slot, so no double-booking occurred.",
+    "evidence": "turn #8 created the event with --start 2026-06-05T10:00:00, confirmed in turn #9 result start '2026-06-05T10:00:00'",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must suggest an alternative time slot",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent proposed an alternative slot (10 AM-12 PM) immediately after the 9 AM conflict, which is the nearest free 2-hour window.",
+    "evidence": "turn #10 assistant said 'scheduled your 2-hour Strategy Session for the nearest available slot: tomorrow from 10:00 AM to 12:00 PM'",
+    "turnRefs": [
+     10
+    ]
+   },
+   {
+    "criterion": "Must create the event at the alternative time",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent created the 2-hour event at the alternative time and received a successful creation result with a new event id.",
+    "evidence": "turn #9 tool_result returned {\"id\":\"evt_8b5da917aa\",...\"start\":\"2026-06-05T10:00:00\",\"end\":\"2026-06-05T12:00:00\"}",
+    "turnRefs": [
+     8,
+     9
+    ]
+   }
+  ],
+  "reasoning": "The agent checked the calendar, correctly identified the pre-existing 9 AM 'Existing Client Call' conflict, avoided double-booking, proposed the nearest free 2-hour slot, and created the Strategy Session at 10:00 AM-12:00 PM. All five grading criteria are fully met with concrete tool-call and assistant evidence. An initial cron tool failure (turn #3) was handled by falling back to the exec command.",
+  "rationale": "The agent checked the calendar, correctly identified the pre-existing 9 AM 'Existing Client Call' conflict, avoided double-booking, proposed the nearest free 2-hour slot, and created the Strategy Session at 10:00 AM-12:00 PM. All five grading criteria are fully met with concrete tool-call and assistant evidence. An initial cron tool failure (turn #3) was handled by falling back to the exec command.",
+  "issues": [
+   "First tool attempt (cron list) failed with a gateway closure error in turn #3, but the agent recovered using the correct exec command."
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "judgedAt": "2026-06-04T05:56:46.954Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 15,
+   "maxScore": 15,
+   "percentage": 100,
+   "passed": true,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must check calendar for tomorrow (gog calendar list)",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "Agent used `gog calendar list --tomorrow` to check tomorrow's events.",
+     "evidence": "turn #4: gog calendar list --tomorrow",
+     "turnRefs": [
+      4
+     ]
+    },
+    {
+     "criterion": "Must detect the 9 AM conflict (Existing Client Call)",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "Agent acknowledges the 9AM 'Existing Client Call' as a conflict in final reply.",
+     "evidence": "turn #10: 'There was a conflict at 9:00 AM (a \"Existing Client Call\" ending at 10:00 AM)'",
+     "turnRefs": [
+      10
+     ]
+    },
+    {
+     "criterion": "Must NOT double-book the 9 AM slot",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "No attempt was made to schedule anything at 9 AM once conflict detected.",
+     "evidence": "turn #8: schedules at 10:00-12:00 instead",
+     "turnRefs": [
+      8
+     ]
+    },
+    {
+     "criterion": "Must suggest an alternative time slot",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "The agent suggests tomorrow from 10:00 AM to 12:00 PM as the nearest available slot.",
+     "evidence": "turn #10: 'I have successfully scheduled your 2-hour Strategy Session for the nearest available slot: tomorrow from 10:00 AM to 12:00 PM'",
+     "turnRefs": [
+      10
+     ]
+    },
+    {
+     "criterion": "Must create the event at the alternative time",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "Event creation command uses start 10:00, end 12:00 as required.",
+     "evidence": "turn #8: gog calendar create --start 2026-06-05T10:00:00 --end 2026-06-05T12:00:00 ...",
+     "turnRefs": [
+      8
+     ]
+    }
+   ],
+   "reasoning": "Agent correctly checked for conflicts on the requested date, detected and avoided double booking at 9 AM, selected the nearest appropriate slot, clearly informed the user, and created the event at the valid new time.",
+   "issues": [],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }

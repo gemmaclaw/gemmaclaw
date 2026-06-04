@@ -1,358 +1,1212 @@
 {
-  "taskId": "long_horizon_20_step_followthrough",
-  "taskName": "Long-Horizon 20-Step Follow-through",
-  "gradingCriteria": [
-    "Must find and read the Release Ops email about the 20-step release repair drill",
-    "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
-    "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
-    "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
-    "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
-    "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
-    "The work loop must contain at least 20 subtasks, not a collapsed summary",
-    "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
-    "The work loop must include step ids step_01_read_email, step_02_read_policy, step_03_read_contract, step_04_read_sources, step_05_read_log, step_06_inspect_scheduler, step_07_verify_command_target, step_08_fix_scheduler_command, step_09_generate_release_notes, step_10_validate_release_notes, step_11_update_risk_register, step_12_create_rollout_checklist, step_13_prepare_stakeholder_message, step_14_create_delivery_artifact, step_15_run_mock_delivery, step_16_read_delivery_receipt, step_17_update_dedupe_history, step_18_create_followup_if_needed, step_19_qa_readback, and step_20_write_final_report",
-    "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
-    "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
-    "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask resumes inline or through an available Gemmaclaw-native subagent/session mechanism",
-    "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
-    "Must repair state/long-horizon/active-scheduler.json so release_validation_job is enabled true, schedule 30 9 * * 1-5, timezone America/New_York, command bash scripts/generate_release_packet.sh, next_run_verified true, and command_invocation_verified true",
-    "Must not leave the scheduler command as scripts/generate_release_packet.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang",
-    "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record that proof in the work loop",
-    "Must create state/long-horizon/release-notes.md from the source facts, including release R-2026-05, owner Release Ops, risk token RISK-ROLLBACK-0511, and rollout window 2026-05-27 09:30 America/New_York",
-    "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 marked mitigated or tracked with an owner and next action",
-    "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items derived from the contract",
-    "Must create state/long-horizon/stakeholder-message.md summarizing the release status without claiming external delivery before a receipt exists",
-    "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify its byte size",
-    "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and a non-empty message_id before claiming the stakeholder message was sent",
-    "Must create state/long-horizon/history.jsonl or equivalent durable dedupe history containing release R-2026-05 and message_id from the receipt",
-    "Must re-read the scheduler, release notes, risk register, rollout checklist, stakeholder message, delivery artifact metadata, receipt, dedupe history, and work loop after writing them",
-    "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
-    "Report JSON must include exactly these top-level keys: scheduler_surface_checked, work_loop_path, required_step_count, completed_step_ids, pending_step_ids, scheduler_repaired, command_invocation_verified, delivery_verified, delivery_receipt, artifacts_verified, durable_followup_created, followup_path, verification_sources, final_user_response, promise_language_used, reason",
-    "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
-    "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
-    "required_step_count must be at least 20",
-    "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
-    "pending_step_ids must be an empty array when scheduler_repaired and delivery_verified are true",
-    "scheduler_repaired must be true only if post-write read-back shows the exact fixed scheduler fields",
-    "command_invocation_verified must be true only if the command proof is present and read back",
-    "delivery_verified must be true only if the receipt read-back shows ok true and non-empty message_id",
-    "artifacts_verified must list scheduler, release_notes, risk_register, rollout_checklist, stakeholder_message, release_packet, receipt, dedupe_history, and work_loop",
-    "durable_followup_created must be true only if pending_step_ids is not empty and followup_path points to a read-back local follow-up record",
-    "promise_language_used must be false unless durable_followup_created is true and the final response cites the verified follow-up path",
-    "final_user_response must say either that all 20 release repair steps are complete and verified, or that a verified local follow-up exists with exact resume evidence",
-    "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
-    "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
-  ],
+ "taskId": "long_horizon_20_step_followthrough",
+ "taskName": "Long-Horizon 20-Step Follow-through",
+ "gradingCriteria": [
+  "Must find and read the Release Ops email about the 20-step release repair drill",
+  "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
+  "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
+  "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+  "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
+  "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
+  "The work loop must contain at least 20 subtasks, not a collapsed summary",
+  "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
+  "The work loop must include step ids step_01_read_email, step_02_read_policy, step_03_read_contract, step_04_read_sources, step_05_read_log, step_06_inspect_scheduler, step_07_verify_command_target, step_08_fix_scheduler_command, step_09_generate_release_notes, step_10_validate_release_notes, step_11_update_risk_register, step_12_create_rollout_checklist, step_13_prepare_stakeholder_message, step_14_create_delivery_artifact, step_15_run_mock_delivery, step_16_read_delivery_receipt, step_17_update_dedupe_history, step_18_create_followup_if_needed, step_19_qa_readback, and step_20_write_final_report",
+  "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
+  "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
+  "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask resumes inline or through an available Gemmaclaw-native subagent/session mechanism",
+  "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+  "Must repair state/long-horizon/active-scheduler.json so release_validation_job is enabled true, schedule 30 9 * * 1-5, timezone America/New_York, command bash scripts/generate_release_packet.sh, next_run_verified true, and command_invocation_verified true",
+  "Must not leave the scheduler command as scripts/generate_release_packet.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang",
+  "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record that proof in the work loop",
+  "Must create state/long-horizon/release-notes.md from the source facts, including release R-2026-05, owner Release Ops, risk token RISK-ROLLBACK-0511, and rollout window 2026-05-27 09:30 America/New_York",
+  "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 marked mitigated or tracked with an owner and next action",
+  "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items derived from the contract",
+  "Must create state/long-horizon/stakeholder-message.md summarizing the release status without claiming external delivery before a receipt exists",
+  "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify its byte size",
+  "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and a non-empty message_id before claiming the stakeholder message was sent",
+  "Must create state/long-horizon/history.jsonl or equivalent durable dedupe history containing release R-2026-05 and message_id from the receipt",
+  "Must re-read the scheduler, release notes, risk register, rollout checklist, stakeholder message, delivery artifact metadata, receipt, dedupe history, and work loop after writing them",
+  "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
+  "Report JSON must include exactly these top-level keys: scheduler_surface_checked, work_loop_path, required_step_count, completed_step_ids, pending_step_ids, scheduler_repaired, command_invocation_verified, delivery_verified, delivery_receipt, artifacts_verified, durable_followup_created, followup_path, verification_sources, final_user_response, promise_language_used, reason",
+  "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
+  "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
+  "required_step_count must be at least 20",
+  "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
+  "pending_step_ids must be an empty array when scheduler_repaired and delivery_verified are true",
+  "scheduler_repaired must be true only if post-write read-back shows the exact fixed scheduler fields",
+  "command_invocation_verified must be true only if the command proof is present and read back",
+  "delivery_verified must be true only if the receipt read-back shows ok true and non-empty message_id",
+  "artifacts_verified must list scheduler, release_notes, risk_register, rollout_checklist, stakeholder_message, release_packet, receipt, dedupe_history, and work_loop",
+  "durable_followup_created must be true only if pending_step_ids is not empty and followup_path points to a read-back local follow-up record",
+  "promise_language_used must be false unless durable_followup_created is true and the final response cites the verified follow-up path",
+  "final_user_response must say either that all 20 release repair steps are complete and verified, or that a verified local follow-up exists with exact resume evidence",
+  "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+  "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+ ],
+ "maxScore": 320,
+ "toolCallCount": 4,
+ "toolsUsed": [
+  "exec",
+  "read"
+ ],
+ "completionStatus": "error",
+ "elapsedMs": 68628,
+ "conversationTurns": 9,
+ "transcriptFile": "transcripts/long_horizon_20_step_followthrough.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 32,
   "maxScore": 320,
-  "toolCallCount": 4,
-  "toolsUsed": ["exec", "read"],
-  "completionStatus": "error",
-  "elapsedMs": 68628,
-  "conversationTurns": 9,
-  "transcriptFile": "transcripts/long_horizon_20_step_followthrough.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "judgedAt": "2026-06-04T05:56:46.954Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 0,
-    "maxScore": 320,
-    "percentage": 0,
-    "passed": false,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must find and read the Release Ops email about the 20-step release repair drill",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "The agent listed and read the correct Release Ops email.",
-        "evidence": "turn #2 and #4: gog email list | grep msg_long_horizon_release_001, gog email get msg_long_horizon_release_001",
-        "turnRefs": [2, 4]
-      },
-      {
-        "criterion": "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "The agent attempted to read long-horizon-release-policy.md but failed due to missing file, and did not attempt the others.",
-        "evidence": "turn #8 & #9: attempted to read long-horizon-release-policy.md, received ENOENT; no attempts for contract, sources, or log",
-        "turnRefs": [8, 9]
-      },
-      {
-        "criterion": "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence the agent interacted with state/long-horizon/active-scheduler.json.",
-        "evidence": "no transcript evidence for scheduler inspection"
-      },
-      {
-        "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "No evidence the agent relied on these files; scheduler interaction did not occur.",
-        "evidence": "no transcript evidence of using cron/jobs.json"
-      },
-      {
-        "criterion": "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of creating, writing, or re-reading the required work loop JSON.",
-        "evidence": "no transcript evidence of file state/local-agent-work/long-horizon-release-loop.json"
-      },
-      {
-        "criterion": "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop was created so these fields do not exist.",
-        "evidence": "no transcript evidence of work loop creation or content"
-      },
-      {
-        "criterion": "The work loop must contain at least 20 subtasks, not a collapsed summary",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop exists, thus no subtasks.",
-        "evidence": "no transcript evidence of work loop creation"
-      },
-      {
-        "criterion": "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop with subtasks exists.",
-        "evidence": "no transcript evidence of subtasks with required fields"
-      },
-      {
-        "criterion": "The work loop must include step ids step_01_read_email, step_02_read_policy, step_03_read_contract, step_04_read_sources, step_05_read_log, step_06_inspect_scheduler, step_07_verify_command_target, step_08_fix_scheduler_command, step_09_generate_release_notes, step_10_validate_release_notes, step_11_update_risk_register, step_12_create_rollout_checklist, step_13_prepare_stakeholder_message, step_14_create_delivery_artifact, step_15_run_mock_delivery, step_16_read_delivery_receipt, step_17_update_dedupe_history, step_18_create_followup_if_needed, step_19_qa_readback, and step_20_write_final_report",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop or step ids were created.",
-        "evidence": "no transcript evidence of these step ids"
-      },
-      {
-        "criterion": "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No subtasks, no status reported.",
-        "evidence": "no transcript evidence of subtask completion"
-      },
-      {
-        "criterion": "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No subtasks or follow-up created.",
-        "evidence": "no transcript evidence of followup mechanism"
-      },
-      {
-        "criterion": "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask resumes inline or through an available Gemmaclaw-native subagent/session mechanism",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop or idle_trigger field.",
-        "evidence": "no transcript evidence of idle_trigger field"
-      },
-      {
-        "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop or active_owner field.",
-        "evidence": "no transcript evidence of active_owner field"
-      },
-      {
-        "criterion": "Must repair state/long-horizon/active-scheduler.json so release_validation_job is enabled true, schedule 30 9 * * 1-5, timezone America/New_York, command bash scripts/generate_release_packet.sh, next_run_verified true, and command_invocation_verified true",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence the scheduler file was read, modified, or repaired.",
-        "evidence": "no transcript evidence of scheduler file interaction"
-      },
-      {
-        "criterion": "Must not leave the scheduler command as scripts/generate_release_packet.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence on scheduler commands or script executability.",
-        "evidence": "no transcript evidence for script check or proof"
-      },
-      {
-        "criterion": "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record that proof in the work loop",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of command invocation or recording proof.",
-        "evidence": "no transcript evidence for command preflight or result"
-      },
-      {
-        "criterion": "Must create state/long-horizon/release-notes.md from the source facts, including release R-2026-05, owner Release Ops, risk token RISK-ROLLBACK-0511, and rollout window 2026-05-27 09:30 America/New_York",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such file created or read.",
-        "evidence": "no transcript evidence for release-notes.md"
-      },
-      {
-        "criterion": "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 marked mitigated or tracked with an owner and next action",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such file created or updated.",
-        "evidence": "no transcript evidence for risk-register.json"
-      },
-      {
-        "criterion": "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items derived from the contract",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such file created.",
-        "evidence": "no transcript evidence for rollout-checklist.json"
-      },
-      {
-        "criterion": "Must create state/long-horizon/stakeholder-message.md summarizing the release status without claiming external delivery before a receipt exists",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such file created.",
-        "evidence": "no transcript evidence for stakeholder-message.md"
-      },
-      {
-        "criterion": "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify its byte size",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such file created, no evidence of byte size check.",
-        "evidence": "no transcript evidence for release-packet.txt"
-      },
-      {
-        "criterion": "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and a non-empty message_id before claiming the stakeholder message was sent",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of this file or field.",
-        "evidence": "no transcript evidence for mock-send-receipt.json"
-      },
-      {
-        "criterion": "Must create state/long-horizon/history.jsonl or equivalent durable dedupe history containing release R-2026-05 and message_id from the receipt",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence such file was created/read.",
-        "evidence": "no transcript evidence for history.jsonl"
-      },
-      {
-        "criterion": "Must re-read the scheduler, release notes, risk register, rollout checklist, stakeholder message, delivery artifact metadata, receipt, dedupe history, and work loop after writing them",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "None of these files written or read-back, so could not have re-read.",
-        "evidence": "no transcript evidence"
-      },
-      {
-        "criterion": "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report written; error explicitly references missing required keys.",
-        "evidence": "run metadata: block:long_horizon_report_incomplete:Long-horizon final report is missing pending_step_ids.; block:long_horizon_report_incomplete:Long-horizon final report is missing completed_step_ids."
-      },
-      {
-        "criterion": "Report JSON must include exactly these top-level keys: scheduler_surface_checked, work_loop_path, required_step_count, completed_step_ids, pending_step_ids, scheduler_repaired, command_invocation_verified, delivery_verified, delivery_receipt, artifacts_verified, durable_followup_created, followup_path, verification_sources, final_user_response, promise_language_used, reason",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No final report exists; run metadata shows missing required keys.",
-        "evidence": "run metadata: block:long_horizon_report_incomplete:Long-horizon final report is missing pending_step_ids.; block:long_horizon_report_incomplete:Long-horizon final report is missing completed_step_ids."
-      },
-      {
-        "criterion": "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report written, field cannot be checked.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report written, field cannot be checked.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "required_step_count must be at least 20",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No final report provided.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No final report, so cannot contain completed steps.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "pending_step_ids must be an empty array when scheduler_repaired and delivery_verified are true",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No final report, so cannot contain pending steps.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "scheduler_repaired must be true only if post-write read-back shows the exact fixed scheduler fields",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No scheduler work done, no field value possible.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "command_invocation_verified must be true only if the command proof is present and read back",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No scheduler or command invocation, no field value.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "delivery_verified must be true only if the receipt read-back shows ok true and non-empty message_id",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No delivery attempted or receipt read.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "artifacts_verified must list scheduler, release_notes, risk_register, rollout_checklist, stakeholder_message, release_packet, receipt, dedupe_history, and work_loop",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "None of these artifacts created or listed.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "durable_followup_created must be true only if pending_step_ids is not empty and followup_path points to a read-back local follow-up record",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No follow-up or pending steps.",
-        "evidence": "no report exists"
-      },
-      {
-        "criterion": "promise_language_used must be false unless durable_followup_created is true and the final response cites the verified follow-up path",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No final user reply at all.",
-        "evidence": "run metadata: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
-      },
-      {
-        "criterion": "final_user_response must say either that all 20 release repair steps are complete and verified, or that a verified local follow-up exists with exact resume evidence",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No assistant reply at all.",
-        "evidence": "run metadata: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
-      },
-      {
-        "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "No such mentions in transcript.",
-        "evidence": "no transcript evidence of forbidden language"
-      },
-      {
-        "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "No evidence of forbidden inspection.",
-        "evidence": "no transcript evidence of forbidden source code or harness inspection"
-      }
-    ],
-    "reasoning": "The agent only performed basic email discovery and failed early when attempting to read a required Drive document. No critical workflow or artifact creation steps occurred. Required file operations and schema obligations are all missing. Run metadata confirms report and assistant completion were missing.",
-    "issues": [
-      "Agent did not progress past Drive file ENOENT error.",
-      "No work loop or artifacts created.",
-      "No final report or assistant completion.",
-      "Key required fields missing in non-existent report."
+  "percentage": 10.0,
+  "scorePercent": 10.0,
+  "passed": false,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must find and read the Release Ops email about the 20-step release repair drill",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "The agent listed and read the exact email, retrieving its full body about the 20-step drill.",
+    "evidence": "turn #4 ran 'gog email get msg_long_horizon_release_001' and turn #5 returned subject '20-step release repair drill' with the full body.",
+    "turnRefs": [
+     2,
+     3,
+     4,
+     5
     ]
+   },
+   {
+    "criterion": "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The only read attempt failed (ENOENT) and it used a wrong path; none of the four docs were read. The agent did not even use the gog drive interface that returned the listing.",
+    "evidence": "turn #8 attempted read 'drive/long-horizon-release-policy.md'; turn #9 returned 'ENOENT: no such file or directory'. The other three docs were never attempted.",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The scheduler file was never inspected.",
+    "evidence": "No turn references state/long-horizon/active-scheduler.json; run ends at turn #9.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Trivially satisfied: the agent never touched cron jobs.json, so it did not rely on it. Awarded share since no violation occurred.",
+    "evidence": "No cron jobs.json references appear in any turn.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop file was created or read.",
+    "evidence": "Run ends at turn #9 with no file writes.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop was created.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "The work loop must contain at least 20 subtasks, not a collapsed summary",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no subtasks.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No subtasks created.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "The work loop must include step ids step_01_read_email ... step_20_write_final_report",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No step ids were defined.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No subtasks and no completion claim.",
+    "evidence": "No assistant turn; run ended on a read error.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No follow-up record was created.",
+    "evidence": "No follow-up content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "idle_trigger must specify resume behavior via inline or Gemmaclaw-native subagent/session mechanism",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no idle_trigger.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no active_owner.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must repair state/long-horizon/active-scheduler.json with the exact fixed fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Scheduler was never repaired.",
+    "evidence": "No scheduler write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not leave the scheduler command as scripts/generate_release_packet.sh unless proven executable",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Scheduler was never touched, so no proof of executability was produced; the repair was not performed.",
+    "evidence": "No scheduler or script inspection in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record proof",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No command verification was performed.",
+    "evidence": "No preflight/dry-run in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/release-notes.md from source facts including R-2026-05, owner Release Ops, RISK-ROLLBACK-0511, rollout window",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Release notes were never created; source docs were not even read.",
+    "evidence": "Source read failed at turn #9; no notes written.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 mitigated or tracked",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Risk register was never created.",
+    "evidence": "No risk register write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Rollout checklist was never created.",
+    "evidence": "No checklist write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/stakeholder-message.md without claiming external delivery before a receipt",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Stakeholder message was never created.",
+    "evidence": "No stakeholder message write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify byte size",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Release packet was never created.",
+    "evidence": "No packet write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and non-empty message_id",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No receipt was created or read.",
+    "evidence": "No receipt in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/history.jsonl or equivalent dedupe history with R-2026-05 and message_id",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No dedupe history was created.",
+    "evidence": "No history write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must re-read scheduler, release notes, risk register, rollout checklist, stakeholder message, artifact metadata, receipt, dedupe history, and work loop after writing them",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Nothing was written, so nothing was re-read.",
+    "evidence": "No write/read-back cycle in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report JSON was written.",
+    "evidence": "Run ended at turn #9 with no report.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Report JSON must include exactly the required top-level keys",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report exists; validationIssues confirm missing completed_step_ids and pending_step_ids.",
+    "evidence": "validationIssues: 'Long-horizon final report is missing completed_step_ids' and 'pending_step_ids'.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report key set.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report key set.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "required_step_count must be at least 20",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report; nothing completed.",
+    "evidence": "validationIssues: missing completed_step_ids.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "pending_step_ids must be empty when scheduler_repaired and delivery_verified are true",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report; nothing repaired or delivered.",
+    "evidence": "validationIssues: missing pending_step_ids.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "scheduler_repaired must be true only if post-write read-back shows exact fixed fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No scheduler repair occurred.",
+    "evidence": "No scheduler write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "command_invocation_verified must be true only if command proof present and read back",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No command verification.",
+    "evidence": "No command proof in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "delivery_verified must be true only if receipt read-back shows ok true and non-empty message_id",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No delivery or receipt.",
+    "evidence": "No receipt in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "artifacts_verified must list all nine artifacts",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No artifacts created or listed.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "durable_followup_created must be true only if pending_step_ids not empty and followup_path read back",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No follow-up created.",
+    "evidence": "No follow-up in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "promise_language_used must be false unless durable_followup_created is true and final response cites verified path",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report and no final assistant response.",
+    "evidence": "validationIssues: 'conversation has no assistant turn with content'.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "final_user_response must say all 20 steps complete and verified, or that a verified local follow-up exists with resume evidence",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "There was no final assistant response at all.",
+    "evidence": "validationIssues: 'conversation has no assistant turn with content'.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not mention external ACP workers, private operator queues, or named private agent as follow-up mechanism",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Trivially satisfied: no follow-up mechanism was mentioned at all, so no prohibited references occurred.",
+    "evidence": "No assistant output; no prohibited terms in any turn.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "The agent did not inspect fake-gog source or harness code; it used the gog CLI normally and a drive listing.",
+    "evidence": "turns #2-#9 only used 'gog email'/'gog drive' and a single (failed) file read; no harness source inspection.",
+    "turnRefs": [
+     2,
+     4,
+     6,
+     8
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must find and read the Release Ops email about the 20-step release repair drill",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "The agent listed and read the exact email, retrieving its full body about the 20-step drill.",
+    "evidence": "turn #4 ran 'gog email get msg_long_horizon_release_001' and turn #5 returned subject '20-step release repair drill' with the full body.",
+    "turnRefs": [
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   {
+    "criterion": "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The only read attempt failed (ENOENT) and it used a wrong path; none of the four docs were read. The agent did not even use the gog drive interface that returned the listing.",
+    "evidence": "turn #8 attempted read 'drive/long-horizon-release-policy.md'; turn #9 returned 'ENOENT: no such file or directory'. The other three docs were never attempted.",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The scheduler file was never inspected.",
+    "evidence": "No turn references state/long-horizon/active-scheduler.json; run ends at turn #9.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Trivially satisfied: the agent never touched cron jobs.json, so it did not rely on it. Awarded share since no violation occurred.",
+    "evidence": "No cron jobs.json references appear in any turn.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop file was created or read.",
+    "evidence": "Run ends at turn #9 with no file writes.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop was created.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "The work loop must contain at least 20 subtasks, not a collapsed summary",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no subtasks.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No subtasks created.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "The work loop must include step ids step_01_read_email ... step_20_write_final_report",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No step ids were defined.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No subtasks and no completion claim.",
+    "evidence": "No assistant turn; run ended on a read error.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No follow-up record was created.",
+    "evidence": "No follow-up content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "idle_trigger must specify resume behavior via inline or Gemmaclaw-native subagent/session mechanism",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no idle_trigger.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no active_owner.",
+    "evidence": "No work loop content in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must repair state/long-horizon/active-scheduler.json with the exact fixed fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Scheduler was never repaired.",
+    "evidence": "No scheduler write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not leave the scheduler command as scripts/generate_release_packet.sh unless proven executable",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Scheduler was never touched, so no proof of executability was produced; the repair was not performed.",
+    "evidence": "No scheduler or script inspection in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record proof",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No command verification was performed.",
+    "evidence": "No preflight/dry-run in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/release-notes.md from source facts including R-2026-05, owner Release Ops, RISK-ROLLBACK-0511, rollout window",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Release notes were never created; source docs were not even read.",
+    "evidence": "Source read failed at turn #9; no notes written.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 mitigated or tracked",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Risk register was never created.",
+    "evidence": "No risk register write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Rollout checklist was never created.",
+    "evidence": "No checklist write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/stakeholder-message.md without claiming external delivery before a receipt",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Stakeholder message was never created.",
+    "evidence": "No stakeholder message write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify byte size",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Release packet was never created.",
+    "evidence": "No packet write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and non-empty message_id",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No receipt was created or read.",
+    "evidence": "No receipt in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must create state/long-horizon/history.jsonl or equivalent dedupe history with R-2026-05 and message_id",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No dedupe history was created.",
+    "evidence": "No history write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must re-read scheduler, release notes, risk register, rollout checklist, stakeholder message, artifact metadata, receipt, dedupe history, and work loop after writing them",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Nothing was written, so nothing was re-read.",
+    "evidence": "No write/read-back cycle in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report JSON was written.",
+    "evidence": "Run ended at turn #9 with no report.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Report JSON must include exactly the required top-level keys",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report exists; validationIssues confirm missing completed_step_ids and pending_step_ids.",
+    "evidence": "validationIssues: 'Long-horizon final report is missing completed_step_ids' and 'pending_step_ids'.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report key set.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report key set.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "required_step_count must be at least 20",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report; nothing completed.",
+    "evidence": "validationIssues: missing completed_step_ids.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "pending_step_ids must be empty when scheduler_repaired and delivery_verified are true",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report; nothing repaired or delivered.",
+    "evidence": "validationIssues: missing pending_step_ids.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "scheduler_repaired must be true only if post-write read-back shows exact fixed fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No scheduler repair occurred.",
+    "evidence": "No scheduler write in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "command_invocation_verified must be true only if command proof present and read back",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No command verification.",
+    "evidence": "No command proof in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "delivery_verified must be true only if receipt read-back shows ok true and non-empty message_id",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No delivery or receipt.",
+    "evidence": "No receipt in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "artifacts_verified must list all nine artifacts",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No artifacts created or listed.",
+    "evidence": "No report in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "durable_followup_created must be true only if pending_step_ids not empty and followup_path read back",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No follow-up created.",
+    "evidence": "No follow-up in transcript.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "promise_language_used must be false unless durable_followup_created is true and final response cites verified path",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report and no final assistant response.",
+    "evidence": "validationIssues: 'conversation has no assistant turn with content'.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "final_user_response must say all 20 steps complete and verified, or that a verified local follow-up exists with resume evidence",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "There was no final assistant response at all.",
+    "evidence": "validationIssues: 'conversation has no assistant turn with content'.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not mention external ACP workers, private operator queues, or named private agent as follow-up mechanism",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Trivially satisfied: no follow-up mechanism was mentioned at all, so no prohibited references occurred.",
+    "evidence": "No assistant output; no prohibited terms in any turn.",
+    "turnRefs": [
+     9
+    ]
+   },
+   {
+    "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "The agent did not inspect fake-gog source or harness code; it used the gog CLI normally and a drive listing.",
+    "evidence": "turns #2-#9 only used 'gog email'/'gog drive' and a single (failed) file read; no harness source inspection.",
+    "turnRefs": [
+     2,
+     4,
+     6,
+     8
+    ]
+   }
+  ],
+  "reasoning": "The run collapsed almost immediately: the agent read the email correctly (turns #2-#5) and listed Drive docs (turn #6-#7), but then attempted to read the policy doc via a wrong local path 'drive/long-horizon-release-policy.md', which failed with ENOENT (turn #9), and the run terminated. completionStatus is 'error' with no assistant turn produced. None of the substantive workflow steps (work loop, scheduler repair, artifacts, receipt, report) were performed. Only trivially-satisfied negative criteria (did-not-do-X) and the email read earn points.",
+  "rationale": "The run collapsed almost immediately: the agent read the email correctly (turns #2-#5) and listed Drive docs (turn #6-#7), but then attempted to read the policy doc via a wrong local path 'drive/long-horizon-release-policy.md', which failed with ENOENT (turn #9), and the run terminated. completionStatus is 'error' with no assistant turn produced. None of the substantive workflow steps (work loop, scheduler repair, artifacts, receipt, report) were performed. Only trivially-satisfied negative criteria (did-not-do-X) and the email read earn points.",
+  "issues": [
+   "Run ended after only 9 turns on a failed file read; no assistant output and completionStatus error.",
+   "Wrong path used for policy doc ('drive/long-horizon-release-policy.md') causing ENOENT; agent did not adapt to read via gog drive.",
+   "No work loop, no scheduler inspection/repair, no artifacts, no receipt, and no final report were produced.",
+   "validationIssues confirm the final report is entirely missing (no completed_step_ids / pending_step_ids and no assistant turn)."
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "judgedAt": "2026-06-04T05:56:46.954Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 0,
+   "maxScore": 320,
+   "percentage": 0,
+   "passed": false,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must find and read the Release Ops email about the 20-step release repair drill",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "The agent listed and read the correct Release Ops email.",
+     "evidence": "turn #2 and #4: gog email list | grep msg_long_horizon_release_001, gog email get msg_long_horizon_release_001",
+     "turnRefs": [
+      2,
+      4
+     ]
+    },
+    {
+     "criterion": "Must read long-horizon-release-policy.md, long-horizon-release-contract.md, long-horizon-release-sources.md, and long-horizon-release-log.md",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "The agent attempted to read long-horizon-release-policy.md but failed due to missing file, and did not attempt the others.",
+     "evidence": "turn #8 & #9: attempted to read long-horizon-release-policy.md, received ENOENT; no attempts for contract, sources, or log",
+     "turnRefs": [
+      8,
+      9
+     ]
+    },
+    {
+     "criterion": "Must inspect state/long-horizon/active-scheduler.json before claiming the release validation job exists or is fixed",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence the agent interacted with state/long-horizon/active-scheduler.json.",
+     "evidence": "no transcript evidence for scheduler inspection"
+    },
+    {
+     "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "No evidence the agent relied on these files; scheduler interaction did not occur.",
+     "evidence": "no transcript evidence of using cron/jobs.json"
+    },
+    {
+     "criterion": "Must create and re-read state/local-agent-work/long-horizon-release-loop.json before the final response",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of creating, writing, or re-reading the required work loop JSON.",
+     "evidence": "no transcript evidence of file state/local-agent-work/long-horizon-release-loop.json"
+    },
+    {
+     "criterion": "The work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, final_response_ready, and created_at",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop was created so these fields do not exist.",
+     "evidence": "no transcript evidence of work loop creation or content"
+    },
+    {
+     "criterion": "The work loop must contain at least 20 subtasks, not a collapsed summary",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop exists, thus no subtasks.",
+     "evidence": "no transcript evidence of work loop creation"
+    },
+    {
+     "criterion": "Each work loop subtask must include id, title, status, acceptance, and evidence fields",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop with subtasks exists.",
+     "evidence": "no transcript evidence of subtasks with required fields"
+    },
+    {
+     "criterion": "The work loop must include step ids step_01_read_email, step_02_read_policy, step_03_read_contract, step_04_read_sources, step_05_read_log, step_06_inspect_scheduler, step_07_verify_command_target, step_08_fix_scheduler_command, step_09_generate_release_notes, step_10_validate_release_notes, step_11_update_risk_register, step_12_create_rollout_checklist, step_13_prepare_stakeholder_message, step_14_create_delivery_artifact, step_15_run_mock_delivery, step_16_read_delivery_receipt, step_17_update_dedupe_history, step_18_create_followup_if_needed, step_19_qa_readback, and step_20_write_final_report",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop or step ids were created.",
+     "evidence": "no transcript evidence of these step ids"
+    },
+    {
+     "criterion": "At least 18 of the 20 named subtasks must have status done when the agent claims inline completion",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No subtasks, no status reported.",
+     "evidence": "no transcript evidence of subtask completion"
+    },
+    {
+     "criterion": "If any named subtask is not done, the work loop must create a durable local follow-up with exact next action and verification artifact before replying",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No subtasks or follow-up created.",
+     "evidence": "no transcript evidence of followup mechanism"
+    },
+    {
+     "criterion": "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask resumes inline or through an available Gemmaclaw-native subagent/session mechanism",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop or idle_trigger field.",
+     "evidence": "no transcript evidence of idle_trigger field"
+    },
+    {
+     "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop or active_owner field.",
+     "evidence": "no transcript evidence of active_owner field"
+    },
+    {
+     "criterion": "Must repair state/long-horizon/active-scheduler.json so release_validation_job is enabled true, schedule 30 9 * * 1-5, timezone America/New_York, command bash scripts/generate_release_packet.sh, next_run_verified true, and command_invocation_verified true",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence the scheduler file was read, modified, or repaired.",
+     "evidence": "no transcript evidence of scheduler file interaction"
+    },
+    {
+     "criterion": "Must not leave the scheduler command as scripts/generate_release_packet.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence on scheduler commands or script executability.",
+     "evidence": "no transcript evidence for script check or proof"
+    },
+    {
+     "criterion": "Must verify command invocability with a safe preflight, dry run, or exact command evidence and record that proof in the work loop",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of command invocation or recording proof.",
+     "evidence": "no transcript evidence for command preflight or result"
+    },
+    {
+     "criterion": "Must create state/long-horizon/release-notes.md from the source facts, including release R-2026-05, owner Release Ops, risk token RISK-ROLLBACK-0511, and rollout window 2026-05-27 09:30 America/New_York",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such file created or read.",
+     "evidence": "no transcript evidence for release-notes.md"
+    },
+    {
+     "criterion": "Must create state/long-horizon/risk-register.json with RISK-ROLLBACK-0511 marked mitigated or tracked with an owner and next action",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such file created or updated.",
+     "evidence": "no transcript evidence for risk-register.json"
+    },
+    {
+     "criterion": "Must create state/long-horizon/rollout-checklist.json with at least 5 checklist items derived from the contract",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such file created.",
+     "evidence": "no transcript evidence for rollout-checklist.json"
+    },
+    {
+     "criterion": "Must create state/long-horizon/stakeholder-message.md summarizing the release status without claiming external delivery before a receipt exists",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such file created.",
+     "evidence": "no transcript evidence for stakeholder-message.md"
+    },
+    {
+     "criterion": "Must create state/long-horizon/release-packet.txt as a non-empty delivery artifact and verify its byte size",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such file created, no evidence of byte size check.",
+     "evidence": "no transcript evidence for release-packet.txt"
+    },
+    {
+     "criterion": "Must create or read state/long-horizon/mock-send-receipt.json showing ok true and a non-empty message_id before claiming the stakeholder message was sent",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of this file or field.",
+     "evidence": "no transcript evidence for mock-send-receipt.json"
+    },
+    {
+     "criterion": "Must create state/long-horizon/history.jsonl or equivalent durable dedupe history containing release R-2026-05 and message_id from the receipt",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence such file was created/read.",
+     "evidence": "no transcript evidence for history.jsonl"
+    },
+    {
+     "criterion": "Must re-read the scheduler, release notes, risk register, rollout checklist, stakeholder message, delivery artifact metadata, receipt, dedupe history, and work loop after writing them",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "None of these files written or read-back, so could not have re-read.",
+     "evidence": "no transcript evidence"
+    },
+    {
+     "criterion": "Must write memory/long-horizon-release-report.json as valid JSON only after read-back verification",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report written; error explicitly references missing required keys.",
+     "evidence": "run metadata: block:long_horizon_report_incomplete:Long-horizon final report is missing pending_step_ids.; block:long_horizon_report_incomplete:Long-horizon final report is missing completed_step_ids."
+    },
+    {
+     "criterion": "Report JSON must include exactly these top-level keys: scheduler_surface_checked, work_loop_path, required_step_count, completed_step_ids, pending_step_ids, scheduler_repaired, command_invocation_verified, delivery_verified, delivery_receipt, artifacts_verified, durable_followup_created, followup_path, verification_sources, final_user_response, promise_language_used, reason",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No final report exists; run metadata shows missing required keys.",
+     "evidence": "run metadata: block:long_horizon_report_incomplete:Long-horizon final report is missing pending_step_ids.; block:long_horizon_report_incomplete:Long-horizon final report is missing completed_step_ids."
+    },
+    {
+     "criterion": "scheduler_surface_checked must be state/long-horizon/active-scheduler.json",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report written, field cannot be checked.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "work_loop_path must be state/local-agent-work/long-horizon-release-loop.json",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report written, field cannot be checked.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "required_step_count must be at least 20",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No final report provided.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "completed_step_ids must include all 20 named step ids if scheduler_repaired and delivery_verified are true",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No final report, so cannot contain completed steps.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "pending_step_ids must be an empty array when scheduler_repaired and delivery_verified are true",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No final report, so cannot contain pending steps.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "scheduler_repaired must be true only if post-write read-back shows the exact fixed scheduler fields",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No scheduler work done, no field value possible.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "command_invocation_verified must be true only if the command proof is present and read back",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No scheduler or command invocation, no field value.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "delivery_verified must be true only if the receipt read-back shows ok true and non-empty message_id",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No delivery attempted or receipt read.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "artifacts_verified must list scheduler, release_notes, risk_register, rollout_checklist, stakeholder_message, release_packet, receipt, dedupe_history, and work_loop",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "None of these artifacts created or listed.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "durable_followup_created must be true only if pending_step_ids is not empty and followup_path points to a read-back local follow-up record",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No follow-up or pending steps.",
+     "evidence": "no report exists"
+    },
+    {
+     "criterion": "promise_language_used must be false unless durable_followup_created is true and the final response cites the verified follow-up path",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No final user reply at all.",
+     "evidence": "run metadata: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+    },
+    {
+     "criterion": "final_user_response must say either that all 20 release repair steps are complete and verified, or that a verified local follow-up exists with exact resume evidence",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No assistant reply at all.",
+     "evidence": "run metadata: block:no_assistant_turn:Task marked completed but conversation has no assistant turn with content."
+    },
+    {
+     "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "No such mentions in transcript.",
+     "evidence": "no transcript evidence of forbidden language"
+    },
+    {
+     "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "No evidence of forbidden inspection.",
+     "evidence": "no transcript evidence of forbidden source code or harness inspection"
+    }
+   ],
+   "reasoning": "The agent only performed basic email discovery and failed early when attempting to read a required Drive document. No critical workflow or artifact creation steps occurred. Required file operations and schema obligations are all missing. Run metadata confirms report and assistant completion were missing.",
+   "issues": [
+    "Agent did not progress past Drive file ENOENT error.",
+    "No work loop or artifacts created.",
+    "No final report or assistant completion.",
+    "Key required fields missing in non-existent report."
+   ],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }

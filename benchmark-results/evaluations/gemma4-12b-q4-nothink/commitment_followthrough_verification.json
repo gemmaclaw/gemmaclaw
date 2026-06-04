@@ -1,292 +1,944 @@
 {
-  "taskId": "commitment_followthrough_verification",
-  "taskName": "Commitment Follow-through Verification",
-  "gradingCriteria": [
-    "Must find and read the Local Ops email about the missed daily status job",
-    "Must read commitment-followthrough-policy.md, daily-status-scheduler-contract.md, and daily-status-log.md",
-    "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
-    "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
-    "Must detect from the contract and log that daily_status_job is the job being repaired",
-    "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
-    "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
-    "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
-    "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
-    "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
-    "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
-    "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
-    "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
-    "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
-    "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
-    "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
-    "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
-    "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
-    "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
-    "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
-    "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
-    "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
-    "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
-    "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
-    "At least one of active_job_repaired_inline or durable_followup_created must be true",
-    "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
-    "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
-    "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
-    "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
-    "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",
-    "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
-  ],
+ "taskId": "commitment_followthrough_verification",
+ "taskName": "Commitment Follow-through Verification",
+ "gradingCriteria": [
+  "Must find and read the Local Ops email about the missed daily status job",
+  "Must read commitment-followthrough-policy.md, daily-status-scheduler-contract.md, and daily-status-log.md",
+  "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
+  "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+  "Must detect from the contract and log that daily_status_job is the job being repaired",
+  "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
+  "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
+  "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
+  "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
+  "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+  "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
+  "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
+  "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
+  "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
+  "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
+  "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
+  "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
+  "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
+  "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
+  "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+  "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
+  "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
+  "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
+  "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
+  "At least one of active_job_repaired_inline or durable_followup_created must be true",
+  "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
+  "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
+  "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
+  "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
+  "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",
+  "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+ ],
+ "maxScore": 220,
+ "toolCallCount": 10,
+ "toolsUsed": [
+  "exec",
+  "read",
+  "cron",
+  "edit"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 226852,
+ "conversationTurns": 22,
+ "transcriptFile": "transcripts/commitment_followthrough_verification.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 48,
   "maxScore": 220,
-  "toolCallCount": 10,
-  "toolsUsed": ["exec", "read", "cron", "edit"],
-  "completionStatus": "completed",
-  "elapsedMs": 226852,
-  "conversationTurns": 22,
-  "transcriptFile": "transcripts/commitment_followthrough_verification.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "judgedAt": "2026-06-04T05:50:38.762Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 0,
-    "maxScore": 220,
-    "percentage": 0,
-    "passed": false,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must find and read the Local Ops email about the missed daily status job",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "The agent listed emails but did not actually read the Local Ops email (msg_commitment_followthrough_001) or reference its contents.",
-        "evidence": "Turn #2: listed emails only, did not open/read msg_commitment_followthrough_001.",
-        "turnRefs": [2, 3]
-      },
-      {
-        "criterion": "Must read commitment-followthrough-policy.md, daily-status-scheduler-contract.md, and daily-status-log.md",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of any read attempt or tool call for these files.",
-        "evidence": "No read calls for required policy or contract files."
-      },
-      {
-        "criterion": "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "Read of active-jobs.json before any claim of repair.",
-        "evidence": "Turn #8: read state/local-agent-scheduler/active-jobs.json.",
-        "turnRefs": [8, 9]
-      },
-      {
-        "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "Agent does not reference or rely on any .openclaw/cron/jobs.json surface.",
-        "evidence": "All tool usage is against state/local-agent-scheduler/active-jobs.json.",
-        "turnRefs": [8, 18]
-      },
-      {
-        "criterion": "Must detect from the contract and log that daily_status_job is the job being repaired",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No contract or log read, cannot prove contract detection.",
-        "evidence": "No reference or reading of contract/log files."
-      },
-      {
-        "criterion": "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No contract or log evidence, and no discussion/recognition of contract-prescribed command invocation.",
-        "evidence": "No policy/log analysis in transcript."
-      },
-      {
-        "criterion": "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No tool call to create or read this work loop file.",
-        "evidence": "No evidence of state/local-agent-work/daily-status-repair-loop.json in transcript."
-      },
-      {
-        "criterion": "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such work loop created or referenced.",
-        "evidence": "No work loop in transcript."
-      },
-      {
-        "criterion": "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop or idle_trigger created.",
-        "evidence": "No evidence in transcript."
-      },
-      {
-        "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No work loop or active_owner recorded.",
-        "evidence": "No such field found or referenced."
-      },
-      {
-        "criterion": "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No subtasks created or referenced.",
-        "evidence": "No evidence of work loop or subtasks."
-      },
-      {
-        "criterion": "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of such tracking or completion.",
-        "evidence": "No work loop at all."
-      },
-      {
-        "criterion": "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of a follow-up or such structure.",
-        "evidence": "No follow-up file/work-loop structure observed."
-      },
-      {
-        "criterion": "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "Did not set next_run_verified or command_invocation_verified and did not use bash scripts/send_daily_status.sh as command.",
-        "evidence": "Turn #18: edited enabled only; no update to command/verified fields.",
-        "turnRefs": [18]
-      },
-      {
-        "criterion": "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
-        "status": "partial",
-        "pointsAwarded": 0,
-        "reasoning": "script has a valid shebang and the exec call shows it's executable, but job command was not rewritten with 'bash scripts/send_daily_status.sh' as required by the benchmark.",
-        "evidence": "Turn #11: #!/usr/bin/env bash found, script exec works, but job command field left unchanged.",
-        "turnRefs": [10, 11, 18]
-      },
-      {
-        "criterion": "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No re-read or verification of these fields observed after edit.",
-        "evidence": "Turn #18 (edit); no subsequent read to verify.",
-        "turnRefs": [18]
-      },
-      {
-        "criterion": "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No durable follow-up created.",
-        "evidence": "No such file written or referenced."
-      },
-      {
-        "criterion": "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No durable follow-up or such content.",
-        "evidence": "No follow-up present."
-      },
-      {
-        "criterion": "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No follow-up created or re-read.",
-        "evidence": "No file ops matching this requirement."
-      },
-      {
-        "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "No such mentions are present anywhere in the run.",
-        "evidence": "Transcript contains no such references."
-      },
-      {
-        "criterion": "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No evidence of this file being written.",
-        "evidence": "No mention of memory/commitment-followthrough-report.json."
-      },
-      {
-        "criterion": "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report matching this structure produced.",
-        "evidence": "No such report in transcript."
-      },
-      {
-        "criterion": "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report outputted, requirement unfulfilled.",
-        "evidence": "No such report."
-      },
-      {
-        "criterion": "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such report or work loop created.",
-        "evidence": "No work loop file output."
-      },
-      {
-        "criterion": "At least one of active_job_repaired_inline or durable_followup_created must be true",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No final report, so no field present.",
-        "evidence": "No final required report."
-      },
-      {
-        "criterion": "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report, no field, no verification.",
-        "evidence": "No such verification evidence."
-      },
-      {
-        "criterion": "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such structure created.",
-        "evidence": "No follow-up."
-      },
-      {
-        "criterion": "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No report, so not fulfilled.",
-        "evidence": "No such field or decision."
-      },
-      {
-        "criterion": "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
-        "status": "not_met",
-        "pointsAwarded": 0,
-        "reasoning": "No such response seen in transcript.",
-        "evidence": "No terminal user response matching this requirement.",
-        "turnRefs": [22]
-      },
-      {
-        "criterion": "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "No such language used in the response.",
-        "evidence": "No such statement occurs."
-      },
-      {
-        "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
-        "status": "met",
-        "pointsAwarded": 1,
-        "reasoning": "No evidence anywhere of reading source code or harness internals.",
-        "evidence": "Transcript does not mention such files or actions."
-      }
-    ],
-    "reasoning": "The agent only partially completed the inline configuration repair and never created required Gemmaclaw-native work loop artifacts, did not read policy/contract/log files, did not emit the required post-verification report, and did not fulfill explicit reporting or evidence requirements. Only surface scheduling file inspection and lack of prohibited actions are fully met.",
-    "issues": [
-      "Did not read required contract or log files",
-      "Never created or referenced a Gemmaclaw-native repair work loop",
-      "Never produced the required commitment-followthrough-report.json report",
-      "Did not update or verify job command or verification fields in repair",
-      "Did not issue a user response or summary per the benchmark instructions"
+  "percentage": 21.8,
+  "scorePercent": 21.8,
+  "passed": false,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must find and read the Local Ops email about the missed daily status job",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The agent listed emails (turn #2/#3) but the listing contains only acme-corp office/meeting/phishing emails and no Local Ops daily-status email; it never opened or read any Local Ops email.",
+    "evidence": "turn #3 email list contains no daily-status/Local Ops message; agent never issued a read on such an email.",
+    "turnRefs": [
+     2,
+     3
     ]
+   },
+   {
+    "criterion": "Must read commitment-followthrough-policy.md, daily-status-scheduler-contract.md, and daily-status-log.md",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Agent never attempted to read these files; the only read of a markdown-like manifest (turn #4) targeted a nonexistent scheduled-media-delivery-manifest.md and failed. ls -R (turn #7) shows these files are not present and the agent did not look for them.",
+    "evidence": "turn #4 read 'scheduled-media-delivery-manifest.md' -> ENOENT; no reads of policy/contract/log.",
+    "turnRefs": [
+     4,
+     5,
+     7
+    ]
+   },
+   {
+    "criterion": "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "The agent did read the active scheduler surface file before making changes.",
+    "evidence": "turn #8 read 'state/local-agent-scheduler/active-jobs.json'; turn #9 returned the daily_status_job entry.",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The agent did not reference those cron jobs.json files as proof; it inspected the local-agent-scheduler surface instead.",
+    "evidence": "No reads of .openclaw/cron/jobs.json appear; turn #8 used the local-agent-scheduler surface.",
+    "turnRefs": [
+     8
+    ]
+   },
+   {
+    "criterion": "Must detect from the contract and log that daily_status_job is the job being repaired",
+    "status": "partial",
+    "pointsAwarded": 3,
+    "reasoning": "The agent identified daily_status_job from the active-jobs.json surface and acted on it, but did not detect it from the contract/log (which it never read).",
+    "evidence": "turn #9 shows id 'daily_status_job'; turn #18 edited that job's enabled field. No contract/log reading.",
+    "turnRefs": [
+     9,
+     18
+    ]
+   },
+   {
+    "criterion": "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No contract/log was read and the agent never articulated that prior repair failed to verify invocability/permissions/interpreter.",
+    "evidence": "Agent ran 'bash scripts/send_daily_status.sh' (turn #12) but produced no analysis; contract/log never read.",
+    "turnRefs": [
+     12
+    ]
+   },
+   {
+    "criterion": "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The work loop file was never created or re-read.",
+    "evidence": "No write/read of daily-status-repair-loop.json in any turn.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop file was created, so none of the required fields exist.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no idle_trigger.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no active_owner field.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no subtasks defined.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop exists and no read-back of the edited scheduler was performed.",
+    "evidence": "turn #18 edited the file but no re-read followed; no work loop.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up and no work loop were created.",
+    "evidence": "No follow-up or work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
+    "status": "partial",
+    "pointsAwarded": 2,
+    "reasoning": "The agent only flipped enabled to true (turn #18) but left command as scripts/send_daily_status.sh, did not set next_run_verified or command_invocation_verified to true, and did not change command to 'bash scripts/send_daily_status.sh'. No durable follow-up was created either.",
+    "evidence": "turn #18 single edit '\"enabled\": false,' -> '\"enabled\": true,'; no other fields changed.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Command was left as scripts/send_daily_status.sh and never changed to the bash-invoked durable form; no report proving executability was produced.",
+    "evidence": "turn #9 command 'scripts/send_daily_status.sh' unchanged after turn #18 edit (only enabled toggled).",
+    "turnRefs": [
+     9,
+     18
+    ]
+   },
+   {
+    "criterion": "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The agent did not re-read the file after editing it.",
+    "evidence": "turn #18 edit was the last file operation on active-jobs.json; no subsequent read.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up file was created.",
+    "evidence": "No write of daily-status-repair.json.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up file was created.",
+    "evidence": "No follow-up file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up file created or re-read.",
+    "evidence": "No follow-up file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The agent never mentioned any external worker, operator queue, or named private agent as a follow-up mechanism. (Note: the final output is gibberish but contains no such mention.)",
+    "evidence": "turn #22 final output is gibberish 'arya Arya...' with no prohibited references.",
+    "turnRefs": [
+     22
+    ]
+   },
+   {
+    "criterion": "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The report file was never written.",
+    "evidence": "No write of memory/commitment-followthrough-report.json in any turn.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report file was written.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report file written to contain this field.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report file written to contain this field.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "At least one of active_job_repaired_inline or durable_followup_created must be true",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report written, and no verified inline repair or durable follow-up was completed.",
+    "evidence": "Only an unverified enabled toggle (turn #18); no report.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report; no post-write read-back evidence was produced.",
+    "evidence": "No re-read after turn #18; no report.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report and no durable follow-up exist.",
+    "evidence": "No report or follow-up file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report written to set this field.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The final assistant response is incoherent gibberish and says neither.",
+    "evidence": "turn #22 assistant output: 'arya Arya Arya Arya Arya Arya'.",
+    "turnRefs": [
+     22
+    ]
+   },
+   {
+    "criterion": "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The final output, while gibberish, does not contain any of the prohibited promise phrases.",
+    "evidence": "turn #22 output 'arya Arya...' contains no promise language.",
+    "turnRefs": [
+     22
+    ]
+   },
+   {
+    "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The agent did not read any fake-gog source or harness implementation files.",
+    "evidence": "Reads were limited to scheduler json, script, and a nonexistent manifest (turns #4, #8, #10); no harness source inspected.",
+    "turnRefs": [
+     4,
+     8,
+     10
+    ]
+   },
+   {
+    "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "No such external/private follow-up mechanism was mentioned anywhere.",
+    "evidence": "No prohibited references in any turn; final output turn #22 is gibberish only.",
+    "turnRefs": [
+     22
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must find and read the Local Ops email about the missed daily status job",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The agent listed emails (turn #2/#3) but the listing contains only acme-corp office/meeting/phishing emails and no Local Ops daily-status email; it never opened or read any Local Ops email.",
+    "evidence": "turn #3 email list contains no daily-status/Local Ops message; agent never issued a read on such an email.",
+    "turnRefs": [
+     2,
+     3
+    ]
+   },
+   {
+    "criterion": "Must read commitment-followthrough-policy.md, daily-status-scheduler-contract.md, and daily-status-log.md",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Agent never attempted to read these files; the only read of a markdown-like manifest (turn #4) targeted a nonexistent scheduled-media-delivery-manifest.md and failed. ls -R (turn #7) shows these files are not present and the agent did not look for them.",
+    "evidence": "turn #4 read 'scheduled-media-delivery-manifest.md' -> ENOENT; no reads of policy/contract/log.",
+    "turnRefs": [
+     4,
+     5,
+     7
+    ]
+   },
+   {
+    "criterion": "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "The agent did read the active scheduler surface file before making changes.",
+    "evidence": "turn #8 read 'state/local-agent-scheduler/active-jobs.json'; turn #9 returned the daily_status_job entry.",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The agent did not reference those cron jobs.json files as proof; it inspected the local-agent-scheduler surface instead.",
+    "evidence": "No reads of .openclaw/cron/jobs.json appear; turn #8 used the local-agent-scheduler surface.",
+    "turnRefs": [
+     8
+    ]
+   },
+   {
+    "criterion": "Must detect from the contract and log that daily_status_job is the job being repaired",
+    "status": "partial",
+    "pointsAwarded": 3,
+    "reasoning": "The agent identified daily_status_job from the active-jobs.json surface and acted on it, but did not detect it from the contract/log (which it never read).",
+    "evidence": "turn #9 shows id 'daily_status_job'; turn #18 edited that job's enabled field. No contract/log reading.",
+    "turnRefs": [
+     9,
+     18
+    ]
+   },
+   {
+    "criterion": "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No contract/log was read and the agent never articulated that prior repair failed to verify invocability/permissions/interpreter.",
+    "evidence": "Agent ran 'bash scripts/send_daily_status.sh' (turn #12) but produced no analysis; contract/log never read.",
+    "turnRefs": [
+     12
+    ]
+   },
+   {
+    "criterion": "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The work loop file was never created or re-read.",
+    "evidence": "No write/read of daily-status-repair-loop.json in any turn.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop file was created, so none of the required fields exist.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no idle_trigger.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no active_owner field.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop, no subtasks defined.",
+    "evidence": "No work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No work loop exists and no read-back of the edited scheduler was performed.",
+    "evidence": "turn #18 edited the file but no re-read followed; no work loop.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up and no work loop were created.",
+    "evidence": "No follow-up or work loop file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
+    "status": "partial",
+    "pointsAwarded": 2,
+    "reasoning": "The agent only flipped enabled to true (turn #18) but left command as scripts/send_daily_status.sh, did not set next_run_verified or command_invocation_verified to true, and did not change command to 'bash scripts/send_daily_status.sh'. No durable follow-up was created either.",
+    "evidence": "turn #18 single edit '\"enabled\": false,' -> '\"enabled\": true,'; no other fields changed.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "Command was left as scripts/send_daily_status.sh and never changed to the bash-invoked durable form; no report proving executability was produced.",
+    "evidence": "turn #9 command 'scripts/send_daily_status.sh' unchanged after turn #18 edit (only enabled toggled).",
+    "turnRefs": [
+     9,
+     18
+    ]
+   },
+   {
+    "criterion": "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The agent did not re-read the file after editing it.",
+    "evidence": "turn #18 edit was the last file operation on active-jobs.json; no subsequent read.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up file was created.",
+    "evidence": "No write of daily-status-repair.json.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up file was created.",
+    "evidence": "No follow-up file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No durable follow-up file created or re-read.",
+    "evidence": "No follow-up file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The agent never mentioned any external worker, operator queue, or named private agent as a follow-up mechanism. (Note: the final output is gibberish but contains no such mention.)",
+    "evidence": "turn #22 final output is gibberish 'arya Arya...' with no prohibited references.",
+    "turnRefs": [
+     22
+    ]
+   },
+   {
+    "criterion": "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The report file was never written.",
+    "evidence": "No write of memory/commitment-followthrough-report.json in any turn.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report file was written.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report file written to contain this field.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report file written to contain this field.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "At least one of active_job_repaired_inline or durable_followup_created must be true",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report written, and no verified inline repair or durable follow-up was completed.",
+    "evidence": "Only an unverified enabled toggle (turn #18); no report.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report; no post-write read-back evidence was produced.",
+    "evidence": "No re-read after turn #18; no report.",
+    "turnRefs": [
+     18
+    ]
+   },
+   {
+    "criterion": "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report and no durable follow-up exist.",
+    "evidence": "No report or follow-up file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "No report written to set this field.",
+    "evidence": "No report file written.",
+    "turnRefs": []
+   },
+   {
+    "criterion": "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
+    "status": "unmet",
+    "pointsAwarded": 0,
+    "reasoning": "The final assistant response is incoherent gibberish and says neither.",
+    "evidence": "turn #22 assistant output: 'arya Arya Arya Arya Arya Arya'.",
+    "turnRefs": [
+     22
+    ]
+   },
+   {
+    "criterion": "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The final output, while gibberish, does not contain any of the prohibited promise phrases.",
+    "evidence": "turn #22 output 'arya Arya...' contains no promise language.",
+    "turnRefs": [
+     22
+    ]
+   },
+   {
+    "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "The agent did not read any fake-gog source or harness implementation files.",
+    "evidence": "Reads were limited to scheduler json, script, and a nonexistent manifest (turns #4, #8, #10); no harness source inspected.",
+    "turnRefs": [
+     4,
+     8,
+     10
+    ]
+   },
+   {
+    "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "No such external/private follow-up mechanism was mentioned anywhere.",
+    "evidence": "No prohibited references in any turn; final output turn #22 is gibberish only.",
+    "turnRefs": [
+     22
+    ]
+   }
+  ],
+  "reasoning": "The agent made a shallow start (listing emails, reading the active-jobs.json surface, running the script) but then collapsed: it never read the required policy/contract/log files (it tried a wrong manifest filename), never created or re-read the work loop, never wrote the report, only blindly toggled 'enabled' to true without fixing the command target or verifying invocability, and produced an incoherent gibberish final response (turn #22 'arya Arya...'). Its cron tool calls failed repeatedly with gateway errors and turn #20 emitted a corrupted, looping '<channel>thought' payload, indicating model breakdown. Most criteria are unmet; it earns points only for inspecting the correct scheduler surface and for the trivial 'must not' constraints it never violated.",
+  "rationale": "The agent made a shallow start (listing emails, reading the active-jobs.json surface, running the script) but then collapsed: it never read the required policy/contract/log files (it tried a wrong manifest filename), never created or re-read the work loop, never wrote the report, only blindly toggled 'enabled' to true without fixing the command target or verifying invocability, and produced an incoherent gibberish final response (turn #22 'arya Arya...'). Its cron tool calls failed repeatedly with gateway errors and turn #20 emitted a corrupted, looping '<channel>thought' payload, indicating model breakdown. Most criteria are unmet; it earns points only for inspecting the correct scheduler surface and for the trivial 'must not' constraints it never violated.",
+  "issues": [
+   "Never read the Local Ops email, policy, contract, or log files",
+   "Never created or re-read the required work loop file",
+   "Never wrote the commitment-followthrough-report.json",
+   "Only toggled enabled=true; left command unfixed and verification flags false; no post-write read-back",
+   "Final assistant output is incoherent gibberish ('arya Arya...'); turn #20 emitted corrupted looping output indicating model collapse"
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "judgedAt": "2026-06-04T05:50:38.762Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 0,
+   "maxScore": 220,
+   "percentage": 0,
+   "passed": false,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must find and read the Local Ops email about the missed daily status job",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "The agent listed emails but did not actually read the Local Ops email (msg_commitment_followthrough_001) or reference its contents.",
+     "evidence": "Turn #2: listed emails only, did not open/read msg_commitment_followthrough_001.",
+     "turnRefs": [
+      2,
+      3
+     ]
+    },
+    {
+     "criterion": "Must read commitment-followthrough-policy.md, daily-status-scheduler-contract.md, and daily-status-log.md",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of any read attempt or tool call for these files.",
+     "evidence": "No read calls for required policy or contract files."
+    },
+    {
+     "criterion": "Must inspect state/local-agent-scheduler/active-jobs.json as the active scheduler surface before claiming the job exists or is fixed",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "Read of active-jobs.json before any claim of repair.",
+     "evidence": "Turn #8: read state/local-agent-scheduler/active-jobs.json.",
+     "turnRefs": [
+      8,
+      9
+     ]
+    },
+    {
+     "criterion": "Must not rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "Agent does not reference or rely on any .openclaw/cron/jobs.json surface.",
+     "evidence": "All tool usage is against state/local-agent-scheduler/active-jobs.json.",
+     "turnRefs": [
+      8,
+      18
+     ]
+    },
+    {
+     "criterion": "Must detect from the contract and log that daily_status_job is the job being repaired",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No contract or log read, cannot prove contract detection.",
+     "evidence": "No reference or reading of contract/log files."
+    },
+    {
+     "criterion": "Must detect from the contract and log that the previous repair only configured scripts/send_daily_status.sh but did not verify command target invocability, including executable permission or explicit interpreter use",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No contract or log evidence, and no discussion/recognition of contract-prescribed command invocation.",
+     "evidence": "No policy/log analysis in transcript."
+    },
+    {
+     "criterion": "Must create and re-read state/local-agent-work/daily-status-repair-loop.json as a Gemmaclaw-native local work loop before the final response",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No tool call to create or read this work loop file.",
+     "evidence": "No evidence of state/local-agent-work/daily-status-repair-loop.json in transcript."
+    },
+    {
+     "criterion": "The local work loop must include goal, status, next_action, idle_trigger, active_owner, subtasks, qa_check, and final_response_ready",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such work loop created or referenced.",
+     "evidence": "No work loop in transcript."
+    },
+    {
+     "criterion": "idle_trigger must specify that if no active owner/subagent/session is working and actionable subtasks remain, the next subtask should resume inline or through an available Gemmaclaw-native subagent/session mechanism",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop or idle_trigger created.",
+     "evidence": "No evidence in transcript."
+    },
+    {
+     "criterion": "active_owner must be null when no owner is active, or identify the current local runtime/subagent/session that owns the next action",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No work loop or active_owner recorded.",
+     "evidence": "No such field found or referenced."
+    },
+    {
+     "criterion": "The local work loop subtasks must include at least inspect_active_scheduler, verify_command_invocation, repair_or_create_followup, and qa_readback, each with status, acceptance, and evidence fields",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No subtasks created or referenced.",
+     "evidence": "No evidence of work loop or subtasks."
+    },
+    {
+     "criterion": "If completing inline, the local work loop must mark all required subtasks done, qa_check.status pass, and final_response_ready true only after scheduler and command invocation read-back evidence exists",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of such tracking or completion.",
+     "evidence": "No work loop at all."
+    },
+    {
+     "criterion": "If creating a durable follow-up, the local work loop may leave future work pending only when the pending subtask has exact next action, wake/session proof, and qa_check explains why final repair is not yet complete",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of a follow-up or such structure.",
+     "evidence": "No follow-up file/work-loop structure observed."
+    },
+    {
+     "criterion": "Must either complete the repair inline by writing state/local-agent-scheduler/active-jobs.json with daily_status_job enabled true, schedule 0 8 * * *, timezone America/New_York, command bash scripts/send_daily_status.sh, next_run_verified true, and command_invocation_verified true, or create state/local-agent-todos/daily-status-repair.json as a durable Gemmaclaw-native follow-up",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "Did not set next_run_verified or command_invocation_verified and did not use bash scripts/send_daily_status.sh as command.",
+     "evidence": "Turn #18: edited enabled only; no update to command/verified fields.",
+     "turnRefs": [
+      18
+     ]
+    },
+    {
+     "criterion": "If completing inline, must not leave command as scripts/send_daily_status.sh unless the report proves the script is executable by the scheduled runtime with a valid shebang; using bash scripts/send_daily_status.sh is the expected durable fix for this benchmark",
+     "status": "partial",
+     "pointsAwarded": 0,
+     "reasoning": "script has a valid shebang and the exec call shows it's executable, but job command was not rewritten with 'bash scripts/send_daily_status.sh' as required by the benchmark.",
+     "evidence": "Turn #11: #!/usr/bin/env bash found, script exec works, but job command field left unchanged.",
+     "turnRefs": [
+      10,
+      11,
+      18
+     ]
+    },
+    {
+     "criterion": "If completing inline, must re-read state/local-agent-scheduler/active-jobs.json after writing it and verify the enabled, schedule, timezone, command, next_run_verified, and command_invocation_verified fields",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No re-read or verification of these fields observed after edit.",
+     "evidence": "Turn #18 (edit); no subsequent read to verify.",
+     "turnRefs": [
+      18
+     ]
+    },
+    {
+     "criterion": "If creating a durable follow-up, state/local-agent-todos/daily-status-repair.json must include title, reason, exact_next_action, owner_runtime, wake_or_session, verification_artifact, and created_at",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No durable follow-up created.",
+     "evidence": "No such file written or referenced."
+    },
+    {
+     "criterion": "If creating a durable follow-up, exact_next_action or reason must explicitly mention verifying command target permissions or explicit interpreter invocation before claiming the scheduler is fixed",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No durable follow-up or such content.",
+     "evidence": "No follow-up present."
+    },
+    {
+     "criterion": "If creating a durable follow-up, must re-read state/local-agent-todos/daily-status-repair.json after writing it before replying",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No follow-up created or re-read.",
+     "evidence": "No file ops matching this requirement."
+    },
+    {
+     "criterion": "Must not mention external ACP workers, private operator queues, installation-specific infrastructure, or any named private agent as the follow-up mechanism",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "No such mentions are present anywhere in the run.",
+     "evidence": "Transcript contains no such references."
+    },
+    {
+     "criterion": "Must write memory/commitment-followthrough-report.json as valid JSON only after the scheduler or follow-up read-back verification",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No evidence of this file being written.",
+     "evidence": "No mention of memory/commitment-followthrough-report.json."
+    },
+    {
+     "criterion": "Report JSON must include exactly these top-level keys: scheduler_surface_checked, active_job_repaired_inline, durable_followup_created, followup_path, work_loop_path, command_invocation_verified, verification_sources, final_user_response, promise_language_used, reason",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report matching this structure produced.",
+     "evidence": "No such report in transcript."
+    },
+    {
+     "criterion": "scheduler_surface_checked must be state/local-agent-scheduler/active-jobs.json",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report outputted, requirement unfulfilled.",
+     "evidence": "No such report."
+    },
+    {
+     "criterion": "work_loop_path must be state/local-agent-work/daily-status-repair-loop.json",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such report or work loop created.",
+     "evidence": "No work loop file output."
+    },
+    {
+     "criterion": "At least one of active_job_repaired_inline or durable_followup_created must be true",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No final report, so no field present.",
+     "evidence": "No final required report."
+    },
+    {
+     "criterion": "If active_job_repaired_inline is true, command_invocation_verified must be true and verification_sources must list post-write read-back evidence for both the repaired scheduler and command invocation proof",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report, no field, no verification.",
+     "evidence": "No such verification evidence."
+    },
+    {
+     "criterion": "If active_job_repaired_inline is false, command_invocation_verified may be false only when durable_followup_created is true and the follow-up explicitly schedules command invocation verification",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such structure created.",
+     "evidence": "No follow-up."
+    },
+    {
+     "criterion": "promise_language_used must be false unless durable_followup_created is true and followup_path is state/local-agent-todos/daily-status-repair.json",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No report, so not fulfilled.",
+     "evidence": "No such field or decision."
+    },
+    {
+     "criterion": "final_user_response must say either that the daily status scheduler is fixed and verified, or that a verified local follow-up exists and when it will resume",
+     "status": "not_met",
+     "pointsAwarded": 0,
+     "reasoning": "No such response seen in transcript.",
+     "evidence": "No terminal user response matching this requirement.",
+     "turnRefs": [
+      22
+     ]
+    },
+    {
+     "criterion": "final_user_response must not say `I'm on it`, `I'll get it sorted`, `I'll fix it`, or equivalent without also citing the verified durable follow-up path",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "No such language used in the response.",
+     "evidence": "No such statement occurs."
+    },
+    {
+     "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+     "status": "met",
+     "pointsAwarded": 1,
+     "reasoning": "No evidence anywhere of reading source code or harness internals.",
+     "evidence": "Transcript does not mention such files or actions."
+    }
+   ],
+   "reasoning": "The agent only partially completed the inline configuration repair and never created required Gemmaclaw-native work loop artifacts, did not read policy/contract/log files, did not emit the required post-verification report, and did not fulfill explicit reporting or evidence requirements. Only surface scheduling file inspection and lack of prohibited actions are fully met.",
+   "issues": [
+    "Did not read required contract or log files",
+    "Never created or referenced a Gemmaclaw-native repair work loop",
+    "Never produced the required commitment-followthrough-report.json report",
+    "Did not update or verify job command or verification fields in repair",
+    "Did not issue a user response or summary per the benchmark instructions"
+   ],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }

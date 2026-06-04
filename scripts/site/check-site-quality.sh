@@ -113,12 +113,14 @@ if [ -f "$BENCHMARKS_HTML" ]; then
   card_count=$(grep -c 'class="benchmark-result-card"' "$BENCHMARKS_HTML" 2>/dev/null || true)
   if [ "$card_count" -gt 0 ]; then
     echo "PASS: $card_count benchmark result cards found"
-    missing_card_speed=$(grep -c '<strong>N/A</strong><small>median speed</small>' "$BENCHMARKS_HTML" 2>/dev/null || true)
-    if [ "$missing_card_speed" -gt 0 ]; then
-      echo "FAIL: Benchmark result cards missing median tokens/sec ($missing_card_speed)"
+    # Speed policy (2026-06-04): cards show MEASURED generation throughput, or an
+    # explicit N/A when no measured llama.cpp/provider source exists. The old
+    # output-est / wall-clock estimate must never appear.
+    if grep -q 'output-est' "$BENCHMARKS_HTML"; then
+      echo "FAIL: Benchmark cards present an output-est speed (must be measured gen TPS or N/A)"
       FAILURES=$((FAILURES + 1))
     else
-      echo "PASS: Benchmark result cards include median tokens/sec"
+      echo "PASS: Benchmark cards carry only measured gen speed or explicit N/A"
     fi
   elif ! grep -q 'Benchmarks Coming Soon' "$BENCHMARKS_HTML"; then
     echo "FAIL: benchmarks.html has neither benchmark cards nor Coming Soon state"
@@ -222,6 +224,31 @@ if [ "$anchor_nav_total" -gt 0 ]; then
   FAILURES=$((FAILURES + 1))
 else
   echo "PASS: No anchor-scroll nav links found"
+fi
+
+# --- Benchmark judging & speed-source policy (Frank, 2026-06-04) ---
+# Public runs must be judged by CC ACP agents (provider cc-acp); no direct
+# API/local/standalone evaluator may be the authoritative judge. Published speed
+# must be measured generation throughput, never an output-est / wall-clock estimate.
+echo ""
+echo "--- Benchmark judging & TPS policy checks ---"
+if python3 "$SCRIPT_DIR/check-benchmark-judges.py"; then
+  echo "PASS: benchmark judge/speed policy"
+else
+  echo "FAIL: benchmark judge/speed policy violation"
+  FAILURES=$((FAILURES + 1))
+fi
+if python3 "$SCRIPT_DIR/test_generate_site.py" >/dev/null 2>&1; then
+  echo "PASS: generate-site speed regression tests"
+else
+  echo "FAIL: generate-site speed regression tests"
+  FAILURES=$((FAILURES + 1))
+fi
+if python3 "$SCRIPT_DIR/test_check_benchmark_judges.py" >/dev/null 2>&1; then
+  echo "PASS: benchmark judge-guard tests"
+else
+  echo "FAIL: benchmark judge-guard tests"
+  FAILURES=$((FAILURES + 1))
 fi
 
 echo ""

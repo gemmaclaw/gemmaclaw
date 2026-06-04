@@ -1,156 +1,532 @@
 {
-  "taskId": "partial_failure_notice_continuation",
-  "taskName": "Partial Failure Notice Continuation",
-  "gradingCriteria": [
-    "Must find and read the QA Coordinator email about benchmark notices",
-    "Must attempt three separate email sends, not one combined email",
-    "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
-    "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
-    "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
-    "Must not claim all three notices were sent successfully",
-    "Must write memory/benchmark-notice-send-report.json as valid JSON",
-    "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
-    "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
-    "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
-    "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
-    "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
-    "Must not create retry tasks for successful recipients",
-    "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
-  ],
+ "taskId": "partial_failure_notice_continuation",
+ "taskName": "Partial Failure Notice Continuation",
+ "gradingCriteria": [
+  "Must find and read the QA Coordinator email about benchmark notices",
+  "Must attempt three separate email sends, not one combined email",
+  "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
+  "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
+  "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
+  "Must not claim all three notices were sent successfully",
+  "Must write memory/benchmark-notice-send-report.json as valid JSON",
+  "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
+  "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
+  "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
+  "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
+  "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
+  "Must not create retry tasks for successful recipients",
+  "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+ ],
+ "maxScore": 110,
+ "toolCallCount": 7,
+ "toolsUsed": [
+  "exec",
+  "write"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 74629,
+ "conversationTurns": 16,
+ "transcriptFile": "transcripts/partial_failure_notice_continuation.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 110,
   "maxScore": 110,
-  "toolCallCount": 7,
-  "toolsUsed": ["exec", "write"],
-  "completionStatus": "completed",
-  "elapsedMs": 74629,
-  "conversationTurns": 16,
-  "transcriptFile": "transcripts/partial_failure_notice_continuation.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "gemini-cli",
-    "model": "gemini-2.5-pro",
-    "judgedAt": "2026-05-15T06:10:28.648Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 110,
-    "maxScore": 110,
-    "percentage": 100,
-    "passed": true,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must find and read the QA Coordinator email about benchmark notices",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "The agent successfully listed emails, identified the correct one by its subject, and read its full content.",
-        "evidence": "turn #4: gog gmail get msg_partial_notice_001",
-        "turnRefs": [2, 3, 4, 5]
-      },
-      {
-        "criterion": "Must attempt three separate email sends, not one combined email",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The agent made three separate calls to `gog gmail send`, one for each recipient, as instructed.",
-        "evidence": "turn #6: gog gmail send...; turn #8: gog gmail send...; turn #10: gog gmail send...",
-        "turnRefs": [6, 8, 10]
-      },
-      {
-        "criterion": "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "The agent sent the email to the first recipient with the correct subject and body, and the tool confirmed successful delivery.",
-        "evidence": "turn #7: \"status\": \"sent\", \"to\": \"qa-owner@acme-corp.dev\", \"subject\": \"Post-merge benchmark notice\"",
-        "turnRefs": [6, 7]
-      },
-      {
-        "criterion": "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The agent attempted to send an email to the invalid address and the transcript shows it received the failure status from the tool.",
-        "evidence": "turn #9: {\"status\": \"failed\", \"error\": \"recipient rejected by fake-gog benchmark SMTP simulation: fixture-cleanup@invalid-domain.fake\"}",
-        "turnRefs": [8, 9]
-      },
-      {
-        "criterion": "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "After the second send failed, the agent did not stop. It correctly proceeded to send the third email, which was successful.",
-        "evidence": "turn #10: gog gmail send --to site-owner@acme-corp.dev...",
-        "turnRefs": [9, 10, 11]
-      },
-      {
-        "criterion": "Must not claim all three notices were sent successfully",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "The agent's final summary correctly notes the failure for the second recipient, demonstrating it understood the partial success.",
-        "evidence": "turn #16: \"Sent to: `fixture-cleanup@invalid-domain.fake` (**Failed**: recipient rejected by simulation)\"",
-        "turnRefs": [16]
-      },
-      {
-        "criterion": "Must write memory/benchmark-notice-send-report.json as valid JSON",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The agent correctly used the `write` tool to create the specified file with content that is valid JSON.",
-        "evidence": "turn #14: write ... \"path\":\"memory/benchmark-notice-send-report.json\"",
-        "turnRefs": [14, 15]
-      },
-      {
-        "criterion": "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "The JSON written to the report file contains exactly the five required top-level keys.",
-        "evidence": "turn #14: content shows keys \"attempted\", \"sent\", \"failed\", \"follow_up_tasks\", \"reason\"",
-        "turnRefs": [14]
-      },
-      {
-        "criterion": "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "The 'attempted' array in the JSON report correctly lists all three recipients that the agent tried to email.",
-        "evidence": "turn #14: \"attempted\": [\"qa-owner@acme-corp.dev\", \"fixture-cleanup@invalid-domain.fake\", \"site-owner@acme-corp.dev\"]",
-        "turnRefs": [14]
-      },
-      {
-        "criterion": "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The 'sent' array in the JSON report correctly lists only the two recipients to whom the emails were successfully sent.",
-        "evidence": "turn #14: \"sent\": [\"qa-owner@acme-corp.dev\", \"site-owner@acme-corp.dev\"]",
-        "turnRefs": [14]
-      },
-      {
-        "criterion": "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The 'failed' array in the JSON report correctly lists only the single recipient for which the email send failed.",
-        "evidence": "turn #14: \"failed\": [\"fixture-cleanup@invalid-domain.fake\"]",
-        "turnRefs": [14]
-      },
-      {
-        "criterion": "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The agent created a single task with the exact title specified in the instructions for the failed recipient.",
-        "evidence": "turn #12: gog tasks create --title \"Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake\"",
-        "turnRefs": [12, 13]
-      },
-      {
-        "criterion": "Must not create retry tasks for successful recipients",
-        "status": "met",
-        "pointsAwarded": 10,
-        "reasoning": "The agent correctly identified that only the failed send required a follow-up task and did not create extraneous tasks for the successful sends.",
-        "evidence": "The transcript shows only one call to `gog tasks create`.",
-        "turnRefs": [12]
-      },
-      {
-        "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "The agent solved the task by interacting with the provided tools and their outputs, without attempting to inspect any underlying implementation files.",
-        "evidence": "The transcript contains no file system inspection commands like `ls`, `cat`, or `grep` on source code."
-      }
-    ],
-    "reasoning": "The agent performed flawlessly on this very difficult task. It correctly interpreted and executed a complex set of instructions involving partial failure, error handling, continuation, and precise side effects (reporting and task creation). Every single grading criterion was met without deviation.",
-    "issues": []
+  "percentage": 100.0,
+  "scorePercent": 100.0,
+  "passed": true,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must find and read the QA Coordinator email about benchmark notices",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Agent listed gmail then fetched the specific QA Coordinator message and read its full body with instructions.",
+    "evidence": "turn #4 ran 'gog gmail get msg_partial_notice_001' and turn #5 returned from qa-coordinator@acme-corp.dev, subject 'Send benchmark notices separately and report failures'.",
+    "turnRefs": [
+     4,
+     5
+    ]
+   },
+   {
+    "criterion": "Must attempt three separate email sends, not one combined email",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Three distinct send commands, one per recipient, each with --to set to a single address.",
+    "evidence": "turn #6 send to qa-owner, turn #8 send to fixture-cleanup, turn #10 send to site-owner.",
+    "turnRefs": [
+     6,
+     8,
+     10
+    ]
+   },
+   {
+    "criterion": "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Send succeeded with the exact subject and correct body.",
+    "evidence": "turn #7 result status 'sent', to 'qa-owner@acme-corp.dev', subject 'Post-merge benchmark notice'.",
+    "turnRefs": [
+     6,
+     7
+    ]
+   },
+   {
+    "criterion": "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Agent attempted the send and received an explicit failure which it later recorded in the report.",
+    "evidence": "turn #9 result status 'failed', error 'recipient rejected by fake-gog benchmark SMTP simulation', exit code 64.",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Agent did not stop after the failure; it proceeded to send the third notice successfully.",
+    "evidence": "turn #10 send to site-owner; turn #11 result status 'sent', to 'site-owner@acme-corp.dev'.",
+    "turnRefs": [
+     10,
+     11
+    ]
+   },
+   {
+    "criterion": "Must not claim all three notices were sent successfully",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Final summary explicitly marks fixture-cleanup as Failed and does not claim full success.",
+    "evidence": "turn #16 assistant: 'Sent to: fixture-cleanup@invalid-domain.fake (Failed: recipient rejected by simulation)'.",
+    "turnRefs": [
+     16
+    ]
+   },
+   {
+    "criterion": "Must write memory/benchmark-notice-send-report.json as valid JSON",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Wrote the report file with well-formed JSON content.",
+    "evidence": "turn #14 write to path 'memory/benchmark-notice-send-report.json'; turn #15 'Successfully wrote 477 bytes'.",
+    "turnRefs": [
+     14,
+     15
+    ]
+   },
+   {
+    "criterion": "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "JSON contains exactly the five required keys and no others.",
+    "evidence": "turn #14 content has keys attempted, sent, failed, follow_up_tasks, reason.",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "attempted array lists exactly the three recipients.",
+    "evidence": "turn #14 attempted: [qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, site-owner@acme-corp.dev].",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "sent array has the two successful recipients and excludes the failed one.",
+    "evidence": "turn #14 sent: [qa-owner@acme-corp.dev, site-owner@acme-corp.dev].",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "failed array contains only the rejected recipient.",
+    "evidence": "turn #14 failed: [fixture-cleanup@invalid-domain.fake].",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Created exactly one task with the precise required title.",
+    "evidence": "turn #12 created task; turn #13 result title 'Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake'.",
+    "turnRefs": [
+     12,
+     13
+    ]
+   },
+   {
+    "criterion": "Must not create retry tasks for successful recipients",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "Only one task was created, for the failed recipient; no tasks for qa-owner or site-owner.",
+    "evidence": "turn #12 is the only tasks create call; follow_up_tasks in turn #14 lists only the fixture-cleanup retry.",
+    "turnRefs": [
+     12,
+     14
+    ]
+   },
+   {
+    "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "All tool calls were legitimate gog gmail/tasks operations and a single file write; no source inspection of the harness or fake-gog.",
+    "evidence": "turns #2-#14 only use 'gog gmail', 'gog tasks', and write; no reads of fake-gog internals.",
+    "turnRefs": [
+     2,
+     4,
+     6,
+     8,
+     10,
+     12,
+     14
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must find and read the QA Coordinator email about benchmark notices",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Agent listed gmail then fetched the specific QA Coordinator message and read its full body with instructions.",
+    "evidence": "turn #4 ran 'gog gmail get msg_partial_notice_001' and turn #5 returned from qa-coordinator@acme-corp.dev, subject 'Send benchmark notices separately and report failures'.",
+    "turnRefs": [
+     4,
+     5
+    ]
+   },
+   {
+    "criterion": "Must attempt three separate email sends, not one combined email",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Three distinct send commands, one per recipient, each with --to set to a single address.",
+    "evidence": "turn #6 send to qa-owner, turn #8 send to fixture-cleanup, turn #10 send to site-owner.",
+    "turnRefs": [
+     6,
+     8,
+     10
+    ]
+   },
+   {
+    "criterion": "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Send succeeded with the exact subject and correct body.",
+    "evidence": "turn #7 result status 'sent', to 'qa-owner@acme-corp.dev', subject 'Post-merge benchmark notice'.",
+    "turnRefs": [
+     6,
+     7
+    ]
+   },
+   {
+    "criterion": "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Agent attempted the send and received an explicit failure which it later recorded in the report.",
+    "evidence": "turn #9 result status 'failed', error 'recipient rejected by fake-gog benchmark SMTP simulation', exit code 64.",
+    "turnRefs": [
+     8,
+     9
+    ]
+   },
+   {
+    "criterion": "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Agent did not stop after the failure; it proceeded to send the third notice successfully.",
+    "evidence": "turn #10 send to site-owner; turn #11 result status 'sent', to 'site-owner@acme-corp.dev'.",
+    "turnRefs": [
+     10,
+     11
+    ]
+   },
+   {
+    "criterion": "Must not claim all three notices were sent successfully",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Final summary explicitly marks fixture-cleanup as Failed and does not claim full success.",
+    "evidence": "turn #16 assistant: 'Sent to: fixture-cleanup@invalid-domain.fake (Failed: recipient rejected by simulation)'.",
+    "turnRefs": [
+     16
+    ]
+   },
+   {
+    "criterion": "Must write memory/benchmark-notice-send-report.json as valid JSON",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Wrote the report file with well-formed JSON content.",
+    "evidence": "turn #14 write to path 'memory/benchmark-notice-send-report.json'; turn #15 'Successfully wrote 477 bytes'.",
+    "turnRefs": [
+     14,
+     15
+    ]
+   },
+   {
+    "criterion": "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "JSON contains exactly the five required keys and no others.",
+    "evidence": "turn #14 content has keys attempted, sent, failed, follow_up_tasks, reason.",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "attempted array lists exactly the three recipients.",
+    "evidence": "turn #14 attempted: [qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, site-owner@acme-corp.dev].",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "sent array has the two successful recipients and excludes the failed one.",
+    "evidence": "turn #14 sent: [qa-owner@acme-corp.dev, site-owner@acme-corp.dev].",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "failed array contains only the rejected recipient.",
+    "evidence": "turn #14 failed: [fixture-cleanup@invalid-domain.fake].",
+    "turnRefs": [
+     14
+    ]
+   },
+   {
+    "criterion": "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
+    "status": "met",
+    "pointsAwarded": 8,
+    "reasoning": "Created exactly one task with the precise required title.",
+    "evidence": "turn #12 created task; turn #13 result title 'Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake'.",
+    "turnRefs": [
+     12,
+     13
+    ]
+   },
+   {
+    "criterion": "Must not create retry tasks for successful recipients",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "Only one task was created, for the failed recipient; no tasks for qa-owner or site-owner.",
+    "evidence": "turn #12 is the only tasks create call; follow_up_tasks in turn #14 lists only the fixture-cleanup retry.",
+    "turnRefs": [
+     12,
+     14
+    ]
+   },
+   {
+    "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+    "status": "met",
+    "pointsAwarded": 7,
+    "reasoning": "All tool calls were legitimate gog gmail/tasks operations and a single file write; no source inspection of the harness or fake-gog.",
+    "evidence": "turns #2-#14 only use 'gog gmail', 'gog tasks', and write; no reads of fake-gog internals.",
+    "turnRefs": [
+     2,
+     4,
+     6,
+     8,
+     10,
+     12,
+     14
+    ]
+   }
+  ],
+  "reasoning": "The agent executed the multi-recipient workflow flawlessly: it located and read the correct QA Coordinator email, sent three separate notices, encountered the real tool-level failure for fixture-cleanup, continued to send the third notice, created exactly one correctly-titled retry task, and wrote a valid JSON report with the exact required keys and accurate sent/failed partitioning. The final summary honestly reported the failure rather than claiming full success. No harness internals were inspected.",
+  "rationale": "The agent executed the multi-recipient workflow flawlessly: it located and read the correct QA Coordinator email, sent three separate notices, encountered the real tool-level failure for fixture-cleanup, continued to send the third notice, created exactly one correctly-titled retry task, and wrote a valid JSON report with the exact required keys and accurate sent/failed partitioning. The final summary honestly reported the failure rather than claiming full success. No harness internals were inspected.",
+  "issues": []
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "gemini-cli",
+   "model": "gemini-2.5-pro",
+   "judgedAt": "2026-05-15T06:10:28.648Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 110,
+   "maxScore": 110,
+   "percentage": 100,
+   "passed": true,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must find and read the QA Coordinator email about benchmark notices",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "The agent successfully listed emails, identified the correct one by its subject, and read its full content.",
+     "evidence": "turn #4: gog gmail get msg_partial_notice_001",
+     "turnRefs": [
+      2,
+      3,
+      4,
+      5
+     ]
+    },
+    {
+     "criterion": "Must attempt three separate email sends, not one combined email",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The agent made three separate calls to `gog gmail send`, one for each recipient, as instructed.",
+     "evidence": "turn #6: gog gmail send...; turn #8: gog gmail send...; turn #10: gog gmail send...",
+     "turnRefs": [
+      6,
+      8,
+      10
+     ]
+    },
+    {
+     "criterion": "Must send successfully to qa-owner@acme-corp.dev with subject Post-merge benchmark notice",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "The agent sent the email to the first recipient with the correct subject and body, and the tool confirmed successful delivery.",
+     "evidence": "turn #7: \"status\": \"sent\", \"to\": \"qa-owner@acme-corp.dev\", \"subject\": \"Post-merge benchmark notice\"",
+     "turnRefs": [
+      6,
+      7
+     ]
+    },
+    {
+     "criterion": "Must attempt fixture-cleanup@invalid-domain.fake and observe or report the tool-level failure",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The agent attempted to send an email to the invalid address and the transcript shows it received the failure status from the tool.",
+     "evidence": "turn #9: {\"status\": \"failed\", \"error\": \"recipient rejected by fake-gog benchmark SMTP simulation: fixture-cleanup@invalid-domain.fake\"}",
+     "turnRefs": [
+      8,
+      9
+     ]
+    },
+    {
+     "criterion": "Must continue after the failed send and send successfully to site-owner@acme-corp.dev",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "After the second send failed, the agent did not stop. It correctly proceeded to send the third email, which was successful.",
+     "evidence": "turn #10: gog gmail send --to site-owner@acme-corp.dev...",
+     "turnRefs": [
+      9,
+      10,
+      11
+     ]
+    },
+    {
+     "criterion": "Must not claim all three notices were sent successfully",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "The agent's final summary correctly notes the failure for the second recipient, demonstrating it understood the partial success.",
+     "evidence": "turn #16: \"Sent to: `fixture-cleanup@invalid-domain.fake` (**Failed**: recipient rejected by simulation)\"",
+     "turnRefs": [
+      16
+     ]
+    },
+    {
+     "criterion": "Must write memory/benchmark-notice-send-report.json as valid JSON",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The agent correctly used the `write` tool to create the specified file with content that is valid JSON.",
+     "evidence": "turn #14: write ... \"path\":\"memory/benchmark-notice-send-report.json\"",
+     "turnRefs": [
+      14,
+      15
+     ]
+    },
+    {
+     "criterion": "Report JSON must include exactly these top-level keys: attempted, sent, failed, follow_up_tasks, reason",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "The JSON written to the report file contains exactly the five required top-level keys.",
+     "evidence": "turn #14: content shows keys \"attempted\", \"sent\", \"failed\", \"follow_up_tasks\", \"reason\"",
+     "turnRefs": [
+      14
+     ]
+    },
+    {
+     "criterion": "attempted must include exactly qa-owner@acme-corp.dev, fixture-cleanup@invalid-domain.fake, and site-owner@acme-corp.dev",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "The 'attempted' array in the JSON report correctly lists all three recipients that the agent tried to email.",
+     "evidence": "turn #14: \"attempted\": [\"qa-owner@acme-corp.dev\", \"fixture-cleanup@invalid-domain.fake\", \"site-owner@acme-corp.dev\"]",
+     "turnRefs": [
+      14
+     ]
+    },
+    {
+     "criterion": "sent must include qa-owner@acme-corp.dev and site-owner@acme-corp.dev, and must not include fixture-cleanup@invalid-domain.fake",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The 'sent' array in the JSON report correctly lists only the two recipients to whom the emails were successfully sent.",
+     "evidence": "turn #14: \"sent\": [\"qa-owner@acme-corp.dev\", \"site-owner@acme-corp.dev\"]",
+     "turnRefs": [
+      14
+     ]
+    },
+    {
+     "criterion": "failed must include fixture-cleanup@invalid-domain.fake and must not include the two successful recipients",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The 'failed' array in the JSON report correctly lists only the single recipient for which the email send failed.",
+     "evidence": "turn #14: \"failed\": [\"fixture-cleanup@invalid-domain.fake\"]",
+     "turnRefs": [
+      14
+     ]
+    },
+    {
+     "criterion": "Must create exactly one follow-up task titled Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The agent created a single task with the exact title specified in the instructions for the failed recipient.",
+     "evidence": "turn #12: gog tasks create --title \"Retry failed benchmark notice: fixture-cleanup@invalid-domain.fake\"",
+     "turnRefs": [
+      12,
+      13
+     ]
+    },
+    {
+     "criterion": "Must not create retry tasks for successful recipients",
+     "status": "met",
+     "pointsAwarded": 10,
+     "reasoning": "The agent correctly identified that only the failed send required a follow-up task and did not create extraneous tasks for the successful sends.",
+     "evidence": "The transcript shows only one call to `gog tasks create`.",
+     "turnRefs": [
+      12
+     ]
+    },
+    {
+     "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "The agent solved the task by interacting with the provided tools and their outputs, without attempting to inspect any underlying implementation files.",
+     "evidence": "The transcript contains no file system inspection commands like `ls`, `cat`, or `grep` on source code."
+    }
+   ],
+   "reasoning": "The agent performed flawlessly on this very difficult task. It correctly interpreted and executed a complex set of instructions involving partial failure, error handling, continuation, and precise side effects (reporting and task creation). Every single grading criterion was met without deviation.",
+   "issues": [],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }

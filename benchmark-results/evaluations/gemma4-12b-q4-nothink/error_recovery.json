@@ -1,76 +1,221 @@
 {
-  "taskId": "error_recovery",
-  "taskName": "Tool Error Recovery",
-  "gradingCriteria": [
-    "Must attempt to send the email",
-    "Must handle the failure gracefully (no infinite retry loop)",
-    "Must create a follow-up task as fallback",
-    "Must inform the user about the failure and fallback action",
-    "Must not crash or give up silently"
-  ],
+ "taskId": "error_recovery",
+ "taskName": "Tool Error Recovery",
+ "gradingCriteria": [
+  "Must attempt to send the email",
+  "Must handle the failure gracefully (no infinite retry loop)",
+  "Must create a follow-up task as fallback",
+  "Must inform the user about the failure and fallback action",
+  "Must not crash or give up silently"
+ ],
+ "maxScore": 15,
+ "toolCallCount": 2,
+ "toolsUsed": [
+  "exec"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 32566,
+ "conversationTurns": 6,
+ "transcriptFile": "transcripts/error_recovery.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 15,
   "maxScore": 15,
-  "toolCallCount": 2,
-  "toolsUsed": ["exec"],
-  "completionStatus": "completed",
-  "elapsedMs": 32566,
-  "conversationTurns": 6,
-  "transcriptFile": "transcripts/error_recovery.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "judgedAt": "2026-06-04T05:56:46.954Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 15,
-    "maxScore": 15,
-    "percentage": 100,
-    "passed": true,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must attempt to send the email",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "The agent attempted to send the email as instructed.",
-        "evidence": "turn #2: gog mail send --to nonexistent-user@invalid-domain.fake ...",
-        "turnRefs": [2]
-      },
-      {
-        "criterion": "Must handle the failure gracefully (no infinite retry loop)",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "The failure was detected and action was taken; no retries or loop.",
-        "evidence": "turn #3: status: failed; turn #4: created fallback task",
-        "turnRefs": [3, 4]
-      },
-      {
-        "criterion": "Must create a follow-up task as fallback",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "A follow-up task was created as fallback after email failure.",
-        "evidence": "turn #4: gog task create ...",
-        "turnRefs": [4]
-      },
-      {
-        "criterion": "Must inform the user about the failure and fallback action",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "User was informed about the failure and the task creation.",
-        "evidence": "turn #6: 'The email to ... failed as expected... As a fallback, I have created a follow-up task.'",
-        "turnRefs": [6]
-      },
-      {
-        "criterion": "Must not crash or give up silently",
-        "status": "met",
-        "pointsAwarded": 3,
-        "reasoning": "No crash or silent failure; agent responded with explanation and resolution.",
-        "evidence": "turn #6: agent reports both failure and fallback action.",
-        "turnRefs": [6]
-      }
-    ],
-    "reasoning": "The agent followed all instructions correctly, attempted the email, handled the failure without retries, created a fallback task, informed the user of everything, and remained robust throughout.",
-    "issues": []
+  "percentage": 100.0,
+  "scorePercent": 100.0,
+  "passed": true,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must attempt to send the email",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent issued a mail send command to the exact target address with a Friday meeting invitation subject/body.",
+    "evidence": "turn #2 tool_call: gog mail send --to nonexistent-user@invalid-domain.fake --subject \"Meeting Invitation\" --body \"Hi, I'm inviting you to a meeting this Friday.\"",
+    "turnRefs": [
+     2
+    ]
+   },
+   {
+    "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "After the send failed at turn #3, the agent did not retry the email at all; it moved directly to the fallback. No retry loop occurred.",
+    "evidence": "turn #3 returned status failed (exit code 64); turn #4 immediately created a task instead of retrying the email.",
+    "turnRefs": [
+     3,
+     4
+    ]
+   },
+   {
+    "criterion": "Must create a follow-up task as fallback",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent created a follow-up task as the fallback, which succeeded and returned a task id.",
+    "evidence": "turn #4 created task; turn #5 result: {\"id\": \"task_33edb93e\", \"title\": \"Follow up on meeting invitation\", \"status\": \"needsAction\"}",
+    "turnRefs": [
+     4,
+     5
+    ]
+   },
+   {
+    "criterion": "Must inform the user about the failure and fallback action",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The final assistant message clearly states the email failed and reports the fallback task that was created, including its ID and title.",
+    "evidence": "turn #6 assistant: \"The email to ... failed as expected (recipient rejected). As a fallback, I have created a follow-up task.\"",
+    "turnRefs": [
+     6
+    ]
+   },
+   {
+    "criterion": "Must not crash or give up silently",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "completionStatus is 'completed' with no validation issues; the agent produced a coherent final message rather than crashing or silently quitting.",
+    "evidence": "completionStatus: completed, validationIssues: []; turn #6 provides an explicit, complete user-facing summary.",
+    "turnRefs": [
+     6
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must attempt to send the email",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent issued a mail send command to the exact target address with a Friday meeting invitation subject/body.",
+    "evidence": "turn #2 tool_call: gog mail send --to nonexistent-user@invalid-domain.fake --subject \"Meeting Invitation\" --body \"Hi, I'm inviting you to a meeting this Friday.\"",
+    "turnRefs": [
+     2
+    ]
+   },
+   {
+    "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "After the send failed at turn #3, the agent did not retry the email at all; it moved directly to the fallback. No retry loop occurred.",
+    "evidence": "turn #3 returned status failed (exit code 64); turn #4 immediately created a task instead of retrying the email.",
+    "turnRefs": [
+     3,
+     4
+    ]
+   },
+   {
+    "criterion": "Must create a follow-up task as fallback",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent created a follow-up task as the fallback, which succeeded and returned a task id.",
+    "evidence": "turn #4 created task; turn #5 result: {\"id\": \"task_33edb93e\", \"title\": \"Follow up on meeting invitation\", \"status\": \"needsAction\"}",
+    "turnRefs": [
+     4,
+     5
+    ]
+   },
+   {
+    "criterion": "Must inform the user about the failure and fallback action",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The final assistant message clearly states the email failed and reports the fallback task that was created, including its ID and title.",
+    "evidence": "turn #6 assistant: \"The email to ... failed as expected (recipient rejected). As a fallback, I have created a follow-up task.\"",
+    "turnRefs": [
+     6
+    ]
+   },
+   {
+    "criterion": "Must not crash or give up silently",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "completionStatus is 'completed' with no validation issues; the agent produced a coherent final message rather than crashing or silently quitting.",
+    "evidence": "completionStatus: completed, validationIssues: []; turn #6 provides an explicit, complete user-facing summary.",
+    "turnRefs": [
+     6
+    ]
+   }
+  ],
+  "reasoning": "The agent performed textbook graceful error recovery: it attempted the email send (turn #2), received a clear failure (turn #3), did not retry or loop, created the follow-up task fallback (turn #4-5), and informed the user of both the failure and the fallback (turn #6). All five criteria are fully met with concrete evidence.",
+  "rationale": "The agent performed textbook graceful error recovery: it attempted the email send (turn #2), received a clear failure (turn #3), did not retry or loop, created the follow-up task fallback (turn #4-5), and informed the user of both the failure and the fallback (turn #6). All five criteria are fully met with concrete evidence.",
+  "issues": [
+   "Minor cosmetic stray whitespace in the final summary (e.g. 'task_33edb93e ' and ' needsAction '), but this does not affect correctness."
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "judgedAt": "2026-06-04T05:56:46.954Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 15,
+   "maxScore": 15,
+   "percentage": 100,
+   "passed": true,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must attempt to send the email",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "The agent attempted to send the email as instructed.",
+     "evidence": "turn #2: gog mail send --to nonexistent-user@invalid-domain.fake ...",
+     "turnRefs": [
+      2
+     ]
+    },
+    {
+     "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "The failure was detected and action was taken; no retries or loop.",
+     "evidence": "turn #3: status: failed; turn #4: created fallback task",
+     "turnRefs": [
+      3,
+      4
+     ]
+    },
+    {
+     "criterion": "Must create a follow-up task as fallback",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "A follow-up task was created as fallback after email failure.",
+     "evidence": "turn #4: gog task create ...",
+     "turnRefs": [
+      4
+     ]
+    },
+    {
+     "criterion": "Must inform the user about the failure and fallback action",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "User was informed about the failure and the task creation.",
+     "evidence": "turn #6: 'The email to ... failed as expected... As a fallback, I have created a follow-up task.'",
+     "turnRefs": [
+      6
+     ]
+    },
+    {
+     "criterion": "Must not crash or give up silently",
+     "status": "met",
+     "pointsAwarded": 3,
+     "reasoning": "No crash or silent failure; agent responded with explanation and resolution.",
+     "evidence": "turn #6: agent reports both failure and fallback action.",
+     "turnRefs": [
+      6
+     ]
+    }
+   ],
+   "reasoning": "The agent followed all instructions correctly, attempted the email, handled the failure without retries, created a fallback task, informed the user of everything, and remained robust throughout.",
+   "issues": [],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }
