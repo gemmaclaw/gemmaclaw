@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 Docs: https://docs.openclaw.ai
 
@@ -140,6 +140,23 @@ Docs: https://docs.openclaw.ai
 
 - Gateway: require Talk secret authority before setup-code handoff can include Talk secrets. (#85690) Thanks @ngutman.
 - Agents: keep fallback error reporting scoped to the active model candidate so stale prior-provider quota/auth text is not reported for later fallback attempts. (#86134) thanks @zhangguiping-xydt.
+
+## [2026.7.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.6.0...gemmaclaw-v2026.7.0) (2026-06-04)
+
+
+### Features
+
+* **benchmark:** add q4-loop benchmark suite with E2BIG transport fix ([c5f3af9](https://github.com/gemmaclaw/gemmaclaw/commit/c5f3af9f9c79c4e3604399ad41176f2c4e3a65c2))
+
+
+### Bug Fixes
+
+* **auth:** harden Vertex AI authentication, dedicated URL support, and Gemma 4 model routing ([a553c3c](https://github.com/gemmaclaw/gemmaclaw/commit/a553c3cff2bc5678de51799a73edb0cce091a3a2))
+* **benchmark:** rejudge public runs via CC ACP + publish only measured generation TPS ([#265](https://github.com/gemmaclaw/gemmaclaw/issues/265)) ([2e8d65f](https://github.com/gemmaclaw/gemmaclaw/commit/2e8d65f7a1dbd6e772afd62cc37c66d780d7e6f5))
+* **site:** merge metadata.json gpu fields for VRAM and llama build display ([4f3d7de](https://github.com/gemmaclaw/gemmaclaw/commit/4f3d7de0d4270d16ecf132c8efdc93ec18dde860))
+* **tests:** update google-antigravity normalization tests for GA flash-lite endpoint ([7bfe23d](https://github.com/gemmaclaw/gemmaclaw/commit/7bfe23dafb4098ccb985db41d72a8a400cc68af6))
+* **vertex:** harden Vertex AI authentication, dedicated URL support, and Gemma 4 model routing ([f19fbac](https://github.com/gemmaclaw/gemmaclaw/commit/f19fbac3924cae75ab4ab84c13756ee8e9586e5c))
+* **vertex:** isolate setup wiring and harden auth ([7b536c3](https://github.com/gemmaclaw/gemmaclaw/commit/7b536c36eddcab0506ec29dccb98ba58dfb4d900))
 
 ## 2026.5.25
 
