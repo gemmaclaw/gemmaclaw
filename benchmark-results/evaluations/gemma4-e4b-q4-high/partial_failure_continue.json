@@ -1,96 +1,268 @@
 {
-  "taskId": "partial_failure_continue",
-  "taskName": "Partial Failure and Continue",
-  "gradingCriteria": [
-    "Must attempt the email send (step 1, expected to fail)",
-    "Must handle the email failure gracefully",
-    "Must continue to step 2 (calendar check) despite step 1 failure",
-    "Must successfully check Friday calendar",
-    "Must continue to step 3 (create task) despite step 1 failure",
-    "Must report clearly what succeeded and what failed"
-  ],
+ "taskId": "partial_failure_continue",
+ "taskName": "Partial Failure and Continue",
+ "gradingCriteria": [
+  "Must attempt the email send (step 1, expected to fail)",
+  "Must handle the email failure gracefully",
+  "Must continue to step 2 (calendar check) despite step 1 failure",
+  "Must successfully check Friday calendar",
+  "Must continue to step 3 (create task) despite step 1 failure",
+  "Must report clearly what succeeded and what failed"
+ ],
+ "maxScore": 25,
+ "toolCallCount": 3,
+ "toolsUsed": [
+  "message",
+  "exec"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 24555,
+ "conversationTurns": 8,
+ "transcriptFile": "transcripts/partial_failure_continue.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 25,
   "maxScore": 25,
-  "toolCallCount": 3,
-  "toolsUsed": ["message", "exec"],
-  "completionStatus": "completed",
-  "elapsedMs": 24555,
-  "conversationTurns": 8,
-  "transcriptFile": "transcripts/partial_failure_continue.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "score": 25,
-    "maxScore": 25,
-    "percentage": 100.0,
-    "passed": true,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must attempt the email send (step 1, expected to fail)",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "Model attempted email send to feedback@nonexistent.invalid using the message tool.",
-        "evidence": "turn #2: [tool_call] message {\"action\":\"send\",...,\"target\":\"feedback@nonexistent.invalid\"}",
-        "turnRefs": [2]
-      },
-      {
-        "criterion": "Must handle the email failure gracefully",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "Email failed with 'Channel is required' error. Model continued to steps 2 and 3 without retrying or stopping.",
-        "evidence": "turn #4 (tool_result for message): error received. Model immediately called calendar and tasks in parallel.",
-        "turnRefs": [4]
-      },
-      {
-        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "Model called gog calendar list --next-friday (in parallel with tasks create) despite the email failure.",
-        "evidence": "turn #3: [tool_call] exec {\"command\":\"gog calendar list --next-friday\"}",
-        "turnRefs": [3]
-      },
-      {
-        "criterion": "Must successfully check Friday calendar",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "Calendar check returned the weekly calendar data (though no specific Friday-only events, the command returned successfully).",
-        "evidence": "turn #5: Calendar data returned from gog calendar list.",
-        "turnRefs": [5]
-      },
-      {
-        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "Task was created successfully despite email failure.",
-        "evidence": "turn #3: [tool_call] exec {\"command\":\"gog tasks create --title 'Review Q3 numbers'\"} \u2192 task_6b39283a created",
-        "turnRefs": [3]
-      },
-      {
-        "criterion": "Must report clearly what succeeded and what failed",
-        "status": "met",
-        "pointsAwarded": 0,
-        "reasoning": "Model provided clear report: email failed with specific error, calendar checked, task created successfully.",
-        "evidence": "turn #6 (assistant): 'step 1 email: FAILED (error message); step 2 calendar: retrieved; step 3 task: created'",
-        "turnRefs": [6]
-      }
-    ],
-    "reasoning": "Perfect multi-step error recovery. The model attempted all three steps in parallel (email send, calendar check, task create), handled the email failure gracefully without retrying, completed both remaining steps successfully, and provided a clear final report. Particularly impressive was calling all 3 tools simultaneously - this is efficient parallel execution.",
-    "summary": "25/25 - Perfect score. All 3 steps attempted, email failure handled gracefully, calendar checked, task created, clear final report.",
-    "turnAnnotations": [
-      {
-        "turnRef": 2,
-        "type": "correct",
-        "note": "Email send attempted correctly."
-      },
-      {
-        "turnRef": 3,
-        "type": "correct",
-        "note": "Calendar check and task create called in parallel - efficient execution."
-      },
-      {
-        "turnRef": 6,
-        "type": "correct",
-        "note": "Clear report of what succeeded and what failed."
-      }
+  "percentage": 100.0,
+  "scorePercent": 100.0,
+  "passed": true,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must attempt the email send (step 1, expected to fail)",
+    "status": "met",
+    "pointsAwarded": 5,
+    "reasoning": "The agent issued a message tool call with action send to the target address.",
+    "evidence": "turn #2 tool_call: {\"action\":\"send\",\"message\":\"Could you please send over the Q3 report when you get a chance?\",\"target\":\"feedback@nonexistent.invalid\"}",
+    "turnRefs": [
+     2
     ]
+   },
+   {
+    "criterion": "Must handle the email failure gracefully",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The email tool returned an error and the agent did not crash or abort; it surfaced the error and proceeded.",
+    "evidence": "turn #5 tool_result error 'Channel is required (no configured channels detected).'; turn #8 assistant: 'This step **failed**. The tool reported an error: `Channel is required...`'",
+    "turnRefs": [
+     5,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The agent proceeded to run the calendar check regardless of the email failure.",
+    "evidence": "turn #3 tool_call exec: {\"command\":\"gog calendar list --next-friday\"}",
+    "turnRefs": [
+     3
+    ]
+   },
+   {
+    "criterion": "Must successfully check Friday calendar",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The calendar command executed and returned event data which the agent reported. Note the returned events are not clearly filtered to a single Friday, but the check succeeded and data was obtained.",
+    "evidence": "turn #6 tool_result returned a list of events; turn #8: 'This step **worked**. Your calendar shows several events...'",
+    "turnRefs": [
+     3,
+     6,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The agent created the task despite the earlier email failure.",
+    "evidence": "turn #4 tool_call exec: {\"command\":\"gog tasks create --title \\\"Review Q3 numbers\\\"\"}; turn #7 returned task_6b39283a",
+    "turnRefs": [
+     4,
+     7
+    ]
+   },
+   {
+    "criterion": "Must report clearly what succeeded and what failed",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The final assistant message enumerates all three steps with clear success/failure labels.",
+    "evidence": "turn #8: step 1 'failed', step 2 'worked', step 3 'worked' with a created task confirmation.",
+    "turnRefs": [
+     8
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must attempt the email send (step 1, expected to fail)",
+    "status": "met",
+    "pointsAwarded": 5,
+    "reasoning": "The agent issued a message tool call with action send to the target address.",
+    "evidence": "turn #2 tool_call: {\"action\":\"send\",\"message\":\"Could you please send over the Q3 report when you get a chance?\",\"target\":\"feedback@nonexistent.invalid\"}",
+    "turnRefs": [
+     2
+    ]
+   },
+   {
+    "criterion": "Must handle the email failure gracefully",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The email tool returned an error and the agent did not crash or abort; it surfaced the error and proceeded.",
+    "evidence": "turn #5 tool_result error 'Channel is required (no configured channels detected).'; turn #8 assistant: 'This step **failed**. The tool reported an error: `Channel is required...`'",
+    "turnRefs": [
+     5,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The agent proceeded to run the calendar check regardless of the email failure.",
+    "evidence": "turn #3 tool_call exec: {\"command\":\"gog calendar list --next-friday\"}",
+    "turnRefs": [
+     3
+    ]
+   },
+   {
+    "criterion": "Must successfully check Friday calendar",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The calendar command executed and returned event data which the agent reported. Note the returned events are not clearly filtered to a single Friday, but the check succeeded and data was obtained.",
+    "evidence": "turn #6 tool_result returned a list of events; turn #8: 'This step **worked**. Your calendar shows several events...'",
+    "turnRefs": [
+     3,
+     6,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The agent created the task despite the earlier email failure.",
+    "evidence": "turn #4 tool_call exec: {\"command\":\"gog tasks create --title \\\"Review Q3 numbers\\\"\"}; turn #7 returned task_6b39283a",
+    "turnRefs": [
+     4,
+     7
+    ]
+   },
+   {
+    "criterion": "Must report clearly what succeeded and what failed",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The final assistant message enumerates all three steps with clear success/failure labels.",
+    "evidence": "turn #8: step 1 'failed', step 2 'worked', step 3 'worked' with a created task confirmation.",
+    "turnRefs": [
+     8
+    ]
+   }
+  ],
+  "reasoning": "The agent correctly executed the partial-failure-and-continue workflow: it attempted the email (which failed), handled the failure gracefully, and proceeded to both the calendar check and the task creation, then produced a clear numbered summary distinguishing what worked from what failed. The only minor weakness is that the calendar results were not clearly narrowed to the requested Friday, and the summary of those events was vague, but the calendar query did succeed and was reported.",
+  "rationale": "The agent correctly executed the partial-failure-and-continue workflow: it attempted the email (which failed), handled the failure gracefully, and proceeded to both the calendar check and the task creation, then produced a clear numbered summary distinguishing what worked from what failed. The only minor weakness is that the calendar results were not clearly narrowed to the requested Friday, and the summary of those events was vague, but the calendar query did succeed and was reported.",
+  "issues": [
+   "Calendar results in turn #6 are not clearly filtered to a specific 'next Friday'; the summary in turn #8 references a Q2 Product Conference (May 28) rather than precisely identifying Friday's events."
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "score": 25,
+   "maxScore": 25,
+   "percentage": 100.0,
+   "passed": true,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must attempt the email send (step 1, expected to fail)",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "Model attempted email send to feedback@nonexistent.invalid using the message tool.",
+     "evidence": "turn #2: [tool_call] message {\"action\":\"send\",...,\"target\":\"feedback@nonexistent.invalid\"}",
+     "turnRefs": [
+      2
+     ]
+    },
+    {
+     "criterion": "Must handle the email failure gracefully",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "Email failed with 'Channel is required' error. Model continued to steps 2 and 3 without retrying or stopping.",
+     "evidence": "turn #4 (tool_result for message): error received. Model immediately called calendar and tasks in parallel.",
+     "turnRefs": [
+      4
+     ]
+    },
+    {
+     "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "Model called gog calendar list --next-friday (in parallel with tasks create) despite the email failure.",
+     "evidence": "turn #3: [tool_call] exec {\"command\":\"gog calendar list --next-friday\"}",
+     "turnRefs": [
+      3
+     ]
+    },
+    {
+     "criterion": "Must successfully check Friday calendar",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "Calendar check returned the weekly calendar data (though no specific Friday-only events, the command returned successfully).",
+     "evidence": "turn #5: Calendar data returned from gog calendar list.",
+     "turnRefs": [
+      5
+     ]
+    },
+    {
+     "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "Task was created successfully despite email failure.",
+     "evidence": "turn #3: [tool_call] exec {\"command\":\"gog tasks create --title 'Review Q3 numbers'\"} \u2192 task_6b39283a created",
+     "turnRefs": [
+      3
+     ]
+    },
+    {
+     "criterion": "Must report clearly what succeeded and what failed",
+     "status": "met",
+     "pointsAwarded": 0,
+     "reasoning": "Model provided clear report: email failed with specific error, calendar checked, task created successfully.",
+     "evidence": "turn #6 (assistant): 'step 1 email: FAILED (error message); step 2 calendar: retrieved; step 3 task: created'",
+     "turnRefs": [
+      6
+     ]
+    }
+   ],
+   "reasoning": "Perfect multi-step error recovery. The model attempted all three steps in parallel (email send, calendar check, task create), handled the email failure gracefully without retrying, completed both remaining steps successfully, and provided a clear final report. Particularly impressive was calling all 3 tools simultaneously - this is efficient parallel execution.",
+   "summary": "25/25 - Perfect score. All 3 steps attempted, email failure handled gracefully, calendar checked, task created, clear final report.",
+   "turnAnnotations": [
+    {
+     "turnRef": 2,
+     "type": "correct",
+     "note": "Email send attempted correctly."
+    },
+    {
+     "turnRef": 3,
+     "type": "correct",
+     "note": "Calendar check and task create called in parallel - efficient execution."
+    },
+    {
+     "turnRef": 6,
+     "type": "correct",
+     "note": "Clear report of what succeeded and what failed."
+    }
+   ],
+   "authoritative": false,
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }

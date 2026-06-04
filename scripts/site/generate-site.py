@@ -83,8 +83,12 @@ def load_benchmark_results():
                             run_gpu = (data["metadata"].get("hardware") or {}).get("gpu")
                             if isinstance(run_gpu, dict) and isinstance(extra_gpu, dict):
                                 for k in ("vramUsedMib", "llamaCppBuild", "generationTokensPerSecond",
+                                          "generationTokensPerSecondSource",
                                           "vramTotalMib", "contextLength", "reasoningMode"):
-                                    if k in extra_gpu and k not in run_gpu:
+                                    # Prefer the standalone metadata.json value, which is the
+                                    # measured llama.cpp/provider figure, over a missing or null
+                                    # field captured in results.json at run start.
+                                    if k in extra_gpu and run_gpu.get(k) in (None, "", 0):
                                         run_gpu[k] = extra_gpu[k]
                         except (json.JSONDecodeError, KeyError, TypeError):
                             pass
@@ -136,7 +140,11 @@ def normalize_agentic_benchmark_result(data, run_id):
                     evaluation = json.load(f)
             except (json.JSONDecodeError, OSError):
                 evaluation = {}
-        judge = evaluation.get("llmJudge") or {}
+        # Judge data normally lives under "llmJudge"; some legacy evaluation files
+        # (e.g. functiongemma) store the judge fields at the top level instead.
+        judge = evaluation.get("llmJudge") or (
+            evaluation if (evaluation.get("judgeProvider") or evaluation.get("judgeModel")) else {}
+        )
         if judge.get("authoritative") is False:
             judge = {}
         max_score = int(
@@ -203,8 +211,8 @@ def normalize_agentic_benchmark_result(data, run_id):
             "failureMode": "" if status == "completed" else (tr.get("error") or status),
             "toolCallCount": tr.get("toolCallCount", 0),
             "toolsUsed": tr.get("toolsUsed", []),
-            "judgeModel": judge.get("model", ""),
-            "judgeProvider": judge.get("provider", ""),
+            "judgeModel": judge.get("model") or judge.get("judgeModel", ""),
+            "judgeProvider": judge.get("provider") or judge.get("judgeProvider", ""),
         })
 
     hw = metadata.get("hardware", {})
@@ -273,8 +281,10 @@ def normalize_agentic_benchmark_result(data, run_id):
             "passedCount": passed_count,
             "failedCount": max(0, len(normalized_tasks) - passed_count),
             "completedCount": completed,
-            "medianTokensPerSecond": median_speed,
-            "medianTokensPerSecondSource": summarize_speed_source(normalized_tasks),
+            # Public speed is ONLY measured generation throughput (llama.cpp /
+            # provider timing). No output-est / wall-clock fallback is published.
+            "generationTokensPerSecond": gen_speed,
+            "generationTokensPerSecondSource": gpu.get("generationTokensPerSecondSource", "measured-llamacpp" if gen_speed else ""),
             "totalTimeMs": total_time,
             "failureModes": {},
         },
@@ -396,52 +406,29 @@ def best_results(results):
     return sorted(seen.values(), key=lambda x: -x["summary"]["percentage"])
 
 
-def estimate_text_tokens(text):
-    if not isinstance(text, str) or not text.strip():
-        return 0
-    # Approximate tokenizer-independent output tokens for legacy artifacts that
-    # did not persist provider usage. This is labeled as estimated in the UI.
-    return max(1, round(len(text) / 4))
+# Speed policy (Frank, 2026-06-04): the public site publishes ONLY measured
+# generation throughput from llama.cpp/provider timing. The old "output-est"
+# fallback (assistant output tokens / full-task wall-clock, which includes tool
+# calls, harness overhead, waits and fixture I/O) is REMOVED, not relabelled.
+# A run with no measured source renders "N/A" / "Pending measurement", never a
+# computed number. The dead estimate_output_tokens_per_second()/estimate_text_tokens()
+# fallback functions were deleted so this class of bug cannot recur.
+
+# Sources we trust as measured generation throughput.
+MEASURED_SPEED_SOURCES = {"measured", "measured-llamacpp", "measured-provider"}
 
 
-def estimate_output_tokens_per_second(conversation, elapsed_ms):
-    if not isinstance(elapsed_ms, (int, float)) or elapsed_ms <= 0:
-        return None
-    if not isinstance(conversation, list):
-        return None
-    token_count = 0
-    for turn in conversation:
-        if not isinstance(turn, dict):
-            continue
-        if turn.get("role") in {"assistant", "thinking"}:
-            token_count += estimate_text_tokens(turn.get("content", ""))
-    if token_count <= 0:
-        return None
-    return token_count / (elapsed_ms / 1000)
+def format_measured_speed(gen_tps, short=True):
+    """Render ONLY a measured generation-throughput value.
 
-
-def summarize_speed_source(tasks):
-    sources = {t.get("tokensPerSecondSource") for t in tasks if t.get("tokensPerSecond")}
-    if not sources:
-        return ""
-    if sources == {"measured"}:
-        return "measured"
-    if sources == {"effective-output"}:
-        return "effective-output"
-    if sources == {"estimated-output"}:
-        return "estimated-output"
-    return "mixed"
-
-
-def format_speed(tok_s, source=""):
-    if tok_s is None or tok_s == 0:
-        return "N/A"
-    suffix = ""
-    if source == "effective-output":
-        suffix = " output-est"
-    elif source in {"estimated-output", "mixed"}:
-        suffix = " output-est"
-    return f"{tok_s:.1f} tok/s{suffix}"
+    `gen_tps` must be the measured generationTokensPerSecond from llama.cpp /
+    provider timing. Any missing/zero value renders as N/A (tables) or
+    "Pending measurement" (detail pages). Non-measured estimates must never be
+    passed here; they are not rendered as tok/s anywhere on the public site.
+    """
+    if isinstance(gen_tps, (int, float)) and gen_tps > 0:
+        return f"{gen_tps:.0f} tok/s"
+    return "N/A" if short else "Pending measurement"
 
 
 def format_time(ms):
@@ -513,6 +500,11 @@ SIZE_CLASSES = {
 }
 
 
+def class_anchor_slug(cls_name):
+    """Stable URL anchor id for a size/type class (e.g. 'class-small-medium-12b-dense')."""
+    return "class-" + re.sub(r"[^a-z0-9]+", "-", cls_name.lower()).strip("-")
+
+
 def classify_model_size(model_name):
     name_lower = model_name.lower().replace(":", "-").replace("__", "-")
     if "functiongemma" in name_lower or "270m" in name_lower:
@@ -567,7 +559,7 @@ def generate_size_class_sections(results):
                 gpu = "CPU only"
             pct = s["percentage"]
             pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-            speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
+            speed = format_measured_speed(s.get("generationTokensPerSecond"))
             model_name = r["model"]
             # Quant badge — prefer metadata field, fall back to model name parsing
             quant_val = r.get("quant", "")
@@ -674,7 +666,7 @@ def generate_benchmark_table_rows(results):
             gpu = "CPU only"
         pct = s["percentage"]
         pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-        speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
+        speed = format_measured_speed(s.get("generationTokensPerSecond"))
         quant_val = r.get("quant", "")
         quant_badge = f'<span class="quant-badge">{quant_val}</span>' if quant_val else ""
         rows.append(f"""<tr>
@@ -729,7 +721,9 @@ def generate_task_detail_rows(tasks, model_id=""):
     for idx, t in enumerate(tasks):
         pct = t.get("percentage", 0)
         pct_class = "win" if pct >= 90 else ("" if pct >= 60 else "bad")
-        speed = format_speed(t.get("tokensPerSecond"), t.get("tokensPerSecondSource", ""))
+        # No per-task measured generation throughput exists; the old per-task
+        # tokensPerSecond was an output-est / wall-clock artifact and is not shown.
+        speed = "N/A"
         failure = t.get("failureMode", "none")
         if failure == "none":
             failure = ""
@@ -862,7 +856,7 @@ def generate_model_detail_sections(results):
     <span>RAM: {hw.get('ram', 'Unknown')}</span>
     <span>GPU: {hw.get('gpu', 'None detected')}</span>
     <span>Score: {s['percentage']}% ({s['passedCount']}/{s['passedCount'] + s['failedCount']} passed)</span>
-    <span>Median speed: {format_speed(s.get('medianTokensPerSecond'), s.get('medianTokensPerSecondSource', ''))}</span>
+    <span>Generation speed: {format_measured_speed(s.get('generationTokensPerSecond'), short=False)}</span>
     <span>Total time: {format_time(s.get('totalTimeMs'))}</span>
     <span>Failure modes: {fm_items}</span>
   </div>
@@ -1109,9 +1103,10 @@ def generate_benchmark_detail_page(result):
     if run_id == "gemma4-12b-q4-nothink":
         cross_run_note = """
 <div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid var(--accent,#5c9eff);border-radius:4px">
-  <strong>Cross-run comparison note:</strong> This 12B run used 50 tasks (suite v2026-06) with no thinking, judged by GPT-4.1.
-  The published 26B-A4B run used 47 tasks (suite v2026-05) with high thinking, judged by Gemini 2.5 Pro.
-  The two runs are <strong>not directly comparable</strong> due to different suite sizes, thinking levels, and judge models.
+  <strong>Cross-run comparison note:</strong> This 12B run used 50 tasks (suite v2026-06) with no thinking.
+  The published 26B-A4B run used 47 tasks (suite v2026-05) with high thinking.
+  All public runs are now judged by CC ACP agents reading transcripts directly (authoritative judge: cc-acp).
+  The two runs are <strong>not directly comparable</strong> due to different suite sizes and thinking levels.
   For a fair comparison, rerun both models on the same suite at the same thinking level.
 </div>"""
 
@@ -1119,7 +1114,9 @@ def generate_benchmark_detail_page(result):
     if "b9496" in backend:
         llama_build_info = f'<span><strong>llama.cpp build:</strong> b9496 (gemma4_unified support: PRs #24077 #24082 #24088)</span>'
     gen_speed_raw = hw.get("generationTokensPerSecond")
-    gen_speed_html = f'<span><strong>Generation speed:</strong> ~{gen_speed_raw:.0f} tok/s (llama-server, RTX 3090)</span>' if gen_speed_raw else ""
+    # Provenance suffix shown only when a measured generation throughput exists.
+    gpu_name_for_speed = (hw.get("gpu") or "").split(" (")[0]
+    gen_speed_provenance = f' <small style="color:var(--muted)">(measured, llama.cpp · {html_escape(gpu_name_for_speed)})</small>' if gen_speed_raw else ""
 
     body = f"""<section class="detail-hero">
   <h1>{html_escape(model_display)} <small style="font-weight:400;font-size:1rem;color:var(--muted)">({html_escape(backend)})</small></h1>
@@ -1139,8 +1136,7 @@ def generate_benchmark_detail_page(result):
     <span><strong>GPU:</strong> {html_escape(gpu)}</span>
     <span><strong>CPU:</strong> {html_escape(hw.get('cpu', 'Unknown'))}</span>
     <span><strong>RAM:</strong> {html_escape(hw.get('ram', 'Unknown'))}</span>
-    <span><strong>Speed:</strong> {format_speed(s.get('medianTokensPerSecond'), s.get('medianTokensPerSecondSource', ''))}</span>
-    {gen_speed_html}
+    <span><strong>Generation speed:</strong> {format_measured_speed(s.get('generationTokensPerSecond'), short=False)}{gen_speed_provenance}</span>
     {llama_build_info}
     <span><strong>Total time:</strong> {format_time(s.get('totalTimeMs'))}</span>
     <span><strong>Failure modes:</strong> {html_escape(fm_items)}</span>
@@ -1184,8 +1180,7 @@ def generate_hardware_guide_cards(results):
             "quant": r.get("quant") or infer_quant_label(r["model"]) or "not reported",
             "backend": r["backend"],
             "score": s["percentage"],
-            "speed": s.get("medianTokensPerSecond", 0),
-            "speed_source": s.get("medianTokensPerSecondSource", ""),
+            "speed": s.get("generationTokensPerSecond", 0),
             "pass_rate": s.get("passRate", 0),
         })
 
@@ -1201,7 +1196,7 @@ def generate_hardware_guide_cards(results):
   <span class="hw-model-pill"><small>Quant</small>{m['quant']}</span>
   <span class="hw-model-pill"><small>Backend</small>{m['backend']}</span>
   <span class="hw-model-score"><small>Score</small>{m['score']}%</span>
-  <span class="hw-model-speed"><small>Speed</small>{format_speed(m['speed'], m.get('speed_source', ''))}</span>
+  <span class="hw-model-speed"><small>Speed</small>{format_measured_speed(m['speed'])}</span>
 </div>\n"""
 
         gpu_display = cfg["gpu"] if cfg["gpu"] != "None detected" else "CPU only"
@@ -1213,7 +1208,7 @@ def generate_hardware_guide_cards(results):
       <div class="hw-spec"><strong>RAM:</strong> {cfg['ram']}</div>
       <div class="hw-spec"><strong>GPU:</strong> {gpu_display}</div>
     </div>
-    <div class="hw-best">Best: {best['model']} ({best['score']}% at {format_speed(best['speed'], best.get('speed_source', ''))})</div>
+    <div class="hw-best">Best: {best['model']} ({best['score']}% at {format_measured_speed(best['speed'])})</div>
   </div>
   <div class="hw-models">{model_rows}</div>
 </div>""")
@@ -2597,10 +2592,29 @@ def generate_benchmarks_landing_rows(results):
             grouped[cls] = []
         grouped[cls].append(r)
 
+    ordered_classes = list(SIZE_CLASSES.keys()) + ["Other"]
+    present = [c for c in ordered_classes if c in grouped]
+    # Direct-link class navigation: each size/type class is a clickable chip that
+    # jumps to its anchored section (#class-...). Chips wrap (no horizontal
+    # overflow) on mobile and highlight the active class on scroll.
+    nav_chips = []
+    for c in present:
+        info = SIZE_CLASSES.get(c, {"icon": "&#128300;"})
+        slug = class_anchor_slug(c)
+        n = len(grouped[c])
+        nav_chips.append(
+            f'<a class="class-nav-chip" href="#{slug}" data-class-target="{slug}">'
+            f'<span class="class-nav-icon">{info.get("icon", "")}</span>'
+            f'<span class="class-nav-name">{html_escape(c)}</span>'
+            f'<span class="class-nav-count">{n}</span></a>'
+        )
+    nav_html = (
+        f'<nav class="class-nav" aria-label="Jump to benchmark size class">{"".join(nav_chips)}</nav>'
+        if nav_chips else ""
+    )
+
     sections = []
-    for cls_name in list(SIZE_CLASSES.keys()) + ["Other"]:
-        if cls_name not in grouped:
-            continue
+    for cls_name in present:
         cls_results = sorted(grouped[cls_name], key=lambda x: -x["summary"]["percentage"])
         cls_info = SIZE_CLASSES.get(cls_name, {"hw_rec": "", "icon": "&#128300;"})
 
@@ -2613,7 +2627,7 @@ def generate_benchmarks_landing_rows(results):
                 gpu = "CPU only"
             pct = s["percentage"]
             pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-            speed = format_speed(s.get("medianTokensPerSecond"), s.get("medianTokensPerSecondSource", ""))
+            speed = format_measured_speed(s.get("generationTokensPerSecond"))
             quant = r.get("quant", "")
             parameter_size = r.get("parameterSize") or infer_parameter_label(r["model"])
             thinking = r.get("thinkingLevel", "")
@@ -2650,7 +2664,7 @@ def generate_benchmarks_landing_rows(results):
   </div>
   <div class="benchmark-card-metrics">
     <span><strong>{s['passedCount']}/{s['passedCount'] + s['failedCount']}</strong><small>tasks passed</small></span>
-    <span><strong>{speed}</strong><small>median speed</small></span>
+    <span><strong>{speed}</strong><small>gen speed</small></span>
     <span><strong>{format_time(s.get('totalTimeMs'))}</strong><small>total time</small></span>
   </div>
   <div class="benchmark-card-hw">{html_escape(gpu)}</div>
@@ -2659,12 +2673,12 @@ def generate_benchmarks_landing_rows(results):
 
         cards_html = "\n".join(cards)
         sections.append(f"""
-<div class="size-class-group">
+<div class="size-class-group" id="{class_anchor_slug(cls_name)}">
   <h3>{cls_info.get('icon', '')} {cls_name}</h3>
   <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
   <div class="benchmark-card-grid">{cards_html}</div>
 </div>""")
-    return "\n".join(sections)
+    return nav_html + "\n" + "\n".join(sections)
 
 
 def generate_benchmark_suite_variations():
@@ -3321,6 +3335,31 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
     });
     window.addEventListener('hashchange', openBenchmarkHashTarget);
     window.addEventListener('DOMContentLoaded', openBenchmarkHashTarget);
+
+    // Highlight the active size/type class chip as the user scrolls, and on direct link.
+    (function () {
+      const chips = Array.from(document.querySelectorAll('.class-nav-chip'));
+      if (!chips.length) return;
+      const groups = chips
+        .map((chip) => document.getElementById(chip.dataset.classTarget))
+        .filter(Boolean);
+      function setActive(slug) {
+        chips.forEach((c) => c.classList.toggle('active', c.dataset.classTarget === slug));
+      }
+      if ('IntersectionObserver' in window && groups.length) {
+        const obs = new IntersectionObserver((entries) => {
+          const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible) setActive(visible.target.id);
+        }, { rootMargin: '-20% 0px -70% 0px', threshold: [0, 0.25, 0.5, 1] });
+        groups.forEach((g) => obs.observe(g));
+      }
+      chips.forEach((chip) =>
+        chip.addEventListener('click', () => setActive(chip.dataset.classTarget))
+      );
+      if (location.hash) setActive(location.hash.slice(1));
+    })();
 """
     if not results:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
@@ -5019,6 +5058,56 @@ CSS = """
         padding: 0.35rem 0.55rem;
         font-size: 0.78rem;
       }
+    }
+
+    /* Direct-link size/type class navigation */
+    .class-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.5rem;
+    }
+    .class-nav-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-elev);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: border-color 0.15s, background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .class-nav-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .class-nav-chip.active {
+      border-color: var(--accent);
+      background: var(--accent-soft, rgba(92,158,255,0.12));
+      color: var(--accent);
+    }
+    .class-nav-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 0.3rem;
+      border-radius: 999px;
+      background: var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .class-nav-chip.active .class-nav-count { background: var(--accent); color: #fff; }
+    /* Anchor offset so a jumped-to class clears any sticky header */
+    .size-class-group { scroll-margin-top: 5rem; }
+    @media (max-width: 640px) {
+      .class-nav { gap: 0.4rem; }
+      .class-nav-chip { padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+      .class-nav-name { max-width: 9.5rem; overflow: hidden; text-overflow: ellipsis; }
     }
 
     /* Size class grouping */

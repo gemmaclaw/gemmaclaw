@@ -1,85 +1,255 @@
 {
-  "taskId": "partial_failure_continue",
-  "taskName": "Partial Failure and Continue",
-  "gradingCriteria": [
-    "Must attempt the email send (step 1, expected to fail)",
-    "Must handle the email failure gracefully",
-    "Must continue to step 2 (calendar check) despite step 1 failure",
-    "Must successfully check Friday calendar",
-    "Must continue to step 3 (create task) despite step 1 failure",
-    "Must report clearly what succeeded and what failed"
-  ],
+ "taskId": "partial_failure_continue",
+ "taskName": "Partial Failure and Continue",
+ "gradingCriteria": [
+  "Must attempt the email send (step 1, expected to fail)",
+  "Must handle the email failure gracefully",
+  "Must continue to step 2 (calendar check) despite step 1 failure",
+  "Must successfully check Friday calendar",
+  "Must continue to step 3 (create task) despite step 1 failure",
+  "Must report clearly what succeeded and what failed"
+ ],
+ "maxScore": 25,
+ "toolCallCount": 3,
+ "toolsUsed": [
+  "exec"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 34574,
+ "conversationTurns": 8,
+ "transcriptFile": "transcripts/partial_failure_continue.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 25,
   "maxScore": 25,
-  "toolCallCount": 3,
-  "toolsUsed": ["exec"],
-  "completionStatus": "completed",
-  "elapsedMs": 34574,
-  "conversationTurns": 8,
-  "transcriptFile": "transcripts/partial_failure_continue.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "judgedAt": "2026-06-04T05:56:46.954Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 25,
-    "maxScore": 25,
-    "percentage": 100,
-    "passed": true,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must attempt the email send (step 1, expected to fail)",
-        "status": "met",
-        "pointsAwarded": 4,
-        "reasoning": "The agent issued the correct command to send an email to feedback@nonexistent.invalid.",
-        "evidence": "turn #2: gog gmail send --to feedback@nonexistent.invalid ...",
-        "turnRefs": [2]
-      },
-      {
-        "criterion": "Must handle the email failure gracefully",
-        "status": "met",
-        "pointsAwarded": 5,
-        "reasoning": "Explicitly acknowledged the email failure and explained the reason to the user.",
-        "evidence": "turn #8: 'Email sent (Failed): The email to ... failed because the address was rejected by the system.'",
-        "turnRefs": [8]
-      },
-      {
-        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
-        "status": "met",
-        "pointsAwarded": 4,
-        "reasoning": "Agent proceeded to check the calendar for next Friday even after email failure.",
-        "evidence": "turn #4: gog calendar list --next-friday",
-        "turnRefs": [4]
-      },
-      {
-        "criterion": "Must successfully check Friday calendar",
-        "status": "met",
-        "pointsAwarded": 4,
-        "reasoning": "Calendar entries for next Friday were retrieved and summarized to the user.",
-        "evidence": "turn #5: calendar events returned; turn #8: 'You have several entries, including ...'",
-        "turnRefs": [5, 8]
-      },
-      {
-        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
-        "status": "met",
-        "pointsAwarded": 4,
-        "reasoning": "Agent created the review task after the failed email and calendar check.",
-        "evidence": "turn #6: gog tasks create ...; turn #7: task created",
-        "turnRefs": [6, 7]
-      },
-      {
-        "criterion": "Must report clearly what succeeded and what failed",
-        "status": "met",
-        "pointsAwarded": 4,
-        "reasoning": "The agent clearly listed which steps succeeded and which failed in its final message.",
-        "evidence": "turn #8: 'Email sent (Failed)... Calendar Checked (Success)... Task Created (Success)'",
-        "turnRefs": [8]
-      }
-    ],
-    "reasoning": "The agent fully met the requirements by attempting all three steps, gracefully reporting the step 1 failure, proceeding to the next steps without interruption, and clearly summarizing what worked and what didn't. No steps or reporting requirements were missed.",
-    "issues": []
+  "percentage": 100.0,
+  "scorePercent": 100.0,
+  "passed": true,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must attempt the email send (step 1, expected to fail)",
+    "status": "met",
+    "pointsAwarded": 5,
+    "reasoning": "The agent issued the email send command as the first action.",
+    "evidence": "turn #2 (tool_call exec): gog gmail send --to feedback@nonexistent.invalid --subject \"Q3 Report Request\" --body \"Hello, could you please provide the Q3 report?\"",
+    "turnRefs": [
+     2
+    ]
+   },
+   {
+    "criterion": "Must handle the email failure gracefully",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The send returned a failure (exit code 64), and the agent did not crash or abort; it proceeded and later reported the failure accurately.",
+    "evidence": "turn #3 tool_result status 'failed' / 'recipient rejected'; turn #8 assistant: 'Email sent (Failed): The email ... failed because the address was rejected by the system.'",
+    "turnRefs": [
+     3,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "After the email failure, the agent continued to the calendar check rather than stopping.",
+    "evidence": "turn #4 (tool_call exec): gog calendar list --next-friday",
+    "turnRefs": [
+     4
+    ]
+   },
+   {
+    "criterion": "Must successfully check Friday calendar",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The calendar list command succeeded and returned events, and the agent surfaced Friday entries.",
+    "evidence": "turn #5 returned events incl. 'Daily Standup'; turn #8: 'Calendar Checked (Success)... including \"Daily Standup\", \"Existing Client Call\", and a \"Focus Block\".'",
+    "turnRefs": [
+     5,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The agent proceeded to create the task after the earlier failure.",
+    "evidence": "turn #6 (tool_call exec): gog tasks create --title \"Review Q3 numbers\"; turn #7 returned id task_bb5543a1",
+    "turnRefs": [
+     6,
+     7
+    ]
+   },
+   {
+    "criterion": "Must report clearly what succeeded and what failed",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The final assistant message gives a clear per-step status (1 failed, 2 success, 3 success) as the prompt requested.",
+    "evidence": "turn #8: numbered list marking 'Email sent (Failed)', 'Calendar Checked (Success)', 'Task Created (Success)'.",
+    "turnRefs": [
+     8
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must attempt the email send (step 1, expected to fail)",
+    "status": "met",
+    "pointsAwarded": 5,
+    "reasoning": "The agent issued the email send command as the first action.",
+    "evidence": "turn #2 (tool_call exec): gog gmail send --to feedback@nonexistent.invalid --subject \"Q3 Report Request\" --body \"Hello, could you please provide the Q3 report?\"",
+    "turnRefs": [
+     2
+    ]
+   },
+   {
+    "criterion": "Must handle the email failure gracefully",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The send returned a failure (exit code 64), and the agent did not crash or abort; it proceeded and later reported the failure accurately.",
+    "evidence": "turn #3 tool_result status 'failed' / 'recipient rejected'; turn #8 assistant: 'Email sent (Failed): The email ... failed because the address was rejected by the system.'",
+    "turnRefs": [
+     3,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "After the email failure, the agent continued to the calendar check rather than stopping.",
+    "evidence": "turn #4 (tool_call exec): gog calendar list --next-friday",
+    "turnRefs": [
+     4
+    ]
+   },
+   {
+    "criterion": "Must successfully check Friday calendar",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The calendar list command succeeded and returned events, and the agent surfaced Friday entries.",
+    "evidence": "turn #5 returned events incl. 'Daily Standup'; turn #8: 'Calendar Checked (Success)... including \"Daily Standup\", \"Existing Client Call\", and a \"Focus Block\".'",
+    "turnRefs": [
+     5,
+     8
+    ]
+   },
+   {
+    "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The agent proceeded to create the task after the earlier failure.",
+    "evidence": "turn #6 (tool_call exec): gog tasks create --title \"Review Q3 numbers\"; turn #7 returned id task_bb5543a1",
+    "turnRefs": [
+     6,
+     7
+    ]
+   },
+   {
+    "criterion": "Must report clearly what succeeded and what failed",
+    "status": "met",
+    "pointsAwarded": 4,
+    "reasoning": "The final assistant message gives a clear per-step status (1 failed, 2 success, 3 success) as the prompt requested.",
+    "evidence": "turn #8: numbered list marking 'Email sent (Failed)', 'Calendar Checked (Success)', 'Task Created (Success)'.",
+    "turnRefs": [
+     8
+    ]
+   }
+  ],
+  "reasoning": "The agent executed all three steps in order, encountered the expected email failure, and continued past it without aborting. It successfully checked the Friday calendar and created the Q3 task, then delivered a clear per-step success/failure report matching the prompt's request. This is a clean, fully successful resilience run.",
+  "rationale": "The agent executed all three steps in order, encountered the expected email failure, and continued past it without aborting. It successfully checked the Friday calendar and created the Q3 task, then delivered a clear per-step success/failure report matching the prompt's request. This is a clean, fully successful resilience run.",
+  "issues": [
+   "Minor: the calendar summary in turn #8 mentions a 'Focus Block' that the dataset descriptions flag as a routine event to skip in briefings, but the prompt only asked to check the calendar, so this is not a real fault."
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "judgedAt": "2026-06-04T05:56:46.954Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 25,
+   "maxScore": 25,
+   "percentage": 100,
+   "passed": true,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must attempt the email send (step 1, expected to fail)",
+     "status": "met",
+     "pointsAwarded": 4,
+     "reasoning": "The agent issued the correct command to send an email to feedback@nonexistent.invalid.",
+     "evidence": "turn #2: gog gmail send --to feedback@nonexistent.invalid ...",
+     "turnRefs": [
+      2
+     ]
+    },
+    {
+     "criterion": "Must handle the email failure gracefully",
+     "status": "met",
+     "pointsAwarded": 5,
+     "reasoning": "Explicitly acknowledged the email failure and explained the reason to the user.",
+     "evidence": "turn #8: 'Email sent (Failed): The email to ... failed because the address was rejected by the system.'",
+     "turnRefs": [
+      8
+     ]
+    },
+    {
+     "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+     "status": "met",
+     "pointsAwarded": 4,
+     "reasoning": "Agent proceeded to check the calendar for next Friday even after email failure.",
+     "evidence": "turn #4: gog calendar list --next-friday",
+     "turnRefs": [
+      4
+     ]
+    },
+    {
+     "criterion": "Must successfully check Friday calendar",
+     "status": "met",
+     "pointsAwarded": 4,
+     "reasoning": "Calendar entries for next Friday were retrieved and summarized to the user.",
+     "evidence": "turn #5: calendar events returned; turn #8: 'You have several entries, including ...'",
+     "turnRefs": [
+      5,
+      8
+     ]
+    },
+    {
+     "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+     "status": "met",
+     "pointsAwarded": 4,
+     "reasoning": "Agent created the review task after the failed email and calendar check.",
+     "evidence": "turn #6: gog tasks create ...; turn #7: task created",
+     "turnRefs": [
+      6,
+      7
+     ]
+    },
+    {
+     "criterion": "Must report clearly what succeeded and what failed",
+     "status": "met",
+     "pointsAwarded": 4,
+     "reasoning": "The agent clearly listed which steps succeeded and which failed in its final message.",
+     "evidence": "turn #8: 'Email sent (Failed)... Calendar Checked (Success)... Task Created (Success)'",
+     "turnRefs": [
+      8
+     ]
+    }
+   ],
+   "reasoning": "The agent fully met the requirements by attempting all three steps, gracefully reporting the step 1 failure, proceeding to the next steps without interruption, and clearly summarizing what worked and what didn't. No steps or reporting requirements were missed.",
+   "issues": [],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }

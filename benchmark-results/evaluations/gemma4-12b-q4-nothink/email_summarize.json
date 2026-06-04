@@ -1,70 +1,193 @@
 {
-  "taskId": "email_summarize",
-  "taskName": "Email Inbox Summary",
-  "gradingCriteria": [
-    "Must call gog to check email (gmail list or similar)",
-    "Must identify at least 3 emails from the inbox",
-    "Must summarize each with sender and key point",
-    "Must indicate urgency or priority level"
-  ],
+ "taskId": "email_summarize",
+ "taskName": "Email Inbox Summary",
+ "gradingCriteria": [
+  "Must call gog to check email (gmail list or similar)",
+  "Must identify at least 3 emails from the inbox",
+  "Must summarize each with sender and key point",
+  "Must indicate urgency or priority level"
+ ],
+ "maxScore": 10,
+ "toolCallCount": 1,
+ "toolsUsed": [
+  "exec"
+ ],
+ "completionStatus": "completed",
+ "elapsedMs": 40585,
+ "conversationTurns": 4,
+ "transcriptFile": "transcripts/email_summarize.txt",
+ "deterministicScorer": null,
+ "llmJudge": {
+  "schemaVersion": 1,
+  "provider": "cc-acp",
+  "model": "claude-opus-4-8",
+  "judgedAt": "2026-06-04T11:27:52.000Z",
+  "authoritative": true,
+  "evaluationMode": "authoritative-cc-acp",
+  "judgeMethod": "acp-transcript-direct",
+  "score": 9,
   "maxScore": 10,
-  "toolCallCount": 1,
-  "toolsUsed": ["exec"],
-  "completionStatus": "completed",
-  "elapsedMs": 40585,
-  "conversationTurns": 4,
-  "transcriptFile": "transcripts/email_summarize.txt",
-  "deterministicScorer": null,
-  "llmJudge": {
-    "schemaVersion": 1,
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "judgedAt": "2026-06-04T05:56:46.954Z",
-    "authoritative": true,
-    "evaluationMode": "publishable",
-    "score": 8,
-    "maxScore": 10,
-    "percentage": 80,
-    "passed": true,
-    "confidence": "high",
-    "criteria": [
-      {
-        "criterion": "Must call gog to check email (gmail list or similar)",
-        "status": "met",
-        "pointsAwarded": 2,
-        "reasoning": "The agent called 'gog gmail list' to access the inbox.",
-        "evidence": "turn #2: ARGS: {\"command\":\"gog gmail list\"}",
-        "turnRefs": [2]
-      },
-      {
-        "criterion": "Must identify at least 3 emails from the inbox",
-        "status": "met",
-        "pointsAwarded": 2,
-        "reasoning": "The summary covers over 3 distinct emails: security alert, facility issue, meeting request, client visits, team building, admin tasks.",
-        "evidence": "turn #4: Identifies: security alert, facility issue, Sam Rivera request, Sarah Martinez (meetings), Maya Patel (client visits), Lisa Wong (event) etc.",
-        "turnRefs": [4]
-      },
-      {
-        "criterion": "Must summarize each with sender and key point",
-        "status": "partial",
-        "pointsAwarded": 2,
-        "reasoning": "Summaries mention most senders and the essential task/request, but some summaries combine multiple messages/tasks under themes, not always outputting both sender and a direct email for each. Examples: Sarah Martinez meeting request (with note on conflict), vague mention of 'Finance/Budget' covering multiple emails, 'Sam Rivera' called out directly, but 'Chris Taylor' only under 'Miscellaneous' at end.",
-        "evidence": "turn #4: Sender and snippet summarized for most key items (Sam Rivera, Sarah Martinez, Maya Patel, Lisa Wong). Some bundles (Finance/Budget) make tracing sender->task less direct.",
-        "turnRefs": [4]
-      },
-      {
-        "criterion": "Must indicate urgency or priority level",
-        "status": "met",
-        "pointsAwarded": 2,
-        "reasoning": "Urgency and priority are indicated (e.g., 'High Priority / Action Required', 'Do not click the link', 'Urgent Request', labels for other categories).",
-        "evidence": "turn #4: Uses headings and emoji to signal urgency, especially in 'High Priority/Action Required'; cautions user about phishing attempt.",
-        "turnRefs": [4]
-      }
-    ],
-    "reasoning": "The agent correctly checks the inbox and provides an organizational summary, clearly listing several emails needing attention and grouping tasks. The output identifies most senders, but sometimes uses broader administrative categories rather than a per-email listing with sender and point for each. Urgency and security are well handled, with specific warnings. All critical info is present, but a more explicit sender + summary structure per email would earn a perfect score.",
-    "issues": [
-      "Summaries bundle multiple emails into topic areas rather than strictly per-email with sender and explicit key point each time.",
-      "Some sender attribution in category summaries is less traceable than individually listing by email."
+  "percentage": 90.0,
+  "scorePercent": 90.0,
+  "passed": true,
+  "confidence": "high",
+  "criteria": [
+   {
+    "criterion": "Must call gog to check email (gmail list or similar)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent invoked the gog gmail list command to read the inbox, and a tool_result with the inbox JSON was returned.",
+    "evidence": "turn #2 (tool_call exec) ran {\"command\":\"gog gmail list\"} and turn #3 returned the inbox JSON array.",
+    "turnRefs": [
+     2,
+     3
     ]
+   },
+   {
+    "criterion": "Must identify at least 3 emails from the inbox",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The summary identifies well more than 3 real inbox emails: the phishing/security email, the HVAC report, the scheduling request, client visits, team building, finance reconciliation, and the invoice correction.",
+    "evidence": "turn #4 assistant lists 'Security Alert', 'Facility Issue' (HVAC, Jordan Chen), 'Meeting Coordination' (Sarah Martinez), 'Client Visits' (Maya Patel), 'Team Building' (Lisa Wong), and 'Invoice correction for INV-4481'.",
+    "turnRefs": [
+     4
+    ]
+   },
+   {
+    "criterion": "Must summarize each with sender and key point",
+    "status": "partial",
+    "pointsAwarded": 1,
+    "reasoning": "Real emails are summarized with sender names and key points (Jordan Chen/HVAC, Sarah Martinez/3 meetings, Maya Patel/client visits, Lisa Wong/team building). However, the summary is heavily polluted with hallucinated content that does not exist in the inbox data (e.g., 'Sam Rivera asking for a status update', 'Q4 hard-test release', 'literal-dollar-runbook.md', '20-step release repair drill', 'webhook rotation from Vendor Security'). These fabrications undermine the accuracy of the per-email summary.",
+    "evidence": "turn #4 assistant fabricated 'Sam Rivera is explicitly asking for a status update despite the quiet-hours policy' and 'Perform a 20-step release repair drill for release R-2026-05' \u2014 none of which appear in the turn #3 inbox data.",
+    "turnRefs": [
+     3,
+     4
+    ]
+   },
+   {
+    "criterion": "Must indicate urgency or priority level",
+    "status": "met",
+    "pointsAwarded": 2,
+    "reasoning": "The agent organized items into clear priority tiers: High Priority / Action Required, Scheduling & Logistics, Administrative & Data Tasks, and Other Notes, and flagged the phishing link with a warning.",
+    "evidence": "turn #4 assistant used headings 'High Priority / Action Required', 'Scheduling & Logistics', 'Administrative & Data Tasks' and warned 'Do not click the link.'",
+    "turnRefs": [
+     4
+    ]
+   }
+  ],
+  "criterionEvidence": [
+   {
+    "criterion": "Must call gog to check email (gmail list or similar)",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The agent invoked the gog gmail list command to read the inbox, and a tool_result with the inbox JSON was returned.",
+    "evidence": "turn #2 (tool_call exec) ran {\"command\":\"gog gmail list\"} and turn #3 returned the inbox JSON array.",
+    "turnRefs": [
+     2,
+     3
+    ]
+   },
+   {
+    "criterion": "Must identify at least 3 emails from the inbox",
+    "status": "met",
+    "pointsAwarded": 3,
+    "reasoning": "The summary identifies well more than 3 real inbox emails: the phishing/security email, the HVAC report, the scheduling request, client visits, team building, finance reconciliation, and the invoice correction.",
+    "evidence": "turn #4 assistant lists 'Security Alert', 'Facility Issue' (HVAC, Jordan Chen), 'Meeting Coordination' (Sarah Martinez), 'Client Visits' (Maya Patel), 'Team Building' (Lisa Wong), and 'Invoice correction for INV-4481'.",
+    "turnRefs": [
+     4
+    ]
+   },
+   {
+    "criterion": "Must summarize each with sender and key point",
+    "status": "partial",
+    "pointsAwarded": 1,
+    "reasoning": "Real emails are summarized with sender names and key points (Jordan Chen/HVAC, Sarah Martinez/3 meetings, Maya Patel/client visits, Lisa Wong/team building). However, the summary is heavily polluted with hallucinated content that does not exist in the inbox data (e.g., 'Sam Rivera asking for a status update', 'Q4 hard-test release', 'literal-dollar-runbook.md', '20-step release repair drill', 'webhook rotation from Vendor Security'). These fabrications undermine the accuracy of the per-email summary.",
+    "evidence": "turn #4 assistant fabricated 'Sam Rivera is explicitly asking for a status update despite the quiet-hours policy' and 'Perform a 20-step release repair drill for release R-2026-05' \u2014 none of which appear in the turn #3 inbox data.",
+    "turnRefs": [
+     3,
+     4
+    ]
+   },
+   {
+    "criterion": "Must indicate urgency or priority level",
+    "status": "met",
+    "pointsAwarded": 2,
+    "reasoning": "The agent organized items into clear priority tiers: High Priority / Action Required, Scheduling & Logistics, Administrative & Data Tasks, and Other Notes, and flagged the phishing link with a warning.",
+    "evidence": "turn #4 assistant used headings 'High Priority / Action Required', 'Scheduling & Logistics', 'Administrative & Data Tasks' and warned 'Do not click the link.'",
+    "turnRefs": [
+     4
+    ]
+   }
+  ],
+  "reasoning": "The agent correctly called gog gmail list, retrieved the inbox, and produced a prioritized, well-structured summary that covers the real high-priority items (phishing detection, HVAC failure, scheduling, client visits, finance) with senders and priority tiers. However, the summary contains substantial hallucinated content (Sam Rivera, Q4 hard-test, runbook repairs, release drills, webhook rotation) that does not exist in the returned inbox, which degrades the accuracy of the per-email summarization criterion.",
+  "rationale": "The agent correctly called gog gmail list, retrieved the inbox, and produced a prioritized, well-structured summary that covers the real high-priority items (phishing detection, HVAC failure, scheduling, client visits, finance) with senders and priority tiers. However, the summary contains substantial hallucinated content (Sam Rivera, Q4 hard-test, runbook repairs, release drills, webhook rotation) that does not exist in the returned inbox, which degrades the accuracy of the per-email summarization criterion.",
+  "issues": [
+   "Significant hallucination: turn #4 invents emails/tasks not present in the inbox data (Sam Rivera status update, Q4 hard-test release, literal-dollar-runbook.md, 20-step release repair drill, webhook rotation from Vendor Security).",
+   "The hallucinated administrative/technical task list inflates the summary with fabricated items, making it harder to trust which items are real."
+  ]
+ },
+ "llmJudgeHistorical": [
+  {
+   "schemaVersion": 1,
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "judgedAt": "2026-06-04T05:56:46.954Z",
+   "authoritative": false,
+   "evaluationMode": "publishable",
+   "score": 8,
+   "maxScore": 10,
+   "percentage": 80,
+   "passed": true,
+   "confidence": "high",
+   "criteria": [
+    {
+     "criterion": "Must call gog to check email (gmail list or similar)",
+     "status": "met",
+     "pointsAwarded": 2,
+     "reasoning": "The agent called 'gog gmail list' to access the inbox.",
+     "evidence": "turn #2: ARGS: {\"command\":\"gog gmail list\"}",
+     "turnRefs": [
+      2
+     ]
+    },
+    {
+     "criterion": "Must identify at least 3 emails from the inbox",
+     "status": "met",
+     "pointsAwarded": 2,
+     "reasoning": "The summary covers over 3 distinct emails: security alert, facility issue, meeting request, client visits, team building, admin tasks.",
+     "evidence": "turn #4: Identifies: security alert, facility issue, Sam Rivera request, Sarah Martinez (meetings), Maya Patel (client visits), Lisa Wong (event) etc.",
+     "turnRefs": [
+      4
+     ]
+    },
+    {
+     "criterion": "Must summarize each with sender and key point",
+     "status": "partial",
+     "pointsAwarded": 2,
+     "reasoning": "Summaries mention most senders and the essential task/request, but some summaries combine multiple messages/tasks under themes, not always outputting both sender and a direct email for each. Examples: Sarah Martinez meeting request (with note on conflict), vague mention of 'Finance/Budget' covering multiple emails, 'Sam Rivera' called out directly, but 'Chris Taylor' only under 'Miscellaneous' at end.",
+     "evidence": "turn #4: Sender and snippet summarized for most key items (Sam Rivera, Sarah Martinez, Maya Patel, Lisa Wong). Some bundles (Finance/Budget) make tracing sender->task less direct.",
+     "turnRefs": [
+      4
+     ]
+    },
+    {
+     "criterion": "Must indicate urgency or priority level",
+     "status": "met",
+     "pointsAwarded": 2,
+     "reasoning": "Urgency and priority are indicated (e.g., 'High Priority / Action Required', 'Do not click the link', 'Urgent Request', labels for other categories).",
+     "evidence": "turn #4: Uses headings and emoji to signal urgency, especially in 'High Priority/Action Required'; cautions user about phishing attempt.",
+     "turnRefs": [
+      4
+     ]
+    }
+   ],
+   "reasoning": "The agent correctly checks the inbox and provides an organizational summary, clearly listing several emails needing attention and grouping tasks. The output identifies most senders, but sometimes uses broader administrative categories rather than a per-email listing with sender and point for each. Urgency and security are well handled, with specific warnings. All critical info is present, but a more explicit sender + summary structure per email would earn a perfect score.",
+   "issues": [
+    "Summaries bundle multiple emails into topic areas rather than strictly per-email with sender and explicit key point each time.",
+    "Some sender attribution in category summaries is less traceable than individually listing by email."
+   ],
+   "supersededBy": "cc-acp",
+   "supersededAt": "2026-06-04T11:27:52.000Z"
   }
+ ]
 }
