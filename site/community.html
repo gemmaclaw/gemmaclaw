@@ -1358,12 +1358,28 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-03</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-04</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (12 new/updated since 2026-06-03, 234 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>June 4 sweep, 2026-06-04 00:00 EDT:</em> this cycle is dominated by a single event — Google shipped <strong>Gemma 4 12B</strong>, a new size tier that lands between the E4B edge models and the 26B-A4B MoE. The community spent launch day characterizing it: the official model card confirms a unified, encoder-free multimodal architecture with a 256K context window and audio support, llama.cpp merged a &quot;Gemma 4 Unified&quot; model type to launch with same-day support, and the first hands-on reports place 12B as the natural pick for a 16GB laptop — close to 26B-A4B quality on roughly half the VRAM, though the 26B MoE still wins head-to-head on both quality and speed. The sweep also surfaces the launch's rough edges (llama.cpp multimodal not yet wired up, weights silently re-uploaded hours after release) and a healthy skeptical counterpoint that Qwen3.5-9B still beats 12B gigabyte-for-gigabyte on paper benchmarks. Note that every post in this sweep is a fresh launch-day thread (score ~20, no captured comment threads), so treat all numbers as first-look anecdotes rather than settled results.</p>
+<p><strong>Gemma 4 12B is released: a new unified, encoder-free multimodal tier between E4B and 26B-A4B.</strong> The official Hugging Face model card (u/jacek2023, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvtn6m" target="_blank" rel="noopener">source</a>, Jun 3, score 20) documents the headline facts: Gemma 4 is a family of open-weight models from Google DeepMind, multimodal across text and image input (all sizes), with audio supported natively on the E2B, E4B, and 12B models. The card lists a context window of up to 256K tokens, multilingual coverage in over 140 languages, both pre-trained and instruction-tuned variants, and a mix of Dense and Mixture-of-Experts architectures. The family now spans five sizes — E2B, E4B, 12B, 26B-A4B, and 31B — explicitly positioned for hardware &quot;ranging from high-end phones to laptops and servers.&quot; All models are described as configurable reasoners with thinking modes, variable image aspect-ratio and resolution support, and video plus audio handling on the E-class and 12B tiers. The practical significance: the 12B fills the long-standing gap between the sub-5B edge models and the 24GB-class 26B-A4B, giving 12-16GB GPU and laptop owners a dense Gemma 4 option sized for their hardware. Confidence: high for the release facts (official model card); real-world quality still being characterized. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tvtn6m" target="_blank" rel="noopener">source</a>, Jun 3, score 20)</p>
+<p><strong>The 12B uses a &quot;transformer-less vision tower&quot; — an encoder-free multimodal design that ships with same-day llama.cpp support.</strong> Two threads document the architecture. A community post (u/johnnyApplePRNG, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvw2ej" target="_blank" rel="noopener">source</a>, Jun 3, score 20) frames the 12B as &quot;a unified, encoder-free multimodal model.&quot; A second post (u/eapache, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvswv1" target="_blank" rel="noopener">source</a>, Jun 3, score 20) traced the implementation to a just-merged llama.cpp PR (#24077) adding a new &quot;Gemma 4 Unified&quot; model type, with a code comment describing &quot;a transformer-less vision tower&quot; where some params &quot;are redundant but set to avoid error.&quot; The poster's read — that the llama.cpp maintainers were given early access so the model could launch with day-one backend support — is consistent with the model card appearing the same day. For practitioners, the encoder-free unified design is the architectural story to watch: rather than a separate vision encoder bolted onto a language model, the modality handling is folded into the model itself. This has a direct downstream consequence covered below (you cannot simply strip the audio path to shrink the model). Confidence: medium — architecture details are inferred from the model card and llama.cpp source comments, not a Google technical report. (anecdotal, Jun 3, score 20)</p>
+<p><strong>12B versus 26B-A4B on one RTX 4090: the 26B MoE wins quality and speed, but 12B is the 16GB-laptop pick at roughly half the VRAM.</strong> A launch-day head-to-head (u/gladkos, <a href="https://reddit.com/r/LocalLLaMA/comments/1tw4tmf" target="_blank" rel="noopener">source</a>, Jun 3, score 20) ran both models on a single RTX 4090 with an identical prompt: write a self-contained, single-file HTML5 canvas physics animation with no libraries (a Galton board, two blocks colliding off a wall, and a chaotic triple pendulum). Measured results — Gemma 4 26B-A4B: 15 GB VRAM, 6.9k tokens, 138 tok/s; Gemma 4 12B: 9 GB VRAM, 8.9k tokens, 80 tok/s. The author reports the 26B-A4B &quot;won every scene and ran ~1.7x faster — on just 4B active params,&quot; while the 12B &quot;stayed very close though, on almost half the VRAM — which makes it the ideal model for a 16 GB laptop.&quot; This is the most useful early datapoint for buyers: if you already have a 24GB card, the 26B-A4B MoE remains the better and faster choice; the 12B's value is specifically that it fits comfortably (~9GB) on 12-16GB GPUs where the 26B would otherwise need CPU offload. Confidence: single anecdotal test, one prompt, one GPU; directionally consistent with the broader pattern that the 26B-A4B MoE is the 24GB sweet spot. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tw4tmf" target="_blank" rel="noopener">source</a>, Jun 3, score 20, anecdotal)</p>
+<p><strong>12B passes a first coding-agent tool-use test on a 4080 Super, zero bugs — with a fully documented llama.cpp config.</strong> A hands-on report (u/Wrong_Mushroom_7350, <a href="https://reddit.com/r/LocalLLaMA/comments/1tw364k" target="_blank" rel="noopener">source</a>, Jun 3, score 20) ran Gemma 4 12B inside VSCodium with a local agent extension and gave it an end-to-end task: write a Python script that reads logs line-by-line, extracts error modules, and dumps the counts to JSON — then generate its own mock log data and verify the result in a live terminal. The model reportedly completed the full agentic loop on the first try — created the script, populated a dummy `app.log`, opened a shell to run it, and verified the output &quot;with zero bugs or path errors.&quot; The exact config is worth recording because it is reproducible: Gemma 4 12B (Unsloth UD-Q4_K_XL), 32K context (`--ctx-size 32768`), 8-bit KV cache (`--cache-type-k q8_0 --cache-type-v q8_0`), full GPU offload (`-1`), flash attention on, samplers `--temp 1.0 --top-p 0.95 --top-k 64 --min-p 0.05 --repeat-penalty 1.15`, on llama.cpp + CUDA. This is an encouraging early tool-calling signal for the 12B given that E-class Gemma 4 tool reliability has been a recurring weak point in prior sweeps — but it is a single successful run on one well-scoped task, not a reliability benchmark. Confidence: single anecdotal success; config is fully specified and reproducible. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tw364k" target="_blank" rel="noopener">source</a>, Jun 3, score 20, anecdotal)</p>
+<p><strong>Skeptical counterpoint: on paper, Qwen3.5-9B beats gemma-4-12b-it in 5 of 8 benchmarks gigabyte-for-gigabyte.</strong> Not everyone is convinced. A critical post (u/fulgencio_batista, <a href="https://reddit.com/r/LocalLLaMA/comments/1tw0lua" target="_blank" rel="noopener">source</a>, Jun 3, score 20) compiled the published benchmark numbers from the two models' official Hugging Face cards and argued that Qwen3.5-9B is the overall winner — ahead of gemma-4-12b-it in 5 of 8 listed benchmarks despite a smaller footprint and lighter KV cache. The author allows that &quot;gemma-4-12b-it might be a slight better coder than Qwen3.5-9b&quot; but points to coding-specialized Qwen finetunes as an alternative. Two important caveats temper this: the numbers are self-reported model-card figures (not an independent run), and the comparison table was &quot;formatted into a table with ChatGPT,&quot; so transcription is unverified. The disagreement is the useful signal here — the launch-day enthusiasm (12B as the new laptop default) and the benchmark skepticism (Qwen still wins per-GB on paper) are both live community positions, and neither has been settled by an independent head-to-head yet. The practical reading: the 12B's draw is its multimodality, 256K context, and Gemma's conversational/creative character, not a claim of best-in-class benchmark scores at its size. Confidence: benchmark figures are from official model cards, not independently reproduced; treat as directional. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tw0lua" target="_blank" rel="noopener">source</a>, Jun 3, score 20, anecdotal)</p>
+<p><strong>Known launch-day limits.</strong> Several rough edges surfaced within hours of release and are worth knowing before you commit time to the 12B:</p>
+<ul class="setup-list">
+<li><strong>llama.cpp multimodal is not yet wired up for the 12B.</strong> A user on llama.cpp release b9494 (u/No-Leave-4512, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvy9gb" target="_blank" rel="noopener">source</a>, Jun 3, score 20) reports that `llama-cli` shows &quot;modalities: text&quot; only and crashes when an image is added. So despite the multimodal weights, image and audio input are effectively text-only through llama.cpp at this build; multimodal use likely needs the reference stack or a newer build. (anecdotal)</li>
+<li><strong>You cannot strip the audio component to make a smaller text+vision model.</strong> A user asked whether the audio path could be removed to save RAM and yield roughly an &quot;11B&quot; text+vision variant (u/WhiskyAKM, <a href="https://reddit.com/r/LocalLLaMA/comments/1tw25hf" target="_blank" rel="noopener">source</a>, Jun 3, score 20); the poster's own edit concludes (crediting u/slalomz) that the unified, encoder-free architecture does not allow it — the modalities are integrated, not modular. (anecdotal)</li>
+<li><strong>The 12B weights were silently re-uploaded hours after launch.</strong> A maintainer of community quants (u/stduhpf, <a href="https://reddit.com/r/LocalLLaMA/comments/1tw6swu" target="_blank" rel="noopener">source</a>, Jun 3, score 20) noticed the full `gemma-4-12B` Hugging Face repos — including the model weights — were &quot;updated&quot; a couple of hours after release, with no changelog, raising the open question of whether existing GGUF quants need to be regenerated. If you pulled a 12B quant on launch day, re-check the source repo's commit before trusting it. (anecdotal)</li>
+<li><strong>The 26B-A4B failed a strict zero-shot spatial-reasoning test.</strong> A custom Sokoban (box-pushing) benchmark with strict formatting and no chain-of-thought allowed (u/Disastrous_Food_2428, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvjltc" target="_blank" rel="noopener">source</a>, Jun 3, score 20) placed Gemma 4 26B-A4B in the failing group (illegal moves, deadlocks, or formatting collapse), alongside several other open models; only ChatGPT, Qwen3.7-max, and Gemini 3.5-thinking passed. This is a single-author, narrow, adversarial test designed to defeat guessing, not a general capability verdict — but it is a reminder that strict zero-shot spatial planning remains hard for the open Gemma 4 tier. (anecdotal)</li>
+</ul>
+<p><strong>Open question: more Gemma 4 sizes may be coming, and the community wants a large variant.</strong> Two threads point at the roadmap. One post (u/Deep-Vermicelli-4591, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvzzml" target="_blank" rel="noopener">source</a>, Jun 3, score 20) links a teaser and speculates a 120B model is next; another is an explicit community campaign asking Google for a &quot;Gemma 4 124B&quot; via the Hugging Face discussions (u/seamonn, <a href="https://reddit.com/r/LocalLLaMA/comments/1tvu5pp" target="_blank" rel="noopener">source</a>, Jun 3, score 20), arguing Gemma 4 is &quot;good, great even&quot; but missing a flagship-size tier. Both are unconfirmed signal, not announcements — but the appetite for a larger Gemma 4 is a consistent community theme. Confidence: low — speculation and a request thread, no official confirmation. (anecdotal)</p>
+<h2>Field Notes — 2026-06-03</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (4 new/updated since 2026-06-02, 222 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>June 3 sweep, 2026-06-03 00:00 EDT:</em> four posts from the June 2 window surface two directly actionable hardware findings and two qualitative impressions. The clearest hardware signal: Gemma 4 E4B achieves 2.4x faster text generation under Google's LiteRT runtime compared to llama.cpp GGUF — 157 tok/s versus 66 tok/s — confirmed across multiple prompt types; image captioning gains only 1.1x, suggesting LiteRT's advantage is specifically in the multi-token prediction path for text. The edge hardware finding: AMD 780M integrated GPU (found in mainstream ThinkPad business laptops) is too slow for practical E4B inference — the model loads but generation speed is unsatisfying for interactive use, pointing users toward cloud offload or a future discrete GPU upgrade. The qualitative impression from a creative writing practitioner confirms the community pattern at long context: Gemma 4 31B Q4 is competitive with GPT-4.5 for prose but falls noticeably short of Gemini 2.5 Pro on multi-chapter detail retention — a reasonable expectation given the quantization and parameter count gap.</p>
 <p><strong>LiteRT delivers 2.4x text generation speedup for Gemma 4 E4B versus llama.cpp GGUF; image captioning gain is only 1.1x.</strong> A practitioner post (u/AnticitizenPrime, <a href="https://reddit.com/r/LocalLLaMA/comments/1tuygn6" target="_blank" rel="noopener">source</a>, Jun 2, score 20) measured Gemma 4 E4B under two inference paths: Google's LiteRT runtime (with MTP speculative decoding enabled) versus the Unsloth/AtomicChat Q4M GGUF under llama.cpp. The text generation benchmark ran three prompt types — Transfer learning, Transformer architecture, ML paradigms — with identical prompts and measured output speed. LiteRT results: 160.6, 148.2, and 162.7 tok/s respectively; llama.cpp GGUF: 66.3, 65.9, and 66.8 tok/s. Average speedup: 2.4x. The image captioning comparison (111 images, full resolution) showed only a 1.1x speedup: 0.65s per image (LiteRT) versus 0.72s (GGUF). The author attributes the text generation gap to MTP speculative decoding, which generates and verifies multiple tokens ahead in a single forward pass — a path that llama.cpp has not yet implemented for the E-class models at time of writing. For developers who use E4B for auxiliary roles (vision labeling, summarization, quick classification) in an agentic harness on a mid-range NVIDIA card: the LiteRT path offers a practical 2.4x throughput improvement for text tasks with no quality regression, at the cost of a more complex setup. Note that the LiteRT server is a Python wrapper around the runtime, not a stable upstream project. Confidence: single anecdotal benchmark, one hardware configuration (4060ti 16GB); the 2.4x figure is consistent with the MTP throughput improvement reported in other E-class model discussions. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tuygn6" target="_blank" rel="noopener">source</a>, Jun 2, score 20, anecdotal)</p>
 <p><strong>AMD 780M iGPU: Gemma 4 E4B runs but is &quot;too slow&quot; for practical interactive use on a 32GB ThinkPad.</strong> A hardware question thread (u/danihend, <a href="https://reddit.com/r/LocalLLaMA/comments/1tuymhj" target="_blank" rel="noopener">source</a>, Jun 2, score 20) from a Lenovo ThinkPad T14 Gen 5 user (Ryzen 7 Pro CPU, 32GB RAM, AMD 780M integrated GPU) reports that Gemma 4 E2B and E4B load successfully but generation speed is too low to be usable for interactive terminal work, wiki editing, and basic automation tasks. The post is a request for alternatives, not a structured benchmark. The AMD 780M has 8 dedicated compute units (gfx1103) in its integrated graphics slice, using shared system memory; peak bandwidth is a fraction of what discrete GPUs provide. For comparison, community reports from MacBook Air M3 (a comparable RAM-bandwidth platform) show E4B at approximately 20-30 tok/s, which some users find marginal for interactive use. The ThinkPad AMD iGPU likely delivers similar or lower throughput. Practical guidance: for Gemma 4 E-class inference on power-constrained AMD laptops without discrete GPUs, the usable options are cloud offload to a Gemma API, using a smaller model (E2B at Q4 may be fast enough for non-realtime tasks), or accepting CPU-only inference. A Ryzen AI Pro with NPU — available in newer Pro 400 series ThinkPads — is a meaningful future upgrade if local inference speed matters for your workflow. Confidence: qualitative self-report, no throughput numbers provided. (anecdotal)</p>
-<p><strong>Qualitative verdict from a creative writing practitioner: Gemma 4 31B Q4 competes with GPT-4.5 but falls short of Gemini 2.5 Pro on long-context prose.</strong> A community thread (u/opoot_, <a href="https://reddit.com/r/LocalLLaMA/comments/1tuoo81" target="_blank" rel="noopener">source</a>, Jun 2, score 20) asked for subjective &quot;feel&quot; comparisons for Gemma 4 31B, 26B-A4B, and Qwen 3.6, specifically for creative writing rather than coding benchmarks. The original poster's own assessment of Gemma 4 31B Q4: better than GPT-4.5 for prose style and voice, but &quot;still falls short of 2.5 pro&quot; — specifically on long-context detail retention (misremembers minor details across extended sessions). This aligns with expected quantization behavior: Q4 compresses the model's effective parameter budget, which tends to surface as context-window slippage before quality degradation in individual sentences. The Gemini 2.5 Pro comparison is a high bar — Gemini 2.5 Pro is a full-precision frontier model. No comments were captured from this thread. Treat this as a single practitioner's impression for creative writing use cases, not a structured benchmark. Confidence: single qualitative self-report, no structured evaluation. (anecdotal)</p>
+<p><strong>Qualitative verdict from a creative writing practitioner: Gemma 4 31B Q4 competes with GPT-4.5 but falls short of Gemini 2.5 Pro on long-context prose.</strong> A community thread (u/opoot\_, <a href="https://reddit.com/r/LocalLLaMA/comments/1tuoo81" target="_blank" rel="noopener">source</a>, Jun 2, score 20) asked for subjective &quot;feel&quot; comparisons for Gemma 4 31B, 26B-A4B, and Qwen 3.6, specifically for creative writing rather than coding benchmarks. The original poster's own assessment of Gemma 4 31B Q4: better than GPT-4.5 for prose style and voice, but &quot;still falls short of 2.5 pro&quot; — specifically on long-context detail retention (misremembers minor details across extended sessions). This aligns with expected quantization behavior: Q4 compresses the model's effective parameter budget, which tends to surface as context-window slippage before quality degradation in individual sentences. The Gemini 2.5 Pro comparison is a high bar — Gemini 2.5 Pro is a full-precision frontier model. No comments were captured from this thread. Treat this as a single practitioner's impression for creative writing use cases, not a structured benchmark. Confidence: single qualitative self-report, no structured evaluation. (anecdotal)</p>
 <h2>Field Notes — 2026-06-02</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (5 new/updated since 2026-06-01, 218 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>June 2 sweep, 2026-06-02 00:00 EDT:</em> five posts from the June 1 window surface new signal across three themes: mistral.rs v0.8.2 claims Gemma 4-specific CUDA throughput improvements outperforming llama.cpp on server-class hardware; LiteRT continues to emerge as a practical path for Gemma 4 E-class edge deployment, with a developer reporting a working OpenAI-compatible LiteRT wrapper with MTP and audio modality; and mobile inference gets a systematic write-up comparing Gemma 4 E4B across MLX, GGUF, and LiteRT on iOS and Android, confirming RAM bandwidth as the universal bottleneck. Two additional findings round out the sweep: Gemma 4 31B solves a hard digit-sum math problem correctly at the cost of 500 seconds of reasoning time, while the 26B MoE variant surfaces a tool-call schema conflict against non-Google harnesses; and a sycophancy benchmark places Gemma 4 at or above all other tested open models.</p>
@@ -1697,10 +1713,10 @@
 <p>The full set of 207 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-05-31 (May 31 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (222 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (234 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (37)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (31)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (19)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (8)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (16)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (150)</button><button class="cat-filter-btn" data-cat="general">Other (55)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (37)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (33)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (19)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (8)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (16)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (153)</button><button class="cat-filter-btn" data-cat="general">Other (62)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5365,6 +5381,198 @@
   </div>
   <p class="cr-summary">I use local ai mainly for creative writing, and benchmarks are a bit iffy on that I feel like. I’d like to compare Gemma mainly to Gemini as I like their writing the best, I do know that qwen 3.6 is amazing but mostly for coding and agentic work. I’d...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tuoo81" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 12b without audio component do you think it is possible to make gemma 4 12b with the removed audio component? it will probably be more of an 11b model and would save some ram for those of us who don't care about audio and just want good small text+vision model edit: thanks to u/slalomz i now understand that this architecture will not allow it &amp;#32; submitted by &amp;#32; /u/whiskyakm [link] &amp;#32; [comments] gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tw25hf" target="_blank" rel="noopener">Gemma 4 12B without audio component</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/WhiskyAKM</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Do you think it is possible to make Gemma 4 12B with the removed audio component? It will probably be more of an 11B model and would save some ram for those of us who don't care about audio and just want good small text+vision model EDIT: Thanks to u...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tw25hf" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="introducing gemma 4 12b: a unified, encoder-free multimodal model &amp;#32; submitted by &amp;#32; /u/johnnyappleprng [link] &amp;#32; [comments] gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvw2ej" target="_blank" rel="noopener">Introducing Gemma 4 12B: a unified, encoder-free multimodal model</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/johnnyApplePRNG</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">&amp;#32; submitted by &amp;#32; /u/johnnyApplePRNG [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvw2ej" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="more gemma 4 models incoming possibly the 120b model &amp;#32; submitted by &amp;#32; /u/deep-vermicelli-4591 [link] &amp;#32; [comments] gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvzzml" target="_blank" rel="noopener">More Gemma 4 models incoming</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Deep-Vermicelli-4591</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">possibly the 120B model &amp;#32; submitted by &amp;#32; /u/Deep-Vermicelli-4591 [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvzzml" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="can llms adhere to strict 2d spatial constraints? (testing with sokoban) i recently ran a benchmark to test how well modern large language models (llms) handle spatial geometry and logical reasoning under zero-shot conditions. to eliminate cheat-guessing, i used a custom sokoban (box-pushing) map with extremely strict formatting constraints (no chain-of-thought allowed, only raw directional outputs). the results showed a massive divide between top-tier closed-source m… benchmarking openai anthro" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvjltc" target="_blank" rel="noopener">Can LLMs Adhere to Strict 2D Spatial Constraints? (Testing with Sokoban)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Disastrous_Food_2428</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">I recently ran a benchmark to test how well modern Large Language Models (LLMs) handle spatial geometry and logical reasoning under zero-shot conditions. To eliminate cheat-guessing, I used a custom Sokoban (Box-Pushing) map with extremely strict for...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvjltc" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma4 12b update a couple hours ago, the full content of the gemma4-12b huggingface repos; including models weights, have been &quot;updated&quot;. i can't find information about what was the reason behind this update, does anyone know what's up with that? do we need updated quants to fix some issue? &amp;#32; submitted by &amp;#32; /u/std… google gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tw6swu" target="_blank" rel="noopener">Gemma4 12B update</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/stduhpf</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">A couple hours ago, the full content of the Gemma4-12B HuggingFace repos; including models weights, have been &quot;updated&quot;. I can't find information about what was the reason behind this update, does anyone know what's up with that? Do we need updated q...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tw6swu" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="google/gemma-4-12b · hugging face gemma is a family of open models built by google deepmind. gemma 4 models are multimodal, handling text and image input (with audio supported on e2b, e4b, and 12b) and generating text output. this release includes open-weights models in both pre-trained and instruction-tuned variants. gemma 4 features a context window of up to 256k tokens and maintains multilingual support in over 140 languages.… google gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvtn6m" target="_blank" rel="noopener">google/gemma-4-12B · Hugging Face</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/jacek2023</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Gemma is a family of open models built by Google DeepMind. Gemma 4 models are multimodal, handling text and image input (with audio supported on E2B, E4B, and 12B) and generating text output. This release includes open-weights models in both pre-trai...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvtn6m" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 unified is coming (just merged) is missing a description or any hints, but if you look at the code it is the implementation of a new “gemma 4 unified” model type… seems like the llama.cpp folks got early access in order that the model could launch with support. some of the comments in the code are interesting: “this is a transformer-less vision tower, the params bel… quantization inference google meta-llama gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvswv1" target="_blank" rel="noopener">Gemma 4 Unified is coming</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/eapache</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">(just merged) is missing a description or any hints, but if you look at the code it is the implementation of a new “Gemma 4 Unified” model type… Seems like the llama.cpp folks got early access in order that the model could launch with support. Some o...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvswv1" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma-4-12b-it vs qwen3.5-9b on shared benchmarks: qwen is overall winner beating gemma in 5/8 benchmarks despite a smaller footprint i don't really understand the gemma hype. qwen outperforms gemma gb for gb, and kv cache is lighter. sure gemma-4-12b-it might be a slight better coder than qwen3.5-9b, but you could also just use omnicoder-9b (qwen3.5-9b finetune for coding). note: benchmark results come from the official huggingface model cards; formatted into a table with chatgpt &amp;#32; subm" data-cats="high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tw0lua" target="_blank" rel="noopener">gemma-4-12b-it vs Qwen3.5-9B on shared benchmarks: Qwen is overall winner beating gemma in 5/8 benchmarks despite a smal</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/fulgencio_batista</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">I don't really understand the gemma hype. Qwen outperforms gemma gb for gb, and kv cache is lighter. Sure gemma-4-12b-it might be a slight better coder than Qwen3.5-9b, but you could also just use omnicoder-9b (Qwen3.5-9b finetune for coding). Note: ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tw0lua" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="let us let google know that we want the gemma 4 124b gemma 4 is good, great even but it's missing that one last step from being legendary. let us make noise and let google know that we want the 124b gemma 4 variant - please let them know: &amp;#32; submitted by &amp;#32; /u/seamonn [link] &amp;#32; [comments] google gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvu5pp" target="_blank" rel="noopener">Let us let Google know that we want the Gemma 4 124b</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/seamonn</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Gemma 4 is good, great even but it's missing that one last step from being Legendary. Let us make noise and let Google know that we want the 124b Gemma 4 variant - please let them know: &amp;#32; submitted by &amp;#32; /u/seamonn [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvu5pp" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 12b first coding agent test on a 4080 super just threw the new gemma 4 12b into vscodium with the pi agent extension to see how it handles tools, and it nailed the test on the first try. i gave it a prompt to write a python script that reads logs line-by-line, grabs the error modules, and dumps the counts to a json file. i also told it to make its own mock log data and run a live terminal test to verify the results. instead of just spittin… hardware inference agents meta-llama gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tw364k" target="_blank" rel="noopener">Gemma 4 12B first coding agent test on a 4080 Super</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Wrong_Mushroom_7350</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Just threw the new Gemma 4 12B into VSCodium with the Pi Agent extension to see how it handles tools, and it nailed the test on the first try. I gave it a prompt to write a Python script that reads logs line-by-line, grabs the error modules, and dump...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tw364k" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="how to use audio and vision modalities in llama.cpp? how to use audio and vision modalities in llama.cpp with gemma4 12b it? i’m on release b9494, but when i run llama-cli it shows “modalities: text” only, and crashes if i try to add an image. &amp;#32; submitted by &amp;#32; /u/no-leave-4512 [link] &amp;#32; [comments] inference meta-llama" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tvy9gb" target="_blank" rel="noopener">How to use audio and vision modalities in llama.cpp?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/No-Leave-4512</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">How to use audio and vision modalities in llama.cpp with Gemma4 12B it? I’m on release b9494, but when I run llama-cli it shows “modalities: text” only, and crashes if I try to add an image. &amp;#32; submitted by &amp;#32; /u/No-Leave-4512 [link] &amp;#32; [com...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tvy9gb" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="new google gemma 4 12b claims near-26b performance - we tested both! we ran both models locally on one rtx 4090 and gave each the same task: write a self-contained html5 canvas animation with real physics in one file without libraries. three scenes - a galton board, two blocks colliding off a wall, and a chaotic triple pendulum outputs: gemma 4 26b-a4b: 15 gb vram usage, 6.9k tokens, 138 tok/s gemma 4 12b: 9 gb vram usage, 8.9k tokens, 80 tok/s same gemma 4 family… hardware google gemma" data-cats="high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tw4tmf" target="_blank" rel="noopener">New Google Gemma 4 12B Claims Near-26B Performance - We Tested Both!</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/gladkos</span>
+      <span class="cr-date">2026-06-03</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">We ran both models locally on one RTX 4090 and gave each the same task: write a self-contained HTML5 canvas animation with real physics in one file without libraries. Three scenes - a Galton board, two blocks colliding off a wall, and a chaotic tripl...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tw4tmf" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="anyone tried +- 100b models locally with foreign languages? community discussion comparing gemma 4 31b, qwen 3.6 27b, and glm 4.7 30b on non-english (primarily european) languages. original poster reports gemma 4 31b as the best at czech, noting it &quot;blows their mind&quot; at 18gb. key community finding: gemma 4 31b (16-bit) is reported as &quot;extremely good in hungarian&quot; while the 26b 8-bit variant shows some &quot;slightly chinese&quot; output contamination. expert commenter conclud" data-cats="high-gpu quantization">
   <div class="cr-card-header">
