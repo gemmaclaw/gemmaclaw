@@ -71,6 +71,23 @@ def load_benchmark_results():
                 with open(rfile) as f:
                     data = json.load(f)
                 if "metadata" in data and "config" in data and "tasks" in data:
+                    # Merge enriched gpu fields from standalone metadata.json when available.
+                    # results.json only captures basic gpu info at run time; metadata.json
+                    # may include vramUsedMib, llamaCppBuild, generationTokensPerSecond.
+                    mfile = d / "metadata.json"
+                    if mfile.exists():
+                        try:
+                            with open(mfile) as mf:
+                                meta_extra = json.load(mf)
+                            extra_gpu = (meta_extra.get("hardware") or {}).get("gpu") or {}
+                            run_gpu = (data["metadata"].get("hardware") or {}).get("gpu")
+                            if isinstance(run_gpu, dict) and isinstance(extra_gpu, dict):
+                                for k in ("vramUsedMib", "llamaCppBuild", "generationTokensPerSecond",
+                                          "vramTotalMib", "contextLength", "reasoningMode"):
+                                    if k in extra_gpu and k not in run_gpu:
+                                        run_gpu[k] = extra_gpu[k]
+                        except (json.JSONDecodeError, KeyError, TypeError):
+                            pass
                     results.append(normalize_agentic_benchmark_result(data, d.name))
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
