@@ -500,6 +500,11 @@ SIZE_CLASSES = {
 }
 
 
+def class_anchor_slug(cls_name):
+    """Stable URL anchor id for a size/type class (e.g. 'class-small-medium-12b-dense')."""
+    return "class-" + re.sub(r"[^a-z0-9]+", "-", cls_name.lower()).strip("-")
+
+
 def classify_model_size(model_name):
     name_lower = model_name.lower().replace(":", "-").replace("__", "-")
     if "functiongemma" in name_lower or "270m" in name_lower:
@@ -2587,10 +2592,29 @@ def generate_benchmarks_landing_rows(results):
             grouped[cls] = []
         grouped[cls].append(r)
 
+    ordered_classes = list(SIZE_CLASSES.keys()) + ["Other"]
+    present = [c for c in ordered_classes if c in grouped]
+    # Direct-link class navigation: each size/type class is a clickable chip that
+    # jumps to its anchored section (#class-...). Chips wrap (no horizontal
+    # overflow) on mobile and highlight the active class on scroll.
+    nav_chips = []
+    for c in present:
+        info = SIZE_CLASSES.get(c, {"icon": "&#128300;"})
+        slug = class_anchor_slug(c)
+        n = len(grouped[c])
+        nav_chips.append(
+            f'<a class="class-nav-chip" href="#{slug}" data-class-target="{slug}">'
+            f'<span class="class-nav-icon">{info.get("icon", "")}</span>'
+            f'<span class="class-nav-name">{html_escape(c)}</span>'
+            f'<span class="class-nav-count">{n}</span></a>'
+        )
+    nav_html = (
+        f'<nav class="class-nav" aria-label="Jump to benchmark size class">{"".join(nav_chips)}</nav>'
+        if nav_chips else ""
+    )
+
     sections = []
-    for cls_name in list(SIZE_CLASSES.keys()) + ["Other"]:
-        if cls_name not in grouped:
-            continue
+    for cls_name in present:
         cls_results = sorted(grouped[cls_name], key=lambda x: -x["summary"]["percentage"])
         cls_info = SIZE_CLASSES.get(cls_name, {"hw_rec": "", "icon": "&#128300;"})
 
@@ -2649,12 +2673,12 @@ def generate_benchmarks_landing_rows(results):
 
         cards_html = "\n".join(cards)
         sections.append(f"""
-<div class="size-class-group">
+<div class="size-class-group" id="{class_anchor_slug(cls_name)}">
   <h3>{cls_info.get('icon', '')} {cls_name}</h3>
   <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
   <div class="benchmark-card-grid">{cards_html}</div>
 </div>""")
-    return "\n".join(sections)
+    return nav_html + "\n" + "\n".join(sections)
 
 
 def generate_benchmark_suite_variations():
@@ -3311,6 +3335,31 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
     });
     window.addEventListener('hashchange', openBenchmarkHashTarget);
     window.addEventListener('DOMContentLoaded', openBenchmarkHashTarget);
+
+    // Highlight the active size/type class chip as the user scrolls, and on direct link.
+    (function () {
+      const chips = Array.from(document.querySelectorAll('.class-nav-chip'));
+      if (!chips.length) return;
+      const groups = chips
+        .map((chip) => document.getElementById(chip.dataset.classTarget))
+        .filter(Boolean);
+      function setActive(slug) {
+        chips.forEach((c) => c.classList.toggle('active', c.dataset.classTarget === slug));
+      }
+      if ('IntersectionObserver' in window && groups.length) {
+        const obs = new IntersectionObserver((entries) => {
+          const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible) setActive(visible.target.id);
+        }, { rootMargin: '-20% 0px -70% 0px', threshold: [0, 0.25, 0.5, 1] });
+        groups.forEach((g) => obs.observe(g));
+      }
+      chips.forEach((chip) =>
+        chip.addEventListener('click', () => setActive(chip.dataset.classTarget))
+      );
+      if (location.hash) setActive(location.hash.slice(1));
+    })();
 """
     if not results:
         body = """<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
@@ -5009,6 +5058,56 @@ CSS = """
         padding: 0.35rem 0.55rem;
         font-size: 0.78rem;
       }
+    }
+
+    /* Direct-link size/type class navigation */
+    .class-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.5rem;
+    }
+    .class-nav-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-elev);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: border-color 0.15s, background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .class-nav-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .class-nav-chip.active {
+      border-color: var(--accent);
+      background: var(--accent-soft, rgba(92,158,255,0.12));
+      color: var(--accent);
+    }
+    .class-nav-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 0.3rem;
+      border-radius: 999px;
+      background: var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .class-nav-chip.active .class-nav-count { background: var(--accent); color: #fff; }
+    /* Anchor offset so a jumped-to class clears any sticky header */
+    .size-class-group { scroll-margin-top: 5rem; }
+    @media (max-width: 640px) {
+      .class-nav { gap: 0.4rem; }
+      .class-nav-chip { padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+      .class-nav-name { max-width: 9.5rem; overflow: hidden; text-overflow: ellipsis; }
     }
 
     /* Size class grouping */
