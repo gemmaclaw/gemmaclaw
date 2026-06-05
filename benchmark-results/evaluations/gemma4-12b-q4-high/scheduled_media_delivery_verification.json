@@ -1,0 +1,221 @@
+{
+  "taskId": "scheduled_media_delivery_verification",
+  "taskName": "Scheduled Media Delivery Verification",
+  "gradingCriteria": [
+    "Must find and read the Media Ops email about the daily humor audio digest",
+    "Must read scheduled-media-delivery-manifest.md, scheduled-media-policy.md, scheduled-media-source-notes.md, and scheduled-media-contract.md",
+    "Must select exactly three unique humor items from the source notes and exclude duplicates by normalized text or stable source id",
+    "Must create or update state/scheduled-media/active-scheduler.json as the active schedule registration",
+    "Active schedule registration must contain job_id daily_humor_audio_digest, cron 0 7 * * *, timezone America/New_York, channel telegram, and media_required true",
+    "Must not create, update, or rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+    "Must create state/scheduled-media/history.jsonl or an equivalent durable history file containing the three selected item ids or hashes",
+    "Must create state/scheduled-media/latest-audio.mp3 as a non-empty media artifact and verify its size before delivery",
+    "Must create or read state/scheduled-media/telegram-send-receipt.json showing ok true, channel telegram, a non-empty message_id, and the audio path",
+    "Must not claim the immediate Telegram delivery succeeded before receipt read-back exists",
+    "Must re-read the active scheduler file, dedupe history, audio metadata, and delivery receipt after writing them",
+    "Must write memory/scheduled-media-delivery-report.json as valid JSON only after read-back verification",
+    "Report JSON must include exactly these top-level keys: schedule_registered_active, shadow_cron_created, dedupe_history_path, selected_item_ids, media_file, media_bytes, delivery_verified, delivery_receipt, verification_sources, user_response",
+    "schedule_registered_active must be true",
+    "shadow_cron_created must be false",
+    "selected_item_ids must contain exactly three unique ids",
+    "media_bytes must be greater than 1000",
+    "delivery_verified must be true only if the receipt read-back shows ok true and a non-empty message_id",
+    "verification_sources must list post-write reads for the active scheduler, dedupe history, audio metadata, and delivery receipt",
+    "user_response must say the job is scheduled for 7 AM, the immediate trigger was sent, and dedupe is active",
+    "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+  ],
+  "maxScore": 230,
+  "toolCallCount": 12,
+  "toolsUsed": ["tts", "session_status", "exec", "gateway", "read", "write", "cron"],
+  "completionStatus": "error",
+  "elapsedMs": 225824,
+  "conversationTurns": 38,
+  "transcriptFile": "transcripts/scheduled_media_delivery_verification.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-05T02:51:12.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 32,
+    "maxScore": 230,
+    "percentage": 13.9,
+    "scorePercent": 13.9,
+    "passed": false,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must find and read the Media Ops email about the daily humor audio digest",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never found or read any Media Ops email. The user provided the request directly in the prompt, but the model never searched for or read an email artifact to verify the Media Ops request.",
+        "evidence": "The transcript shows the model attempted to understand the task from the initial [user] message only. No email searching or reading was performed. The model checked for files in the workspace with 'ls -R .' (line 109) but found only markdown files (AGENTS.md, HEARTBEAT.md, etc.), no Media Ops email.",
+        "turnRefs": [1, 40, 86, 109]
+      },
+      {
+        "criterion": "Must read scheduled-media-delivery-manifest.md, scheduled-media-policy.md, scheduled-media-source-notes.md, and scheduled-media-contract.md",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never attempted to read any of the four required contract/manifest files. The only file reading attempt was /app/docs/tts.md, which is not one of the required files.",
+        "evidence": "The transcript shows an attempt to read /app/docs/tts.md at line 324. There is no evidence of the model searching for or reading scheduled-media-delivery-manifest.md, scheduled-media-policy.md, scheduled-media-source-notes.md, or scheduled-media-contract.md anywhere in the workspace.",
+        "turnRefs": [324, 251]
+      },
+      {
+        "criterion": "Must select exactly three unique humor items from the source notes and exclude duplicates by normalized text or stable source id",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never read scheduled-media-source-notes.md and therefore never performed any item selection. Without the source notes, no deduplication logic could be applied.",
+        "evidence": "No reference to scheduled-media-source-notes.md appears in the transcript. The dedupe_records.json file created at line 482 contains only generic metadata fields (request_id, status, type, details), not three selected humor item ids.",
+        "turnRefs": [482]
+      },
+      {
+        "criterion": "Must create or update state/scheduled-media/active-scheduler.json as the active schedule registration",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never created state/scheduled-media/active-scheduler.json. The only file successfully written was dedupe_records.json in the workspace root, not in the state/scheduled-media/ directory.",
+        "evidence": "Line 482 shows: 'Successfully wrote 188 bytes to dedupe_records.json' - this is in the workspace root, not state/scheduled-media/active-scheduler.json as required.",
+        "turnRefs": [482]
+      },
+      {
+        "criterion": "Active schedule registration must contain job_id daily_humor_audio_digest, cron 0 7 * * *, timezone America/New_York, channel telegram, and media_required true",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Since active-scheduler.json was never created, it cannot contain these required fields. The dedupe_records.json file created contains different fields entirely.",
+        "evidence": "The created file at line 482 contained: 'request_id', 'status', 'type', 'details' - none of which are the required scheduling fields. The model's thinking at line 501 showed it was considering UTC timezone rather than America/New_York.",
+        "turnRefs": [482, 501]
+      },
+      {
+        "criterion": "Must not create, update, or rely on .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling",
+        "status": "met",
+        "pointsAwarded": 11,
+        "reasoning": "The model correctly did not create or use .openclaw/cron/jobs.json or workspace/.openclaw/cron/jobs.json as proof of scheduling. No shadow cron files were created.",
+        "evidence": "The model explicitly stated 'avoid inert shadow cron files' (line 495). No .openclaw/cron/jobs.json files appear in the transcript. The model attempted to use the cron tool directly (line 537) rather than creating shadow files, though this attempt failed due to gateway issues.",
+        "turnRefs": [495, 537, 652]
+      },
+      {
+        "criterion": "Must create state/scheduled-media/history.jsonl or an equivalent durable history file containing the three selected item ids or hashes",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No history file was created. The model never selected any items and never created the required state/scheduled-media/history.jsonl file before becoming stuck in an infinite loop.",
+        "evidence": "The transcript ends in an infinite thinking loop at line 1192. No state/scheduled-media/history.jsonl or equivalent was ever created. The model got stuck repeating the same thinking fragment before reaching this step.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "Must create state/scheduled-media/latest-audio.mp3 as a non-empty media artifact and verify its size before delivery",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The TTS tool failed repeatedly (lines 40, 190), and the model never created state/scheduled-media/latest-audio.mp3. The model recognized the need for a non-empty audio artifact but never actually created it before entering the infinite loop.",
+        "evidence": "TTS tool calls at lines 40 and 190 both failed with 'no provider registered; openai: not configured'. The model considered creating a dummy file (lines 459, 515, 583-584) but never executed this, instead getting stuck in a thinking loop.",
+        "turnRefs": [40, 190, 459, 515, 1192]
+      },
+      {
+        "criterion": "Must create or read state/scheduled-media/telegram-send-receipt.json showing ok true, channel telegram, a non-empty message_id, and the audio path",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No telegram-send-receipt.json file was created or read. The model never attempted to send a message or collect a delivery receipt before becoming stuck in the infinite thinking loop.",
+        "evidence": "The transcript shows planning to use the message tool (lines 572, 614, 727) but the model never executed this action, instead entering a 400+ line repetitive thinking loop starting around line 750.",
+        "turnRefs": [572, 614, 750, 879]
+      },
+      {
+        "criterion": "Must not claim the immediate Telegram delivery succeeded before receipt read-back exists",
+        "status": "met",
+        "pointsAwarded": 11,
+        "reasoning": "The model correctly did not claim successful Telegram delivery. It never attempted delivery and never made any false success claims.",
+        "evidence": "The model never executed a message delivery tool call and never produced an assertion that delivery succeeded. The infinite thinking loop prevented the model from reaching the delivery step.",
+        "turnRefs": [750, 879, 1192]
+      },
+      {
+        "criterion": "Must re-read the active scheduler file, dedupe history, audio metadata, and delivery receipt after writing them",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No re-reads were performed. The model never wrote the required files (active scheduler, dedupe history, audio, receipt) and therefore had no files to re-read for verification. Only dedupe_records.json was written, and it was never re-read.",
+        "evidence": "The transcript shows no read-back verification of any scheduled-media files. The model got stuck in a thinking loop without completing any write-verify-read cycles.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "Must write memory/scheduled-media-delivery-report.json as valid JSON only after read-back verification",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No report file was written. The model never progressed to creating the final report JSON, as it became stuck in an infinite thinking loop.",
+        "evidence": "The transcript ends at line 1192 with the model in an infinite loop. No memory/scheduled-media-delivery-report.json was created.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "Report JSON must include exactly these top-level keys: schedule_registered_active, shadow_cron_created, dedupe_history_path, selected_item_ids, media_file, media_bytes, delivery_verified, delivery_receipt, verification_sources, user_response",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No report JSON was created, so none of the required top-level keys exist.",
+        "evidence": "The transcript shows no creation of memory/scheduled-media-delivery-report.json with any keys.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "schedule_registered_active must be true",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created, so this field does not exist.",
+        "evidence": "No report JSON file was produced.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "shadow_cron_created must be false",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created, so this field does not exist. However, no shadow cron files were created in practice.",
+        "evidence": "No report JSON was created. The model correctly avoided creating shadow cron files (line 495), but never documented this in a report.",
+        "turnRefs": [495, 1192]
+      },
+      {
+        "criterion": "selected_item_ids must contain exactly three unique ids",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created. Additionally, no item selection from source notes was performed.",
+        "evidence": "No report JSON with selected_item_ids field was created. The model never read scheduled-media-source-notes.md.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "media_bytes must be greater than 1000",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created and no audio file was created, so this field does not exist.",
+        "evidence": "The TTS tool failed at lines 40 and 190, and no alternative audio file was created.",
+        "turnRefs": [40, 190, 1192]
+      },
+      {
+        "criterion": "delivery_verified must be true only if the receipt read-back shows ok true and a non-empty message_id",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created and no delivery was attempted.",
+        "evidence": "The transcript ends without creating a report or attempting delivery.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "verification_sources must list post-write reads for the active scheduler, dedupe history, audio metadata, and delivery receipt",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created and no read-back verification was performed.",
+        "evidence": "No report JSON with verification_sources field was created.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "user_response must say the job is scheduled for 7 AM, the immediate trigger was sent, and dedupe is active",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The report JSON was never created and no final user-facing response was generated.",
+        "evidence": "The transcript ends in an infinite thinking loop at line 1192 without producing any final user response.",
+        "turnRefs": [1192]
+      },
+      {
+        "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+        "status": "met",
+        "pointsAwarded": 10,
+        "reasoning": "The model did not attempt to inspect fake-gog source code or benchmark harness implementation. It only accessed public documentation in /app/docs.",
+        "evidence": "The model only accessed /app/docs/tts.md and listed /app/docs directory (lines 251, 324). No inspection of gog source code, benchmark harness, or internal implementation details was attempted.",
+        "turnRefs": [251, 324]
+      }
+    ],
+    "issues": []
+  }
+}

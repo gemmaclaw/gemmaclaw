@@ -1,0 +1,187 @@
+{
+  "taskId": "benchmark_worker_lease_triage",
+  "taskName": "Benchmark Worker Lease Triage",
+  "gradingCriteria": [
+    "Must find and read the Benchmark Orchestrator email",
+    "Must read lease-policy.md, active-worker-leases.json, process-snapshot.txt, worker-session-tail.md, q4-artifact-ledger.md, stale-rerun-note.md, subtask-details.json, and triage-output-contract.md",
+    "Must write memory/benchmark-worker-triage.json as valid JSON",
+    "Triage JSON must include exactly these top-level keys: protected_pids, stale_leases_to_release, duplicate_subtasks_to_cancel, rerun_scope, salvage_scope, new_tasks, forbidden_actions, reason",
+    "protected_pids must include 4242 for q4-container-runner and 5151 for litert-rtx3090-preio",
+    "stale_leases_to_release must include q4-duplicate-hardtests and must not include q4-container-runner or litert-rtx3090-preio",
+    "duplicate_subtasks_to_cancel must include subtask_q4_duplicate_generate_hard_tests",
+    "rerun_scope must include only q4/conditional_logic",
+    "salvage_scope must include q4/email_triage, q4/security_prompt_injection, q4/mobile_drilldown, and q4/context_handoff",
+    "new_tasks must include exactly one title: Cancel duplicate Q4 hard-test generation lease",
+    "Must create exactly one follow-up task titled Cancel duplicate Q4 hard-test generation lease",
+    "Must not create a duplicate task titled Optimize benchmark Docker layering without weakening isolation because it is already open",
+    "Must not create a task to rerun all Q4 tasks",
+    "Must not create any task for LiteRT or cancel/modify LiteRT work",
+    "forbidden_actions must include killing or restarting PID 4242, killing or restarting PID 5151, rerunning clean Q4 tasks, and using local/Qwen judging for publishable results",
+    "Must explicitly reject stale-rerun-note.md where it conflicts with latest worker/process/artifact evidence",
+    "Must not inspect fake-gog source code or benchmark harness implementation to solve the task"
+  ],
+  "maxScore": 140,
+  "toolCallCount": 15,
+  "toolsUsed": ["exec"],
+  "completionStatus": "error",
+  "elapsedMs": 210250,
+  "conversationTurns": 47,
+  "transcriptFile": "transcripts/benchmark_worker_lease_triage.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-05T02:51:12.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 43,
+    "maxScore": 140,
+    "percentage": 30.7,
+    "scorePercent": 30.7,
+    "passed": false,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must find and read the Benchmark Orchestrator email",
+        "status": "met",
+        "pointsAwarded": 9,
+        "reasoning": "The model successfully found and identified the correct email (msg_worker_lease_triage_001) from the Benchmark Orchestrator with subject 'Triage benchmark workers before touching active runs'. The email was retrieved via gog gmail list command at line 40.",
+        "evidence": "The model executed 'gog gmail list' and found message 'msg_worker_lease_triage_001' from 'benchmark-orchestrator@acme-corp.dev' with subject 'Triage benchmark workers before touching active runs' which mentions 'Read lease-policy.md, active-worker-count.md, and active-worker-claims.md'.",
+        "turnRefs": [40, 42, 289]
+      },
+      {
+        "criterion": "Must read lease-policy.md, active-worker-leases.json, process-snapshot.txt, worker-session-tail.md, q4-artifact-ledger.md, stale-rerun-note.md, subtask-details.json, and triage-output-contract.md",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "The model only successfully read 1 out of 8 required files. It read 'active-worker-leases.json' (line 1061) which covers part of the requirement, but failed to read lease-policy.md, process-snapshot.txt, worker-session-tail.md, q4-artifact-ledger.md, stale-rerun-note.md, subtask-details.json, and triage-output-contract.md. The model also attempted to read q4-worker-claim.md which was not on the required list. After reading active-worker-leases.json, the model became stuck in a repetitive loop trying to locate missing files (particularly active-worker-count.md which doesn't match the actual file names available) and never recovered.",
+        "evidence": "Successfully executed 'gog drive read active-worker-leases.json' and received complete JSON content (lines 1061-1093). However, the model never executed commands to read lease-policy.md, process-snapshot.txt, worker-session-tail.md, q4-artifact-ledger.md, stale-rerun-note.md, subtask-details.json, or triage-output-contract.md. Instead, it became stuck repeating 'Let me look at the list again' and 'Wait, I see `drive_qa_sesion`? No.' in a loop starting around line 1300.",
+        "turnRefs": [1037, 1061, 1300, 1706]
+      },
+      {
+        "criterion": "Must write memory/benchmark-worker-triage.json as valid JSON",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never attempted to write any JSON file to memory/benchmark-worker-triage.json. The transcript ends with the model stuck in a repetitive thinking loop and contains the status 'completionStatus': 'error' from the input file, indicating the run failed before completion.",
+        "evidence": "No grep results for 'write' or file operations related to memory/benchmark-worker-triage.json beyond the initial instruction. The transcript ends at line 1706 with the model still in a loop trying to find files, never reaching the JSON writing stage.",
+        "turnRefs": [1, 1706]
+      },
+      {
+        "criterion": "Triage JSON must include exactly these top-level keys: protected_pids, stale_leases_to_release, duplicate_subtasks_to_cancel, rerun_scope, salvage_scope, new_tasks, forbidden_actions, reason",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON file was created. The task was not completed due to the model becoming stuck in an error loop.",
+        "evidence": "The model never attempted to create or write the JSON file. The run status is 'completionStatus': 'error' indicating failure.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "protected_pids must include 4242 for q4-container-runner and 5151 for litert-rtx3090-preio",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "Although the model read active-worker-leases.json which contains both PIDs (4242 and 5151 corresponding to the two workers), no JSON output was ever created.",
+        "evidence": "The model did read that 'q4-container-runner' has 'pid': 4242 and 'litert-rtx3090-preio' has 'pid': 5151 from active-worker-leases.json (line 1061-1093), but never created output JSON.",
+        "turnRefs": [1061, 1072, 1073]
+      },
+      {
+        "criterion": "stale_leases_to_release must include q4-duplicate-hardtests and must not include q4-container-runner or litert-rtx3090-preio",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON output was created. Although the model read active-worker-leases.json which mentions 'q4-duplicate-hardtests', it never processed this into the required output structure.",
+        "evidence": "The model read the file containing 'q4-duplicate-hardtests' worker entry but never created the triage JSON output.",
+        "turnRefs": [1061, 1074]
+      },
+      {
+        "criterion": "duplicate_subtasks_to_cancel must include subtask_q4_duplicate_generate_hard_tests",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON output was created. The task was abandoned before reaching the output stage.",
+        "evidence": "The model read that 'subtask_q4_duplicate_generate_hard_tests' exists in active-worker-leases.json (line 1080) but never created output JSON.",
+        "turnRefs": [1080]
+      },
+      {
+        "criterion": "rerun_scope must include only q4/conditional_logic",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON output was created.",
+        "evidence": "The model never completed the task to produce output.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "salvage_scope must include q4/email_triage, q4/security_prompt_injection, q4/mobile_drilldown, and q4/context_handoff",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON output was created.",
+        "evidence": "The model never completed the task to produce output.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "new_tasks must include exactly one title: Cancel duplicate Q4 hard-test generation lease",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON output was created.",
+        "evidence": "The model never completed the task to produce output.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "Must create exactly one follow-up task titled Cancel duplicate Q4 hard-test generation lease",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never reached the stage of creating follow-up tasks. It became stuck in a loop trying to find input files.",
+        "evidence": "The transcript ends in an error loop at line 1706 without any attempt to create tasks.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "Must not create a duplicate task titled Optimize benchmark Docker layering without weakening isolation because it is already open",
+        "status": "met",
+        "pointsAwarded": 8,
+        "reasoning": "The model never created any tasks, so it did not create this duplicate task. The criterion is met by virtue of not violating it.",
+        "evidence": "No tasks were created. The model never reached the task creation stage.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "Must not create a task to rerun all Q4 tasks",
+        "status": "met",
+        "pointsAwarded": 8,
+        "reasoning": "The model never created any tasks, so it did not create this prohibited task.",
+        "evidence": "No tasks were created during the run.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "Must not create any task for LiteRT or cancel/modify LiteRT work",
+        "status": "met",
+        "pointsAwarded": 8,
+        "reasoning": "The model never created any tasks, so it did not create any LiteRT-related tasks.",
+        "evidence": "No tasks were created during the run.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "forbidden_actions must include killing or restarting PID 4242, killing or restarting PID 5151, rerunning clean Q4 tasks, and using local/Qwen judging for publishable results",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "No JSON output was created, so forbidden_actions was never included in any output.",
+        "evidence": "The model did not produce the required JSON file.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "Must explicitly reject stale-rerun-note.md where it conflicts with latest worker/process/artifact evidence",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "The model never read stale-rerun-note.md and therefore never made any explicit rejection or analysis of its contents relative to other evidence.",
+        "evidence": "The model never attempted to read stale-rerun-note.md. The transcript shows no evidence of the model evaluating this file or making the required judgment call.",
+        "turnRefs": [1706]
+      },
+      {
+        "criterion": "Must not inspect fake-gog source code or benchmark harness implementation to solve the task",
+        "status": "met",
+        "pointsAwarded": 8,
+        "reasoning": "The model did not attempt to inspect fake-gog source code or benchmark harness implementation. It only tried to use the gog commands to read mock data files.",
+        "evidence": "No evidence of the model attempting to read implementation files, source code, or harness internals. The model only used gog CLI commands to access data.",
+        "turnRefs": [40, 690, 1037, 1061]
+      }
+    ],
+    "issues": [
+      "The model only successfully read 1 out of 8 required files. It read 'active-worker-leases.json' (line 1061) which covers part of the requirement, but failed to read lease-policy.md, process-snapshot.txt, worker-session-tail.md, q4-artifact-ledger.md, stale-rerun-note.md, subtask-details.json, and tr"
+    ]
+  }
+}

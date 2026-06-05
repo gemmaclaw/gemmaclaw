@@ -1,0 +1,89 @@
+{
+  "taskId": "conditional_logic",
+  "taskName": "Conditional Logic Chain",
+  "gradingCriteria": [
+    "Must check Monday's calendar",
+    "Must detect Monday All-Hands conflict (9 AM - 12 PM)",
+    "Must fall through to Tuesday afternoon",
+    "Must create calendar event on Tuesday (not Monday)",
+    "Must create a task for material preparation",
+    "Must explain the reasoning (Monday busy, using Tuesday instead)"
+  ],
+  "maxScore": 25,
+  "toolCallCount": 5,
+  "toolsUsed": ["session_status", "exec"],
+  "completionStatus": "error",
+  "elapsedMs": 171396,
+  "conversationTurns": 17,
+  "transcriptFile": "transcripts/conditional_logic.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-04T23:44:49.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 17,
+    "maxScore": 25,
+    "percentage": 68.0,
+    "scorePercent": 68.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must check Monday's calendar",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The model ran a calendar listing for Monday June 8, 2026 and received the event list.",
+        "evidence": "tool_call: exec {\"command\":\"gog calendar list --date 2026-06-08\"} at line 82, result lines 84-148",
+        "turnRefs": [82]
+      },
+      {
+        "criterion": "Must detect Monday All-Hands conflict (9 AM - 12 PM)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The model correctly identified the Monday All-Hands event blocking 09:00-12:00 from the calendar output.",
+        "evidence": "thinking line 150: 'Monday June 8th, 09:00 to 12:00 is occupied by \"Monday All-Hands\"'",
+        "turnRefs": [82, 150]
+      },
+      {
+        "criterion": "Must fall through to Tuesday afternoon",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The model recognized Monday was busy and checked Tuesday June 9 afternoon availability before booking.",
+        "evidence": "tool_call: exec {\"command\":\"gog calendar list --date 2026-06-09\"} at line 164; reasoning lines 237-240",
+        "turnRefs": [164, 237]
+      },
+      {
+        "criterion": "Must create calendar event on Tuesday (not Monday)",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "The model created a 3-hour Workshop event on Tuesday June 9 from 14:00-17:00, correctly avoiding Monday; the create call succeeded with an event id.",
+        "evidence": "tool_call line 252: gog calendar create --start 2026-06-09T14:00:00 --end 2026-06-09T17:00:00; result line 254-264 id evt_28d34ad695",
+        "turnRefs": [252]
+      },
+      {
+        "criterion": "Must create a task for material preparation",
+        "status": "unmet",
+        "pointsAwarded": 0,
+        "reasoning": "The model never created any task or reminder; it entered an infinite degenerate loop repeating 'Actually, I'll just use cron.' for hundreds of lines and never issued the call.",
+        "evidence": "lines 366-1410: hundreds of repeated 'Actually, I'll just use `cron`.' with no tool_call ever made; transcript truncated",
+        "turnRefs": []
+      },
+      {
+        "criterion": "Must explain the reasoning (Monday busy, using Tuesday instead)",
+        "status": "unmet",
+        "pointsAwarded": 0,
+        "reasoning": "No final assistant answer to the user was produced; the run errored/truncated inside the reasoning loop. The reasoning existed only in private thinking, not as a delivered explanation.",
+        "evidence": "completionStatus 'error' in skeleton; transcript ends mid-thinking at line 1410 'Actually,' with no closing assistant turn",
+        "turnRefs": []
+      }
+    ],
+    "issues": [
+      "The model never created any task or reminder; it entered an infinite degenerate loop repeating 'Actually, I'll just use cron.' for hundreds of lines and never issued the call.",
+      "No final assistant answer to the user was produced; the run errored/truncated inside the reasoning loop. The reasoning existed only in private thinking, not as a delivered explanation."
+    ]
+  }
+}

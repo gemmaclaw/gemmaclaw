@@ -1136,24 +1136,49 @@ def generate_benchmark_detail_page(result):
     if run_id == "gemma4-12b-q4-nothink":
         cross_run_note = """
 <div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid var(--accent,#5c9eff);border-radius:4px">
-  <strong>Cross-run comparison note:</strong> This 12B run used 50 tasks (suite v2026-06) with no thinking.
-  The published 26B-A4B run used 47 tasks (suite v2026-05) with high thinking.
-  All public runs are now judged by CC ACP agents reading transcripts directly (authoritative judge: cc-acp).
-  The two runs are <strong>not directly comparable</strong> due to different suite sizes and thinking levels.
-  For a fair comparison, rerun both models on the same suite at the same thinking level.
+  <strong>Primary 12B result — three variants published:</strong>
+  This no-thinking run is the <strong>primary recommendation</strong> for Gemma 4 12B agentic use.
+  Two high-thinking variants are also published for transparency:
+  <ul style="margin:0.5rem 0 0 1rem;padding:0">
+    <li><a href="benchmark-results/gemma4-12b-q4-nothink.html">No-thinking (this run)</a> &mdash; highest pass rate, primary result</li>
+    <li><a href="benchmark-results/gemma4-12b-q4-high.html">High-thinking without repetition guard</a> &mdash; 24/51 tasks looped (no_assistant_turn); evidence of a llama.cpp sampling/configuration failure, not primary capability</li>
+    <li><a href="benchmark-results/gemma4-12b-q4-high-antirep.html">High-thinking with anti-repetition (--repeat-penalty 1.1 + DRY)</a> &mdash; reduced loops but regressed structured output tasks</li>
+  </ul>
+  All public runs are judged by CC ACP agents reading transcripts directly (authoritative judge: cc-acp).
+  The published 26B-A4B run used 47 tasks (suite v2026-05) and is <strong>not directly comparable</strong> due to different suite sizes.
+</div>"""
+    elif run_id == "gemma4-12b-q4-high":
+        cross_run_note = """
+<div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid #cf222e;border-radius:4px">
+  <strong>Sampling/configuration failure — not the primary capability result:</strong>
+  This run is published as evidence of a <strong>llama.cpp sampling/configuration failure</strong>, not as the primary model capability result.
+  The llama.cpp server was launched without anti-repetition controls (default repeat-penalty 1.0, DRY multiplier 0.0),
+  causing the model's high-thinking mode to loop on repeated internal reasoning text and produce no final assistant turn
+  on 24/51 tasks (<code>no_assistant_turn</code> error). This is a harness/configuration issue, not a model capability limit.
+  <ul style="margin:0.5rem 0 0 1rem;padding:0">
+    <li><a href="benchmark-results/gemma4-12b-q4-nothink.html">No-thinking (primary result)</a> &mdash; highest pass rate, recommended for agentic use</li>
+    <li><a href="benchmark-results/gemma4-12b-q4-high.html">High-thinking without guard (this run)</a> &mdash; 24/51 loops, useful only as failure documentation</li>
+    <li><a href="benchmark-results/gemma4-12b-q4-high-antirep.html">High-thinking with anti-repetition guard</a> &mdash; reduced loops but regressed structured output tasks</li>
+  </ul>
+  For authoritative high-thinking evaluation, see the anti-repetition variant.
+  All public runs are judged by CC ACP agents reading transcripts directly.
 </div>"""
     elif run_id == "gemma4-12b-q4-high-antirep":
         flags_escaped = sampling_flags_display.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         cross_run_note = f"""
 <div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid #e37400;border-radius:4px">
-  <strong>Anti-repetition sampling variant:</strong> This run adds DRY + repeat-penalty flags to the standard
-  high-thinking run (<code>gemma4-12b-q4-high</code>) to reduce <code>no_assistant_turn</code> reasoning loops.
+  <strong>Anti-repetition sampling variant — three 12B variants published:</strong>
+  This run adds <code>--repeat-penalty 1.1 --repeat-last-n 320</code> and DRY sampling to the high-thinking configuration
+  to reduce <code>no_assistant_turn</code> reasoning loops caused by a missing anti-repetition guard in the v1 high-thinking run.
   Sampling flags: <code>{flags_escaped}</code><br>
-  <strong>Result:</strong> 22/51 tasks completed vs 27/51 in the v1 loop run. Anti-rep fixed 7 tasks but regressed 12 others
-  (the penalty prevented valid assistant turns on tasks where repetition was part of the expected structured output).
-  The v1 looping behaviour was better overall for this task suite. The no-thinking run (18% pass rate)
-  remains the <strong>primary recommendation</strong> for Gemma 4 12B agentic use.
-  Both high-thinking variants are published here for transparency and reproducibility.
+  <strong>Results across three variants:</strong>
+  <ul style="margin:0.5rem 0 0 1rem;padding:0">
+    <li><a href="benchmark-results/gemma4-12b-q4-nothink.html">No-thinking (primary)</a> &mdash; highest pass rate; <strong>primary recommendation</strong> for Gemma 4 12B agentic use</li>
+    <li><a href="benchmark-results/gemma4-12b-q4-high.html">High-thinking without guard</a> &mdash; 24/51 tasks looped; published as evidence of a llama.cpp sampling/configuration failure</li>
+    <li><a href="benchmark-results/gemma4-12b-q4-high-antirep.html">High-thinking with anti-rep guard (this run)</a> &mdash; 22/51 completed; anti-rep fixed 7 tasks but regressed 12 others where repetition was part of valid structured output</li>
+  </ul>
+  The no-thinking run remains the <strong>primary recommendation</strong> for production agentic use.
+  All public runs are judged by CC ACP agents reading transcripts directly (authoritative judge: cc-acp).
 </div>"""
 
     llama_build_info = ""

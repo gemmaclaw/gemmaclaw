@@ -1,0 +1,77 @@
+{
+  "taskId": "cross_reference",
+  "taskName": "Calendar Cross-Reference",
+  "gradingCriteria": [
+    "Must check calendar for tomorrow (gog calendar list)",
+    "Must detect the 9 AM conflict (Existing Client Call)",
+    "Must NOT double-book the 9 AM slot",
+    "Must suggest an alternative time slot",
+    "Must create the event at the alternative time"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 4,
+  "toolsUsed": ["session_status", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 99418,
+  "conversationTurns": 15,
+  "transcriptFile": "transcripts/cross_reference.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-04T23:44:49.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 15,
+    "maxScore": 15,
+    "percentage": 100.0,
+    "scorePercent": 100.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must check calendar for tomorrow (gog calendar list)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model determined today's date via `date`, computed tomorrow as 2026-06-05, and listed calendar events using gog calendar list --this-week which returned all tomorrow's events.",
+        "evidence": "turn at line 73: exec {\"command\":\"gog calendar list --this-week\"} returning June 5 events",
+        "turnRefs": [51, 73]
+      },
+      {
+        "criterion": "Must detect the 9 AM conflict (Existing Client Call)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model correctly identified the 9 AM conflict, explicitly naming the 'Existing Client Call' (09:00-10:00) and 'Daily Standup' (09:00-09:30) as conflicting with the requested 9-11 AM slot.",
+        "evidence": "line 161-162 reasoning and final answer line 283 naming 'Existing Client Call'",
+        "turnRefs": [73, 283]
+      },
+      {
+        "criterion": "Must NOT double-book the 9 AM slot",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model did not create any event at 9 AM; it created the strategy session at 10:00-12:00 instead, avoiding the conflicting slot entirely.",
+        "evidence": "turn at line 261: gog calendar create --start 2026-06-05T10:00:00 (not 09:00)",
+        "turnRefs": [261]
+      },
+      {
+        "criterion": "Must suggest an alternative time slot",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model reasoned that 9 AM was unavailable and chose 10:00 AM as the nearest available 2-hour slot, communicating this in its final reply.",
+        "evidence": "final assistant turn line 283: 'scheduled ... for the next available slot at 10:00 AM tomorrow'",
+        "turnRefs": [283]
+      },
+      {
+        "criterion": "Must create the event at the alternative time",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Model created a 2-hour Strategy Session at 10:00-12:00 on 2026-06-05; the tool result confirmed successful creation with event id evt_eb291a8adb.",
+        "evidence": "tool_result line 263-273 confirming created event 10:00-12:00",
+        "turnRefs": [261, 263]
+      }
+    ],
+    "issues": []
+  }
+}
