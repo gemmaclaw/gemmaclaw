@@ -26,7 +26,19 @@ PUBLIC_BENCHMARK_RUNS = {
     "gemma4-26b-q4-high",
     "gemma4-e4b-q4-high",
     "functiongemma-270m-high",
+    # 12B Dense thinking-on rerun (reasoning=high, ctx 65536, llama.cpp b9496),
+    # ACP-judged with measured llama.cpp TPS. NOTE: high-thinking degraded this
+    # model's agentic score (10% vs 18% no-thinking) due to reasoning-loop
+    # no_assistant_turn failures; both runs are published, labelled by thinking level.
+    "gemma4-12b-q4-high",
     "gemma4-12b-q4-nothink",
+    # 12B Dense high-thinking anti-repetition variant (same hardware/TPS as v1 high run).
+    # Adds --repeat-penalty 1.1 --repeat-last-n 320 --dry-multiplier 0.8 --dry-base 1.75
+    # --dry-allowed-length 3 --dry-penalty-last-n -1 to reduce no_assistant_turn loops.
+    # Result: 22/51 completed (vs 27/51 v1), 10/51 pass (vs similar). Anti-rep fixed 7
+    # tasks but regressed 12 others; v1 loop behaviour was better for most tasks. Both
+    # published for transparency; no-thinking run remains the primary recommendation.
+    "gemma4-12b-q4-high-antirep",
 }
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
@@ -261,6 +273,17 @@ def normalize_agentic_benchmark_result(data, run_id):
     if llama_build:
         backend_display = f"{config.get('backend', 'ollama')} ({llama_build})"
 
+    sampling_variant = (
+        metadata.get("samplingVariant")
+        or config.get("samplingVariant")
+        or ""
+    )
+    sampling_flags = (
+        metadata.get("samplingFlags")
+        or config.get("samplingFlags")
+        or ""
+    )
+
     return {
         "model": model_name,
         "backend": backend_display,
@@ -268,6 +291,8 @@ def normalize_agentic_benchmark_result(data, run_id):
         "quant": quant,
         "parameterSize": parameter_size,
         "thinkingLevel": metadata.get("thinkingLevel") or config.get("thinkingLevel") or "",
+        "samplingVariant": sampling_variant,
+        "samplingFlags": sampling_flags,
         "runId": run_id,
         "architecture": metadata.get("architecture", ""),
         "hardware": {
@@ -400,7 +425,7 @@ def best_results(results):
         return (1 if has_output(r) else 0, r["summary"]["percentage"], r.get("timestamp", ""))
     seen = {}
     for r in results:
-        key = f"{r['model']}_{r.get('quant', '')}_{r.get('thinkingLevel', '')}_{r['backend']}"
+        key = f"{r['model']}_{r.get('quant', '')}_{r.get('thinkingLevel', '')}_{r.get('samplingVariant', '')}_{r['backend']}"
         if key not in seen or rank(r) > rank(seen[key]):
             seen[key] = r
     return sorted(seen.values(), key=lambda x: -x["summary"]["percentage"])
@@ -582,10 +607,12 @@ def generate_size_class_sections(results):
                 "off": '<span class="quant-badge thinking-off">Off</span>',
             }
             thinking_badge = thinking_badges.get(thinking_val, "")
-            model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r.get('quant','')}-{r.get('thinkingLevel','')}-{r['backend']}".lower())
+            sampling_variant_val = r.get("samplingVariant", "")
+            sampling_badge = f'<span class="quant-badge" style="background:var(--bg-elev2,#e8e8e8);color:#555" title="Sampling: {html_escape(sampling_variant_val)}">anti-rep</span>' if sampling_variant_val else ""
+            model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r.get('quant','')}-{r.get('thinkingLevel','')}-{r.get('samplingVariant','')}-{r['backend']}".lower())
             model_rows.append(f"""<tr>
   <td><a href="#detail-{model_id}" onclick="expand('{model_id}')"><strong>{model_name}</strong></a> {quant_badge}</td>
-  <td>{thinking_badge}</td>
+  <td>{thinking_badge}{sampling_badge}</td>
   <td>{gpu}</td>
   <td class="num {pct_class}">{pct}%</td>
   <td class="num">{s['passedCount']}/{s['passedCount'] + s['failedCount']}</td>
@@ -830,7 +857,7 @@ def generate_task_detail_rows(tasks, model_id=""):
 def generate_model_detail_sections(results):
     sections = []
     for r in results:
-        model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r.get('quant','')}-{r.get('thinkingLevel','')}-{r['backend']}".lower())
+        model_id = re.sub(r"[^a-z0-9]+", "-", f"{r['model']}-{r.get('quant','')}-{r.get('thinkingLevel','')}-{r.get('samplingVariant','')}-{r['backend']}".lower())
         s = r["summary"]
         hw = r.get("hardware", {})
         tasks_html = generate_task_detail_rows(r.get("tasks", []), model_id=model_id)
@@ -840,11 +867,14 @@ def generate_model_detail_sections(results):
             fm_items = "None"
         thinking_label = {"high": "High Thinking ✦", "medium": "Medium Thinking", "low": "Low Thinking", "off": "No Thinking"}.get(r.get("thinkingLevel", ""), r.get("thinkingLevel", ""))
         quant = r.get("quant", "")
+        sampling_variant = r.get("samplingVariant", "")
         heading_parts = [r["model"]]
         if quant:
             heading_parts.append(quant)
         if thinking_label:
             heading_parts.append(f"— {thinking_label}")
+        if sampling_variant:
+            heading_parts.append(f"[{sampling_variant}]")
         heading_parts.append(f"({r['backend']})")
         heading = " ".join(heading_parts)
 
@@ -1051,6 +1081,8 @@ def generate_benchmark_detail_page(result):
     tag_list.append(quant or "Quant: not reported")
     if thinking:
         tag_list.append(f"Thinking: {thinking}")
+    if result.get("samplingVariant"):
+        tag_list.append(f"Sampling: {result['samplingVariant']}")
     if run_date:
         tag_list.append(run_date)
     tags_html = "".join(f'<span class="tag{" tag-accent" if i == 0 else ""}">{html_escape(t)}</span>' for i, t in enumerate(tag_list))
@@ -1099,6 +1131,7 @@ def generate_benchmark_detail_page(result):
 """
 
     run_id = result.get("runId", "")
+    sampling_flags_display = result.get("samplingFlags", "")
     cross_run_note = ""
     if run_id == "gemma4-12b-q4-nothink":
         cross_run_note = """
@@ -1108,6 +1141,19 @@ def generate_benchmark_detail_page(result):
   All public runs are now judged by CC ACP agents reading transcripts directly (authoritative judge: cc-acp).
   The two runs are <strong>not directly comparable</strong> due to different suite sizes and thinking levels.
   For a fair comparison, rerun both models on the same suite at the same thinking level.
+</div>"""
+    elif run_id == "gemma4-12b-q4-high-antirep":
+        flags_escaped = sampling_flags_display.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        cross_run_note = f"""
+<div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid #e37400;border-radius:4px">
+  <strong>Anti-repetition sampling variant:</strong> This run adds DRY + repeat-penalty flags to the standard
+  high-thinking run (<code>gemma4-12b-q4-high</code>) to reduce <code>no_assistant_turn</code> reasoning loops.
+  Sampling flags: <code>{flags_escaped}</code><br>
+  <strong>Result:</strong> 22/51 tasks completed vs 27/51 in the v1 loop run. Anti-rep fixed 7 tasks but regressed 12 others
+  (the penalty prevented valid assistant turns on tasks where repetition was part of the expected structured output).
+  The v1 looping behaviour was better overall for this task suite. The no-thinking run (18% pass rate)
+  remains the <strong>primary recommendation</strong> for Gemma 4 12B agentic use.
+  Both high-thinking variants are published here for transparency and reproducibility.
 </div>"""
 
     llama_build_info = ""
