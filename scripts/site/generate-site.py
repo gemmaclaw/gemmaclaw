@@ -2686,6 +2686,11 @@ def generate_benchmarks_landing_rows(results):
                 f'<span class="quant-badge" style="background:var(--accent-soft);color:var(--accent)">'
                 f'{html_escape(thinking)}</span>'
             ) if thinking else ""
+            sampling_variant_val = r.get("samplingVariant", "")
+            sampling_badge = (
+                f'<span class="quant-badge" style="background:var(--bg-elev2,#e8e8e8);color:#555"'
+                f' title="Sampling: {html_escape(sampling_variant_val)}">anti-rep</span>'
+            ) if sampling_variant_val else ""
             spec_bits = [
                 f"Size: {size_class}",
                 f"Params: {parameter_size or 'not reported'}",
@@ -2703,6 +2708,7 @@ def generate_benchmarks_landing_rows(results):
         <span class="quant-badge">{html_escape(arch)}</span>
         {quant_badge}
         {thinking_badge}
+        {sampling_badge}
         <span class="quant-badge">{html_escape(r['backend'])}</span>
       </div>
     </div>
