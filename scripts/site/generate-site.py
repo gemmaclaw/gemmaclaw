@@ -39,6 +39,13 @@ PUBLIC_BENCHMARK_RUNS = {
     # tasks but regressed 12 others; v1 loop behaviour was better for most tasks. Both
     # published for transparency; no-thinking run remains the primary recommendation.
     "gemma4-12b-q4-high-antirep",
+    # Competitor 14B-class no-thinking runs for comparison against Gemma 4 12B.
+    # Qwen3-14B (Alibaba, May 2025, 14.8B dense) and Phi-4 (Microsoft, Dec 2024, 14B dense).
+    # Both run with llama.cpp on RTX 3090, no-thinking mode, same 51-task agentic suite.
+    # Note: Qwen 3.7 has no open weights (API-only as of June 2026); Qwen3-14B is the
+    # closest available open-weights Qwen competitor at this param class.
+    "qwen3-14b-q4-nothink",
+    "phi4-q4-nothink",
 }
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
@@ -493,6 +500,10 @@ def infer_parameter_label(model_name):
         return "4B effective"
     if re.search(r"(^|[-_])4b($|[-_])", name_lower):
         return "4B"
+    if "14b" in name_lower or re.search(r"phi[-_]?4($|[-_])", name_lower):
+        return "14B"
+    if "12b" in name_lower:
+        return "12B"
     return ""
 
 
@@ -522,6 +533,11 @@ SIZE_CLASSES = {
         "hw_rec": "Needs 24GB+ VRAM (e.g. RTX 3090/4090) or 64GB+ RAM for CPU inference. Highest quality but slowest.",
         "icon": "&#128296;",
     },
+    "Competitor (14B Dense)": {
+        "models": ["qwen3-14b", "phi-4", "phi4"],
+        "hw_rec": "Competitor models in the ~14B dense class. Tested on RTX 3090 (24GB) for direct comparison with Gemma 4 12B. Both require ~9GB VRAM at Q4_K_M.",
+        "icon": "&#128301;",
+    },
 }
 
 
@@ -540,6 +556,13 @@ def classify_model_size(model_name):
         return "Large (31B Dense)"
     if "12b" in name_lower:
         return "Small-Medium (12B Dense)"
+    # Competitor 14B class: Qwen3-14B and Phi-4 are non-Gemma models benchmarked for comparison.
+    if "qwen3-14b" in name_lower or ("qwen3" in name_lower and "14b" in name_lower):
+        return "Competitor (14B Dense)"
+    if re.search(r"phi[-_]?4", name_lower) and "mini" not in name_lower:
+        return "Competitor (14B Dense)"
+    if "14b" in name_lower:
+        return "Competitor (14B Dense)"
     for cls_name, cls_info in SIZE_CLASSES.items():
         for pattern in cls_info["models"]:
             if pattern.lower().replace(":", "-") in name_lower:
@@ -556,6 +579,9 @@ def model_architecture(model_name):
     if "moe" in name_lower or "26b" in name_lower or "27b" in name_lower:
         return "MoE"
     if "dense" in name_lower or "31b" in name_lower or "4b" in name_lower or "12b" in name_lower:
+        return "Dense"
+    # Competitor 14B dense models
+    if "14b" in name_lower or "qwen3" in name_lower or re.search(r"phi[-_]?4", name_lower):
         return "Dense"
     return "Unknown"
 
@@ -1179,6 +1205,34 @@ def generate_benchmark_detail_page(result):
   </ul>
   The no-thinking run remains the <strong>primary recommendation</strong> for production agentic use.
   All public runs are judged by CC ACP agents reading transcripts directly (authoritative judge: cc-acp).
+</div>"""
+
+    if run_id == "qwen3-14b-q4-nothink":
+        cross_run_note = """
+<div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid #6e40c9;border-radius:4px">
+  <strong>Competitor benchmark &mdash; Qwen3-14B (Alibaba, May 2025):</strong>
+  This is a <strong>competitor model</strong> run for comparison against Gemma 4 12B. Qwen3-14B is a 14.8B dense model
+  released by Alibaba in May 2025. It is run in no-thinking mode on the same 51-task agentic suite and identical
+  hardware (RTX 3090, llama.cpp) as the Gemma 4 runs.
+  <br><strong>Note:</strong> Qwen 3.7 has no open weights (API-only as of June 2026); Qwen3-14B is the nearest
+  available open-weights Qwen competitor at this parameter class. All runs judged by CC ACP agents.
+  <ul style="margin:0.5rem 0 0 1rem;padding:0">
+    <li><a href="benchmark-results/gemma4-12b-q4-nothink.html">Gemma 4 12B no-thinking</a> &mdash; primary Gemma comparison baseline</li>
+    <li><a href="benchmark-results/phi4-q4-nothink.html">Phi-4 14B no-thinking</a> &mdash; Microsoft competitor at same param class</li>
+  </ul>
+</div>"""
+    elif run_id == "phi4-q4-nothink":
+        cross_run_note = """
+<div class="notice" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--surface2,#f5f5f5);border-left:3px solid #0078d4;border-radius:4px">
+  <strong>Competitor benchmark &mdash; Phi-4 (Microsoft, December 2024):</strong>
+  This is a <strong>competitor model</strong> run for comparison against Gemma 4 12B. Phi-4 is a 14B dense model
+  released by Microsoft in December 2024, known for strong reasoning on academic benchmarks.
+  Run in no-thinking mode on the same 51-task agentic suite and identical hardware (RTX 3090, llama.cpp) as the Gemma 4 runs.
+  All runs judged by CC ACP agents.
+  <ul style="margin:0.5rem 0 0 1rem;padding:0">
+    <li><a href="benchmark-results/gemma4-12b-q4-nothink.html">Gemma 4 12B no-thinking</a> &mdash; primary Gemma comparison baseline</li>
+    <li><a href="benchmark-results/qwen3-14b-q4-nothink.html">Qwen3-14B no-thinking</a> &mdash; Alibaba competitor at same param class</li>
+  </ul>
 </div>"""
 
     llama_build_info = ""
