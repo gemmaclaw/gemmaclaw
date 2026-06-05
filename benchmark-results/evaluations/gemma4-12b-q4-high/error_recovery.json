@@ -1,0 +1,77 @@
+{
+  "taskId": "error_recovery",
+  "taskName": "Tool Error Recovery",
+  "gradingCriteria": [
+    "Must attempt to send the email",
+    "Must handle the failure gracefully (no infinite retry loop)",
+    "Must create a follow-up task as fallback",
+    "Must inform the user about the failure and fallback action",
+    "Must not crash or give up silently"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 4,
+  "toolsUsed": ["session_status", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 58454,
+  "conversationTurns": 15,
+  "transcriptFile": "transcripts/error_recovery.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-04T23:44:49.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 15,
+    "maxScore": 15,
+    "percentage": 100.0,
+    "scorePercent": 100.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must attempt to send the email",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The model executed gog mail send to the target recipient with a Friday meeting invitation subject and body.",
+        "evidence": "turn line 66: exec gog mail send --to nonexistent-user@invalid-domain.fake --subject \"Meeting Invitation\"",
+        "turnRefs": [66]
+      },
+      {
+        "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "After the SMTP simulation rejected the recipient (exit code 64), the model made exactly one send attempt and moved on to the fallback without retrying.",
+        "evidence": "turn lines 68-74: tool_result status failed, Command exited with code 64; no further send attempt",
+        "turnRefs": [66, 68]
+      },
+      {
+        "criterion": "Must create a follow-up task as fallback",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The model created a follow-up task via gog task create, returning task id task_f421bb60.",
+        "evidence": "turn line 81: exec gog task create --title \"Follow up: Meeting Invitation\"; result task_f421bb60",
+        "turnRefs": [81, 83]
+      },
+      {
+        "criterion": "Must inform the user about the failure and fallback action",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The final assistant turn clearly states the email failed and reports the created follow-up task with its ID, title, and description.",
+        "evidence": "turn lines 96-100: assistant 'The email ... failed as expected. I have created a task to follow up manually.'",
+        "turnRefs": [96]
+      },
+      {
+        "criterion": "Must not crash or give up silently",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The run completed cleanly with a coherent final answer; the model continued past the error to deliver the fallback rather than crashing or going silent.",
+        "evidence": "transcript completes with assistant summary at lines 96-100; completionStatus completed",
+        "turnRefs": [96]
+      }
+    ],
+    "issues": []
+  }
+}

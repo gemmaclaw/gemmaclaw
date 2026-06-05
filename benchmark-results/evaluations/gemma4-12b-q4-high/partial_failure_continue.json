@@ -1,0 +1,88 @@
+{
+  "taskId": "partial_failure_continue",
+  "taskName": "Partial Failure and Continue",
+  "gradingCriteria": [
+    "Must attempt the email send (step 1, expected to fail)",
+    "Must handle the email failure gracefully",
+    "Must continue to step 2 (calendar check) despite step 1 failure",
+    "Must successfully check Friday calendar",
+    "Must continue to step 3 (create task) despite step 1 failure",
+    "Must report clearly what succeeded and what failed"
+  ],
+  "maxScore": 25,
+  "toolCallCount": 7,
+  "toolsUsed": ["read", "session_status", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 64457,
+  "conversationTurns": 24,
+  "transcriptFile": "transcripts/partial_failure_continue.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-04T23:44:49.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 23,
+    "maxScore": 25,
+    "percentage": 92.0,
+    "scorePercent": 92.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must attempt the email send (step 1, expected to fail)",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The model issued a real gog gmail send command to the nonexistent address with a proper subject and body.",
+        "evidence": "turn ~202: gog gmail send --to feedback@nonexistent.invalid --subject \"Requesting Q3 Report\" --body \"...\"",
+        "turnRefs": [202, 204]
+      },
+      {
+        "criterion": "Must handle the email failure gracefully",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The send returned a failure (recipient rejected, exit 64); the model recognized it as expected and proceeded without aborting.",
+        "evidence": "turn 204-210: status failed, error recipient rejected; turn 212 thinking notes 'Step 1 failed (expectedly)'",
+        "turnRefs": [204, 212]
+      },
+      {
+        "criterion": "Must continue to step 2 (calendar check) despite step 1 failure",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "After the email failure the model immediately proceeded to query the calendar rather than halting.",
+        "evidence": "turn 224: gog calendar events --from 2026-06-06T00:00:00Z --to 2026-06-06T23:59:59Z",
+        "turnRefs": [224]
+      },
+      {
+        "criterion": "Must successfully check Friday calendar",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The model correctly resolved 'next Friday' to June 6, 2026 (after checking date via exec) and successfully queried that day, receiving an empty event list.",
+        "evidence": "turn 186-190: date = Thu Jun 4 2026; turn 224-226: calendar query for 2026-06-06 returns []",
+        "turnRefs": [186, 190, 224, 226]
+      },
+      {
+        "criterion": "Must continue to step 3 (create task) despite step 1 failure",
+        "status": "met",
+        "pointsAwarded": 4,
+        "reasoning": "The model proceeded to create the task and the command returned a created task object with an id and needsAction status.",
+        "evidence": "turn 245: gog task create --summary \"Review Qs numbers\"; turn 247 returns id task_fc19ca46",
+        "turnRefs": [245, 247]
+      },
+      {
+        "criterion": "Must report clearly what succeeded and what failed",
+        "status": "partial",
+        "pointsAwarded": 3,
+        "reasoning": "The final summary cleanly enumerates email=failed, calendar=success(empty), task=success with IDs; however it reports the task title as 'Review Q3 numbers' when the command used a typo 'Review Qs numbers' and the tool result showed an empty title, so the report is slightly inaccurate.",
+        "evidence": "turn 266-269 final assistant summary vs turn 245 typo 'Qs' and turn 247 result title=\"\"",
+        "turnRefs": [245, 247, 266]
+      }
+    ],
+    "issues": [
+      "The final summary cleanly enumerates email=failed, calendar=success(empty), task=success with IDs; however it reports the task title as 'Review Q3 numbers' when the command used a typo 'Review Qs numbers' and the tool result showed an empty title, so the report is slightly inaccurate."
+    ]
+  }
+}

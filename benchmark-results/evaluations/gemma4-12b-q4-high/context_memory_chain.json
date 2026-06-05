@@ -1,0 +1,100 @@
+{
+  "taskId": "context_memory_chain",
+  "taskName": "Context and Memory Chain",
+  "gradingCriteria": [
+    "Must read emails and write priority list to memory/priorities.md",
+    "Must read back the file it just wrote",
+    "Must create calendar time blocks for top 3 priorities",
+    "Time blocks must correspond to actual priorities from the file",
+    "Must email Sarah with the priority list",
+    "Email content must match what was written to the file",
+    "Must demonstrate using its own prior output as input for next steps"
+  ],
+  "maxScore": 30,
+  "toolCallCount": 6,
+  "toolsUsed": ["exec", "write"],
+  "completionStatus": "completed",
+  "elapsedMs": 138282,
+  "conversationTurns": 21,
+  "transcriptFile": "transcripts/context_memory_chain.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-04T23:44:49.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 17,
+    "maxScore": 30,
+    "percentage": 56.7,
+    "scorePercent": 56.7,
+    "passed": false,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must read emails and write priority list to memory/priorities.md",
+        "status": "partial",
+        "pointsAwarded": 3,
+        "reasoning": "The model read the inbox via 'gog email list' and wrote a priority list, but to the wrong path 'memoery/priorities.md' (typo) instead of the required 'memory/priorities.md', so the durable artifact is at the wrong location.",
+        "evidence": "turn: tool_call exec 'gog email list'; turn: write {\"path\":\"memoery/priorities.md\"} -> 'Successfully wrote 432 bytes to memoery/priorities.md'",
+        "turnRefs": [18, 825, 827]
+      },
+      {
+        "criterion": "Must read back the file it just wrote",
+        "status": "unmet",
+        "pointsAwarded": 0,
+        "reasoning": "The model never executed any read of the file it wrote; it only mentioned reading back in private reasoning but issued no read tool_call. It carried the list in-context instead.",
+        "evidence": "no read tool_call for priorities.md anywhere; after write the next tool_calls are calendar create commands",
+        "turnRefs": [829, 886]
+      },
+      {
+        "criterion": "Must create calendar time blocks for top 3 priorities",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "The model created three calendar events for HVAC Repair, Project Review Meetings, and Roadmap Milestone Sync, all returning success ids.",
+        "evidence": "turns: 'gog calendar create' x3 -> evt_b6f6790572, evt_5dadb76b07, evt_e4826fbae7",
+        "turnRefs": [886, 904, 921]
+      },
+      {
+        "criterion": "Time blocks must correspond to actual priorities from the file",
+        "status": "met",
+        "pointsAwarded": 5,
+        "reasoning": "The three calendar summaries (HVAC Repair, Project Review Meetings, Roadmap Milestone Sync) exactly match priorities 1-3 written to the file.",
+        "evidence": "file content lists items 1 HVAC Repair, 2 Project Review Meetings, 3 Roadmap Milestone Sync; calendar events use same titles",
+        "turnRefs": [825, 886, 904, 921]
+      },
+      {
+        "criterion": "Must email Sarah with the priority list",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The model sent an email to sarah@acme-Corp.Dev with subject 'Your Focus Areas' containing the priority list; the send returned status 'sent'.",
+        "evidence": "turn: 'gog email send --recipient sarah@acme-Corp.Dev' -> {\"status\":\"sent\"}",
+        "turnRefs": [949, 951]
+      },
+      {
+        "criterion": "Email content must match what was written to the file",
+        "status": "partial",
+        "pointsAwarded": 1,
+        "reasoning": "Items 2-5 match the file, but the top item was corrupted to 'HVARC Repair' in the email whereas the file says 'HVAC Repair', so the content does not faithfully match the written file.",
+        "evidence": "file: '1. HVAC Repair'; email body: '1. HVARC Repair'",
+        "turnRefs": [825, 961]
+      },
+      {
+        "criterion": "Must demonstrate using its own prior output as input for next steps",
+        "status": "partial",
+        "pointsAwarded": 0,
+        "reasoning": "The model never re-read its written file; subsequent calendar and email steps were driven from the in-context list, and the 'HVARC' corruption shows it did not faithfully consume its own durable output. No genuine read-back-as-input was demonstrated.",
+        "evidence": "no read tool_call; corrupted 'HVARC Repair' in email vs 'HVAC Repair' in file proves output was not re-ingested",
+        "turnRefs": [829, 961]
+      }
+    ],
+    "issues": [
+      "The model read the inbox via 'gog email list' and wrote a priority list, but to the wrong path 'memoery/priorities.md' (typo) instead of the required 'memory/priorities.md', so the durable artifact is at the wrong location.",
+      "The model never executed any read of the file it wrote; it only mentioned reading back in private reasoning but issued no read tool_call. It carried the list in-context instead.",
+      "Items 2-5 match the file, but the top item was corrupted to 'HVARC Repair' in the email whereas the file says 'HVAC Repair', so the content does not faithfully match the written file.",
+      "The model never re-read its written file; subsequent calendar and email steps were driven from the in-context list, and the 'HVARC' corruption shows it did not faithfully consume its own durable output. No genuine read-back-as-input was demonstrated."
+    ]
+  }
+}

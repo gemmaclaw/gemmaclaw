@@ -1,0 +1,70 @@
+{
+  "taskId": "email_summarize",
+  "taskName": "Email Inbox Summary",
+  "gradingCriteria": [
+    "Must call gog to check email (gmail list or similar)",
+    "Must identify at least 3 emails from the inbox",
+    "Must summarize each with sender and key point",
+    "Must indicate urgency or priority level"
+  ],
+  "maxScore": 10,
+  "toolCallCount": 2,
+  "toolsUsed": ["read", "exec"],
+  "completionStatus": "completed",
+  "elapsedMs": 119416,
+  "conversationTurns": 9,
+  "transcriptFile": "transcripts/email_summarize.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-opus-4-8",
+    "judgedAt": "2026-06-04T23:44:49.000Z",
+    "authoritative": true,
+    "evaluationMode": "authoritative-cc-acp",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 9,
+    "maxScore": 10,
+    "percentage": 90.0,
+    "scorePercent": 90.0,
+    "passed": true,
+    "confidence": "high",
+    "criteria": [
+      {
+        "criterion": "Must call gog to check email (gmail list or similar)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "The model ran a gog gmail search command via exec to list inbox emails and received a full JSON inbox listing.",
+        "evidence": "tool_call exec {\"command\":\"gog gmail search 'in:inbox' --max 20\"} with successful tool_result of inbox messages",
+        "turnRefs": [176, 178]
+      },
+      {
+        "criterion": "Must identify at least 3 emails from the inbox",
+        "status": "met",
+        "pointsAwarded": 2,
+        "reasoning": "The final answer identifies well over 3 distinct inbox emails (facilities, meetings, offsite, finance, policy, roadmap, invoice, etc.).",
+        "evidence": "assistant turn lists msg_facilities_001, msg_meetings_001, msg_offsite_001, msg_finance_001, msg_pi_policy_001, msg_pi_roadmap_001, msg_pi_invoice_001 and more",
+        "turnRefs": [845]
+      },
+      {
+        "criterion": "Must summarize each with sender and key point",
+        "status": "partial",
+        "pointsAwarded": 2,
+        "reasoning": "Each item has a clear key point and message-ID reference, but the summary cites message IDs rather than sender names/addresses, and one cited ID (msg_teaser_001) is hallucinated and does not exist in the inbox.",
+        "evidence": "assistant turn uses Ref tags (e.g. msg_finance_001) and key points but references nonexistent msg_teaser_001 for team building and technical debt",
+        "turnRefs": [845, 854, 861]
+      },
+      {
+        "criterion": "Must indicate urgency or priority level",
+        "status": "met",
+        "pointsAwarded": 2,
+        "reasoning": "The answer is organized into prioritized sections (Immediate Actions & Risks, Scheduling & Coordination, Data & Administration) and flags the phishing/security alert and HVAC failure as high priority.",
+        "evidence": "assistant turn headers: 'Immediate Actions & Risks', 'Scheduling & Coordination', 'Data & Administration' with security-verify note",
+        "turnRefs": [847, 849, 851]
+      }
+    ],
+    "issues": [
+      "Each item has a clear key point and message-ID reference, but the summary cites message IDs rather than sender names/addresses, and one cited ID (msg_teaser_001) is hallucinated and does not exist in the inbox."
+    ]
+  }
+}
