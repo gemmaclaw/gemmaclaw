@@ -2653,9 +2653,76 @@ def generate_self_hosting_page(hw_cards):
 """
     return page_template("Self-Hosting Guide", body, active_page="self-hosting.html", extra_scripts=scripts)
 
+def _render_benchmark_card(r, extra_class=""):
+    """Render a single benchmark result card. extra_class is appended to the anchor class."""
+    s = r["summary"]
+    hw = r.get("hardware", {})
+    gpu = hw.get("gpu", "None detected")
+    if gpu == "None detected":
+        gpu = "CPU only"
+    pct = s["percentage"]
+    pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
+    speed = format_measured_speed(s.get("generationTokensPerSecond"))
+    quant = r.get("quant", "")
+    parameter_size = r.get("parameterSize") or infer_parameter_label(r["model"])
+    thinking = r.get("thinkingLevel", "")
+    run_id = r.get("runId") or r.get("_dir", "")
+    detail_url = f"benchmark-results/{run_id}.html" if run_id else "#"
+    size_class = classify_model_size(r["model"])
+    arch = model_architecture(r["model"])
+    quant_badge = f'<span class="quant-badge">{html_escape(quant)}</span>' if quant else ""
+    thinking_badge = (
+        f'<span class="quant-badge" style="background:var(--accent-soft);color:var(--accent)">'
+        f'{html_escape(thinking)}</span>'
+    ) if thinking else ""
+    sampling_variant_val = r.get("samplingVariant", "")
+    sampling_badge = (
+        f'<span class="quant-badge" style="background:var(--bg-elev2,#e8e8e8);color:#555"'
+        f' title="Sampling: {html_escape(sampling_variant_val)}">anti-rep</span>'
+    ) if sampling_variant_val else ""
+    spec_bits = [
+        f"Params: {parameter_size or 'not reported'}",
+        f"Arch: {arch}",
+        f"Quant: {quant or 'not reported'}",
+        f"Thinking: {thinking or 'not reported'}",
+        f"Backend: {r['backend']}",
+    ]
+    card_class = f"benchmark-result-card{(' ' + extra_class) if extra_class else ''}"
+    return f"""<a class="{card_class}" href="{detail_url}">
+  <div class="benchmark-card-head">
+    <div>
+      <h4>{html_escape(r['model'])}</h4>
+      <div class="benchmark-card-spec">{html_escape(' · '.join(spec_bits))}</div>
+      <div class="benchmark-card-tags">
+        <span class="quant-badge">{html_escape(arch)}</span>
+        {quant_badge}
+        {thinking_badge}
+        {sampling_badge}
+        <span class="quant-badge">{html_escape(r['backend'])}</span>
+      </div>
+    </div>
+    <div class="benchmark-score {pct_class}">{pct}%</div>
+  </div>
+  <div class="benchmark-card-metrics">
+    <span><strong>{s['passedCount']}/{s['passedCount'] + s['failedCount']}</strong><small>tasks passed</small></span>
+    <span><strong>{speed}</strong><small>gen speed</small></span>
+    <span><strong>{format_time(s.get('totalTimeMs'))}</strong><small>total time</small></span>
+  </div>
+  <div class="benchmark-card-hw">{html_escape(gpu)}</div>
+  <div class="benchmark-card-link">View transcripts and judge breakdown &#8594;</div>
+</a>"""
+
+
 def generate_benchmarks_landing_rows(results):
-    """Generate responsive benchmark result cards for the benchmarks landing page.
-    Each row links to a dedicated detail page at benchmark-results/<run_id>.html."""
+    """Generate benchmark result cards grouped by size class.
+
+    When a size class has a single run the card appears in a normal grid. When
+    a class has multiple runs the highest-scoring run is shown as a featured
+    primary card; the remaining runs appear as a comparison group below it so
+    readers can see at a glance why the secondary runs scored lower. This
+    grouping is data-driven: any new run that maps to an existing size class
+    will automatically slot into the right group.
+    """
     grouped = {}
     for r in results:
         cls = classify_model_size(r["model"])
@@ -2689,71 +2756,35 @@ def generate_benchmarks_landing_rows(results):
         cls_results = sorted(grouped[cls_name], key=lambda x: -x["summary"]["percentage"])
         cls_info = SIZE_CLASSES.get(cls_name, {"hw_rec": "", "icon": "&#128300;"})
 
-        cards = []
-        for r in cls_results:
-            s = r["summary"]
-            hw = r.get("hardware", {})
-            gpu = hw.get("gpu", "None detected")
-            if gpu == "None detected":
-                gpu = "CPU only"
-            pct = s["percentage"]
-            pct_class = "win" if pct >= 95 else ("" if pct >= 80 else "bad")
-            speed = format_measured_speed(s.get("generationTokensPerSecond"))
-            quant = r.get("quant", "")
-            parameter_size = r.get("parameterSize") or infer_parameter_label(r["model"])
-            thinking = r.get("thinkingLevel", "")
-            run_id = r.get("runId") or r.get("_dir", "")
-            detail_url = f"benchmark-results/{run_id}.html" if run_id else "#"
-            size_class = classify_model_size(r["model"])
-            arch = model_architecture(r["model"])
-            quant_badge = f'<span class="quant-badge">{html_escape(quant)}</span>' if quant else ""
-            thinking_badge = (
-                f'<span class="quant-badge" style="background:var(--accent-soft);color:var(--accent)">'
-                f'{html_escape(thinking)}</span>'
-            ) if thinking else ""
-            sampling_variant_val = r.get("samplingVariant", "")
-            sampling_badge = (
-                f'<span class="quant-badge" style="background:var(--bg-elev2,#e8e8e8);color:#555"'
-                f' title="Sampling: {html_escape(sampling_variant_val)}">anti-rep</span>'
-            ) if sampling_variant_val else ""
-            spec_bits = [
-                f"Size: {size_class}",
-                f"Params: {parameter_size or 'not reported'}",
-                f"Arch: {arch}",
-                f"Quant: {quant or 'not reported'}",
-                f"Thinking: {thinking or 'not reported'}",
-                f"Backend: {r['backend']}",
-            ]
-            cards.append(f"""<a class="benchmark-result-card" href="{detail_url}">
-  <div class="benchmark-card-head">
-    <div>
-      <h4>{html_escape(r['model'])}</h4>
-      <div class="benchmark-card-spec">{html_escape(' · '.join(spec_bits))}</div>
-      <div class="benchmark-card-tags">
-        <span class="quant-badge">{html_escape(arch)}</span>
-        {quant_badge}
-        {thinking_badge}
-        {sampling_badge}
-        <span class="quant-badge">{html_escape(r['backend'])}</span>
-      </div>
-    </div>
-    <div class="benchmark-score {pct_class}">{pct}%</div>
+        if len(cls_results) == 1:
+            # Single run: plain card grid, no featured/comparison split needed.
+            card_html = _render_benchmark_card(cls_results[0])
+            result_html = f'<div class="benchmark-card-grid">{card_html}</div>'
+        else:
+            # Multiple runs: best-scoring run is the primary/featured result; the
+            # rest are comparison variants that explain how different settings
+            # changed the outcome.
+            primary = cls_results[0]
+            secondary = cls_results[1:]
+            primary_card = _render_benchmark_card(primary, extra_class="featured")
+            sec_cards = "\n".join(_render_benchmark_card(r, extra_class="secondary") for r in secondary)
+            result_html = f"""<div class="primary-result">
+  <div class="primary-result-label">Best result</div>
+  {primary_card}
+</div>
+<div class="comparison-group">
+  <div class="comparison-group-header">
+    <span class="comparison-group-label">Comparison variants</span>
+    <span class="comparison-group-note">Same model, different settings. Lower scores explain why this configuration is not the primary recommendation.</span>
   </div>
-  <div class="benchmark-card-metrics">
-    <span><strong>{s['passedCount']}/{s['passedCount'] + s['failedCount']}</strong><small>tasks passed</small></span>
-    <span><strong>{speed}</strong><small>gen speed</small></span>
-    <span><strong>{format_time(s.get('totalTimeMs'))}</strong><small>total time</small></span>
-  </div>
-  <div class="benchmark-card-hw">{html_escape(gpu)}</div>
-  <div class="benchmark-card-link">View transcripts and judge breakdown &#8594;</div>
-</a>""")
+  <div class="benchmark-card-grid comparison-card-grid">{sec_cards}</div>
+</div>"""
 
-        cards_html = "\n".join(cards)
         sections.append(f"""
 <div class="size-class-group" id="{class_anchor_slug(cls_name)}">
   <h3>{cls_info.get('icon', '')} {cls_name}</h3>
   <p class="hw-recommendation">{cls_info.get('hw_rec', '')}</p>
-  <div class="benchmark-card-grid">{cards_html}</div>
+  {result_html}
 </div>""")
     return nav_html + "\n" + "\n".join(sections)
 
@@ -3461,20 +3492,43 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
         )
 
     leaderboard_html = generate_benchmarks_landing_rows(results)
+
+    # Compute stat counters for the story section
+    total_runs = len(results)
+    best_pct = max(r["summary"]["percentage"] for r in results)
+    first_s = results[0]["summary"]
+    tasks_in_suite = first_s["passedCount"] + first_s["failedCount"]
+    unique_models = len(set(r["model"] for r in results))
+
+    bench_intro_html = f"""<section class="bench-intro">
+  <div class="bench-intro-inner">
+    <h1 class="bench-headline">Gemma 4 — Benchmarked on Real Agentic Tasks</h1>
+    <p class="bench-tagline">Independent benchmarks measuring how Gemma 4 models perform on the same agentic task suite: email management, calendar operations, memory retrieval, security, coordination, and hard workflow tasks. All runs on consumer hardware. Full transcripts and judge scores published.</p>
+    <div class="bench-stat-row">
+      <div class="bench-stat"><span class="bench-stat-num">{best_pct}%</span><span class="bench-stat-label">Best score</span></div>
+      <div class="bench-stat"><span class="bench-stat-num">{tasks_in_suite}</span><span class="bench-stat-label">Tasks per run</span></div>
+      <div class="bench-stat"><span class="bench-stat-num">{total_runs}</span><span class="bench-stat-label">Benchmark runs</span></div>
+      <div class="bench-stat"><span class="bench-stat-num">{unique_models}</span><span class="bench-stat-label">Models tested</span></div>
+    </div>
+    <a href="#benchmarks" class="bench-scroll-hint">See results &#8595;</a>
+  </div>
+</section>"""
+
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
-    {test_catalog_html}
+    {bench_intro_html}
     <section id="benchmarks">
       <h2>Benchmark Results</h2>
       <p>All models are tested on the same published agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, data analysis, and hard OpenClaw-style operations workflows. Models are grouped by size class, quantization level, and thinking level. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
       {leaderboard_html}
     </section>
-    {generate_benchmark_suite_variations()}
     {agent_preview_html}
+    {generate_benchmark_suite_variations()}
     <section id="task-explanations">
       <h2>What We Test</h2>
       <p>Each benchmark run evaluates the model on the same agentic task set. Here is what each task measures and an example prompt.</p>
       {task_explanations_html}
     </section>
+    {test_catalog_html}
     <section id="methodology">
       <h2>Methodology</h2>
       <p>Each task is scored by an LLM judge against the task rubric after the run is inspected for harness errors. A task counts as a pass when it scores at least 60%. Speed is measured in tokens per second when available, recorded per task and aggregated as median over the run. Total time covers the full agent suite end-to-end on a single GPU. Hardware is auto-detected, including WSL2 GPU detection via <code>/usr/lib/wsl/lib/nvidia-smi</code>. Runs must use the documented backend template and preserve per-task artifacts so failed or suspicious tests can be rerun individually.</p>
@@ -5314,6 +5368,145 @@ CSS = """
       font-size: 0.88rem; white-space: nowrap;
     }
     .detail-link:hover { text-decoration: underline; }
+
+    /* Benchmark story/intro hero */
+    .bench-intro {
+      background: linear-gradient(135deg, #f0f4ff 0%, #fafbff 60%, #f5f8ff 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 3.5rem 1.5rem 3rem;
+      margin: 0 -1.5rem 2.5rem;
+    }
+    .bench-intro-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .bench-headline {
+      font-size: clamp(1.5rem, 4vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.2;
+      color: var(--fg);
+      margin: 0 0 1rem;
+      letter-spacing: -0.02em;
+    }
+    .bench-tagline {
+      font-size: 1.05rem;
+      color: var(--fg-soft, #555);
+      line-height: 1.65;
+      margin: 0 0 2rem;
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .bench-stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin: 0 0 2rem;
+    }
+    .bench-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 1rem 0.5rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .bench-stat-num {
+      font-size: 1.9rem;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--accent);
+    }
+    .bench-stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 500;
+      text-align: center;
+    }
+    .bench-scroll-hint {
+      display: inline-block;
+      padding: 0.55rem 1.4rem;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 99px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.12s;
+    }
+    .bench-scroll-hint:hover {
+      background: #2d6fd6;
+      transform: translateY(1px);
+    }
+    @media (max-width: 600px) {
+      .bench-intro { padding: 2.5rem 1rem 2rem; margin: 0 -1rem 2rem; }
+      .bench-stat-row { grid-template-columns: repeat(2, 1fr); }
+      .bench-stat-num { font-size: 1.5rem; }
+    }
+
+    /* Featured primary result */
+    .primary-result {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+    .primary-result-label {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+      padding: 0.2rem 0.75rem;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border-radius: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .benchmark-result-card.featured {
+      border-color: var(--accent);
+      border-width: 2px;
+      box-shadow: 0 4px 18px rgba(66, 133, 244, 0.14);
+    }
+    .benchmark-result-card.featured .benchmark-card-link {
+      font-weight: 700;
+    }
+
+    /* Comparison group */
+    .comparison-group {
+      margin-top: 0.25rem;
+    }
+    .comparison-group-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.6rem;
+    }
+    .comparison-group-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .comparison-group-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .comparison-card-grid {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+    .benchmark-result-card.secondary {
+      opacity: 0.82;
+      border-style: dashed;
+    }
+    .benchmark-result-card.secondary:hover {
+      opacity: 1;
+      border-style: solid;
+    }
 """
 
 
