@@ -6,10 +6,12 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Upstream sync 2026-06-06: reviewed the recent openclaw/openclaw slice (15,722 commits ahead of the fork). Applied one compatible runtime fix to single-provider cooldown recovery; the other recent high-value upstream fixes (streaming content-type tolerance, context-engine heartbeat forwarding, compaction prompt-fence/thinking-signature handling) were assessed and found inapplicable to the fork's older/refactored baseline (transport lacks the content-type assertion that regressed; context-engine `afterTurn` is a no-op; `embedded-agent-runner` was replaced by `pi-embedded-runner`).
 - Upstream sync 2026-06-02: reviewed openclaw/openclaw 2026.6.2 release (14,286 commits). Applied compatible fixes: bootstrap-token rate-limit scope for gateway security hardening, and Gemini 3.1 model ID normalization corrections (Flash Lite GA endpoint, Pro preview alias, google/ prefix handling).
 
 ### Fixes
 
+- Agents/model-fallback: a single-provider primary (no fallback chain configured — the common local-model setup) now re-probes through the existing cooldown throttle instead of staying suspended until a far-future provider-reported reset, so rate/subscription-cap recovery resumes without a restart. The 30s probe throttle still gates recovery probes. (upstream `6da3b1f6a3`, #90717, fixes #90702)
 - Gateway/security: add `AUTH_RATE_LIMIT_SCOPE_BOOTSTRAP_TOKEN` rate-limit scope to prevent DoS on the bootstrap-token verify path, preserving device-token fallback. (upstream ecbd97e9)
 - Google/providers: fix Gemini model ID normalization — `gemini-3.1-flash-lite` no longer maps to the deprecated preview endpoint (shutdown 2026-05-25), `gemini-3-pro-preview` now normalizes to `gemini-3.1-pro-preview`, and `google/` prefix is handled recursively. (upstream fix)
 
@@ -143,20 +145,18 @@ Docs: https://docs.openclaw.ai
 
 ## [2026.7.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.6.0...gemmaclaw-v2026.7.0) (2026-06-04)
 
-
 ### Features
 
-* **benchmark:** add q4-loop benchmark suite with E2BIG transport fix ([c5f3af9](https://github.com/gemmaclaw/gemmaclaw/commit/c5f3af9f9c79c4e3604399ad41176f2c4e3a65c2))
-
+- **benchmark:** add q4-loop benchmark suite with E2BIG transport fix ([c5f3af9](https://github.com/gemmaclaw/gemmaclaw/commit/c5f3af9f9c79c4e3604399ad41176f2c4e3a65c2))
 
 ### Bug Fixes
 
-* **auth:** harden Vertex AI authentication, dedicated URL support, and Gemma 4 model routing ([a553c3c](https://github.com/gemmaclaw/gemmaclaw/commit/a553c3cff2bc5678de51799a73edb0cce091a3a2))
-* **benchmark:** rejudge public runs via CC ACP + publish only measured generation TPS ([#265](https://github.com/gemmaclaw/gemmaclaw/issues/265)) ([2e8d65f](https://github.com/gemmaclaw/gemmaclaw/commit/2e8d65f7a1dbd6e772afd62cc37c66d780d7e6f5))
-* **site:** merge metadata.json gpu fields for VRAM and llama build display ([4f3d7de](https://github.com/gemmaclaw/gemmaclaw/commit/4f3d7de0d4270d16ecf132c8efdc93ec18dde860))
-* **tests:** update google-antigravity normalization tests for GA flash-lite endpoint ([7bfe23d](https://github.com/gemmaclaw/gemmaclaw/commit/7bfe23dafb4098ccb985db41d72a8a400cc68af6))
-* **vertex:** harden Vertex AI authentication, dedicated URL support, and Gemma 4 model routing ([f19fbac](https://github.com/gemmaclaw/gemmaclaw/commit/f19fbac3924cae75ab4ab84c13756ee8e9586e5c))
-* **vertex:** isolate setup wiring and harden auth ([7b536c3](https://github.com/gemmaclaw/gemmaclaw/commit/7b536c36eddcab0506ec29dccb98ba58dfb4d900))
+- **auth:** harden Vertex AI authentication, dedicated URL support, and Gemma 4 model routing ([a553c3c](https://github.com/gemmaclaw/gemmaclaw/commit/a553c3cff2bc5678de51799a73edb0cce091a3a2))
+- **benchmark:** rejudge public runs via CC ACP + publish only measured generation TPS ([#265](https://github.com/gemmaclaw/gemmaclaw/issues/265)) ([2e8d65f](https://github.com/gemmaclaw/gemmaclaw/commit/2e8d65f7a1dbd6e772afd62cc37c66d780d7e6f5))
+- **site:** merge metadata.json gpu fields for VRAM and llama build display ([4f3d7de](https://github.com/gemmaclaw/gemmaclaw/commit/4f3d7de0d4270d16ecf132c8efdc93ec18dde860))
+- **tests:** update google-antigravity normalization tests for GA flash-lite endpoint ([7bfe23d](https://github.com/gemmaclaw/gemmaclaw/commit/7bfe23dafb4098ccb985db41d72a8a400cc68af6))
+- **vertex:** harden Vertex AI authentication, dedicated URL support, and Gemma 4 model routing ([f19fbac](https://github.com/gemmaclaw/gemmaclaw/commit/f19fbac3924cae75ab4ab84c13756ee8e9586e5c))
+- **vertex:** isolate setup wiring and harden auth ([7b536c3](https://github.com/gemmaclaw/gemmaclaw/commit/7b536c36eddcab0506ec29dccb98ba58dfb4d900))
 
 ## 2026.5.25
 
