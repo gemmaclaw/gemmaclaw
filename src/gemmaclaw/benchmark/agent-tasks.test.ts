@@ -199,10 +199,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     const expandedIds = new Set(EXPANDED_AGENT_BENCHMARK_TASKS.map((task) => task.id));
     const variationIds = new Set(GENERATED_AGENT_VARIATION_TASKS.map((task) => task.id));
 
-    expect(AGENT_BENCHMARK_TASKS).toHaveLength(51);
+    expect(AGENT_BENCHMARK_TASKS).toHaveLength(55);
     expect(EXPANDED_AGENT_BENCHMARK_TASKS).toHaveLength(147);
     expect(GENERATED_AGENT_VARIATION_TASKS).toHaveLength(29400);
-    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29598);
+    expect(ALL_AGENT_BENCHMARK_TASKS).toHaveLength(29602);
     expect([...expandedIds].some((id) => defaultIds.has(id))).toBe(false);
     expect([...variationIds].some((id) => defaultIds.has(id) || expandedIds.has(id))).toBe(false);
   });

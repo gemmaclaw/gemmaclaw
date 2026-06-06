@@ -2813,26 +2813,74 @@ def generate_benchmarks_landing_rows(results):
         if len(cls_results) == 1:
             # Single run: plain card grid, no featured/comparison split needed.
             card_html = _render_benchmark_card(cls_results[0])
-            result_html = f'<div class="benchmark-card-grid">{card_html}</div>'
+            cat_table = generate_category_breakdown_table(cls_results)
+            result_html = f'<div class="benchmark-card-grid">{card_html}</div>{cat_table}'
         else:
-            # Multiple runs: best-scoring run is the primary/featured result; the
-            # rest are comparison variants that explain how different settings
-            # changed the outcome.
+            # Multiple runs: the highest-scoring run is the primary/featured result.
+            # The rest are published comparison variants that let readers understand
+            # how different thinking levels, sampling strategies, or runtime settings
+            # affect the same model on the same task suite. All variants are shown
+            # with their actual scores so the page stays transparent.
             primary = cls_results[0]
             secondary = cls_results[1:]
             primary_card = _render_benchmark_card(primary, extra_class="featured")
             sec_cards = "\n".join(_render_benchmark_card(r, extra_class="secondary") for r in secondary)
+
+            # Build per-variant explanation rows for the drilldown table.
+            def _variant_note(r):
+                thinking = r.get("thinkingLevel", "")
+                sampling = r.get("samplingVariant", "")
+                model_lower = r.get("model", "").lower()
+                if "qwen3" in model_lower:
+                    return "Competitor baseline — Qwen3-14B (14.8B dense, no-thinking, same 51-task suite)"
+                if "phi" in model_lower and "4" in model_lower:
+                    return "Competitor baseline — Phi-4 (14B dense, no-thinking, same 51-task suite)"
+                if sampling:
+                    return ("Anti-repetition sampling variant. Adds repeat-penalty, DRY filter, and "
+                            "dry-multiplier to reduce no_assistant_turn loops. Fixed 7 tasks but "
+                            "regressed 12 others vs the plain high-thinking run.")
+                if thinking in ("high", "high-thinking"):
+                    return ("High-thinking mode (reasoning=high, ctx 65536). Reasoning phase visible "
+                            "in transcripts. For this model class, thinking-on degraded agentic "
+                            "score vs no-thinking due to reasoning-loop failures.")
+                if not thinking or thinking in ("none", "no-thinking", "nothink"):
+                    return "No-thinking mode. Recommended baseline for agentic tasks at this class."
+                return f"Variant: thinking={thinking or 'none'}"
+
+            variant_rows = "".join(
+                f'<tr style="border-top:1px solid var(--border)">'
+                f'<td style="padding:7px 10px;font-size:0.85rem;font-weight:500">'
+                f'<a href="benchmark-results/{html_escape(r.get("runId") or r.get("_dir", ""))}.html" '
+                f'style="color:var(--accent)">{html_escape(r.get("runId") or r.get("_dir", "?"))}</a></td>'
+                f'<td style="padding:7px 10px;font-size:0.85rem;text-align:center">{r["summary"]["percentage"]}%</td>'
+                f'<td style="padding:7px 10px;font-size:0.83rem;color:var(--muted)">{html_escape(_variant_note(r))}</td>'
+                f'</tr>'
+                for r in cls_results
+            )
+            cat_table = generate_category_breakdown_table(cls_results)
+
             result_html = f"""<div class="primary-result">
-  <div class="primary-result-label">Best result</div>
+  <div class="primary-result-label">Best result — {len(cls_results)} published variant{'s' if len(cls_results) != 1 else ''} in this class</div>
   {primary_card}
 </div>
 <div class="comparison-group">
   <div class="comparison-group-header">
-    <span class="comparison-group-label">Comparison variants</span>
-    <span class="comparison-group-note">Same model, different settings. Lower scores explain why this configuration is not the primary recommendation.</span>
+    <span class="comparison-group-label">All published variants</span>
+    <span class="comparison-group-note">Each variant used the same model weights with different runtime settings. Lower scores explain why a configuration is not the primary recommendation. All variants are published for full transparency.</span>
+  </div>
+  <div style="overflow-x:auto;margin-bottom:1rem">
+    <table style="border-collapse:collapse;width:100%;font-size:0.85rem">
+      <thead><tr style="background:var(--bg-elev)">
+        <th style="padding:7px 10px;text-align:left">Run ID</th>
+        <th style="padding:7px 10px;text-align:center">Score</th>
+        <th style="padding:7px 10px;text-align:left">Why this variant exists</th>
+      </tr></thead>
+      <tbody>{variant_rows}</tbody>
+    </table>
   </div>
   <div class="benchmark-card-grid comparison-card-grid">{sec_cards}</div>
-</div>"""
+</div>
+{cat_table}"""
 
         sections.append(f"""
 <div class="size-class-group" id="{class_anchor_slug(cls_name)}">
@@ -3054,8 +3102,147 @@ def benchmark_category_label(category):
         "expanded_memory": "Memory and State Recovery",
         "expanded_skills": "Skill and Workflow Composition",
         "expanded_integrations": "Safe Integration Simulation",
+        # Agentic task categories from default suite
+        "email": "Email and Inbox",
+        "calendar": "Calendar and Scheduling",
+        "task_management": "Task Management",
+        "memory": "Memory and Context",
+        "coordination": "Multi-agent Coordination",
+        "multi_step": "Multi-step Planning",
+        "security": "Security and Prompt Defense",
+        "structured_output": "Structured Output",
+        "tool_intent": "Tool Invocation",
+        "ambiguous": "Ambiguous Requests",
+        "error_recovery": "Error Recovery",
+        "data_analysis": "Data Analysis",
     }
     return labels.get(category, category.replace("expanded_", "").replace("_", " ").title())
+
+
+# Ordered display priority for the default agentic task categories.
+AGENTIC_CATEGORY_ORDER = [
+    "email", "calendar", "task_management", "memory", "multi_step",
+    "coordination", "security", "data_analysis", "error_recovery",
+    "ambiguous", "structured_output", "tool_intent",
+]
+
+
+def compute_category_scores(run):
+    """Return {category: {score, max_score, passed, total}} from a run's task list."""
+    cats = {}
+    for t in run.get("tasks", []):
+        cat = t.get("category") or "other"
+        score = t.get("score") or 0
+        max_score = t.get("maxScore") or 0
+        passed = bool(t.get("passed"))
+        if cat not in cats:
+            cats[cat] = {"score": 0, "max_score": 0, "passed": 0, "total": 0}
+        cats[cat]["score"] += score
+        cats[cat]["max_score"] += max_score
+        cats[cat]["passed"] += 1 if passed else 0
+        cats[cat]["total"] += 1
+    return cats
+
+
+def generate_category_breakdown_table(cls_results):
+    """Generate a task-category breakdown table for all runs in a model class.
+
+    Rows = task categories, columns = published runs. Shows pass-rate per cell so
+    readers can see which task families differentiate models from each other.
+    """
+    if not cls_results:
+        return ""
+
+    # Collect all categories present across all runs.
+    all_cats = set()
+    cat_data = []
+    for r in cls_results:
+        cd = compute_category_scores(r)
+        cat_data.append(cd)
+        all_cats.update(cd.keys())
+
+    # Sort by priority order, then alphabetically.
+    ordered = [c for c in AGENTIC_CATEGORY_ORDER if c in all_cats]
+    ordered += sorted(c for c in all_cats if c not in ordered and c != "other")
+    if "other" in all_cats:
+        ordered.append("other")
+
+    if not ordered:
+        return ""
+
+    # Build column headers from runs.
+    def run_label(r):
+        thinking = r.get("thinkingLevel", "")
+        sampling = r.get("samplingVariant", "")
+        run_id = r.get("runId") or r.get("_dir", "")
+        model_lower = r.get("model", "").lower()
+        if "qwen3" in model_lower:
+            return "Qwen3-14B"
+        if "phi" in model_lower and "4" in model_lower:
+            return "Phi-4"
+        if sampling:
+            return "anti-rep"
+        if thinking in ("high", "high-thinking"):
+            return "high-think"
+        if thinking in ("none", "no-thinking", "nothink"):
+            return "nothink"
+        if thinking:
+            return html_escape(thinking[:8])
+        return html_escape(run_id[:10]) if run_id else "?"
+
+    def pct_cell_style(pct):
+        if pct is None:
+            return "background:#f5f5f5;color:#bbb"
+        if pct >= 70:
+            return "background:#e6f4ea;color:#1a6627"
+        if pct >= 40:
+            return "background:#fff8e1;color:#7a5700"
+        return "background:#fce8e6;color:#c5221f"
+
+    headers = "".join(
+        f'<th style="padding:6px 10px;text-align:center;font-size:0.82rem;white-space:nowrap">{run_label(r)}</th>'
+        for r in cls_results
+    )
+    rows = []
+    for cat in ordered:
+        label = html_escape(benchmark_category_label(cat))
+        cells = []
+        for r, cd in zip(cls_results, cat_data):
+            info = cd.get(cat)
+            if info and info["total"] > 0:
+                pct = round((info["passed"] / info["total"]) * 100)
+                task_count = info["total"]
+                style = pct_cell_style(pct)
+                cells.append(
+                    f'<td style="padding:5px 8px;text-align:center;font-size:0.82rem;{style}">'
+                    f'{pct}%<small style="display:block;font-size:0.72rem;opacity:0.7">'
+                    f'{info["passed"]}/{task_count}</small></td>'
+                )
+            else:
+                cells.append(
+                    '<td style="padding:5px 8px;text-align:center;color:#bbb;font-size:0.82rem">—</td>'
+                )
+        rows.append(
+            f'<tr><td style="padding:5px 10px;font-size:0.82rem;white-space:nowrap">{label}</td>'
+            + "".join(cells)
+            + "</tr>"
+        )
+
+    return f"""<div class="category-breakdown" style="margin-top:1.5rem">
+  <h5 style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;color:var(--fg-soft)">Score breakdown by task category</h5>
+  <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">Each cell shows pass rate and fraction of tasks in that category per run. Overall score and category score measure different things: overall measures broad agentic reliability; categories reveal strengths and weaknesses by task type.</p>
+  <div style="overflow-x:auto;max-width:100%">
+    <table style="border-collapse:collapse;min-width:100%">
+      <thead>
+        <tr style="background:var(--bg-elev)">
+          <th style="padding:6px 10px;text-align:left;font-size:0.82rem">Category</th>
+          {headers}
+        </tr>
+      </thead>
+      <tbody>{''.join(rows)}</tbody>
+    </table>
+  </div>
+</div>"""
 
 
 VARIANT_PERSONAS = [
@@ -3393,6 +3580,73 @@ def generate_benchmark_test_catalog():
 {''.join(category_sections)}"""
 
 
+def generate_gemma_strength_research_section():
+    """Return an HTML section with community-sourced Gemma-vs-Qwen research findings.
+
+    Sources: r/LocalLLaMA digests 2026-06-06, posts 1t1te8y (Gemma wins reality) and
+    knowledge/reddit/localllama/latest.md (Qwen calendar photo extraction gap).
+    Kimi K2 candidate note based on June 2026 API-only status.
+    """
+    return """<section id="model-research" class="model-research-section">
+  <h2>Gemma vs. Qwen: What the Community Says</h2>
+  <p class="research-lead">Before comparing benchmark numbers, it helps to know where each model family actually differs in real agentic use. The following is a synthesis of community findings from r/LocalLLaMA as of June 2026 — not marketing claims.</p>
+
+  <div class="research-grid">
+    <div class="research-card research-card-gemma">
+      <h3>Where Gemma 4 Tends to Win</h3>
+      <ul>
+        <li><strong>Conciseness and stopping on time.</strong> Gemma stops earlier and avoids padding. Community members running OpenClaw-style agentic loops report Gemma finishes tasks without unnecessary elaboration, reducing downstream token costs. (<a href="https://www.reddit.com/r/LocalLLaMA/comments/1t1te8y/" rel="noopener" target="_blank">r/LocalLLaMA post 1t1te8y</a>)</li>
+        <li><strong>Prompt injection resistance.</strong> Multiple community reports note Gemma is harder to manipulate via injected instructions in tool results or email footers. Qwen is observed to follow injected instructions more readily in the same scenarios.</li>
+        <li><strong>Multilingual output quality.</strong> Gemma shows stronger handling of European languages and mixed-language inputs. Particularly noted for French, German, and Spanish compared to equivalent Qwen weight classes. (r/LocalLLaMA 1t1te8y)</li>
+        <li><strong>Short one-shot tasks.</strong> For single-turn factual or lookup tasks, Gemma is often preferred for accuracy and response shape. Qwen tends to over-explain. (r/LocalLLaMA 1t1te8y)</li>
+        <li><strong>Creative writing prose style.</strong> Gemma 4 31B rated above GPT-4.5 for prose style in community creative-writing evaluations. (r/LocalLLaMA digest 2026-06-06)</li>
+        <li><strong>Vision tasks.</strong> Gemma multimodal benchmarks on meme interpretation and geographic image recognition (GeoGuessr-style) score above Qwen equivalents in community evals. (r/LocalLLaMA 1t1te8y)</li>
+      </ul>
+      <p class="research-caveat">Evidence strength: <strong>Moderate.</strong> Most findings are from structured anecdotal reports and community comparisons, not double-blind evaluations. Replication encouraged.</p>
+    </div>
+
+    <div class="research-card research-card-qwen">
+      <h3>Where Qwen Still Leads</h3>
+      <ul>
+        <li><strong>Aggregate benchmark scores.</strong> Qwen 3 series consistently outperforms Gemma 4 on standard academic benchmarks (MMLU, HumanEval, etc.). The Gemma community finding is "wins benchmarks, loses reality" — the gap is real on academic tests. (r/LocalLLaMA 1t1te8y)</li>
+        <li><strong>Calendar event extraction from images.</strong> Qwen 3.6 35B is notably weaker on calendar photo extraction than expected, but Qwen's larger weight classes maintain an edge in structured extraction from visual input at higher quality levels. (r/LocalLLaMA post 1txtj8a)</li>
+        <li><strong>Long-context reasoning and retrieval.</strong> Community reports favor Qwen for deep-context retrieval tasks where the answer is buried in a long document. Gemma's attention may degrade more in very long contexts.</li>
+        <li><strong>Tool-calling compliance.</strong> Qwen follows tool schemas more reliably out-of-the-box. Gemma 4 12B requires a community jinja template fix to correct tool-call formatting; without it, agentic frameworks see malformed calls. (r/LocalLLaMA latest.md)</li>
+      </ul>
+      <p class="research-caveat">Evidence strength: <strong>Moderate to strong</strong> for benchmark gaps; <strong>anecdotal</strong> for long-context and retrieval observations.</p>
+    </div>
+  </div>
+
+  <div class="research-candidates">
+    <h3>Competitor Candidates by Weight Class</h3>
+    <div class="candidates-grid">
+      <div class="candidate-card">
+        <div class="candidate-label">~14B Dense class</div>
+        <div class="candidate-name">Qwen3-14B (Q4_K_M)</div>
+        <div class="candidate-note">Primary agentic competitor at this weight. Scores well on academic benchmarks. Community notes stronger out-of-box tool compliance vs Gemma 4 12B before template fix. Benchmark run in progress.</div>
+      </div>
+      <div class="candidate-card">
+        <div class="candidate-label">~14B Dense class</div>
+        <div class="candidate-name">Phi-4 (Q4_K_M)</div>
+        <div class="candidate-note">Microsoft's compact reasoning model. Strong on instruction following and structured output. Weaker on multilingual and creative tasks vs Gemma. Benchmark run scheduled.</div>
+      </div>
+      <div class="candidate-card candidate-card-blocked">
+        <div class="candidate-label">~14B Dense class</div>
+        <div class="candidate-name">Kimi K2 (Moonshot AI)</div>
+        <div class="candidate-note"><strong>Blocked — no viable GGUF available (June 2026).</strong> Kimi K2 is API-only with no publicly distributed GGUF for local inference. Will be added when a community-verified GGUF is released. Watching <a href="https://huggingface.co/bartowski" rel="noopener" target="_blank">bartowski/HF</a> for quantization.</div>
+      </div>
+      <div class="candidate-card">
+        <div class="candidate-label">~12B Dense class</div>
+        <div class="candidate-name">Gemma 4 12B (Q4_K_M)</div>
+        <div class="candidate-note">Primary model in this benchmark suite. All Gemma 4 12B variants use the community jinja template fix for tool-calling. Results across thinking levels and sampling variants published above.</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="research-source-note">Sources: r/LocalLLaMA posts <a href="https://www.reddit.com/r/LocalLLaMA/comments/1t1te8y/" rel="noopener" target="_blank">1t1te8y</a>, <a href="https://www.reddit.com/r/LocalLLaMA/comments/1txtj8a/" rel="noopener" target="_blank">1txtj8a</a>, r/LocalLLaMA digest 2026-06-06. Community synthesis — not sponsored or affiliated with Google, Alibaba, or Microsoft.</p>
+</section>"""
+
+
 def generate_benchmarks_page(results, task_explanations_html="", agent_preview_html=""):
     """Compact benchmark landing page. Each result links to a dedicated detail page."""
     test_catalog_html = generate_benchmark_test_catalog()
@@ -3568,6 +3822,8 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
   </div>
 </section>"""
 
+    research_section_html = generate_gemma_strength_research_section()
+
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Benchmarks</div>
     {bench_intro_html}
     <section id="benchmarks">
@@ -3575,6 +3831,7 @@ def generate_benchmarks_page(results, task_explanations_html="", agent_preview_h
       <p>All models are tested on the same published agentic suite: email management, calendar operations, memory retrieval, security, prompt injection resistance, error recovery, coordination, data analysis, and hard OpenClaw-style operations workflows. Models are grouped by size class, quantization level, and thinking level. Click <strong>View results</strong> for full task scores, transcripts, and judge evaluations.</p>
       {leaderboard_html}
     </section>
+    {research_section_html}
     {agent_preview_html}
     {generate_benchmark_suite_variations()}
     <section id="task-explanations">
@@ -5560,6 +5817,109 @@ CSS = """
     .benchmark-result-card.secondary:hover {
       opacity: 1;
       border-style: solid;
+    }
+
+    /* Gemma-vs-Qwen research section */
+    .model-research-section {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 2px solid var(--border);
+    }
+    .model-research-section h2 {
+      font-size: 1.3rem;
+      margin-bottom: 0.4rem;
+    }
+    .research-lead {
+      color: var(--fg-soft);
+      font-size: 0.95rem;
+      margin-bottom: 1.4rem;
+    }
+    .research-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      margin-bottom: 1.8rem;
+    }
+    @media (max-width: 700px) {
+      .research-grid { grid-template-columns: 1fr; }
+    }
+    .research-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      background: var(--card-bg);
+    }
+    .research-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .research-card-gemma {
+      border-left: 4px solid #4285f4;
+    }
+    .research-card-qwen {
+      border-left: 4px solid #e67e22;
+    }
+    .research-card ul {
+      padding-left: 1.2rem;
+      margin: 0 0 0.75rem;
+    }
+    .research-card li {
+      font-size: 0.88rem;
+      margin-bottom: 0.55rem;
+      line-height: 1.5;
+    }
+    .research-caveat {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0.75rem 0 0;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--border);
+    }
+    .research-candidates h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.85rem;
+    }
+    .candidates-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.9rem;
+      margin-bottom: 1.2rem;
+    }
+    .candidate-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      background: var(--card-bg);
+    }
+    .candidate-card-blocked {
+      opacity: 0.7;
+      border-style: dashed;
+    }
+    .candidate-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .candidate-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 0.4rem;
+    }
+    .candidate-note {
+      font-size: 0.82rem;
+      color: var(--fg-soft);
+      line-height: 1.5;
+    }
+    .research-source-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
     }
 """
 
