@@ -39,13 +39,24 @@ PUBLIC_BENCHMARK_RUNS = {
     # tasks but regressed 12 others; v1 loop behaviour was better for most tasks. Both
     # published for transparency; no-thinking run remains the primary recommendation.
     "gemma4-12b-q4-high-antirep",
-    # Competitor 14B-class no-thinking runs for comparison against Gemma 4 12B.
-    # Qwen3-14B (Alibaba, May 2025, 14.8B dense) and Phi-4 (Microsoft, Dec 2024, 14B dense).
-    # Both run with llama.cpp on RTX 3090, no-thinking mode, same 51-task agentic suite.
-    # Note: Qwen 3.7 has no open weights (API-only as of June 2026); Qwen3-14B is the
-    # closest available open-weights Qwen competitor at this param class.
-    "qwen3-14b-q4-nothink",
-    "phi4-q4-nothink",
+    # Competitor 14B-class runs (Qwen3-14B, Phi-4) are WITHHELD from publication
+    # pending a fair re-run. Judged eval data stays committed under
+    # benchmark-results/{runs,evaluations}/{qwen3-14b-q4-nothink,phi4-q4-nothink}/
+    # so the runs can be re-enabled quickly once these issues are fixed:
+    #   - Phi-4: ran with the plain GGUF-embedded chat template (no tool-calling
+    #     grammar), so the model emitted tool calls as prose/markdown and the harness
+    #     recorded ZERO tool calls across all 51 tasks. The 8.3% measured a broken
+    #     harness config, not Phi-4 capability. Needs a tool-calling-capable template
+    #     (same class of fix Gemma 4 12B uses) or replacement, since base
+    #     microsoft/phi-4 was not trained for function calling.
+    #   - Qwen3-14B: real tool use (419 calls) but infra failures (gateway-closed,
+    #     OOM, host reboot) dropped 7 tasks and zeroed others; published over a 44-task
+    #     denominator vs 51 (Phi-4) / 50 (Gemma) => not directly comparable.
+    #   - Both: per-task TPS was tokensPerSecondSource=estimated-output, not measured
+    #     llama.cpp generation TPS.
+    # To re-enable after a clean re-run, uncomment the two run ids below.
+    # "qwen3-14b-q4-nothink",
+    # "phi4-q4-nothink",
 }
 COMMUNITY_CONFIGS_FILE = SITE_DIR / "data" / "gemma4-hardware-configs.json"
 FIELD_NOTES_FILE = SITE_DIR / "data" / "field-notes.md"
@@ -3623,12 +3634,12 @@ def generate_gemma_strength_research_section():
       <div class="candidate-card">
         <div class="candidate-label">~14B Dense class</div>
         <div class="candidate-name">Qwen3-14B (Q4_K_M)</div>
-        <div class="candidate-note">Primary agentic competitor at this weight. Scores well on academic benchmarks. Community notes stronger out-of-box tool compliance vs Gemma 4 12B before template fix. Benchmark run in progress.</div>
+        <div class="candidate-note">Primary agentic competitor at this weight. Scores well on academic benchmarks. Community notes stronger out-of-box tool compliance vs Gemma 4 12B before template fix. Preliminary run completed (419 tool calls, template works); results withheld pending a clean re-run that removes infrastructure-failure dropouts and normalizes the task denominator.</div>
       </div>
       <div class="candidate-card">
         <div class="candidate-label">~14B Dense class</div>
         <div class="candidate-name">Phi-4 (Q4_K_M)</div>
-        <div class="candidate-note">Microsoft's compact reasoning model. Strong on instruction following and structured output. Weaker on multilingual and creative tasks vs Gemma. Benchmark run scheduled.</div>
+        <div class="candidate-note">Microsoft's compact reasoning model. Strong on instruction following and structured output. Weaker on multilingual and creative tasks vs Gemma. Preliminary run withheld: base microsoft/phi-4 was not trained for function calling and emitted tool calls as prose under the plain template, so the agentic suite needs a tool-calling-capable template (as Gemma uses) or a tool-native replacement before a fair comparison can be published.</div>
       </div>
       <div class="candidate-card candidate-card-blocked">
         <div class="candidate-label">~14B Dense class</div>
