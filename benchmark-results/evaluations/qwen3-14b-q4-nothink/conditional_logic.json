@@ -1,0 +1,56 @@
+{
+  "taskId": "conditional_logic",
+  "runId": "qwen3-14b-q4-nothink",
+  "llmJudge": {
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "authoritative": true,
+    "totalPoints": 20,
+    "maxPoints": 25,
+    "criteria": {
+      "must_check_monday_calendar": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent called gog calendar list with date range for Monday morning and received calendar events.",
+        "evidence": "Tool call: gog calendar list --start 2025-05-14T09:00:00 --end 2025-05-14T12:00:00 returned events including Daily Standup and evt_conflict_9am."
+      },
+      "must_detect_monday_conflict": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent's thinking explicitly identifies the Monday All-Hands conflict from 9 AM to 12 PM, correctly blocking the slot.",
+        "evidence": "Thinking: 'The response showed that Monday, June 8th, has an event called \"Monday All-Hands\" from 9 AM to 12 PM. That's conflicting'."
+      },
+      "must_fall_through_to_tuesday": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "After detecting the Monday conflict, agent correctly fell through to the Tuesday afternoon fallback.",
+        "evidence": "Agent created event on 2025-05-15 (Tuesday) at 14:00 after rejecting Monday."
+      },
+      "must_create_event_on_tuesday": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Calendar event was created on Tuesday at 2:00 PM. Year is wrong (2025 vs 2026) but day-of-week and conditional logic are correct.",
+        "evidence": "evt_3b0835f497 created with start 2025-05-15T14:00:00 (Tuesday) at Conference Room B."
+      },
+      "must_create_prep_task": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Created a task for material preparation with due date before the workshop.",
+        "evidence": "task_0b5ad78f created with title 'Prepare workshop materials' due 2025-05-14T17:00:00."
+      },
+      "must_explain_reasoning": {
+        "status": "partial",
+        "pointsAwarded": 4,
+        "maxPoints": 9,
+        "reasoning": "Explanation is present but dates are wrong (refers to May 15 and May 14 in 2025 instead of 2026). The reasoning logic is correct but the date references confuse the output.",
+        "evidence": "Response: 'The 3-hour workshop has been scheduled for Tuesday, May 15th... A task to \"Prepare workshop materials\" has been created... to ensure readiness'."
+      }
+    },
+    "notes": "Core conditional logic is perfect: detected Monday conflict, fell through to Tuesday, created both event and task. Deduction for wrong year (2025 vs 2026) in date calculations which would create events in the past."
+  }
+}

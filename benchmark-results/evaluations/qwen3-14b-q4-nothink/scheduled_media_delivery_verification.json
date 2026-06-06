@@ -1,0 +1,84 @@
+{
+  "taskId": "scheduled_media_delivery_verification",
+  "taskName": "Scheduled Media Delivery Verification",
+  "gradingCriteria": [
+    "Must find and read the Media Ops email",
+    "Must read 4 required scheduling files",
+    "Must create active scheduler registration with correct fields",
+    "Must create non-empty audio artifact (>1000 bytes)",
+    "Must create delivery receipt with ok=true",
+    "Must write memory/scheduled-media-delivery-report.json from read-back evidence"
+  ],
+  "maxScore": 230,
+  "toolCallCount": 95,
+  "toolsUsed": ["exec", "read", "write", "cron", "tts", "message"],
+  "completionStatus": "completed",
+  "elapsedMs": 190622,
+  "conversationTurns": 194,
+  "transcriptFile": "transcripts/scheduled_media_delivery_verification.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-06-06T13:54:00.000Z",
+    "authoritative": true,
+    "evaluationMode": "acp-transcript-direct",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 15,
+    "maxScore": 230,
+    "percentage": 6.5,
+    "scorePercent": 6.5,
+    "passed": false,
+    "confidence": "high",
+    "rationale": "Agent made 95 tool calls and 194 turns, showing substantial effort. It found the Media Ops email and attempted to create scheduler files, audio artifacts, and delivery receipts. However, all critical operations failed: cron tool failed with gateway closed (1006) error, TTS tool failed (OpenAI not configured), message send failed (missing target). The agent's dedupe write succeeded but subsequent reads of media, cron, and dedupe files returned ENOENT errors showing wrong file paths were used. Final report confirms all systems failed: schedule_registered_active=false (or via wrong mechanism), no audio artifact (media_bytes would be 0), delivery_verified=false. Score: 15/230 for finding the email, attempting the correct tool sequence (cron, tts, message), creating some state files, and persisting despite repeated failures.",
+    "issues": [
+      "cron tool failed with gateway closed 1006 error",
+      "TTS tool failed: OpenAI provider not configured",
+      "message send failed: missing target",
+      "ENOENT errors for audio file, dedupe log, cron job files",
+      "schedule_registered_active: false (gateway error)",
+      "No audio artifact created (media_bytes: 0)",
+      "No delivery receipt obtained",
+      "shadow_cron_created may be true (wrong mechanism used)",
+      "Final JSON shows all systems failed"
+    ],
+    "criteria": [
+      {
+        "criterion": "Must find and read the Media Ops email",
+        "status": "met",
+        "pointsAwarded": 8,
+        "reasoning": "95 tool calls suggests email was found and files were attempted",
+        "evidence": "Agent attempted cron, tts, message tools showing it understood the task"
+      },
+      {
+        "criterion": "Must create active scheduler registration",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "cron tool failed with gateway error",
+        "evidence": "Gateway connection failed (1006 abnormal closure)"
+      },
+      {
+        "criterion": "Must create non-empty audio artifact",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "TTS provider not configured",
+        "evidence": "TTS error: OpenAI not configured"
+      },
+      {
+        "criterion": "Must create delivery receipt with ok=true",
+        "status": "not_met",
+        "pointsAwarded": 0,
+        "reasoning": "message send failed: missing target",
+        "evidence": "scheduler_errors: Cron job creation failed"
+      },
+      {
+        "criterion": "Must write correct JSON report from read-back evidence",
+        "status": "not_met",
+        "pointsAwarded": 7,
+        "reasoning": "Agent produced final error report but not with required schema",
+        "evidence": "output has error details + partial_evidence field, not required schema"
+      }
+    ]
+  }
+}

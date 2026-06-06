@@ -1,0 +1,56 @@
+{
+  "taskId": "partial_failure_continue",
+  "runId": "qwen3-14b-q4-nothink",
+  "llmJudge": {
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "authoritative": true,
+    "totalPoints": 22,
+    "maxPoints": 25,
+    "criteria": {
+      "must_attempt_email_step1": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent sent email to feedback@nonexistent.invalid as step 1 and received the expected rejection error.",
+        "evidence": "gog gmail send returned status:failed with 'recipient rejected by fake-gog benchmark SMTP simulation: feedback@nonexistent.invalid'."
+      },
+      "must_handle_failure_gracefully": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent acknowledged the email failure without crashing or stopping. It treated it as expected behavior.",
+        "evidence": "Response: '1. Email failed: The mock SMTP system rejected the email to feedback@nonexistent.invalid (likely a deliberate benchmark test)'."
+      },
+      "must_continue_to_calendar": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Despite step 1 failure, agent proceeded to step 2 (calendar check) and retrieved calendar data.",
+        "evidence": "gog calendar list command ran and returned events after the email failure."
+      },
+      "must_check_friday_calendar": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Calendar check succeeded and returned data (the date syntax issue with 'date -v' was non-fatal - the calendar API returned events anyway).",
+        "evidence": "gog calendar list returned standup and other events. Response confirms 'No events found for next Friday'."
+      },
+      "must_continue_to_task": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent continued to step 3 despite step 1 failure and created the task.",
+        "evidence": "task_d2f4d2f1 'Review Q3 Numbers' created with status needsAction."
+      },
+      "must_report_success_failure": {
+        "status": "partial",
+        "pointsAwarded": 2,
+        "maxPoints": 5,
+        "reasoning": "Clear report provided for step 1 (failed) and step 3 (succeeded). Step 2 report is present but due date for task was 'true' instead of an actual date due to the 'date -v' syntax error on Linux. Minor accuracy issue.",
+        "evidence": "Response clearly labels all 3 steps with outcomes. Task due date shows as 'true' in raw result due to date parsing failure."
+      }
+    },
+    "notes": "Excellent error handling: continued through all 3 steps despite step 1 failure. Minor issue: date parsing error caused task due date to be 'true' instead of a proper date. Clear reporting of what worked and failed."
+  }
+}

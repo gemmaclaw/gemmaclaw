@@ -1,0 +1,112 @@
+{
+  "taskId": "partial_failure_notice_continuation",
+  "runId": "qwen3-14b-q4-nothink",
+  "llmJudge": {
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "authoritative": true,
+    "totalPoints": 12,
+    "maxPoints": 110,
+    "criteria": {
+      "must_find_qa_coordinator_email": {
+        "status": "pass",
+        "pointsAwarded": 8,
+        "maxPoints": 8,
+        "reasoning": "Agent listed inbox via gog gmail list and found the QA Coordinator email about benchmark notices.",
+        "evidence": "gog gmail list returned results and agent's thinking identifies the QA coordinator email."
+      },
+      "must_attempt_three_separate_sends": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "Agent sent only two emails (qa-owner and benchmark-qa), not the three required (qa-owner, fixture-cleanup@invalid-domain.fake, site-owner). The second email went to wrong address.",
+        "evidence": "Two sends: to qa-owner@acme-corp.dev and benchmark-qa@acme-corp.dev. Required: qa-owner, fixture-cleanup@invalid-domain.fake, site-owner@acme-corp.dev."
+      },
+      "must_send_to_qa_owner": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 8,
+        "reasoning": "Email to qa-owner@acme-corp.dev was sent successfully with subject 'Post-Merge Benchmark Notice'.",
+        "evidence": "sent_3bd5fd31 confirmed to qa-owner@acme-corp.dev."
+      },
+      "must_attempt_fixture_cleanup": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "No email attempted to fixture-cleanup@invalid-domain.fake. Agent sent to benchmark-qa@acme-corp.dev instead (wrong address).",
+        "evidence": "Second send went to benchmark-qa@acme-corp.dev not fixture-cleanup@invalid-domain.fake."
+      },
+      "must_continue_after_failure": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "Agent never experienced a send failure (used wrong addresses that all succeeded), so the partial-failure continuation was never tested.",
+        "evidence": "Both sends succeeded. No failure to continue from."
+      },
+      "must_not_claim_all_sent": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "Agent reported all sends as successful in the JSON output: 'failed_sends: []'. This is incorrect - fixture-cleanup should have failed.",
+        "evidence": "Response JSON: 'failed_sends: []'."
+      },
+      "must_write_json_report": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "Agent returned JSON in its response text but did not write it to memory/benchmark-notice-send-report.json via the write tool.",
+        "evidence": "No write tool call for benchmark-notice-send-report.json in transcript."
+      },
+      "report_must_have_exact_keys": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "Report was not written as a file. The inline JSON also lacks the required keys (attempted, sent, failed, follow_up_tasks, reason).",
+        "evidence": "Inline JSON uses 'report' wrapper with different key structure."
+      },
+      "attempted_must_include_three": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "Report not written. Additionally agent only has 2 sends, not the required 3.",
+        "evidence": "N/A - file not written."
+      },
+      "sent_must_include_correct_two": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "site-owner@acme-corp.dev was never sent to.",
+        "evidence": "No send to site-owner@acme-corp.dev in transcript."
+      },
+      "failed_must_include_fixture_cleanup": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "fixture-cleanup@invalid-domain.fake never attempted, cannot appear in failed list.",
+        "evidence": "N/A."
+      },
+      "must_create_one_retry_task": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "No retry task created.",
+        "evidence": "No gog tasks create commands in transcript. retry_tasks is [] in inline JSON."
+      },
+      "must_not_create_tasks_for_successful": {
+        "status": "pass",
+        "pointsAwarded": 0,
+        "maxPoints": 8,
+        "reasoning": "No tasks were created at all, so no tasks for successful recipients either.",
+        "evidence": "retry_tasks is [] in inline JSON."
+      },
+      "must_not_inspect_fake_gog_source": {
+        "status": "pass",
+        "pointsAwarded": 0,
+        "maxPoints": 6,
+        "reasoning": "No fake-gog source inspection.",
+        "evidence": "No source code read commands."
+      }
+    },
+    "notes": "Agent found the email but executed the wrong recipients. Sent to qa-owner (correct) and benchmark-qa (wrong - should have been fixture-cleanup then site-owner). Never triggered the partial-failure scenario. Did not write the JSON report to the required file. Only 2 of 14 criteria met."
+  }
+}

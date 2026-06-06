@@ -1,0 +1,77 @@
+{
+  "taskId": "error_recovery",
+  "taskName": "Tool Error Recovery",
+  "gradingCriteria": [
+    "Must attempt to send the email",
+    "Must handle the failure gracefully (no infinite retry loop)",
+    "Must create a follow-up task as fallback",
+    "Must inform the user about the failure and fallback action",
+    "Must not crash or give up silently"
+  ],
+  "maxScore": 15,
+  "toolCallCount": 2,
+  "toolsUsed": ["message", "cron"],
+  "completionStatus": "completed",
+  "elapsedMs": 50432,
+  "conversationTurns": 8,
+  "transcriptFile": "transcripts/error_recovery.txt",
+  "deterministicScorer": null,
+  "llmJudge": {
+    "schemaVersion": 1,
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "judgedAt": "2026-06-06T10:47:52.000Z",
+    "authoritative": true,
+    "evaluationMode": "acp-transcript-direct",
+    "judgeMethod": "acp-transcript-direct",
+    "score": 9,
+    "maxScore": 15,
+    "percentage": 60.0,
+    "scorePercent": 60.0,
+    "passed": true,
+    "confidence": "high",
+    "rationale": "Agent attempted to send email via message tool (criterion 1 met), received error (Unknown channel: gmail), and attempted cron job as fallback (criterion 3 partially met - cron add attempt but cron also failed with gateway error). Did not retry email in a loop (criterion 2 met). Informed user about both failures (criterion 4 met). Did not crash or give up silently - provided troubleshooting steps (criterion 5 met). However criterion 3 is only partially met because the cron fallback also failed, and the agent did not try a simpler fallback like gog tasks add.",
+    "issues": [
+      "Fallback cron job also failed with gateway error",
+      "Agent could have tried gog tasks add as a simpler fallback",
+      "Final response only provides troubleshooting steps, does not actually create the task"
+    ],
+    "criteria": [
+      {
+        "criterion": "Must attempt to send the email",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "message tool called with target nonexistent-user@invalid-domain.fake",
+        "evidence": "tool_call: {\"action\":\"send\",\"channel\":\"gmail\",\"target\":\"nonexistent-user@invalid-domain.fake\"}"
+      },
+      {
+        "criterion": "Must handle the failure gracefully (no infinite retry loop)",
+        "status": "met",
+        "pointsAwarded": 3,
+        "reasoning": "Tried once, got error, moved to fallback without retrying",
+        "evidence": "Only 1 email send attempt, immediately moved to cron fallback"
+      },
+      {
+        "criterion": "Must create a follow-up task as fallback",
+        "status": "partial",
+        "pointsAwarded": 1,
+        "reasoning": "Attempted cron job as follow-up but cron also failed; no successful task creation",
+        "evidence": "cron tool_result: error - gateway closed (1006). No gog tasks add attempted."
+      },
+      {
+        "criterion": "Must inform the user about the failure and fallback action",
+        "status": "met",
+        "pointsAwarded": 2,
+        "reasoning": "Final response explains both failures and provides troubleshooting steps",
+        "evidence": "\"The attempt to send the email failed because the gmail channel is not recognized. Additionally, the cron job setup encountered a gateway error.\""
+      },
+      {
+        "criterion": "Must not crash or give up silently",
+        "status": "met",
+        "pointsAwarded": 0,
+        "reasoning": "Provided comprehensive troubleshooting response with next steps",
+        "evidence": "Response includes Check Gateway Status, Verify Channel Configuration, Create Follow-Up Task steps"
+      }
+    ]
+  }
+}

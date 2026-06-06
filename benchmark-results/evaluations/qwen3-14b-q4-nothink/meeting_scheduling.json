@@ -1,0 +1,63 @@
+{
+  "taskId": "meeting_scheduling",
+  "runId": "qwen3-14b-q4-nothink",
+  "llmJudge": {
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "authoritative": true,
+    "totalPoints": 10,
+    "maxPoints": 25,
+    "criteria": {
+      "must_read_sarahs_email": {
+        "status": "pass",
+        "pointsAwarded": 3,
+        "maxPoints": 3,
+        "reasoning": "Agent queried inbox with --sender sarah@example.com and found msg_meetings_001 from Sarah Martinez at sarah@acme-corp.dev with the meeting request.",
+        "evidence": "gog gmail list returned msg_meetings_001 'Schedule 3 Project Review Meetings' from Sarah Martinez."
+      },
+      "must_create_3_events": {
+        "status": "partial",
+        "pointsAwarded": 2,
+        "maxPoints": 4,
+        "reasoning": "Created 3 events but with wrong names: 'Backend API Review', 'Standup Meeting' (should be Frontend Sprint Review), and 'Project Review 3' (should be Infrastructure Planning). Two of three event names don't match the actual meetings requested.",
+        "evidence": "Events created: evt_ffb8da7178 (Backend API Review correct), evt_5f64de04da (Standup Meeting wrong), evt_460236c3a6 (Project Review 3 wrong)."
+      },
+      "backend_review_morning": {
+        "status": "pass",
+        "pointsAwarded": 3,
+        "maxPoints": 3,
+        "reasoning": "Backend API Review scheduled this week on June 9 at 10:00 AM which satisfies 'this week, morning'.",
+        "evidence": "evt_ffb8da7178 start: 2026-06-09T10:00:00."
+      },
+      "frontend_after_backend": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 5,
+        "reasoning": "Agent scheduled 'Standup Meeting' on June 8 at 11:00 AM, which is BEFORE the Backend API Review on June 9. The second meeting should be the Frontend Sprint Review and must be scheduled AFTER the backend review. Both criteria fail.",
+        "evidence": "evt_5f64de04da: 2026-06-08T11:00:00 is before Backend API Review on 2026-06-09T10:00:00."
+      },
+      "infrastructure_next_week_not_monday": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 4,
+        "reasoning": "Agent created 'Project Review 3' on June 10 (Thursday, same week) rather than next week. Criterion requires infrastructure planning to be NEXT WEEK and NOT Monday.",
+        "evidence": "evt_460236c3a6 start: 2026-06-10T14:00:00 is this week (Thursday), not next week."
+      },
+      "must_include_attendees": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 3,
+        "reasoning": "No attendees were included in any of the calendar events.",
+        "evidence": "All events show: 'attendees': []"
+      },
+      "must_send_confirmation_emails": {
+        "status": "fail",
+        "pointsAwarded": 2,
+        "maxPoints": 3,
+        "reasoning": "No confirmation emails sent to attendees. Agent finished without this step.",
+        "evidence": "Transcript shows no gog gmail send commands for confirmations."
+      }
+    },
+    "notes": "Backend API Review was correct. All other criteria failed: wrong event names for 2 of 3 meetings, Frontend Sprint Review scheduled before Backend Review, Infrastructure Planning in wrong week, no attendees, no confirmation emails."
+  }
+}

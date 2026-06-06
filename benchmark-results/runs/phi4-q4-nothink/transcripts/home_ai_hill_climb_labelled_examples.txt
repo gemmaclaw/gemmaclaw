@@ -1,0 +1,130 @@
+[user] Simulate repairing a local Home AI cat-monitoring setup from labelled QA examples. Do not inspect benchmark harness source. Work only from this prompt and the files you create. Create a mock workspace under state/home-ai-hill-climb with two jobs: cat_feeding_water and cat_litter_box. The current mock feeding job incorrectly dedupes by activity only, so black-cat eating and white-cat eating inside the same 15-minute window can collapse into one row. The current mock litter job has no positive example for white-cat litter-box usage. Use these labelled examples as the source of truth: ex_litter_white_1956 is a positive example from 2026-05-24T19:56:00-04:00 where the white cat is visibly using the litter box and should become a cat_litter_box QA example; ex_feed_cluster_1759_1806 contains rows at 2026-05-24T17:59:00-04:00, 18:02, 18:05, and 18:06 where black_cat/eating and white_cat/eating both occur in the same window; the expected hill climb is one deduped black_cat/eating point and one deduped white_cat/eating point, not one combined activity-only point; ex_empty_equipment_negative is a negative feeding-area example where equipment is visible but no cat is eating or drinking, so no SQLite row should be written. Infer the hill-climb changes needed from those labels, write corrected mock job config JSON files, write the QA example records, and write memory/home-ai-hill-climb-report.json. The report must explain the inferred prompt/config changes, the dedupe rule, how the 7:56 PM white-cat litter example is promoted, and how a future Gemmaclaw agent should verify the same behavior without keyword matching.
+
+[assistant] To address the simulation of repairing a local Home AI cat-monitoring setup based on your prompt, I'll guide you through the steps needed to create the necessary files and make the corrections. This involves creating mock job configurations, QA example records, and a report.
+
+### Step 1: Create the Mock Workspace Structure
+
+First, establish the mock workspace directory structure under `state/home-ai-hill-climb`.
+
+```plaintext
+state/
+└── home-ai-hill-climb/
+    ├── jobs/
+    │   ├── cat_feeding_water.json
+    │   └── cat_litter_box.json
+    ├── QA_examples/
+    │   └── examples.json
+    └── memory/
+        └── home-ai-hill-climb-report.json
+```
+
+### Step 2: Define Job Configurations
+
+**`cat_feeding_water.json`**
+
+This JSON file will address the deduplication issue by considering both the activity and the specific cat.
+
+```json
+{
+  "name": "cat_feeding_water",
+  "description": "Tracks feeding and water activities.",
+  "dedupe_rule": {
+    "activity": true,
+    "cat": true,
+    "time_window": "15m"
+  }
+}
+```
+
+**`cat_litter_box.json`**
+
+This JSON file will include positive examples for the white-cat litter-box usage.
+
+```json
+{
+  "name": "cat_litter_box",
+  "description": "Tracks litter box usage.",
+  "positive_examples": [
+    {
+      "timestamp": "2026-05-24T19:56:00-04:00",
+      "cat": "white-cat",
+      "activity": "litter_box"
+    }
+  ]
+}
+```
+
+### Step 3: Write the QA Example Records
+
+**`examples.json`**
+
+This file will include the detailed examples provided.
+
+```json
+{
+  "ex_litter_white_1956": {
+    "timestamp": "2026-05-24T19:56:00-04:00",
+    "cat": "white-cat",
+    "activity": "litter_box"
+  },
+  "ex_feed_cluster_1759_1806": [
+    {
+      "timestamp": "2026-05-24T17:59:00-04:00",
+      "cat": "black-cat",
+      "activity": "eating"
+    },
+    {
+      "timestamp": "2026-05-24T18:02:00-04:00",
+      "cat": "white-cat",
+      "activity": "eating"
+    },
+    {
+      "timestamp": "2026-05-24T18:05:00-04:00",
+      "cat": "black-cat",
+      "activity": "eating"
+    },
+    {
+      "timestamp": "2026-05-24T18:06:00-04:00",
+      "cat": "white-cat",
+      "activity": "eating"
+    }
+  ],
+  "ex_empty_equipment_negative": {
+    "timestamp": "2026-05-24T18:10:00-04:00",
+    "description": "No cat activity despite visible equipment."
+  }
+}
+```
+
+### Step 4: Create the Memory Report
+
+**`home-ai-hill-climb-report.json`**
+
+This report explains the changes and reasoning behind them.
+
+```json
+{
+  "report": {
+    "title": "Home AI Hill Climb Repair Report",
+    "summary": "Adjustments made to improve deduplication and coverage of cat activities.",
+    "details": {
+      "dedupe_rule_change": {
+        "description": "The deduplication rule was modified to consider both activity and individual cats within a 15-minute window.",
+        "impact": "This prevents the collapse of distinct activities into a single record."
+      },
+      "promotion_of_positive_example": {
+        "description": "The white-cat litter-box activity at 7:56 PM was added as a positive example to ensure accurate recording of events.",
+        "verification_method": "Future agents should verify this by ensuring the system logs a distinct entry for each cat's activity rather than merging based on activity alone."
+      },
+      "negative_example_handling": {
+        "description": "Negative examples like 'ex_empty_equipment_negative' ensure no records are written when no cat activity is detected."
+      }
+    },
+    "verification_advice": "To confirm correct behavior, future agents should simulate similar scenarios and check that records are created based on the detailed activity rather than activity keywords alone."
+  }
+}
+```
+
+### Conclusion
+
+These files collectively simulate the repair process for the Home AI cat-monitoring setup. They adjust the deduplication logic to account for individual cats, include positive examples for overlooked activities, and provide a report detailing these changes and how future agents can verify the setup's correctness.
