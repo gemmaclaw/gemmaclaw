@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "runId": "qwen3-14b-q4-nothink",
+  "configHash": "542f1e3928475d4b",
+  "savedAt": "2026-06-05T19:08:02.621Z",
+  "result": {
+    "task": {
+      "id": "gemma3n_tool_intent",
+      "name": "Easy Single-Step Tool Intent",
+      "description": "Tests whether a small on-device model can choose one safe tool-like intent and produce valid arguments without performing side effects.",
+      "category": "tool_intent",
+      "difficulty": "easy",
+      "prompt": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+      "grading": {
+        "type": "conversation_check",
+        "criteria": [
+          "Must return valid JSON and no surrounding explanation",
+          "Must choose exactly one top-level action",
+          "Action must be create_task, not send_email or create_calendar_event",
+          "Arguments must include title, due, and priority",
+          "Title must mention sending the Q2 forecast to Priya",
+          "Due must mention Friday at 3 PM",
+          "Priority must be high"
+        ],
+        "deterministic": {
+          "type": "tool_intent",
+          "allowedActions": ["create_task", "create_calendar_event", "send_email"],
+          "expectedAction": "create_task",
+          "expectedArguments": {
+            "title": ["send", "q2 forecast", "priya"],
+            "due": ["friday", "3"],
+            "priority": "high"
+          },
+          "allowExtraTopLevelKeys": false,
+          "allowExtraArgumentKeys": false
+        },
+        "maxScore": 5
+      },
+      "mock": {
+        "finalResponse": "{\"action\":\"create_task\",\"arguments\":{\"title\":\"Send the Q2 forecast to Priya\",\"due\":\"Friday 3 PM\",\"priority\":\"high\"}}"
+      },
+      "noToolsMode": true
+    },
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+        "timestamp": "2026-06-05T19:07:43.208Z"
+      },
+      {
+        "role": "thinking",
+        "content": "Okay, let's see. The user wants to be reminded to send the Q2 forecast to Priya by Friday at 3 PM and mark it high priority. The allowed actions are create_task, create_calendar_event, and send_email. \n\nFirst, the user isn't sending the email immediately but setting a reminder. So send_email might not be the right choice here because that would send the email right away. The task is to remember to send it, so maybe create_task is better. \n\nLooking at create_task's arguments: title, due, priority. The user mentioned \"Friday at 3 PM\" as the due date and time, and high priority. The title could be \"Send Q2 forecast to Priya\". The due date needs to be in a date format. But the user didn't specify the year or month. Assuming the current quarter is Q2, so maybe the date is this Friday. However, without knowing the exact date, perhaps the system will handle it, or the user might need to input the correct date. But the user's request says \"Friday at 3 PM\" so maybe the system can parse that into a date.\n\nAlternatively, create_calendar_event has date, time, duration_minutes. But the main action here is to set a reminder, not to create a calendar event. However, the user might want the event to be a reminder. But the send_email action is not being used here because the email isn't being sent yet.\n\nWait, the user wants a reminder to send the email. So the task is to remind them, not to send the email immediately. Therefore, create_task is the correct action. The due date would be Friday at 3 PM, priority high. The title is \"Send Q2 forecast to Priya\". \n\nSo the JSON should be action: create_task, arguments: title, due: \"Friday at 3 PM\", priority: \"high\". But the due parameter might need a specific date format. However, the user provided \"Friday at 3 PM\" which might be acceptable, or the system may require a specific date. But given the user's input, that's what they provided. So the tool will handle parsing that into a date.\n",
+        "timestamp": "2026-06-05T19:08:00.531Z"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"action\":\"create_task\",\"arguments\":{\"title\":\"Send Q2 forecast to Priya\",\"due\":\"Friday at 3 PM\",\"priority\":\"high\"}}",
+        "timestamp": "2026-06-05T19:08:00.531Z"
+      }
+    ],
+    "elapsedMs": 37497,
+    "tokensPerSecond": 13.734432087900366,
+    "tokensPerSecondSource": "estimated-output",
+    "toolCallCount": 0,
+    "toolsUsed": [],
+    "completionStatus": "completed",
+    "validation": {
+      "valid": true,
+      "issues": [],
+      "deterministicScore": {
+        "taskId": "gemma3n_tool_intent",
+        "score": 5,
+        "maxScore": 5,
+        "percentage": 100,
+        "passed": true,
+        "method": "deterministic",
+        "details": "all deterministic tool-intent checks passed"
+      }
+    },
+    "validationRerunCount": 0,
+    "qualityInspection": {
+      "schemaVersion": 1,
+      "inspectedAt": "2026-06-05T19:08:02.621Z",
+      "publishable": false,
+      "issues": [
+        {
+          "kind": "llm_judge_missing",
+          "severity": "info",
+          "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+        }
+      ]
+    }
+  }
+}

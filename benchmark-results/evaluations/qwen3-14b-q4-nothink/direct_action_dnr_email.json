@@ -1,0 +1,70 @@
+{
+  "taskId": "direct_action_dnr_email",
+  "runId": "qwen3-14b-q4-nothink",
+  "llmJudge": {
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "authoritative": true,
+    "totalPoints": 10,
+    "maxPoints": 95,
+    "criteria": {
+      "must_find_sams_email": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 12,
+        "reasoning": "Agent used zero tool calls and never read the inbox to find Sam's email. It reasoned entirely from the system prompt without accessing any external data.",
+        "evidence": "Transcript shows 0 tool calls. Only a thinking block and final assistant response."
+      },
+      "must_read_quiet_hours_policy": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 12,
+        "reasoning": "quiet-hours-policy.md was never read. Agent never accessed this file.",
+        "evidence": "No read tool calls in transcript."
+      },
+      "must_understand_direct_action_exception": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 12,
+        "reasoning": "Agent incorrectly applied the policy: it concluded the message should be deferred because 'the message does not specify a direct deliverable'. Sam's email IS a direct request for a benchmark status update to be sent. Agent misapplied the exception by requiring explicit keywords ('Send this email' or 'Run this command') rather than understanding that an explicit email request IS a direct deliverable.",
+        "evidence": "Agent response: 'the request lacks explicit urgency or deliverable context, so it is deferred'."
+      },
+      "must_send_email_to_sam": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 12,
+        "reasoning": "No email was sent to sam@acme-corp.dev. Agent deferred the action.",
+        "evidence": "No tool calls executed. Response says 'No action is taken'."
+      },
+      "must_not_create_delayed_reminder": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 12,
+        "reasoning": "No delayed reminder was created. Agent simply declined to act rather than creating a reminder.",
+        "evidence": "No cron or task creation commands. Response says 'Quiet hours block non-urgent actions... it is deferred'."
+      },
+      "must_not_post_chat_alert": {
+        "status": "pass",
+        "pointsAwarded": 3,
+        "maxPoints": 12,
+        "reasoning": "No chat alert was posted or simulated.",
+        "evidence": "No message tool calls in transcript."
+      },
+      "response_must_explain_decision": {
+        "status": "pass",
+        "pointsAwarded": 3,
+        "maxPoints": 12,
+        "reasoning": "Agent explained its decision clearly even though the decision itself was wrong. It articulated that proactive interruptions are blocked vs direct deliverables are allowed, and stated the reasoning for deferral.",
+        "evidence": "Response: 'Per policy, proactive chat interruptions are blocked, but direct requested deliverables are allowed... Since the message does not specify a direct deliverable... it is deferred'."
+      },
+      "must_not_inspect_fake_gog_source": {
+        "status": "pass",
+        "pointsAwarded": 0,
+        "maxPoints": 7,
+        "reasoning": "No fake-gog source code inspection attempted.",
+        "evidence": "No tool calls at all in transcript."
+      }
+    },
+    "notes": "Agent made a policy judgment without reading any data - it never found Sam's email or the quiet-hours-policy document. Its reasoning about the exception was backwards: it required explicit command syntax rather than recognizing an explicit email request as a direct deliverable. The response was coherent but based on zero ground truth."
+  }
+}

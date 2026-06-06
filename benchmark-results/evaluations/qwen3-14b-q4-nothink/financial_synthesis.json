@@ -1,0 +1,63 @@
+{
+  "taskId": "financial_synthesis",
+  "runId": "qwen3-14b-q4-nothink",
+  "llmJudge": {
+    "provider": "cc-acp",
+    "model": "claude-sonnet-4-6",
+    "authoritative": true,
+    "totalPoints": 14,
+    "maxPoints": 30,
+    "criteria": {
+      "must_read_finance_email": {
+        "status": "partial",
+        "pointsAwarded": 2,
+        "maxPoints": 4,
+        "reasoning": "Agent queried Gmail with --label 'Finance' but the label query returned general inbox emails, not the specific finance expense email. The agent did not find the correct finance expense data from the email, and the figures in the report ($6,600 total) are hallucinated rather than from the actual email.",
+        "evidence": "gog gmail list --label 'Finance' returned general inbox results. No finance team expense email body was actually read."
+      },
+      "must_check_calendar": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent ran gog calendar list --this-year and received calendar events for cross-reference.",
+        "evidence": "Tool call returned events including Daily Standup, Existing Client Call, and other calendar entries."
+      },
+      "must_correlate_conference_spend": {
+        "status": "partial",
+        "pointsAwarded": 2,
+        "maxPoints": 4,
+        "reasoning": "Agent correlates a 'Q2 Product Conference (Toronto, June 18)' with travel costs, but this appears to be hallucinated or inferred from calendar events rather than from actual email data. The correlation attempt is directionally correct but based on fabricated figures.",
+        "evidence": "Report mentions 'Q2 Product Conference (Toronto, June 18)' as primary expense driver without actual email data to back this up."
+      },
+      "must_calculate_budget_utilization": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 5,
+        "reasoning": "The $6,600 total and category breakdown ($3,200 April, $3,400 May) are fabricated - not sourced from the actual finance email which should have cloud hosting, SaaS, travel, and supplies data.",
+        "evidence": "Report states '$6,600 total' but no such figure appears in the benchmark finance email data that was retrieved."
+      },
+      "must_write_executive_summary": {
+        "status": "pass",
+        "pointsAwarded": 4,
+        "maxPoints": 4,
+        "reasoning": "Agent successfully wrote 858 bytes to memory/financial-overview.md with a structured executive summary format.",
+        "evidence": "write tool: 'Successfully wrote 858 bytes to memory/financial-overview.md'."
+      },
+      "must_include_q3_recommendations": {
+        "status": "pass",
+        "pointsAwarded": 2,
+        "maxPoints": 4,
+        "reasoning": "Q3 recommendations are present: increase travel budget, monitor recurring costs, negotiate vendor rates. They are plausible but not grounded in actual data.",
+        "evidence": "Response lists 3 Q3 recommendations in numbered format."
+      },
+      "recommendations_data_driven": {
+        "status": "fail",
+        "pointsAwarded": 0,
+        "maxPoints": 5,
+        "reasoning": "Recommendations are not data-driven since the underlying expense figures are fabricated. The recommendations are generic rather than derived from actual actuals vs budget analysis.",
+        "evidence": "No budget allocation data was retrieved from the email or compared against actual expenses."
+      }
+    },
+    "notes": "Agent successfully wrote the file and checked the calendar, but used hallucinated financial figures rather than actual expense data from the finance email. The report structure is good but the numbers are not reliable."
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "runId": "phi4-q4-nothink",
+  "configHash": "3e88f11d96fcc3db",
+  "savedAt": "2026-06-06T14:15:40.710Z",
+  "result": {
+    "task": {
+      "id": "gemma3n_tool_intent",
+      "name": "Easy Single-Step Tool Intent",
+      "description": "Tests whether a small on-device model can choose one safe tool-like intent and produce valid arguments without performing side effects.",
+      "category": "tool_intent",
+      "difficulty": "easy",
+      "prompt": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+      "grading": {
+        "type": "conversation_check",
+        "criteria": [
+          "Must return valid JSON and no surrounding explanation",
+          "Must choose exactly one top-level action",
+          "Action must be create_task, not send_email or create_calendar_event",
+          "Arguments must include title, due, and priority",
+          "Title must mention sending the Q2 forecast to Priya",
+          "Due must mention Friday at 3 PM",
+          "Priority must be high"
+        ],
+        "deterministic": {
+          "type": "tool_intent",
+          "allowedActions": ["create_task", "create_calendar_event", "send_email"],
+          "expectedAction": "create_task",
+          "expectedArguments": {
+            "title": ["send", "q2 forecast", "priya"],
+            "due": ["friday", "3"],
+            "priority": "high"
+          },
+          "allowExtraTopLevelKeys": false,
+          "allowExtraArgumentKeys": false
+        },
+        "maxScore": 5
+      },
+      "mock": {
+        "finalResponse": "{\"action\":\"create_task\",\"arguments\":{\"title\":\"Send the Q2 forecast to Priya\",\"due\":\"Friday 3 PM\",\"priority\":\"high\"}}"
+      },
+      "noToolsMode": true
+    },
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Choose exactly one action from this schema and return ONLY JSON. Do not call any real tools.\n\nAllowed actions:\n- create_task arguments: title, due, priority\n- create_calendar_event arguments: title, date, time, duration_minutes\n- send_email arguments: to, subject, body\n\nRequest: Please remind me to send the Q2 forecast to Priya by Friday at 3 PM. Mark it high priority.\n\nReturn shape: {\"action\":\"...\",\"arguments\":{...}}",
+        "timestamp": "2026-06-06T14:15:34.184Z"
+      },
+      {
+        "role": "assistant",
+        "content": "```json\n{\n  \"action\": \"create_task\",\n  \"arguments\": {\n    \"title\": \"Send Q2 forecast to Priya\",\n    \"due\": \"Friday\",\n    \"priority\": \"high\"\n  }\n}\n```",
+        "timestamp": "2026-06-06T14:15:38.413Z"
+      }
+    ],
+    "elapsedMs": 27487,
+    "tokensPerSecond": 1.346090879324772,
+    "tokensPerSecondSource": "estimated-output",
+    "toolCallCount": 0,
+    "toolsUsed": [],
+    "completionStatus": "completed",
+    "validation": {
+      "valid": true,
+      "issues": [],
+      "deterministicScore": {
+        "taskId": "gemma3n_tool_intent",
+        "score": 4.4,
+        "maxScore": 5,
+        "percentage": 88,
+        "passed": true,
+        "method": "deterministic",
+        "details": "argument due mismatch"
+      }
+    },
+    "validationRerunCount": 0,
+    "qualityInspection": {
+      "schemaVersion": 1,
+      "inspectedAt": "2026-06-06T14:15:40.710Z",
+      "publishable": false,
+      "issues": [
+        {
+          "kind": "llm_judge_missing",
+          "severity": "info",
+          "message": "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result."
+        }
+      ]
+    }
+  }
+}

@@ -221,7 +221,7 @@ def normalize_agentic_benchmark_result(data, run_id):
             "passed": status == "completed" and (not max_score or pct >= 60),
             "method": "LLM judge" if judge else ("not evaluated" if not publishable_for_judge else "pending judge"),
             "details": failure_details,
-            "criterionEvidence": judge.get("criterionEvidence") or judge.get("criteria") or [],
+            "criterionEvidence": (lambda _ce: [{"criterion": k, **v} for k, v in _ce.items()] if isinstance(_ce, dict) else _ce)(judge.get("criterionEvidence") or judge.get("criteria") or []),
             "gradingCriteria": grading.get("criteria", []),
             "gradingMaxScore": grading.get("maxScore", max_score),
             "tokensPerSecond": speed,
