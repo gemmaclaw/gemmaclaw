@@ -601,7 +601,7 @@ describe("runWithModelFallback – probe logic", () => {
     expectPrimaryProbeSuccess(result, run, "ok-null");
   });
 
-  it("single candidate skips with rate_limit and exhausts candidates", async () => {
+  it("re-probes a single-provider rate-limited primary instead of suspending", async () => {
     const cfg = makeCfg({
       agents: {
         defaults: {
@@ -613,22 +613,26 @@ describe("runWithModelFallback – probe logic", () => {
       },
     } as Partial<OpenClawConfig>);
 
-    const almostExpired = NOW + 30 * 1000;
-    mockedGetSoonestCooldownExpiry.mockReturnValue(almostExpired);
+    // Far-future cooldown with no fallback chain: the primary must still be
+    // probed so a recovered rolling cap resumes work instead of staying silent
+    // until blockedUntil arrives. See #90702.
+    mockedGetSoonestCooldownExpiry.mockReturnValue(NOW + 6 * 24 * 60 * 60 * 1000);
 
-    const run = vi.fn().mockResolvedValue("unreachable");
+    const run = vi.fn().mockResolvedValue("probed-ok");
 
-    await expect(
-      runWithModelFallback({
-        cfg,
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        fallbacksOverride: [],
-        run,
-      }),
-    ).rejects.toThrow("All models failed");
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      fallbacksOverride: [],
+      run,
+    });
 
-    expect(run).not.toHaveBeenCalled();
+    expect(result.result).toBe("probed-ok");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith("openai", "gpt-4.1-mini", {
+      allowTransientCooldownProbe: true,
+    });
   });
 
   it("scopes probe throttling by agentDir to avoid cross-agent suppression", async () => {
