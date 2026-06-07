@@ -1650,7 +1650,16 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-06</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-07</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (13 new or updated since 2026-06-06, 279 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>June 7 sweep, 2026-06-07 00:00 UTC:</em> four developments from this sweep are directly relevant to Gemma 4 practitioners: QAT-matched MTP draft heads are now publicly available on HuggingFace for all three flagship sizes, enabling speculative decoding on the official QAT Q4_0 models — the first RTX 4070 Super 12GB benchmark reports 120 tok/s using the Gemma 4 12B QAT with MTP; Strix Halo users have detailed QAT Q4_0 numbers via llama.cpp Vulkan/RADV for both 12B and 26B-A4B, including a fix for the PARALLEL=2 crash that was blocking MTP-enabled inference; the community raises a documented open question about why Gemma 4 12B deviates furthest from FP16 under QAT accuracy analysis despite being a dense model (not MoE); and a practical field report confirms that Gemma 4 MoE models are viable on a bare-minimum multi-GPU setup (dual GTX 1050 Ti 4GB, 64GB DDR4) at 12-18 tok/s generation.</p>
+<p><strong>QAT-matched MTP heads now public — RTX 4070 Super 12GB benchmarks 120 tok/s on Gemma 4 12B QAT with speculative decoding.</strong> u/westsunset published QAT-matched MTP draft heads for all three official Gemma 4 QAT sizes on HuggingFace under `boxwrench/gemma-4-qat-mtp-assistant-heads`: `gemma-4-12B-it-qat-assistant-MTP-Q8_0.gguf` (444 MiB, pairs with the official Q4_0 12B), `gemma-4-26B-A4B-it-qat-assistant-MTP-Q8_0.gguf` (441 MiB), and `gemma-4-31B-it-qat-assistant-MTP-Q8_0.gguf` (491 MiB). These are converted from Google's official unquantized QAT assistant checkpoints. The distinction from generic MTP heads matters: a draft head trained against full-precision weights but paired with a QAT main model misses the quantization shifts, reducing draft acceptance rates. QAT-matched heads restore acceptance rates close to those of the standard non-QAT pairing. On the hardware front, u/janvitos (RTX 4070 Super 12GB, Ryzen 7 9700X, 32GB DDR5-6000) reports 120 tok/s at code generation using the Gemma 4 12B QAT with the Atomic llama.cpp fork's MTP support, compared to 60 tok/s without MTP on the same hardware — a 2x throughput improvement for coding tasks on a 12 GB consumer card. Separately, the PARALLEL=2 crash that was blocking multi-slot MTP inference has been fixed in both the Atomic fork and filed upstream in the native llama.cpp MTP PR. Practical guidance: if you are running Gemma 4 12B QAT on a 12 GB or larger GPU, the boxwrench QAT-matched heads plus a MTP-enabled llama.cpp build is the current best configuration for coding and structured output workloads. Confidence: structured benchmark by u/janvitos on verified hardware, consistent with prior reports of MTP acceptance rates at coding tasks. (<a href="https://reddit.com/r/LocalLLaMA/comments/1typjmc" target="_blank" rel="noopener">source: 120 tok/s report</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1tyto0j" target="_blank" rel="noopener">source: MTP heads</a>, June 6, 2026)</p>
+<p><strong>Strix Halo QAT Q4_0 benchmark via Vulkan/RADV — 13.45 GiB for 26B-A4B, both 12B and 26B-A4B tested on 128GB unified memory.</strong> u/westsunset (AMD Ryzen AI Max+ 395 / Radeon 8060S, 128GB LPDDR5X, Linux Mint 22.3, Mesa 25.2.8) published the first detailed QAT Q4_0 benchmarks on Strix Halo hardware via llama.cpp Vulkan/RADV, using the Atomic TurboQuant fork to enable MTP assistant head support. The 26B-A4B QAT Q4_0 model weighs 13.45 GiB on disk; the 12B QAT Q4_0 weighs approximately 6.5 GiB. The Strix Halo's 128GB unified memory pool (with 96 GiB GTT ceiling) allows both models to run with large context windows without VRAM pressure, making it one of the most capable consumer platforms for extended context Gemma 4 inference. The post also includes the first Gemma 4 12B 2-slot MTP numbers on this hardware after the PARALLEL=2 fix. Key constraint: these numbers use the Vulkan/RADV backend with the Atomic fork, not mainline llama.cpp — users on the upstream ROCm or CUDA paths should verify results before treating them as general guidance. Anecdotal confidence for absolute numbers; architecture and sizing data are confirmed. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tyilv7" target="_blank" rel="noopener">source: Strix Halo QAT bench</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1tyto0j" target="_blank" rel="noopener">source: MTP heads + 2-slot bench</a>, June 6, 2026)</p>
+<p><strong>Open question: Gemma 4 12B deviates furthest from FP16 in QAT accuracy analysis, while E2B/E4B are near-perfect — community does not yet have an explanation.</strong> u/ai_fonsi raised a counter-intuitive finding from Unsloth's QAT analysis table: Gemma 4 E2B and E4B achieve near-perfect QAT accuracy relative to their FP16 baselines, while the 12B dense model shows the most deviation from FP16 among all the tested sizes — despite conventional expectation that smaller, denser models quantize better than larger MoE models. No community commenter has provided a verified explanation as of this sweep. Proposed hypotheses include: an issue specific to the 12B QAT training run on Google's side; the 12B's attention pattern being less QAT-friendly than the MoE routing patterns of E2B and E4B; or a methodology difference in how the deviation is computed for dense versus MoE architectures. This matters practically: if the 12B QAT is genuinely less accurate relative to FP16 than the 26B-A4B QAT, users who switched to 12B QAT purely on size grounds may be accepting a quality tradeoff that is not advertised in the model description. The same community thread asks whether non-QAT variants might actually outperform QAT on some tasks. Open question — no resolution at sweep time. Confidence: observation is from published Unsloth analysis table (medium confidence for the numbers); the root cause remains unverified. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tynhd1" target="_blank" rel="noopener">source</a>, June 6, 2026)</p>
+<p><strong>CPU-only path: dual Xeon Platinum 8358 (128 threads), 256GB DDR4 running Gemma 4 31B Q8_0 at approximately 4 tok/s — &quot;slow, but earns its keep&quot; for quality-sensitive overnight workloads.</strong> u/bitslizer documents a real-world CPU-only deployment for Gemma 4 31B at Q8_0 on a dual Xeon Platinum 8358 workstation (256 GB DDR4), achieving approximately 4 tok/s at generation. The author frames this explicitly as an acceptable speed for &quot;background or overnight type jobs where I don't need the speed but need the smart and accuracy.&quot; This is a meaningful data point for users evaluating CPU-only options: Gemma 4 31B Q8_0 at 4 tok/s is approximately 8x slower than a single mid-range consumer GPU, but it runs the full Q8_0 quality level in 32GB of system RAM rather than 32GB of GPU VRAM. The same post explores whether the new QAT Q4_0 (17GB vs 32GB, roughly double the generation speed on bandwidth-limited hardware) would be a worthwhile switch — the author's KLD benchmark results were counter-intuitive and the post invites community explanation (see above). Confidence: anecdotal, single author report on specific hardware configuration. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tyxu55" target="_blank" rel="noopener">source</a>, June 7, 2026)</p>
+<p><strong>Minimal multi-GPU setup viable for Gemma 4 MoE: i5-12400 + dual GTX 1050 Ti 4GB (8GB total VRAM) + 64GB DDR4 achieves 12-18 tok/s.</strong> u/j0hnp0s reports surprisingly viable Gemma 4 and Qwen 3.6 MoE inference on a minimal rig: Intel i5-12400, 64GB DDR4, and two GTX 1050 Ti 4GB cards (8 GB total VRAM). With the MoE expert layers split across VRAM and system RAM, the setup achieves approximately 40 tok/s prompt processing and 12-18 tok/s token generation — figures the author describes as &quot;unexpectedly viable&quot; given the hardware. The weak point is prompt processing, particularly for agentic workflows where the context window grows progressively. This is the lowest VRAM floor for functional Gemma 4 MoE inference documented at this sweep date: 8 GB total VRAM with a 64 GB DDR4 buffer. The author had expected the setup to be completely unusable and found that MoE architecture's expert routing makes it more memory-bandwidth-flexible than equivalent dense models at the same parameter count. Anecdotal confidence for the specific numbers; the general MoE inference pattern is consistent with the architecture. (<a href="https://reddit.com/r/LocalLLaMA/comments/1tyjc8z" target="_blank" rel="noopener">source</a>, June 6, 2026)</p>
+<p><strong>Community sentiment has shifted toward Gemma 4 over the last 60 days — QAT, MTP, and tooling improvements cited as key drivers.</strong> A community thread (u/DigRealistic2977) directly names the reversal: two months ago, Gemma 4 posts were met with downvotes and &quot;Qwen is better&quot; rebuttals; by June 2026, the same community members are requesting a 100B+ or larger MoE Gemma model and expressing disappointment that Google hasn't shipped one yet. The named factors behind the shift are convergent with the prior field notes pattern: MTP speculative decoding (making smaller Gemma 4 models competitive in throughput with larger Qwen models), QAT releases (restoring FP16 quality at Q4 file sizes), and the Heretic finetune ecosystem (giving users a tunable, less-restricted variant). A separate qualitative field report (u/Some-Cauliflower4902, one month of Gemma 4 31B daily use) aligns: standard Q4_K_M UD at long context (20k+) is &quot;a functional nervous wreck&quot; — the model falls apart under chain-of-tools pressure; the Heretic variant is less careful but more resilient; and the QAT version behaves like a &quot;zen master,&quot; handling 32k with full reasoning without destabilizing. The interpretation is that the &quot;nervous&quot; behavior of standard Q4 is a quantization artifact, not an alignment characteristic, and QAT resolves it. Confidence: subjective community sentiment, anecdotal quality assessments; the pattern is consistent across multiple independent reporters. (<a href="https://reddit.com/r/LocalLLaMA/comments/1ty7icq" target="_blank" rel="noopener">source: sentiment thread</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1ty84rj" target="_blank" rel="noopener">source: qualitative 31B report</a>, June 6, 2026)</p>
+<h2>Field Notes — 2026-06-06</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (61 new or updated since 2026-05-26, 266 total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>June 6 sweep, 2026-06-06 00:00 UTC:</em> six developments from this sweep are directly relevant to Gemma 4 practitioners: Google and Unsloth have both published Quantization-Aware Training (QAT) releases that eliminate the usual quality-versus-size tradeoff — an AMD RX 7900 XTX benchmark shows Gemma 4 12B QAT 45% faster with 5.7 GB less VRAM and no perceptible quality loss; the new Gemma 4 12B dense model lands as a compact multimodal option that fits comfortably under 16 GB VRAM at Q4_K_XL delivering approximately 61 tok/s on an RTX 5080; Unsloth has released MTP GGUF weights for all three flagship sizes (31B, 26B-A4B, 12B) achieving 120 tok/s at 32k context with 90%+ draft acceptance during coding; a widely-shared PSA documents the custom Jinja chat template fix for Gemma 4 12B that unlocks reliable coding and tool calling by correcting the default Qwen-format mismatch in LM Studio; a direct vision comparison confirms Gemma 4 26B-A4B correctly extracts calendar events from images where Qwen 3.6 35B fails; and BeeLlama v0.3.2-Preview introduces KVarN, the first llama.cpp-ecosystem implementation of Huawei's 3-5x KV cache compression, tested on Gemma 4 31B on an RTX 3090.</p>
 <p><strong>QAT release: Google and Unsloth publish Quantization-Aware Training collections — AMD RX 7900 XTX benchmark shows 45% faster, 5.7 GB less VRAM, identical quality.</strong> Google published the `google/gemma-4-qat-q4-0` and `google/gemma-4-qat-mobile` collections, making Quantization-Aware Training GGUFs available for all Gemma 4 model sizes. QAT differs from post-training quantization by baking quantization awareness into the training process itself, allowing the model to maintain BF16-quality responses at Q4_0 file sizes. Unsloth followed with a companion collection (`unsloth/gemma-4-qat`) for users who prefer Unsloth-packaged GGUF formats. The key benchmark, run by a community member on an AMD Radeon RX 7900 XTX, puts concrete numbers on the gap: Gemma 4 12B QAT reduces total generation time from 323 seconds to 176 seconds (45.4% faster), increases throughput from 3.09 to 5.68 tok/s (83.8% improvement), and uses 5.7 GB less VRAM compared to the Q8_0 baseline — while the author reports perceptually identical output quality across the tested prompts. Thread commenters note that QAT and MTP are orthogonal optimizations that can be combined: a QAT model is smaller and faster at baseline, and an MTP-enabled QAT model adds speculative decoding on top of that. For users currently running standard Q4 or Q8 quants of Gemma 4 12B, switching to the QAT collection is the highest-leverage single upgrade available at this sweep date. Confidence: structured benchmark on a single hardware configuration (RX 7900 XTX); quality assessment is subjective and based on the benchmark author's impressions rather than automated evaluation. (<a href="https://reddit.com/r/LocalLLaMA/comments/1txpeo0" target="_blank" rel="noopener">source</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1txxd7c" target="_blank" rel="noopener">benchmark</a>, <a href="https://reddit.com/r/LocalLLaMA/comments/1txpheq" target="_blank" rel="noopener">Unsloth</a>, June 5-6, 2026)</p>
@@ -2037,10 +2046,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-06 (June 6 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (266 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (279 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (38)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (34)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (22)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (8)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (18)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (175)</button><button class="cat-filter-btn" data-cat="general">Other (70)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (39)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (35)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (23)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (8)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (20)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (185)</button><button class="cat-filter-btn" data-cat="general">Other (71)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5298,6 +5307,38 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/__JockY__ (+3)</span><span class="cr-comment-text">Do you know if this applies to vLLM?</span></div><div class="cr-comment"><span class="cr-comment-meta">u/chimpera (+2)</span><span class="cr-comment-text">What kernel are you referring to? also its '-DGGML\CUDA\PDL=ON' no space.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/stormy1one (+2)</span><span class="cr-comment-text">I will happily take an additional 5% to 6% for literally sitting on my ass and recompiling. Thank you kindly</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tkw1su" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="best local model for xcode with 64gb mbp using lmstudio as the mcp server gemma4? &amp;#32; submitted by &amp;#32; /u/br_web [link] &amp;#32; [comments] agents" data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tyrg3z" target="_blank" rel="noopener">Best local model for Xcode with 64GB MBP using LMStudio as the MCP server</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/br_web</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">Gemma4? &amp;#32; submitted by &amp;#32; /u/br_web [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tyrg3z" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 qat accuracy inconsistencies table from i heard that moe models are usually more susceptible to quantization error, but what happened with the 12b? i thought lower-parameter models usually quantized worse and yet, e2b/e4b are pretty much perfect while the 12b deviates from fp16 the most. do we have an explanation for that, or did maybe something go wrong during quantiza… quantization fine-tuning google gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tynhd1" target="_blank" rel="noopener">Gemma 4 QAT accuracy inconsistencies</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/ai_fonsi</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Table from I heard that MoE models are usually more susceptible to quantization error, but what happened with the 12B? I thought lower-parameter models usually quantized worse and yet, E2B/E4B are pretty much perfect while the 12B deviates from FP16 ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tynhd1" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="the first gemma 4 12b finetunes are ready now you can start building your gemma 4 12b collection :) &amp;#32; submitted by &amp;#32; /u/jacek2023 [link] &amp;#32; [comments] quantization gemma" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5345,6 +5386,22 @@
   </div>
   <p class="cr-summary">I’m interested in running Gemma 4 model/s for text only . It runs smooth even on my laptop but gets crazy hot. Initially wanted to buy an 8 GB card. But I find this price for 12 GB good. (Maybe I can run some image generation models too. But its not ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tsp869" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma4 12b - experiences? anyone check out the new gemma4 12b that dropped 3 days ago? integrated vision and audio recognition, no mmpro needed plus tool use. q4 quant is like 8gb ram. crazy fast and great quality for it's size. no, it's not as good as a 27b or 31b. but it's damn close. curious what others think. &amp;#32; submitted by &amp;#32; /u/illdragonfruit3547 [link] &amp;#32; [comments] quantization agents" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tyxyzi" target="_blank" rel="noopener">Gemma4 12B - Experiences?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Ill_Dragonfruit_3547</span>
+      <span class="cr-date">2026-06-07</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Anyone check out the new Gemma4 12B that dropped 3 days ago? Integrated vision and audio recognition, no mmpro needed plus tool use. Q4 quant is like 8gb RAM. Crazy fast and great quality for it's size. No, it's not as good as a 27B or 31B. But it's ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tyxyzi" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="gryphe/pantheon-reasoning-27b · hugging face from gryphe: an experiment in bringing reasoning capability to the pantheon roleplay series in the form of an uncensored dense qwen 3.6 27b. this specific model can be thought of as a successor to both the pantheon series and the one-time codex release since i used such a large variety of data this time around. yet another theory being tested this time around: take the data that pantheon is built… quantization fine-tuning anthropic qwen gemma" data-cats="quantization">
   <div class="cr-card-header">
@@ -5426,6 +5483,22 @@
   <p class="cr-summary">Their collection: And their guide, always a very interesting read: &amp;#32; submitted by &amp;#32; /u/newsletternew [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1txpheq" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="aa comparison of the latest local models i picked models i consider local (usable on 3×3090), so there are no 300b models, and you should probably skip 200b models too (but minimax and step are pretty fast in q3) gemma-4 12b is still missing &amp;#32; submitted by &amp;#32; /u/jacek2023 [link] &amp;#32; [comments] hardware gemma" data-cats="high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tya05j" target="_blank" rel="noopener">AA comparison of the latest local models</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/jacek2023</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">I picked models I consider local (usable on 3×3090), so there are no 300B models, and you should probably skip 200B models too (but MiniMax and Step are pretty fast in Q3) Gemma-4 12B is still missing &amp;#32; submitted by &amp;#32; /u/jacek2023 [link] &amp;#32...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tya05j" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="qwen3.6-27b builds a chat interface for gemma-4-e4b (text, image, audio) - qwen3.5-27b (bf16) on 2x pro 6k and gemma-4-e4b (bf16) on rtx 5090 - took about 8 minutes total (40k tokens total - but like 10k is opencode prompt) - one prompt for planning (i answered a few follow ups) - one shot 1000 lines of code - fixed only bug (image preview in chat history) in one go the chat connects to gemma-4-e4b-it running on my workstation via vllm. qwen had no problems getting al… hardware quantization infe" data-cats="high-gpu quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5476,6 +5549,38 @@
   <p class="cr-summary">&amp;#32; submitted by &amp;#32; /u/zxyzyxz [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1txhj2h" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="qat mtp heads upload + parallel=2 fix + 12b 2-slot bench title: gemma 4 qat mtp assistant heads now public on huggingface + parallel=2 crash fix + 12b 2-slot bench (strix halo / vulkan) three things in one update: the converted qat-matched draft heads are now uploaded for anyone to use, we found and fixed the parallel=2 crash in both the atomic fork and filed the same bug on the native llama.cpp pr, and here are the first 12b 2-slot numbers after the f… quantization inference benchmarking google" data-cats="laptop quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tyto0j" target="_blank" rel="noopener">QAT MTP Heads Upload + PARALLEL=2 Fix + 12B 2-slot Bench</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/westsunset</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Laptops</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Title: Gemma 4 QAT MTP assistant heads now public on HuggingFace + PARALLEL=2 crash fix + 12B 2-slot bench (Strix Halo / Vulkan) Three things in one update: the converted QAT-matched draft heads are now uploaded for anyone to use, we found and fixed ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tyto0j" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="120 tok/s on 12gb vram with gemma 4 12b qat mtp google just released the qat (quantization-aware training) variant of their gemma 4 models, including 12b, so it was only natural for me to benchmark it on my 12gb gpu since it fits entirely in vram. i was pleasantly surprised with the result! by using llama.cpp patched with the gemma 4 mtp pr, and loading unsloth's gemma-4-12b-it-qat-gguf quant and google's gemma-4-12b-it-qat-q4_0-unquantized-as… hardware quantization inference fine-tuning benchma" data-cats="mid-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1typjmc" target="_blank" rel="noopener">120 tok/s on 12GB VRAM with Gemma 4 12B QAT MTP</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/janvitos</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Google just released the QAT (Quantization-Aware Training) variant of their Gemma 4 models, including 12B, so it was only natural for me to benchmark it on my 12GB GPU since it fits entirely in VRAM. I was pleasantly surprised with the result! By usi...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1typjmc" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="introducing gemma 4 12b: a unified, encoder-free multimodal model &amp;#32; submitted by &amp;#32; /u/johnnyappleprng [link] &amp;#32; [comments] gemma" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5524,6 +5629,22 @@
   <p class="cr-summary">possibly the 120B model &amp;#32; submitted by &amp;#32; /u/Deep-Vermicelli-4591 [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tvzzml" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="gemma 4 qat unquantized heretic is here now someone needs to quantize them to 4bit, also i have intentionally kept the divergence and refusal different from original gemma 4 heretic collection, so you can even try these as alternative to original model. &amp;#32; submitted by &amp;#32; /u/coder3101 [link] &amp;#32; [comments] gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tynv0p" target="_blank" rel="noopener">Gemma 4 QAT Unquantized Heretic is here</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/coder3101</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Now someone needs to quantize them to 4bit, also I have intentionally kept the divergence and refusal different from original Gemma 4 heretic collection, so you can even try these as alternative to original model. &amp;#32; submitted by &amp;#32; /u/coder310...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tynv0p" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="ideal local model technically possible? now that we have some great local models that can possibly run in mid-tier gpus.. it makes me question, maybe companies have the capability to make much better models that are as small? like, i am imagining a model that is as good as coding like qwen3.6 27b and at the same time as good as gemma 4 12b at languages and other stuff, at just say 30-32b dense. it doesn't theoretically sound insane at… fine-tuning google gemma" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5571,6 +5692,22 @@
   </div>
   <p class="cr-summary">Just got my new PC up and running and want to test some local models. I'm a complete noob but I've managed to install ollama. Im on Fedora Linux. &amp;#32; submitted by &amp;#32; /u/JayoTree [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tsfhon" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="experimentation with qwen 3.6 and gemma 4 - guidance needed i’m a web developer doing mostly coding, but also project management, requirements analysis, testing, etc. i recently started experimenting with local llms, mostly because agentic stuff finally made them feel useful. note: this text was fed to chartgpt to fix my messy repeating grammar my initial impression was honestly pretty discouraging. endless model option confusion, benchmarks that are hard… hardware qwen gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tyjc8z" target="_blank" rel="noopener">Experimentation with Qwen 3.6 and Gemma 4 - Guidance needed</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/j0hnp0s</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">I’m a web developer doing mostly coding, but also project management, requirements analysis, testing, etc. I recently started experimenting with local LLMs, mostly because agentic stuff finally made them feel useful. Note: This text was fed to chartg...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tyjc8z" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="can llms adhere to strict 2d spatial constraints? (testing with sokoban) i recently ran a benchmark to test how well modern large language models (llms) handle spatial geometry and logical reasoning under zero-shot conditions. to eliminate cheat-guessing, i used a custom sokoban (box-pushing) map with extremely strict formatting constraints (no chain-of-thought allowed, only raw directional outputs). the results showed a massive divide between top-tier closed-source m… benchmarking openai anthro" data-cats="general">
   <div class="cr-card-header">
@@ -5668,6 +5805,22 @@
   </div>
   <p class="cr-summary">is that coming? is that even gonna work without obliterating the model's accuracy? IQ4XS is able to run fully on my gpu and gives me very high speed, whilst the official Q40 QAT doesnt quite make it.. &amp;#32; submitted by &amp;#32; /u/rosie254 [link] &amp;#32;...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1txtl9d" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 haters 2 months ago now seems to love gemma 4 now. what's with the switch guys? now imagine if google gonna drop 128b model or a moe version (i bet those qwen lovers will forget qwen even existed). 2 months ago if you posted gemma 4 is the best you get downvoted to oblivion and be spammed by qwen is better. present today it seems now them qwen supporters now leaning on to gemma 4 and even asking google for a 100b+ or moe model haha, i guess they… quantization google qwen gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1ty7icq" target="_blank" rel="noopener">Gemma 4 Haters 2 months Ago now seems to love Gemma 4 now.</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/DigRealistic2977</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">What's with the switch guys? now imagine if google gonna drop 128B model or a MoE version (I bet those Qwen lovers will forget Qwen even existed). 2 months Ago if you posted Gemma 4 is the best you get downvoted to oblivion and be spammed by Qwen is ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1ty7icq" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="gemma4 12b update a couple hours ago, the full content of the gemma4-12b huggingface repos; including models weights, have been &quot;updated&quot;. i can't find information about what was the reason behind this update, does anyone know what's up with that? do we need updated quants to fix some issue? &amp;#32; submitted by &amp;#32; /u/std… google gemma" data-cats="quantization">
   <div class="cr-card-header">
@@ -5781,6 +5934,22 @@
   </div>
   <p class="cr-summary">Welcome to the competition! Let's do ranked-style voting thing and determine what the BEST LOCAL MODEL TRULY IS. List your top 3 models by weight class like so: Welterweight: 1. Qwen3.6:27b 2. Gemma4:26b 3. Granite4.1:30b The weight classes are as fo...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1txm85n" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 31b qat q4 vs standard q4 — top1 kld benchmark results have me confused. someone please explain or poke holes in this. i'll be upfront: i vibe-benched and vibe-reported this with claude sonnet 4.6, but i reviewed and edited everything before posting (too lazy to take out all the ai em dash —), so hopefully nobody considers this ai slop. and more importantly, i genuinely don't understand why i'm getting these counter-intuitive results, so i'm hoping the community can either explain it or " data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tyxu55" target="_blank" rel="noopener">Gemma 4 31B QAT Q4 vs standard Q4 — Top1 KLD benchmark results have me confused. Someone please explain or poke holes in</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/bitslizer</span>
+      <span class="cr-date">2026-06-07</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">I'll be upfront: I vibe-benched and vibe-reported this with Claude Sonnet 4.6, but I reviewed and edited everything before posting (too lazy to take out all the AI EM dash —), so hopefully nobody considers this AI slop. And more importantly, I genuin...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tyxu55" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="experimental &quot;preserve thinking&quot; jinja template for gemma4 31b in llama.cpp yall are more than welcome to try it out and provide feedback. in my own testing in pi-coding-agent i no longer have the &quot;forgot to close thinking tag&quot; &quot;forgot to open thinking&quot; &quot;closed thinking to earl… quantization inference benchmarking agents google meta-llama gemma that's what i always believed as well. i didn't post this out of nowhere though, i already used it f a model not train" data-cats="quantization">
   <div class="cr-card-header">
@@ -6138,6 +6307,22 @@
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/Ok_Warning2146 (+2)</span><span class="cr-comment-text">The point of NPU is power saving. If you don't want llm to drain your battery, it is better to use npu than gpu.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/pdycnbl (+1)</span><span class="cr-comment-text">i have sd elite (i guess its gen4) oneplus 13 and my experience of running it was not good. i was mostly interested in qwen3.5 9B Q4 model its approx 6gb. on paper it looks nice approx 3-4TFlop of gpu...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Ok_Warning2146 (+1)</span><span class="cr-comment-text">Thanks for your input. What kind of number do you get for gemma3-4b-qat-q4_0?</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1t0k6fj" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="a quick gemma4 31b comparison (q4km, qat, heretic) no numbers. not sure if anybody cares… i’ve run the ud version of q4km for a month. i talk to this model nicely, because it’s a functional nervous wreck. and initially i thought that might be an alignment thing, so i also have the heretic version when i need a breather from this hyper vigilant over achiever llm. don’t get me wrong. it’s great ! works well .. most of the time. it’s when the cont… quantization gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1ty84rj" target="_blank" rel="noopener">A quick Gemma4 31B comparison (Q4_k_M, QAT, heretic)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Some-Cauliflower4902</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">No numbers. Not sure if anybody cares… I’ve run the UD version of Q4km for a month. I talk to this model nicely, because it’s a functional nervous wreck. And initially I thought that might be an alignment thing, so I also have the heretic version whe...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1ty84rj" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="let us let google know that we want the gemma 4 124b gemma 4 is good, great even but it's missing that one last step from being legendary. let us make noise and let google know that we want the 124b gemma 4 variant - please let them know: &amp;#32; submitted by &amp;#32; /u/seamonn [link] &amp;#32; [comments] google gemma" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6234,6 +6419,22 @@
   <p class="cr-summary">How to use audio and vision modalities in llama.cpp with Gemma4 12B it? I’m on release b9494, but when I run llama-cli it shows “modalities: text” only, and crashes if I try to add an image. &amp;#32; submitted by &amp;#32; /u/No-Leave-4512 [link] &amp;#32; [com...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tvy9gb" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="gemma 4 qat q40 bench on strix halo gemma 4 qat q40 bench on strix halo these are google's official gemma 4 qat q4_0 gguf models, served locally through llama.cpp vulkan/radv on a strix halo apu. qat means quantization-aware training . instead of taking a normal model and quantizing it only after training, the model is trained or adapted while accounting for the lower-precision format it will run in. the goal is to make a small q4… hardware quantization inference fine-tuning benchmarking google " data-cats="laptop quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tyilv7" target="_blank" rel="noopener">Gemma 4 QAT Q4_0 Bench on Strix Halo</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/westsunset</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Laptops</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Gemma 4 QAT Q40 Bench on Strix Halo These are Google's official Gemma 4 QAT Q40 GGUF models, served locally through llama.cpp Vulkan/RADV on a Strix Halo APU. QAT means quantization-aware training . Instead of taking a normal model and quantizing it ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tyilv7" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="gemma 4 12b: incompatible with opencode, or just awful at tool calling? yesterday i tried out gemma 4 12b on a significant coding challenge, to compare it to prior results with qwen models. i ran the 8-bit quant, so i'm not dumbing it down much at all. judging from the partial results, it seemed capable of grasping the task, but it burned far too much time and effort trying to successfully do basic tool calls. over and over it would fail to specify &quot;pattern&quot; successf… quantization qwen" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6281,6 +6482,22 @@
   </div>
   <p class="cr-summary">Ran a fair comparison between Qwen3.6-35B-A3B and Gemma4-26B-A4B on my Radeon 7900 XTX. Both reasoning-enabled at matching 32K budgets, no output caps, six generic real-world prompts (meeting notes, incident postmortem, log triage to JSON, code revie...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tszlsa" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="activating mtp for qatgemma4 31b q40? has anyone figured out how to activate mtp for gemma4’s new qat q40 gguf for 31b? or is this still not supported in llamacpp? if not, is mtp working via vllm? &amp;#32; submitted by &amp;#32; /u/ambitiousfold2874 [link] &amp;#32; [comments] quantization inference" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1tygyub" target="_blank" rel="noopener">Activating MTP for QATGemma4 31b q4_0?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Ambitious_Fold_2874</span>
+      <span class="cr-date">2026-06-06</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Has anyone figured out how to activate MTP for Gemma4’s new QAT q40 GGUF for 31b? Or is this still not supported in llamacpp? If not, is MTP working via vLLM? &amp;#32; submitted by &amp;#32; /u/AmbitiousFold_2874 [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1tygyub" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="qwen3.6 35b has much worse vision capability than gemma4? how different are the image recognition capabilities between gemma4 and qwen3.6? i give the model the task to extract calendar events from a photo of an calendar that is croped to the calendar. gemma4 was quite successful in doing this. i took that for granted. qwen 3.6 has many problems doing this. it read all events as 1h long even when they were clearly not. it reads some events as starting at… hardware quantization inference meta-llam" data-cats="quantization">
   <div class="cr-card-header">
