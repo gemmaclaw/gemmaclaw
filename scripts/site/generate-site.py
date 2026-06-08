@@ -1837,6 +1837,7 @@ SOCIAL_IMAGE_URL = SITE_URL + "assets/gemmaclaw-github-social.png"
 
 NAV_ITEMS = [
     ("Setup", "setup.html", False),
+    ("Where it Fits", "compare.html", False),
     ("Self-Hosting", "self-hosting.html", False),
     ("Benchmarks", "benchmarks.html", False),
     ("Run Benchmarks", "benchmarking.html", False),
@@ -2039,6 +2040,12 @@ _CARD_ICONS = {
         '<circle cx="12" cy="12" r="2"/>'
         '</svg>'
     ),
+    "compare": (
+        f'<svg {_CARD_ICON_SVG_ATTRS}>'
+        '<circle cx="9" cy="12" r="7"/>'
+        '<circle cx="15" cy="12" r="7"/>'
+        '</svg>'
+    ),
 }
 
 
@@ -2057,6 +2064,7 @@ def generate_index_page():
       <h2>Explore Gemmaclaw</h2>
       <div class="page-cards">
       <a href="setup.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["setup"]}</div><h3>Setup Guide</h3><p>Auto-detect your hardware, provision backends, and start a local Gemma assistant in one command.</p></a>
+      <a href="compare.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["compare"]}</div><h3>Where it Fits</h3><p>How Gemmaclaw relates to OpenClaw and the local-agent ecosystem. Gemma-first, OpenClaw-powered, community-informed.</p></a>
       <a href="self-hosting.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["self-hosting"]}</div><h3>Self-Hosting</h3><p>Find the best Gemma configuration for your hardware. Search by GPU, CPU, or RAM.</p></a>
       <a href="benchmarks.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["benchmarks"]}</div><h3>Benchmarks</h3><p>All models tested on the same task suite: instruction following, reasoning, coding, and more.</p></a>
       <a href="community.html" class="page-card"><div class="page-card-icon">{_CARD_ICONS["community"]}</div><h3>Community</h3><p>Real-world hardware reports from r/LocalLLaMA, curated field notes, and community discoveries.</p></a>
@@ -2668,6 +2676,18 @@ gemmaclaw configure</code></pre></div>
         <li><strong>Channel disconnected:</strong> check <code>gemmaclaw channels status --probe</code> and re-login.</li>
         <li><strong>Gateway won't start:</strong> try <code>gemmaclaw gateway run --verbose</code>, then <code>gemmaclaw doctor --deep --fix</code>.</li>
       </ul>
+    </section>
+
+    <section id="setup-next">
+      <h2>Where Gemmaclaw Fits</h2>
+      <p>Curious how Gemmaclaw relates to OpenClaw and other local-agent projects? The comparison page explains the relationship and what makes Gemmaclaw a distinct Gemma-first distribution.</p>
+      <div class="page-cards" style="margin-top:1rem">
+        <a href="compare.html" class="page-card">
+          <div class="page-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="12" r="7"/><circle cx="15" cy="12" r="7"/></svg></div>
+          <h3>Where it Fits</h3>
+          <p>Gemma-first, OpenClaw-powered, community-informed. Understand how Gemmaclaw relates to OpenClaw and the local-agent ecosystem.</p>
+        </a>
+      </div>
     </section>"""
     return page_template("Setup Guide", body, active_page="setup.html")
 
@@ -4283,6 +4303,150 @@ pnpm benchmark --mock</code></pre></div>
     return page_template("Run Benchmarks", body, active_page="benchmarking.html")
 
 
+def generate_compare_page():
+    body = """<div class="breadcrumb"><a href="index.html">Home</a> / Where it Fits</div>
+    <section id="compare-hero">
+      <h2>Where Gemmaclaw Fits</h2>
+      <p class="compare-tagline">Gemma-first, OpenClaw-powered, community-informed.</p>
+      <p>If you have heard of OpenClaw or Hermes and want to understand where Gemmaclaw sits, this page explains the relationship. Short version: Gemmaclaw is a focused distribution built on top of OpenClaw, shaped by experience in both the OpenClaw and Hermes communities, and aimed squarely at users who want a Gemma-powered local agent that works on real hardware with minimal friction.</p>
+    </section>
+
+    <section id="the-three-projects">
+      <h2>The Three Projects</h2>
+      <p>These are distinct efforts with different scopes and audiences. None is a replacement for the others.</p>
+      <div class="project-panels">
+
+        <div class="project-panel project-panel-upstream">
+          <div class="project-panel-label">Upstream framework</div>
+          <h3>OpenClaw</h3>
+          <p>OpenClaw is a general-purpose agent framework with multi-provider support, multi-channel delivery, a plugin architecture, and a broad runtime. It is the upstream project that Gemmaclaw is built on. Gemmaclaw pulls in OpenClaw updates directly and inherits its core runtime improvements.</p>
+          <ul class="setup-list">
+            <li>Multi-provider inference (local, cloud, enterprise)</li>
+            <li>Multi-channel delivery (Discord, WhatsApp, Telegram, and more)</li>
+            <li>Plugin-oriented architecture for extensibility</li>
+            <li>Active runtime improvements that Gemmaclaw inherits</li>
+          </ul>
+          <p class="project-panel-link"><a href="https://github.com/gemmaclaw/gemmaclaw" class="inline">Gemmaclaw is built on OpenClaw</a> and targets the same npm ecosystem.</p>
+        </div>
+
+        <div class="project-panel project-panel-peer">
+          <div class="project-panel-label">Community and peer project</div>
+          <h3>Hermes</h3>
+          <p>Hermes is another serious project in the local-agent ecosystem. It focuses on practical experiments with local tool-using models and has produced useful community knowledge about what local models can reliably do. Gemmaclaw learns from participating in the broader local-agent community that includes Hermes.</p>
+          <ul class="setup-list">
+            <li>Active local-agent community with real-world experiments</li>
+            <li>Useful examples of local models performing tool-using tasks</li>
+            <li>A valuable source of community ideas and reliability comparisons</li>
+          </ul>
+          <p class="project-panel-note">Gemmaclaw does not share code with Hermes, but the broader local-agent conversation that includes Hermes has informed Gemmaclaw's thinking about what matters for real users on real hardware.</p>
+        </div>
+
+        <div class="project-panel project-panel-gemmaclaw">
+          <div class="project-panel-label">This project</div>
+          <h3>Gemmaclaw</h3>
+          <p>Gemmaclaw is a Gemma-first distribution layered on OpenClaw. It adds hardware-aware setup, model and runtime recommendations, local-first self-hosting guides, a public benchmark suite, field notes from real usage, and runtime behavior enhancements for local agents.</p>
+          <ul class="setup-list">
+            <li>Gemma-first onboarding: auto-detect hardware, pick the right model size</li>
+            <li>Hardware-aware setup for GPU and CPU-only paths</li>
+            <li>Public benchmark suite with full task transcripts</li>
+            <li>Self-hosting guides for real users, not only framework developers</li>
+            <li>Runtime enhancements for delivery verification and follow-through</li>
+            <li>Continuous upstream sync from OpenClaw</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="how-they-relate">
+      <h2>How They Relate</h2>
+      <p>The relationship is straightforward: OpenClaw provides the runtime foundation, and Gemmaclaw builds a Gemma-specific distribution on top of it. Community participation, including in the OpenClaw and Hermes communities, feeds back into Gemmaclaw's priorities and field notes.</p>
+      <div class="relationship-diagram" aria-label="Relationship diagram showing OpenClaw as upstream foundation with Gemmaclaw as a Gemma-first distribution layered on it">
+        <div class="rel-row">
+          <div class="rel-box rel-box-upstream">
+            <span class="rel-label">Upstream runtime</span>
+            <strong>OpenClaw</strong>
+            <span class="rel-sub">General-purpose agent framework. Multi-provider, multi-channel, plugin-oriented.</span>
+          </div>
+          <div class="rel-arrow rel-arrow-down" aria-hidden="true">
+            <span>Gemmaclaw syncs updates from OpenClaw</span>
+          </div>
+          <div class="rel-box rel-box-gemmaclaw">
+            <span class="rel-label">Gemma-first distribution</span>
+            <strong>Gemmaclaw</strong>
+            <span class="rel-sub">Built on OpenClaw. Gemma setup, hardware recommendations, benchmarks, enhancements.</span>
+          </div>
+        </div>
+        <div class="rel-community">
+          <div class="rel-community-box">
+            <span class="rel-label">Community participation</span>
+            <strong>OpenClaw + Hermes communities</strong>
+            <span class="rel-sub">Ideas, real-world experience, and local-agent reliability insights feed back into Gemmaclaw priorities.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="why-gemmaclaw">
+      <h2>Why Gemmaclaw</h2>
+      <p>If you want to run a Gemma-powered agent on your own hardware and need clear guidance on which model, which backend, and what to expect, Gemmaclaw is designed for that.</p>
+      <div class="cap-grid">
+        <div class="cap-card">
+          <h3>Gemma-first onboarding</h3>
+          <p>One command gets a working Gemma assistant. The setup wizard auto-detects your hardware and picks the right model size and quantization.</p>
+        </div>
+        <div class="cap-card">
+          <h3>Hardware-aware recommendations</h3>
+          <p>GPU, CPU-only, and cloud paths are all first-class. Benchmark results and field notes tell you what actually works at each hardware tier.</p>
+        </div>
+        <div class="cap-card">
+          <h3>Public benchmark suite</h3>
+          <p>All models tested on the same 51-task agentic suite. Results include full transcripts, per-task scoring, and LLM judge evaluations. No hidden runs.</p>
+        </div>
+        <div class="cap-card">
+          <h3>Self-hosting docs</h3>
+          <p>Practical setup guides for real users. llama.cpp first, Docker sandbox, CPU-only fallbacks, and reproducible configurations.</p>
+        </div>
+        <div class="cap-card">
+          <h3>Runtime enhancements</h3>
+          <p>Code-owned instructions that help local agents verify external delivery receipts and follow through on commitments before claiming success.</p>
+        </div>
+        <div class="cap-card">
+          <h3>Continuous upstream sync</h3>
+          <p>Gemmaclaw pulls runtime improvements from OpenClaw continuously. You get the OpenClaw runtime foundation plus Gemma-specific additions.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="community-note">
+      <h2>Community Note</h2>
+      <p>Gemmaclaw is a volunteer-driven project and is not an official Google product. It uses Gemma models and follows Google's open-model terms, but is built and maintained independently. The Gemmaclaw community works alongside and learns from both the OpenClaw community and the broader local-agent ecosystem, including projects like Hermes.</p>
+      <p>If you are building on Gemmaclaw or want to contribute benchmarks, hardware reports, or enhancements, the <a href="community.html" class="inline">Community page</a> has field notes and community hardware reports, and the <a href="https://github.com/gemmaclaw/gemmaclaw" class="inline">GitHub repository</a> is the right place for contributions.</p>
+    </section>
+
+    <section id="next-steps">
+      <h2>Next Steps</h2>
+      <div class="page-cards">
+        <a href="setup.html" class="page-card">
+          <div class="page-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <h3>Setup Guide</h3>
+          <p>Get a Gemma agent running in minutes. The wizard auto-detects your hardware and picks the best model.</p>
+        </a>
+        <a href="benchmarks.html" class="page-card">
+          <div class="page-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M8 17v-3"/><path d="M13 17V9"/><path d="M18 17V5"/></svg></div>
+          <h3>Benchmarks</h3>
+          <p>See how Gemma models perform on the agentic task suite. Full transcripts and per-task scoring included.</p>
+        </a>
+        <a href="enhancements.html" class="page-card">
+          <div class="page-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-5"/></svg></div>
+          <h3>Enhancements</h3>
+          <p>Learn about the runtime enhancements Gemmaclaw adds beyond the OpenClaw baseline.</p>
+        </a>
+      </div>
+    </section>"""
+    return page_template("Where it Fits", body, active_page="compare.html")
+
+
 def generate_site():
     results = load_benchmark_results()
     best = best_results(results)
@@ -4298,6 +4462,7 @@ def generate_site():
     pages = {
         "index.html": generate_index_page(),
         "setup.html": generate_setup_page(),
+        "compare.html": generate_compare_page(),
         "self-hosting.html": generate_self_hosting_page(hw_cards),
         "benchmarks.html": generate_benchmarks_page(best, task_explanations_html, agent_preview_html),
         "benchmarking.html": generate_benchmarking_page(),
@@ -5281,6 +5446,151 @@ CSS = """
     .no-results {
       text-align: center; color: var(--muted); padding: 2rem 1rem;
       font-size: 0.95rem;
+    }
+
+    /* Compare / "Where it Fits" page */
+    .compare-tagline {
+      font-size: 1.1rem; font-weight: 500; color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    .project-panels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+    .project-panel {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      background: var(--bg-elev);
+    }
+    .project-panel h3 {
+      font-size: 1.15rem; font-weight: 600;
+      margin: 0.25rem 0 0.75rem; color: var(--fg);
+    }
+    .project-panel-upstream {
+      border-left: 3px solid var(--muted);
+    }
+    .project-panel-peer {
+      border-left: 3px solid var(--warn);
+    }
+    .project-panel-gemmaclaw {
+      border-left: 3px solid var(--accent);
+    }
+    .project-panel-label {
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem;
+    }
+    .project-panel-upstream .project-panel-label { color: var(--muted); }
+    .project-panel-peer .project-panel-label { color: var(--warn); }
+    .project-panel-gemmaclaw .project-panel-label { color: var(--accent); }
+    .project-panel-link, .project-panel-note {
+      font-size: 0.88rem; color: var(--muted);
+      margin-top: 0.75rem; margin-bottom: 0;
+    }
+
+    /* Relationship diagram */
+    .relationship-diagram {
+      margin: 1.25rem 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      background: var(--bg-elev);
+    }
+    .rel-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .rel-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      background: var(--bg);
+      width: 100%; max-width: 440px;
+    }
+    .rel-box-upstream { border-left: 3px solid var(--muted); }
+    .rel-box-gemmaclaw { border-left: 3px solid var(--accent); }
+    .rel-box .rel-label {
+      display: block; font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); margin-bottom: 0.2rem;
+    }
+    .rel-box-gemmaclaw .rel-label { color: var(--accent); }
+    .rel-box strong {
+      display: block; font-size: 1.05rem;
+      color: var(--fg); margin-bottom: 0.35rem;
+    }
+    .rel-box .rel-sub {
+      display: block; font-size: 0.86rem;
+      color: var(--fg-soft); line-height: 1.45;
+    }
+    .rel-arrow-down {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 0.5rem 0;
+      color: var(--muted); font-size: 0.82rem; text-align: center;
+    }
+    .rel-arrow-down::before {
+      content: '';
+      display: block;
+      width: 2px; height: 1.5rem;
+      background: var(--border);
+      margin-bottom: 0.25rem;
+    }
+    .rel-arrow-down::after {
+      content: '';
+      display: block;
+      width: 2px; height: 0.5rem;
+      background: var(--border);
+      margin-top: 0.25rem;
+    }
+    .rel-community {
+      margin-top: 1rem;
+      border-top: 1px dashed var(--border);
+      padding-top: 1rem;
+    }
+    .rel-community-box {
+      background: var(--bg); border: 1px dashed var(--border);
+      border-radius: 10px; padding: 1rem 1.25rem;
+    }
+    .rel-community-box .rel-label {
+      display: block; font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); margin-bottom: 0.2rem;
+    }
+    .rel-community-box strong {
+      display: block; font-size: 1rem;
+      color: var(--fg); margin-bottom: 0.35rem;
+    }
+    .rel-community-box .rel-sub {
+      display: block; font-size: 0.86rem;
+      color: var(--fg-soft); line-height: 1.45;
+    }
+    @media (min-width: 600px) {
+      .rel-row {
+        flex-direction: row;
+        align-items: center;
+        gap: 0;
+      }
+      .rel-box { width: auto; flex: 1; }
+      .rel-arrow-down {
+        flex-direction: row;
+        padding: 0 0.75rem;
+        flex-shrink: 0;
+      }
+      .rel-arrow-down::before {
+        width: 1.5rem; height: 2px;
+        margin-bottom: 0; margin-right: 0.25rem;
+      }
+      .rel-arrow-down::after {
+        width: 0.5rem; height: 2px;
+        margin-top: 0; margin-left: 0.25rem;
+      }
+    }
+    @media (max-width: 599px) {
+      .project-panels { grid-template-columns: 1fr; }
     }
 
     /* Footer */
