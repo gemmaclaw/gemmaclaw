@@ -51,10 +51,12 @@ describe("resolveOAuthRefreshLockPath", () => {
 
   it("is immune to simple concat collisions at the provider/profile boundary", () => {
     // With a plain `${provider}:${profileId}` hash input, the pair
-    // ("a", "b:c") would collide with ("a:b", "c"). The NUL separator
-    // in the hash input rules that out.
+    // ("a", "b:c") would collide with ("a:b", "c"). Tuple encoding rules that out.
     expect(resolveOAuthRefreshLockPath("a", "b:c")).not.toBe(
       resolveOAuthRefreshLockPath("a:b", "c"),
+    );
+    expect(resolveOAuthRefreshLockPath("a", "\x00b")).not.toBe(
+      resolveOAuthRefreshLockPath("a\x00", "b"),
     );
   });
 
