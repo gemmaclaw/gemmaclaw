@@ -300,6 +300,34 @@ function normalizeProviderFinalUrl(value: unknown): string | undefined {
   }
 }
 
+function throwIfFetchAborted(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) {
+    return;
+  }
+  // readResponseText may finish after an abort races with body reading. Recheck
+  // before wrapping, caching, or returning content from a canceled tool call.
+  throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+}
+
+/**
+ * Sanitize a web_fetch URL parameter that may contain LLM-injected whitespace.
+ *
+ * Fixes the reported case where a model emits a space between the scheme and
+ * authority (e.g. `https:// docs.openclaw.ai`), which causes `new URL()` to
+ * throw. Path and query whitespace is intentionally preserved — the WHATWG URL
+ * parser percent-encodes those characters correctly per RFC 3986.
+ */
+export function sanitizeWebFetchUrl(raw: string): string {
+  let end = raw.length;
+  while (end > 0 && raw.charCodeAt(end - 1) <= 0x20) {
+    end -= 1;
+  }
+  const trimmed = raw.slice(0, end).replace(/^\s+/, "");
+  const repaired = trimmed.replace(/^(https?:\/\/)\s+/i, "$1");
+  return repaired.replace(/^(https?:\/\/[^/?#\s]+)\s+$/i, "$1");
+}
+
+
 function normalizeProviderWebFetchPayload(params: {
   providerId: string;
   payload: unknown;
@@ -630,7 +658,9 @@ export function createWebFetchTool(options?: {
     parameters: WebFetchSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
-      const url = readStringParam(params, "url", { required: true });
+      const url = sanitizeWebFetchUrl(
+        readStringParam(params, "url", { required: true, trim: false }),
+      );
       const extractMode = readStringParam(params, "extractMode") === "text" ? "text" : "markdown";
       const maxChars = readNumberParam(params, "maxChars", { integer: true });
       const maxCharsCap = resolveFetchMaxCharsCap(fetch);
