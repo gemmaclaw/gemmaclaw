@@ -22,7 +22,7 @@ import {
  * `WizardIO` so the same logic powers both the live CLI and the tests.
  */
 
-export type OnboardingBackend = "local" | "gemini" | "vertex";
+export type OnboardingBackend = "local" | "gemini" | "vertex" | "extended";
 export type OnboardingThinking = "off" | "low" | "medium" | "high";
 export type OnboardingBootstrap = "general" | "coding" | "minimal";
 
@@ -199,6 +199,10 @@ export function defaultModelFor(backend: OnboardingBackend): string {
   if (backend === "gemini") {
     return "google/gemini-2.5-flash";
   }
+  if (backend === "extended") {
+    // Model is selected by the OpenClaw model picker in the merged flow.
+    return "";
+  }
   return "gemma-3-12b-it";
 }
 
@@ -210,6 +214,10 @@ export function modelChoicesFor(
   }
   if (backend === "gemini") {
     return GEMINI_MODEL_CHOICES;
+  }
+  if (backend === "extended") {
+    // Model is selected by the OpenClaw model picker; no Gemmaclaw-curated list.
+    return [];
   }
   return VERTEX_MODEL_CHOICES;
 }
@@ -253,7 +261,7 @@ export async function runOnboardingWizard(
   };
 }
 
-async function askAgentName(io: WizardIO, preset?: string): Promise<string> {
+export async function askAgentName(io: WizardIO, preset?: string): Promise<string> {
   if (preset) {
     const error = validateAgentName(preset);
     if (error) {
@@ -279,7 +287,7 @@ async function askAgentName(io: WizardIO, preset?: string): Promise<string> {
   }
 }
 
-async function askContainer(io: WizardIO, preset?: boolean): Promise<boolean> {
+export async function askContainer(io: WizardIO, preset?: boolean): Promise<boolean> {
   if (preset !== undefined) {
     return preset;
   }
@@ -313,23 +321,34 @@ async function askContainer(io: WizardIO, preset?: boolean): Promise<boolean> {
   }
 }
 
-async function askBackend(io: WizardIO, preset?: OnboardingBackend): Promise<OnboardingBackend> {
+export async function askBackend(
+  io: WizardIO,
+  preset?: OnboardingBackend,
+  includeExtended?: boolean,
+): Promise<OnboardingBackend> {
   if (preset) {
     return preset;
   }
 
   io.log("3. Where should the model run?");
   io.log("");
-  io.log("  1) Local       Run on this machine. Private, no data leaves your network.");
-  io.log("                 Auto-detects GPU and downloads the model.");
-  io.log("  2) Gemini API  Use Google's hosted Gemini API. No GPU required, just an API");
-  io.log("                 key from aistudio.google.com.");
-  io.log("  3) Vertex AI   Use Google Cloud Vertex AI. Best for enterprise / GCP users.");
-  io.log("                 Requires gcloud CLI signed in.");
+  io.log("  1) Local            Run on this machine. Private, no data leaves your network.");
+  io.log("                      Auto-detects GPU and downloads the model.");
+  io.log("  2) Gemini API       Use Google's hosted Gemini API. No GPU required, just an API");
+  io.log("                      key from aistudio.google.com.");
+  io.log("  3) Vertex AI        Use Google Cloud Vertex AI. Best for enterprise / GCP users.");
+  io.log("                      Requires gcloud CLI signed in.");
+  if (includeExtended) {
+    io.log("  4) Extended options All available providers: Anthropic, OpenAI, and more.");
+    io.log("                      Surfaces the full OpenClaw provider ecosystem.");
+  }
   io.log("");
 
+  const maxChoice = includeExtended ? "4" : "3";
+  const prompt = includeExtended ? "Choose [1/2/3/4, default=1]: " : "Choose [1/2/3, default=1]: ";
+
   for (;;) {
-    const answer = await io.prompt("Choose [1/2/3, default=1]: ");
+    const answer = await io.prompt(prompt);
     const choice = answer.trim() || "1";
     if (choice === "1" || choice.toLowerCase() === "local") {
       io.log("");
@@ -343,17 +362,26 @@ async function askBackend(io: WizardIO, preset?: OnboardingBackend): Promise<Onb
       io.log("");
       return "vertex";
     }
-    io.error(`Invalid choice "${choice}". Enter 1, 2, or 3.`);
+    if (includeExtended && (choice === "4" || choice.toLowerCase() === "extended")) {
+      io.log("");
+      return "extended";
+    }
+    io.error(`Invalid choice "${choice}". Enter 1-${maxChoice}.`);
   }
 }
 
-async function askModel(
+export async function askModel(
   io: WizardIO,
   backend: OnboardingBackend,
   preset?: string,
 ): Promise<string> {
   if (preset) {
     return resolveModelId(backend, preset);
+  }
+
+  // Extended backend: model is selected by the OpenClaw model picker, not here.
+  if (backend === "extended") {
+    return "";
   }
 
   const choices = modelChoicesFor(backend);
@@ -389,7 +417,10 @@ async function askModel(
   }
 }
 
-async function askThinking(io: WizardIO, preset?: OnboardingThinking): Promise<OnboardingThinking> {
+export async function askThinking(
+  io: WizardIO,
+  preset?: OnboardingThinking,
+): Promise<OnboardingThinking> {
   if (preset) {
     return preset;
   }
@@ -429,7 +460,7 @@ async function askThinking(io: WizardIO, preset?: OnboardingThinking): Promise<O
   }
 }
 
-async function askBootstrap(
+export async function askBootstrap(
   io: WizardIO,
   preset?: OnboardingBootstrap,
 ): Promise<OnboardingBootstrap> {
@@ -472,7 +503,7 @@ async function askBootstrap(
   }
 }
 
-async function askEnhancements(
+export async function askEnhancements(
   io: WizardIO,
   preset?: readonly GemmaclawEnhancementId[],
 ): Promise<GemmaclawEnhancementId[]> {
