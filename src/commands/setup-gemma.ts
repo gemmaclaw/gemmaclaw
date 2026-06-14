@@ -9,6 +9,7 @@ import type {
   OnboardingBackend,
   OnboardingBootstrap,
   OnboardingChoices,
+  OnboardingDefaults,
   OnboardingThinking,
 } from "../gemmaclaw/provision/onboarding-wizard.js";
 import { normalizeAgentId } from "../routing/session-key.js";
@@ -380,12 +381,8 @@ export async function setupGemmaCommand(
     await import("../gemmaclaw/provision/setup-wizard.js");
   const { provision, verifyCompletion } = await import("../gemmaclaw/provision/provision.js");
   const { DEFAULT_GATEWAY_PORT } = await import("../config/paths.js");
-  const {
-    runOnboardingWizard,
-    createStdioOnboardingIO,
-    buildNonInteractiveChoices,
-    formatChoicesSummary,
-  } = await import("../gemmaclaw/provision/onboarding-wizard.js");
+  const { createStdioOnboardingIO, buildNonInteractiveChoices, formatChoicesSummary } =
+    await import("../gemmaclaw/provision/onboarding-wizard.js");
 
   // Check Node.js version.
   const nodeVersion = Number.parseInt(process.versions.node.split(".")[0], 10);
@@ -399,9 +396,20 @@ export async function setupGemmaCommand(
   const dryRun = opts.dryRun || process.env.OPENCLAW_SETUP_DRY_RUN === "1";
 
   // Build onboarding choices either from CLI flags (non-interactive) or from
-  // the interactive wizard. The wizard accepts presets so flags partially
-  // skip individual prompts (e.g. --agent-name skips the name prompt).
+  // the interactive merged wizard. The wizard accepts presets so flags
+  // partially skip individual prompts (e.g. --agent-name skips the name
+  // prompt).
   let choices: OnboardingChoices;
+  // pendingGatewayConfig accumulates gateway + provider auth settings from
+  // the interactive wizard steps so they can be written to config at the end.
+  let pendingGatewayConfig: OpenClawConfig | null = null;
+  // pendingChannelConfig carries channel settings from the channel wizard step.
+  let pendingChannelConfig: OpenClawConfig | null = null;
+  // existingConfigAction is only meaningful for the interactive path.
+  let existingConfigAction:
+    | import("../gemmaclaw/provision/merged-setup.gemmaclaw.js").ExistingConfigAction
+    | null = null;
+
   if (opts.nonInteractive) {
     choices = buildNonInteractiveChoices({
       agentName: opts.agentName,
@@ -414,23 +422,74 @@ export async function setupGemmaCommand(
       apiKey: process.env.GEMINI_API_KEY?.trim(),
     });
   } else {
+    // Interactive merged wizard (Steps 1-9: Gemmaclaw; Steps 10-11: OpenClaw
+    // gateway and channel config).
+    const {
+      runGemmaclawSetupSteps,
+      runOpenClawAuthFlow,
+      runGatewayConfigStep,
+      runChannelSetupStep,
+    } = await import("../gemmaclaw/provision/merged-setup.gemmaclaw.js");
+
     const io = createStdioOnboardingIO();
     try {
-      choices = await runOnboardingWizard(io, {
-        agentName: opts.agentName,
-        useContainer: opts.noContainer === true ? false : undefined,
-        backend: opts.setupMode,
-        model: opts.model,
-        thinkingLevel: opts.thinking,
-        bootstrap: opts.bootstrap,
-        enhancements: opts.enhancements
-          ? (await import("../gemmaclaw/gemmaclaw_instructions.js")).resolveGemmaclawEnhancementIds(
-              opts.enhancements,
-            )
-          : undefined,
-      });
+      // Resolve enhancement IDs from the CLI flag if provided, so they can be
+      // used as defaults inside the wizard.
+      const enhancementDefaults: OnboardingDefaults["enhancements"] = opts.enhancements
+        ? (await import("../gemmaclaw/gemmaclaw_instructions.js")).resolveGemmaclawEnhancementIds(
+            opts.enhancements,
+          )
+        : undefined;
+
+      const wizardResult = await runGemmaclawSetupSteps(
+        io,
+        {
+          agentName: opts.agentName,
+          useContainer: opts.noContainer === true ? false : undefined,
+          backend: opts.setupMode,
+          model: opts.model,
+          thinkingLevel: opts.thinking,
+          bootstrap: opts.bootstrap,
+          enhancements: enhancementDefaults,
+        },
+        { includeExtended: true },
+      );
+      choices = wizardResult.choices;
+      existingConfigAction = wizardResult.existingConfigAction;
     } finally {
       io.close();
+    }
+
+    // For "gemini" and "extended" backends, run the OpenClaw provider auth
+    // flow (Step 9.5) which lets the user pick their Gemini/provider key via
+    // the OpenClaw auth-choice ecosystem instead of a bespoke prompt.
+    if (
+      existingConfigAction !== "keep" &&
+      (choices.backend === "gemini" || choices.backend === "extended")
+    ) {
+      const authResult = await runOpenClawAuthFlow(runtime, {} as OpenClawConfig, choices.backend, {
+        dryRun,
+      });
+      if (authResult) {
+        if (authResult.model) {
+          choices = { ...choices, model: authResult.model };
+        }
+        pendingGatewayConfig = authResult.nextConfig;
+      }
+    }
+
+    // Step 10: Gateway configuration (skipped when user chose "keep").
+    if (existingConfigAction !== "keep") {
+      const gwResult = await runGatewayConfigStep(runtime, pendingGatewayConfig ?? {}, { dryRun });
+      if (gwResult) {
+        pendingGatewayConfig = gwResult.nextConfig;
+      }
+
+      // Step 11: Channel setup.
+      const chanResult = await runChannelSetupStep(runtime, pendingGatewayConfig ?? {}, { dryRun });
+      if (chanResult) {
+        pendingChannelConfig = chanResult;
+      }
     }
   }
 
@@ -470,8 +529,23 @@ export async function setupGemmaCommand(
   const useDocker = choices.useContainer;
 
   if (choices.backend === "gemini") {
-    await setupGeminiBackend(runtime, choices, { dryRun });
+    // Non-interactive path: write the API key directly via the legacy helper.
+    // Interactive path: auth was already handled by runOpenClawAuthFlow above;
+    // the resulting config is in pendingGatewayConfig.
+    if (opts.nonInteractive) {
+      await setupGeminiBackend(runtime, choices, { dryRun });
+    }
     await applySharedAgentDefaults(choices, useDocker, runtime);
+    await applyGatewayChannelConfig(pendingGatewayConfig, pendingChannelConfig);
+    await printPostSetupSummary(runtime, choices, undefined);
+    return;
+  }
+
+  if (choices.backend === "extended") {
+    // Extended backend: auth + model were handled by runOpenClawAuthFlow;
+    // config is accumulated in pendingGatewayConfig.
+    await applySharedAgentDefaults(choices, useDocker, runtime);
+    await applyGatewayChannelConfig(pendingGatewayConfig, pendingChannelConfig);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
@@ -479,6 +553,7 @@ export async function setupGemmaCommand(
   if (choices.backend === "vertex") {
     await setupVertexBackend(runtime, choices, { dryRun });
     await applySharedAgentDefaults(choices, useDocker, runtime);
+    await applyGatewayChannelConfig(pendingGatewayConfig, pendingChannelConfig);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
@@ -522,6 +597,7 @@ export async function setupGemmaCommand(
       `[dry-run] Would provision ${profile.backend} with model ${profile.model ?? "(auto)"} on port ${String(profile.port)}.`,
     );
     await applySharedAgentDefaults(choices, useDocker, runtime);
+    await applyGatewayChannelConfig(pendingGatewayConfig, pendingChannelConfig);
     await printPostSetupSummary(runtime, choices, undefined);
     return;
   }
@@ -614,6 +690,8 @@ export async function setupGemmaCommand(
       }
 
       await applyAgentNameAndBootstrap(choices);
+      // Apply gateway and channel settings captured from the wizard steps.
+      await applyGatewayChannelConfig(pendingGatewayConfig, pendingChannelConfig);
 
       runtime.log("");
       runtime.log("Setup complete! Your Gemma assistant is ready.");
@@ -871,6 +949,43 @@ export async function applyAgentNameAndBootstrap(choices: OnboardingChoices): Pr
     ensureDockerWritableHostDir(fs, workspaceDir);
     ensureDockerWritableHostDir(fs, resolveGemmaclawSharedDir());
   }
+}
+
+/**
+ * Apply gateway, secrets, model-provider auth, and channel settings that were
+ * captured during the interactive wizard steps (Steps 10-11) into the on-disk
+ * config. Called after backend-specific provisioning so wizard settings win.
+ */
+async function applyGatewayChannelConfig(
+  gatewayConfig: OpenClawConfig | null,
+  channelConfig: OpenClawConfig | null,
+): Promise<void> {
+  if (!gatewayConfig && !channelConfig) {
+    return;
+  }
+  const { mutateConfigFile } = await import("../config/mutate.js");
+  await mutateConfigFile({
+    mutate: (draft) => {
+      if (gatewayConfig) {
+        if (gatewayConfig.gateway) {
+          draft.gateway = { ...draft.gateway, ...gatewayConfig.gateway };
+        }
+        if (gatewayConfig.secrets) {
+          draft.secrets = { ...draft.secrets, ...gatewayConfig.secrets };
+        }
+        if (gatewayConfig.models?.providers) {
+          draft.models ??= {};
+          draft.models.providers = {
+            ...draft.models.providers,
+            ...gatewayConfig.models.providers,
+          };
+        }
+      }
+      if (channelConfig?.channels) {
+        draft.channels = { ...draft.channels, ...channelConfig.channels };
+      }
+    },
+  });
 }
 
 async function printPostSetupSummary(
