@@ -30,11 +30,41 @@ export function resolveCronStyleNow(cfg: TimeConfigLike, nowMs: number): CronSty
   return { userTimezone, formattedTime, timeLine };
 }
 
+/**
+ * Append a fresh current-time block, or refresh a previously helper-injected one,
+ * so heartbeat/cron prompts flowing through this helper repeatedly never leak a
+ * stale `Current time:` value (issue #44993).
+ */
+// Matches the helper's own injected single-line `Current time: ... (<TZ>) / YYYY-MM-DD HH:MM UTC`
+// block. Gemmaclaw uses the single-line format:
+//   `Current time: <formattedTime> (<userTimezone>) / YYYY-MM-DD HH:MM UTC`
+// The `(<TZ>)` group rejects parens (so timezone IDs like `Asia/Seoul` are accepted),
+// and the strict `/ YYYY-MM-DD HH:MM UTC` suffix rejects user-authored reminder lines
+// that happen to start with `Current time:` but lack the helper's exact UTC tail format.
+const CURRENT_TIME_LINE_RE =
+  /^Current time: .+? \([^)]+\) \/ \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/gm;
+
+
 export function appendCronStyleCurrentTimeLine(text: string, cfg: TimeConfigLike, nowMs: number) {
   const base = text.trimEnd();
-  if (!base || base.includes("Current time:")) {
+  if (!base) {
     return base;
   }
   const { timeLine } = resolveCronStyleNow(cfg, nowMs);
-  return `${base}\n${timeLine}`;
+  if (!CURRENT_TIME_LINE_RE.test(base)) {
+    return `${base}\n${timeLine}`;
+  }
+  CURRENT_TIME_LINE_RE.lastIndex = 0;
+  let replaced = false;
+  const refreshed = base.replace(CURRENT_TIME_LINE_RE, () => {
+    if (replaced) {
+      return "";
+    }
+    replaced = true;
+    return timeLine;
+  });
+  return refreshed
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n\n+(?=Current time:)/g, "\n")
+    .trimEnd();
 }
