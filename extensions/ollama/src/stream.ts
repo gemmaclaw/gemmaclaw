@@ -516,6 +516,13 @@ function extractOllamaTools(tools: Tool[] | undefined): OllamaTool[] {
   return result;
 }
 
+function resolveOllamaStopReason(response: OllamaChatResponse) {
+  if (response.message.tool_calls?.length) {
+    return "toolUse" as const;
+  }
+  return response.done_reason === "length" ? ("length" as const) : ("stop" as const);
+}
+
 export function buildAssistantMessage(
   response: OllamaChatResponse,
   modelInfo: StreamModelDescriptor,
@@ -545,7 +552,7 @@ export function buildAssistantMessage(
   return buildStreamAssistantMessage({
     model: modelInfo,
     content,
-    stopReason: toolCalls && toolCalls.length > 0 ? "toolUse" : "stop",
+    stopReason: resolveOllamaStopReason(response),
     usage: buildUsageWithNoCost({
       input: response.prompt_eval_count ?? 0,
       output: response.eval_count ?? 0,
@@ -845,7 +852,7 @@ export function createOllamaStreamFn(
 
           stream.push({
             type: "done",
-            reason: assistantMessage.stopReason === "toolUse" ? "toolUse" : "stop",
+            reason: resolveOllamaStopReason(finalResponse),
             message: assistantMessage,
           });
         } finally {
