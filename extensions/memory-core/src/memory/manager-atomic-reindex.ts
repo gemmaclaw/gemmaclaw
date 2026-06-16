@@ -1,8 +1,16 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 
+// SQLite keeps WAL/SHM sidecars under journal_mode=WAL, but stores that fall
+// back to journal_mode=DELETE (the node:sqlite default when WAL is not enabled)
+// leave a rollback-journal (-journal) sidecar instead. Index file operations
+// must cover all three so a swap never strands a stale -journal next to the
+// freshly published database, which would trigger an erroneous rollback the
+// next time SQLite opens the index.
+const memoryIndexFileSuffixes = ["", "-wal", "-shm", "-journal"] as const;
+
 export async function moveMemoryIndexFiles(sourceBase: string, targetBase: string): Promise<void> {
-  const suffixes = ["", "-wal", "-shm"];
+  const suffixes = memoryIndexFileSuffixes;
   for (const suffix of suffixes) {
     const source = `${sourceBase}${suffix}`;
     const target = `${targetBase}${suffix}`;
@@ -17,7 +25,7 @@ export async function moveMemoryIndexFiles(sourceBase: string, targetBase: strin
 }
 
 export async function removeMemoryIndexFiles(basePath: string): Promise<void> {
-  const suffixes = ["", "-wal", "-shm"];
+  const suffixes = memoryIndexFileSuffixes;
   await Promise.all(suffixes.map((suffix) => fs.rm(`${basePath}${suffix}`, { force: true })));
 }
 
