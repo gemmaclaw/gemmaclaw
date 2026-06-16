@@ -30,6 +30,10 @@ export function guardSessionManager(
     inputProvenance?: InputProvenance;
     allowSyntheticToolResults?: boolean;
     allowedToolNames?: Iterable<string>;
+    withCompactionPersistence?: (
+      append: () => string,
+      validateAppend: (entryId: string, appendedText: string) => boolean,
+    ) => string;
   },
 ): GuardedSessionManager {
   if (typeof (sessionManager as GuardedSessionManager).flushPendingToolResults === "function") {
@@ -76,6 +80,7 @@ export function guardSessionManager(
     transformToolResultForPersistence: transform,
     allowSyntheticToolResults: opts?.allowSyntheticToolResults,
     allowedToolNames: opts?.allowedToolNames,
+    withCompactionPersistence: opts?.withCompactionPersistence,
     beforeMessageWriteHook: beforeMessageWrite,
     maxToolResultChars:
       typeof opts?.contextWindowTokens === "number"

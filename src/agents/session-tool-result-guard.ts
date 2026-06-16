@@ -68,6 +68,24 @@ function normalizePersistedToolResultName(
 
 export { getRawSessionAppendMessage };
 
+type CompactionAppendValidator = (entryId: string, appendedText: string) => boolean;
+
+function isExpectedCompactionAppend(entryId: string, appendedText: string): boolean {
+  const lines = appendedText
+    .trimEnd()
+    .split("\n")
+    .filter((line) => line.length > 0);
+  if (lines.length !== 1) {
+    return false;
+  }
+  try {
+    const entry = JSON.parse(lines[0]) as { type?: unknown; id?: unknown };
+    return entry.type === "compaction" && entry.id === entryId;
+  } catch {
+    return false;
+  }
+}
+
 export function installSessionToolResultGuard(
   sessionManager: SessionManager,
   opts?: {
@@ -104,6 +122,10 @@ export function installSessionToolResultGuard(
       event: PluginHookBeforeMessageWriteEvent,
     ) => PluginHookBeforeMessageWriteResult | undefined;
     maxToolResultChars?: number;
+    withCompactionPersistence?: (
+      append: () => string,
+      validateAppend: CompactionAppendValidator,
+    ) => string;
   },
 ): {
   flushPendingToolResults: () => void;
@@ -267,6 +289,17 @@ export function installSessionToolResultGuard(
 
   // Monkey-patch appendMessage with our guarded version.
   sessionManager.appendMessage = guardedAppend as SessionManager["appendMessage"];
+
+  const originalAppendCompaction = sessionManager.appendCompaction.bind(sessionManager);
+  const guardedAppendCompaction = ((
+    ...args: Parameters<SessionManager["appendCompaction"]>
+  ): string => {
+    const append = () => originalAppendCompaction(...args);
+    return opts?.withCompactionPersistence
+      ? opts.withCompactionPersistence(append, isExpectedCompactionAppend)
+      : append();
+  }) as SessionManager["appendCompaction"];
+  sessionManager.appendCompaction = guardedAppendCompaction;
 
   return {
     flushPendingToolResults,

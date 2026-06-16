@@ -21,6 +21,7 @@ import type {
 import {
   createProviderApiKeyResolver,
   createProviderAuthResolver,
+  resolveMissingProviderApiKey,
 } from "./models-config.providers.secrets.js";
 import { findNormalizedProviderValue } from "./provider-id.js";
 
@@ -164,6 +165,19 @@ function mergeImplicitProviderConfig(params: {
   };
 }
 
+function resolveImplicitProviderAuthMarker(params: {
+  ctx: ImplicitProviderContext;
+  providerId: string;
+  provider: ProviderConfig;
+}): ProviderConfig {
+  return resolveMissingProviderApiKey({
+    providerKey: params.providerId,
+    provider: params.provider,
+    env: params.ctx.env,
+    profileApiKey: undefined,
+  });
+}
+
 function resolveConfiguredImplicitProvider(params: {
   configuredProviders?: Record<string, ProviderConfig> | null;
   providerIds: readonly string[];
@@ -262,7 +276,7 @@ async function resolvePluginImplicitProviders(
       result,
     });
     for (const [providerId, implicitProvider] of Object.entries(normalizedResult)) {
-      discovered[providerId] = mergeImplicitProviderConfig({
+      const mergedProvider = mergeImplicitProviderConfig({
         providerId,
         existing:
           discovered[providerId] ??
@@ -276,6 +290,11 @@ async function resolvePluginImplicitProviders(
             ],
           }),
         implicit: implicitProvider,
+      });
+      discovered[providerId] = resolveImplicitProviderAuthMarker({
+        ctx,
+        providerId,
+        provider: mergedProvider,
       });
     }
   }
