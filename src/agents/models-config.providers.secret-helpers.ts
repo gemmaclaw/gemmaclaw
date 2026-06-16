@@ -78,6 +78,19 @@ export function resolveAwsSdkApiKeyVarName(
   return resolveAwsSdkEnvVarName(env);
 }
 
+function resolveEnvAuthEvidenceApiKeyMarker(
+  provider: string,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  const resolved = resolveEnvApiKey(provider, env);
+  const apiKey = resolved?.apiKey?.trim();
+  if (!apiKey || !isNonSecretApiKeyMarker(apiKey, { includeEnvVarName: false })) {
+    return undefined;
+  }
+  return apiKey;
+}
+
+/** Rewrites secret-backed provider headers to stable marker values. */
 export function normalizeHeaderValues(params: {
   headers: ProviderConfig["headers"] | undefined;
   secretDefaults: SecretDefaults | undefined;
@@ -306,7 +319,10 @@ export function resolveMissingProviderApiKey(params: {
   }
 
   const fromEnv = resolveEnvApiKeyVarName(params.providerKey, params.env);
-  const apiKey = fromEnv ?? params.profileApiKey?.apiKey;
+  const fromAuthEvidence = fromEnv
+    ? undefined
+    : resolveEnvAuthEvidenceApiKeyMarker(params.providerKey, params.env);
+  const apiKey = fromEnv ?? fromAuthEvidence ?? params.profileApiKey?.apiKey;
   if (!apiKey?.trim()) {
     return params.provider;
   }
