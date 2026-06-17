@@ -1,6 +1,10 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { sanitizeContentBlocksImages, sanitizeImageBlocks } from "./tool-images.js";
+import {
+  sanitizeContentBlocksImages,
+  sanitizeImageBlocks,
+  sanitizeToolResultImages,
+} from "./tool-images.js";
 
 describe("tool image sanitizing", () => {
   const getImageBlock = (
@@ -108,6 +112,42 @@ describe("tool image sanitizing", () => {
     const image = getImageBlock(out);
     expect(image.mimeType).toBe("image/jpeg");
   });
+
+
+  it("converts image blocks with missing data/mimeType to text", async () => {
+    const blocks = [
+      {
+        type: "image" as const,
+        data: undefined as unknown as string,
+        mimeType: undefined as unknown as string,
+      },
+    ];
+    const out = await sanitizeContentBlocksImages(blocks, "browser:screenshot");
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe("text");
+    expect((out[0] as { type: "text"; text: string }).text).toContain("missing data or mimeType");
+  });
+
+  it("screenshot-shaped tool result with malformed image produces text fallback", async () => {
+    const result = {
+      content: [
+        {
+          type: "image" as const,
+          data: undefined as unknown as string,
+          mimeType: undefined as unknown as string,
+        },
+      ],
+      details: {},
+    };
+    const sanitized = await sanitizeToolResultImages(result, "browser:screenshot");
+    const imageBlocks = sanitized.content.filter((b) => b.type === "image");
+    expect(imageBlocks).toHaveLength(0);
+    const textFallback = sanitized.content.find(
+      (b) => b.type === "text" && (b as { text: string }).text.includes("missing data or mimeType"),
+    );
+    expect(textFallback).toBeDefined();
+  });
+
 
   it("drops malformed image base64 payloads", async () => {
     const blocks = [
