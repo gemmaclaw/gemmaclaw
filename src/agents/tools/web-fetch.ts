@@ -300,15 +300,6 @@ function normalizeProviderFinalUrl(value: unknown): string | undefined {
   }
 }
 
-function throwIfFetchAborted(signal: AbortSignal | undefined): void {
-  if (!signal?.aborted) {
-    return;
-  }
-  // readResponseText may finish after an abort races with body reading. Recheck
-  // before wrapping, caching, or returning content from a canceled tool call.
-  throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
-}
-
 /**
  * Sanitize a web_fetch URL parameter that may contain LLM-injected whitespace.
  *
@@ -326,7 +317,6 @@ export function sanitizeWebFetchUrl(raw: string): string {
   const repaired = trimmed.replace(/^(https?:\/\/)\s+/i, "$1");
   return repaired.replace(/^(https?:\/\/[^/?#\s]+)\s+$/i, "$1");
 }
-
 
 function normalizeProviderWebFetchPayload(params: {
   providerId: string;

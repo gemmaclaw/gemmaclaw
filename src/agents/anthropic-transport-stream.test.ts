@@ -27,6 +27,13 @@ function createSseResponse(events: Record<string, unknown>[] = []): Response {
   });
 }
 
+function createRawSseResponse(body: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
+}
+
 function latestAnthropicRequest() {
   const [, init] = guardedFetchMock.mock.calls.at(-1) ?? [];
   const body = init?.body;

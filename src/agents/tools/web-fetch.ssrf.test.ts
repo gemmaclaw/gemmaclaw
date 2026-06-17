@@ -49,8 +49,7 @@ function firstFetchUrl(fetchSpy: ReturnType<typeof setMockFetch>): string {
 
 function createWebFetchToolForTest(params?: {
   firecrawlApiKey?: string;
-  useTrustedEnvProxy?: boolean;
-  ssrfPolicy?: { allowRfc2544BenchmarkRange?: boolean; allowIpv6UniqueLocalRange?: boolean };
+  ssrfPolicy?: { allowRfc2544BenchmarkRange?: boolean };
   cacheTtlMinutes?: number;
 }) {
   return createWebFetchTool({
@@ -72,7 +71,6 @@ function createWebFetchToolForTest(params?: {
         web: {
           fetch: {
             cacheTtlMinutes: params?.cacheTtlMinutes ?? 0,
-            useTrustedEnvProxy: params?.useTrustedEnvProxy,
             ssrfPolicy: params?.ssrfPolicy,
             ...(params?.firecrawlApiKey ? { provider: "firecrawl" } : {}),
           },
@@ -223,33 +221,11 @@ describe("web_fetch SSRF protection", () => {
     await expectBlockedUrl(stricterTool, url, /private|internal|blocked/i);
   });
 
-  it("allows IPv6 unique-local DNS answers only when web_fetch ssrfPolicy opts in", async () => {
-    const url = "https://fake-ip.test/file";
-    lookupMock.mockResolvedValue([{ address: "fc00::153", family: 6 }]);
-
-    const deniedTool = createWebFetchToolForTest({ cacheTtlMinutes: 1 });
-    await expectBlockedUrl(deniedTool, url, /private|internal|blocked/i);
-
-    const fetchSpy = setMockFetch().mockResolvedValue(textResponse("ipv6 ula ok"));
-    const allowedTool = createWebFetchToolForTest({
-      ssrfPolicy: { allowIpv6UniqueLocalRange: true },
-      cacheTtlMinutes: 1,
-    });
-
-    const allowed = await allowedTool?.execute?.("call", { url });
-    expectRawFetchSuccessDetails(allowed?.details);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-
-    const stricterTool = createWebFetchToolForTest({ cacheTtlMinutes: 1 });
-    await expectBlockedUrl(stricterTool, url, /private|internal|blocked/i);
-  });
-
-  it("still blocks dangerous hostnames when trusted env proxy is explicitly enabled", async () => {
+  it("still blocks dangerous hostnames even when an HTTP(S) proxy env var is set", async () => {
     vi.stubEnv("HTTP_PROXY", "http://127.0.0.1:7890");
     vi.stubEnv("http_proxy", "http://127.0.0.1:7890");
     const fetchSpy = setMockFetch();
     const tool = createWebFetchToolForTest({
-      useTrustedEnvProxy: true,
       cacheTtlMinutes: 1,
     });
 
