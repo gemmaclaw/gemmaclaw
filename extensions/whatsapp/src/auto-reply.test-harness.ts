@@ -6,6 +6,7 @@ import { resetInboundDedupe } from "openclaw/plugin-sdk/reply-runtime";
 import { resetLogger, setLoggerOverride } from "openclaw/plugin-sdk/runtime-env";
 import { mockPinnedHostnameResolution } from "openclaw/plugin-sdk/testing";
 import { afterAll, afterEach, beforeAll, beforeEach, vi, type Mock } from "vitest";
+import type { WebChannelStatus } from "./auto-reply/types.js";
 import type { WebInboundMessage, WebListenerCloseReason } from "./inbound.js";
 import {
   resetBaileysMocks as _resetBaileysMocks,
@@ -277,6 +278,7 @@ export function startWebAutoReplyMonitor(params: {
   messageTimeoutMs?: number;
   watchdogCheckMs?: number;
   reconnect?: { initialMs: number; maxMs: number; maxAttempts: number; factor: number };
+  statusSink?: (status: WebChannelStatus) => void;
 }): WebAutoReplyMonitorHarness {
   const runtime = createWebAutoReplyRuntime();
   const controller = new AbortController();
@@ -293,6 +295,7 @@ export function startWebAutoReplyMonitor(params: {
       watchdogCheckMs: params.watchdogCheckMs,
       reconnect: params.reconnect ?? { initialMs: 10, maxMs: 10, maxAttempts: 3, factor: 1.1 },
       sleep: params.sleep,
+      statusSink: params.statusSink,
     },
   );
 
