@@ -196,6 +196,30 @@ export function getActivePluginRegistryVersion(): number {
   return state.activeVersion;
 }
 
+/**
+ * Returns the distinct live plugin registries in precedence order: the active
+ * registry first, then the pinned http-route and channel surfaces. Uses the
+ * raw pinned registries (not channel-presentation selection) so a pinned
+ * registry stays visible to runtime dispatch even with zero channels. Shared
+ * by the agent-event bridge and the global hook runner so both dispatch
+ * surfaces agree on what "live" means.
+ */
+export function collectLivePluginRegistries(): PluginRegistry[] {
+  const registries: PluginRegistry[] = [];
+  const seen = new Set<PluginRegistry>();
+  const addRegistry = (registry: PluginRegistry | null) => {
+    if (!registry || seen.has(registry)) {
+      return;
+    }
+    seen.add(registry);
+    registries.push(registry);
+  };
+  addRegistry(asPluginRegistry(state.activeRegistry));
+  addRegistry(asPluginRegistry(state.httpRoute.registry));
+  addRegistry(asPluginRegistry(state.channel.registry));
+  return registries;
+}
+
 function collectLoadedPluginIds(
   registry: PluginRegistry | null | undefined,
   ids: Set<string>,

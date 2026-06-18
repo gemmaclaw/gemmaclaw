@@ -551,6 +551,10 @@ describe("chunkMarkdownTextWithMode", () => {
       expect(chunkMarkdownTextWithMode(text, limit, "newline"), name).toEqual(expected);
     },
   );
+
+  it("keeps an astral character whole when a positive hard limit starts on its pair", () => {
+    expect(chunkMarkdownTextWithMode("A😀B", 1, "length")).toEqual(["A", "😀", "B"]);
+  });
 });
 
 describe("resolveChunkMode", () => {

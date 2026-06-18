@@ -103,6 +103,13 @@ function findLargestChunkTextLengthWithinRenderedLimit<TRendered>(
   // Rendered length is not guaranteed to be monotonic after escaping/link or
   // file-reference rewriting, so test exact candidates from longest to shortest.
   for (let candidateLength = currentTextLength - 1; candidateLength >= 1; candidateLength -= 1) {
+    // Skip any split index that lands between a UTF-16 surrogate pair to avoid
+    // emitting lone surrogates that re-encode to U+FFFD replacement characters.
+    const prevCode = chunk.text.charCodeAt(candidateLength - 1);
+    const nextCode = chunk.text.charCodeAt(candidateLength);
+    if (prevCode >= 0xd800 && prevCode <= 0xdbff && nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+      continue;
+    }
     const candidate = sliceMarkdownIR(chunk, 0, candidateLength);
     const rendered = options.renderChunk(candidate);
     if (options.measureRendered(rendered) <= renderedLimit) {

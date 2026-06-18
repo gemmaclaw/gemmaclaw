@@ -49,7 +49,7 @@ function firstFetchUrl(fetchSpy: ReturnType<typeof setMockFetch>): string {
 
 function createWebFetchToolForTest(params?: {
   firecrawlApiKey?: string;
-  ssrfPolicy?: { allowRfc2544BenchmarkRange?: boolean };
+  ssrfPolicy?: { allowRfc2544BenchmarkRange?: boolean; allowIpv6UniqueLocalRange?: boolean };
   cacheTtlMinutes?: number;
 }) {
   return createWebFetchTool({
@@ -211,6 +211,29 @@ describe("web_fetch SSRF protection", () => {
     const fetchSpy = setMockFetch().mockResolvedValue(textResponse("benchmark ok"));
     const allowedTool = createWebFetchToolForTest({
       ssrfPolicy: { allowRfc2544BenchmarkRange: true },
+      cacheTtlMinutes: 1,
+    });
+
+    const allowed = await allowedTool?.execute?.("call", { url });
+    expectRawFetchSuccessDetails(allowed?.details);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const stricterTool = createWebFetchToolForTest({ cacheTtlMinutes: 1 });
+    await expectBlockedUrl(stricterTool, url, /private|internal|blocked/i);
+  });
+
+  it("allows IPv6 ULA addresses only when web_fetch ssrfPolicy opts in", async () => {
+    // fc00::/7 (Unique Local Addresses) are blocked by default but can be
+    // exempted for fake-IP proxy stacks (sing-box, Clash, Surge) that resolve
+    // foreign domains to ULA addresses.
+    const url = "http://[fd12:3456:789a::1]/file";
+    lookupMock.mockResolvedValue([{ address: "fd12:3456:789a::1", family: 6 }]);
+
+    const deniedTool = createWebFetchToolForTest({ cacheTtlMinutes: 1 });
+    await expectBlockedUrl(deniedTool, url, /private|internal|blocked/i);
+
+    const fetchSpy = setMockFetch().mockResolvedValue(textResponse("ula ok"));
+    const allowedTool = createWebFetchToolForTest({
+      ssrfPolicy: { allowIpv6UniqueLocalRange: true },
       cacheTtlMinutes: 1,
     });
 

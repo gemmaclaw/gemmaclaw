@@ -8,7 +8,10 @@ import { findFenceSpanAt, isSafeFenceBreak, parseFenceSpans } from "../markdown/
 import { resolveChannelStreamingChunkMode } from "../plugin-sdk/channel-streaming.js";
 import { resolveAccountEntry } from "../routing/account-lookup.js";
 import { normalizeAccountId } from "../routing/session-key.js";
-import { chunkTextByBreakResolver } from "../shared/text-chunking.js";
+import {
+  avoidTrailingHighSurrogateBreak,
+  chunkTextByBreakResolver,
+} from "../shared/text-chunking.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../utils/message-channel.js";
 
 export type TextChunkProvider = ChannelId;
@@ -392,6 +395,16 @@ export function chunkMarkdownText(text: string, limit: number): string[] {
       const fenceAtBreak = findFenceSpanAt(spans, breakIdx);
       fenceToSplit =
         fenceAtBreak && fenceAtBreak.start === initialFence.start ? fenceAtBreak : undefined;
+    }
+
+    const safeBreakIdx = avoidTrailingHighSurrogateBreak(text, start, breakIdx);
+    if (safeBreakIdx !== breakIdx) {
+      breakIdx = safeBreakIdx;
+      if (fenceToSplit) {
+        const fenceAtBreak = findFenceSpanAt(spans, breakIdx);
+        fenceToSplit =
+          fenceAtBreak && fenceAtBreak.start === fenceToSplit.start ? fenceAtBreak : undefined;
+      }
     }
 
     const rawContent = text.slice(start, breakIdx);
