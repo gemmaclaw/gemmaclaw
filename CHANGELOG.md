@@ -143,6 +143,33 @@ Docs: https://docs.openclaw.ai
 - Gateway: require Talk secret authority before setup-code handoff can include Talk secrets. (#85690) Thanks @ngutman.
 - Agents: keep fallback error reporting scoped to the active model candidate so stale prior-provider quota/auth text is not reported for later fallback attempts. (#86134) thanks @zhangguiping-xydt.
 
+## [2026.8.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.7.0...gemmaclaw-v2026.8.0) (2026-06-19)
+
+
+### Features
+
+* add Gemma 4 12B anti-rep sampling variant benchmark run ([d6ef391](https://github.com/gemmaclaw/gemmaclaw/commit/d6ef391def5f9117d83381470aae0ebf604b97ba))
+* **setup:** merge Gemmaclaw and OpenClaw setup into unified 12-step wizard ([#288](https://github.com/gemmaclaw/gemmaclaw/issues/288)) ([4d86f44](https://github.com/gemmaclaw/gemmaclaw/commit/4d86f44fc16e632872eca83ae0040d597ba2cbef))
+* **site:** June 6 community sweep — QAT, Gemma 4 12B, MTP GGUFs, KVarN ([#274](https://github.com/gemmaclaw/gemmaclaw/issues/274)) ([0c1d580](https://github.com/gemmaclaw/gemmaclaw/commit/0c1d580c2089a51e495ff3a8d74894640e3b2a2e))
+* **site:** model-type card grouping, category breakdown, Gemma-vs-Qwen research ([702acf7](https://github.com/gemmaclaw/gemmaclaw/commit/702acf78a0a055461a0448e469a581c57336e676))
+* **site:** result-first benchmarks page with story section and featured 12B card ([73c6cc6](https://github.com/gemmaclaw/gemmaclaw/commit/73c6cc68119e3b0416ecd49be9ea5fd17e1644ea))
+* **site:** result-first benchmarks page with story section and featured 12B card ([73c6cc6](https://github.com/gemmaclaw/gemmaclaw/commit/73c6cc68119e3b0416ecd49be9ea5fd17e1644ea))
+* **site:** result-first benchmarks page with story section and featured 12B card ([b463d20](https://github.com/gemmaclaw/gemmaclaw/commit/b463d201539271b817a0b08462a9c76ce4784058))
+
+
+### Bug Fixes
+
+* add anti-rep sampling badge to benchmarks landing page cards ([b7ab8a0](https://github.com/gemmaclaw/gemmaclaw/commit/b7ab8a09ac51678e528795aef4415d65507371bf))
+* **agents:** catch malformed image blocks in sanitizeContentBlocksImages ([#92792](https://github.com/gemmaclaw/gemmaclaw/issues/92792)) ([2045e9c](https://github.com/gemmaclaw/gemmaclaw/commit/2045e9c6d089caf32ec0a7782ceec20297a072fe))
+* **benchmark:** import v1-high artifacts, backfill judge fields, add 3-variant framing ([207a499](https://github.com/gemmaclaw/gemmaclaw/commit/207a49990013f7e9012d276c4d07e1fed249fcc9))
+* **heartbeat:** refresh stale Current time line on every helper call ([#44993](https://github.com/gemmaclaw/gemmaclaw/issues/44993)) ([#75025](https://github.com/gemmaclaw/gemmaclaw/issues/75025)) ([12e371d](https://github.com/gemmaclaw/gemmaclaw/commit/12e371d1b2449afa9fa9d221510f52f0bf97a53c))
+* **llm:** defer Anthropic stream start event until after message_start ([#90697](https://github.com/gemmaclaw/gemmaclaw/issues/90697)) ([75c1b3c](https://github.com/gemmaclaw/gemmaclaw/commit/75c1b3c4611becc900d099003e8c5e93650a2e9d))
+* **mcp:** harden stdio env filtering ([#91751](https://github.com/gemmaclaw/gemmaclaw/issues/91751)) ([7fa9c69](https://github.com/gemmaclaw/gemmaclaw/commit/7fa9c697144b7c3f9c7fae8823dd0c7368d0f886))
+* **port:** adapt web_fetch + anthropic ports to gemmaclaw seams ([bccd970](https://github.com/gemmaclaw/gemmaclaw/commit/bccd97003f5dadfd05d660e7568671a1ae2ab0a7))
+* **security:** audit oauth lock hash ([fe29c83](https://github.com/gemmaclaw/gemmaclaw/commit/fe29c83eb66e9144e96337c026266cdbb046b139))
+* **site:** remove fabricated engagement scores from June 6 field notes ([#275](https://github.com/gemmaclaw/gemmaclaw/issues/275)) ([40dc7e0](https://github.com/gemmaclaw/gemmaclaw/commit/40dc7e0079b95ac8d4c22f3960b528d562e8f2e4))
+* **web_fetch:** sanitize URL whitespace from LLM tool call arguments (fixes [#91651](https://github.com/gemmaclaw/gemmaclaw/issues/91651)) ([#91950](https://github.com/gemmaclaw/gemmaclaw/issues/91950)) ([a3fe745](https://github.com/gemmaclaw/gemmaclaw/commit/a3fe74525b1bd6fa4b0ec55121517b3cc9f7744a))
+
 ## [2026.7.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.6.0...gemmaclaw-v2026.7.0) (2026-06-04)
 
 ### Features
