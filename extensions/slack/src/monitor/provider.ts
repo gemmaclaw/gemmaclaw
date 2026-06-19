@@ -456,7 +456,11 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   let apiAppId = "";
   const expectedApiAppIdFromAppToken = parseApiAppIdFromAppToken(appToken);
   try {
-    const auth = await app.client.auth.test({ token: botToken });
+    // The Bolt App client is already constructed with the bot token, so it
+    // sends it in the Authorization header. Passing { token } here would also
+    // serialize the bot token into the request body, leaking it. Call with no
+    // arguments so the token only travels in the Authorization header.
+    const auth = await app.client.auth.test();
     botUserId = auth.user_id ?? "";
     botId = (auth as { bot_id?: string }).bot_id ?? "";
     teamId = auth.team_id ?? "";
