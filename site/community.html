@@ -1796,7 +1796,32 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-18</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-19</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (5 new or updated since 2026-06-18, 401 hardware-mention entries total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>June 19 sweep, 2026-06-19 00:00 UTC:</em> a compact cycle with three findings worth tracking. The headline is <strong>DiffusionGemma 26B running on a consumer RTX 4090</strong> via AWQ-INT4 quantization in a custom vLLM Docker — the first community report to bring the DiffusionGemma throughput story to consumer-class hardware — but the author's verdict is sobering: the throughput peaks at 475 tok/s and ranges 290–700 tok/s, yet comes with hard limits on context length, quality, and batching that make it inferior to the regular 26B-A4B via llama.cpp for most single-user setups. A separate post documents the <strong>AMD ROCm + llama.cpp Docker path</strong> as a confirmed working stack for Gemma 4 12B and 26B-A4B, useful for users still on Ollama who want better throughput. The cycle also surfaces a <strong>community quality alert on a set of self-described NVFP4 GGUFs</strong> appearing on HuggingFace — the metadata in several FreedomAISVR quant files contains build-number and quantization-type inconsistencies that the community cannot reconcile, raising provenance questions.</p>
+<p><strong>DiffusionGemma 26B on RTX 4090 (AWQ-INT4): 290–700 tok/s confirmed, but with hard consumer-GPU limits.</strong> A user ran `nvidia/diffusiongemma-26B-A4B-it-AWQ-INT4` in a custom vLLM Docker container on what appears to be a standard RTX 4090 (24 GB VRAM), using the gemma 4 tool/reasoning parser included in the distribution. First-prompt throughput reached <strong>475 tok/s</strong>; across a session the range was <strong>290–700 tok/s</strong>, with longer outputs coming out faster (diffusion's block-parallel advantage). This is the first community data point for DiffusionGemma on a consumer GPU, extending the prior dataset (RTX PRO 6000 Blackwell 96 GB at 1,062 tok/s and H100 at 763 tok/s) to something a home builder can actually buy. The throughput headline is real, but the author's conclusion is notably negative: <strong>&quot;Is it worth bothering with? I don't think so.&quot;</strong> The specific limits reported: (1) single-user only — batching degrades throughput; (2) noticeably weaker responses — &quot;makes mistakes the regular 26ba4b doesn't&quot;; (3) poor long-context retrieval — &quot;can't find a needle in a haystack to save its life, context fades quick&quot;; (4) context capped at roughly 8k tested (the author tried going higher but it was not practical); (5) slightly slower time-to-first-token than autoregressive on short prompts. The author's comparison: &quot;The regular 26ba4b running through llama.cpp still nails down over 300t/s when batched.&quot; Practical guidance: if you are building a single-user local chat assistant that does not require long-context retrieval and accepts some quality regression, DiffusionGemma on a 4090 is now a demonstrated path. If you need reliable factual accuracy, long-context performance, or multi-user serving, the standard 26B-A4B via llama.cpp is the better choice even at equivalent throughput figures. Confidence: single-author first-look report, no captured comments, no controlled comparison; treat as an anecdotal early exploration. (<a href="https://reddit.com/r/LocalLLaMA/comments/1u9kiq1" target="_blank" rel="noopener">source</a>, June 18, 2026)</p>
+<p><strong>AMD GPU + llama.cpp ROCm Docker: confirmed working stack for Gemma 4 12B and 26B-A4B.</strong> A practitioner who used Ollama for months switched to llama.cpp with ROCm Docker for AMD GPUs and reports a clear improvement in speed and stability when running Gemma 4 models. The tested setup: Linux + Docker Compose, AMD GPU (ROCm-compatible, specific card not disclosed), `gemma-4-12b-it-Q4_K_M` and `gemma-4-26b-A4B-it_UD_Q4_K_M`. Docker image used: `ghcr.io/ggml-org/llama.cpp:server-rocm`. The author kept Open WebUI as the frontend. Key finding: &quot;llama.cpp is faster, more stable, and just feels better to use all around.&quot; No specific token-per-second numbers were reported, which limits the direct hardware value of this post, but it confirms the ROCm Docker path is functional and reasonably accessible for users without CUDA cards. For AMD users on Ollama who have been debating the switch, this is a direct endorsement with a working Docker Compose template. Confidence: practitioner report with working setup disclosed; throughput numbers absent so relative gain unknown. (<a href="https://reddit.com/r/LocalLLaMA/comments/1u9gupv" target="_blank" rel="noopener">source</a>, June 18, 2026)</p>
+<p><strong>Community alert: FreedomAISVR NVFP4 GGUFs have unresolvable metadata inconsistencies.</strong> A community member raised a quality concern about a set of recently published NVFP4-labeled GGUF files on HuggingFace, including `FreedomAISVR/Gemma-4-31B-it-QAT-NVFP4-GGUF`. Three specific issues were flagged. First, the README states &quot;Quantized with: llama.cpp build 537 (commit d2c6795)&quot; — but llama.cpp build 537 dates to 2023, while commit d2c6795 was described as made &quot;just 5 hours ago,&quot; an impossible combination. Second, the quantization command shown in the README uses `llama-quantize ... NVFP4` as the output quantization type, but `NVFP4` is not a documented output format in `llama-quantize` as of the time of the post. Third, no calibration dataset is mentioned (NVFP4 quantization should require one). The community question is open: &quot;Are these quants even real?&quot; — meaning it is genuinely unclear what quantization these files actually contain under the hood. Recommendation for Gemma 4 users: treat `FreedomAISVR/Gemma-4-31B-it-QAT-NVFP4-GGUF` and related files from this publisher as unverified until the provenance is established. For NVFP4-level throughput on Gemma 4 31B, the well-documented paths remain `nvidia/Gemma-4-26B-A4B-NVFP4` and `nvidia/diffusiongemma-26B-A4B-it-NVFP4` via the NVIDIA-provided vLLM Docker. Confidence: community observation; no authoritative answer provided in the post (no captured comments). (<a href="https://reddit.com/r/LocalLLaMA/comments/1u9iw4c" target="_blank" rel="noopener">source</a>, June 18, 2026)</p>
+<p><strong>Community framing: DiffusionGemma described as &quot;3x faster but 1.5x dumber&quot; in SLM routing speculation.</strong> A speculative thread discussed whether a coordinator model plus a fleet of task-specialized SLMs could outperform a single large model on sequential agentic tasks. The poster cited DiffusionGemma as an example of the speed-quality trade-off, framing it informally as &quot;something like 3x faster but being 1.5x dumber than base Gemma 4.&quot; This is not a benchmark — it is one user's summary of their reading of prior community posts — but it is representative of how the broader community is calibrating DiffusionGemma's value proposition at this point. No comments were captured at sweep time, so the thread's reception is unknown. Worth noting as a sentiment snapshot: as of mid-June 2026, the dominant community read on DiffusionGemma is that it is substantially faster for single-user generation but noticeably weaker on quality, and the tradeoff is not yet considered worth it for most practitioners. Confidence: anecdotal community framing, no benchmark. (<a href="https://reddit.com/r/LocalLLaMA/comments/1u941oi" target="_blank" rel="noopener">source</a>, June 18, 2026)</p>
+<p><strong>mistral.rs v0.8.10 adds OpenAI-compatible Agent Skills support for local models including Gemma 4.</strong> The mistral.rs project released v0.8.10 with a `/v1/skills` endpoint that brings Agent Skills to locally-hosted open models. The API is OpenAI-compatible, allowing drop-in replacement of frontier-model agent pipelines. Features include skill packaging (domain instructions + scripts), file attachment via `/v1/files`, and model-sent file responses. Prebuilt binaries are available for NVIDIA CUDA, Apple Silicon, and CPU. The post tags Gemma as a supported model family but does not provide Gemma 4-specific benchmarks or configuration details. Practical relevance: this lowers the barrier for running Gemma 4 in OpenAI-compatible agent frameworks without a proxy layer. Confidence: official developer release announcement; no Gemma 4 performance data provided. (<a href="https://reddit.com/r/LocalLLaMA/comments/1u99po8" target="_blank" rel="noopener">source</a>, June 18, 2026)</p>
+<h3>Open questions</h3>
+<ul class="setup-list">
+<li><strong>What are the FreedomAISVR NVFP4 GGUFs actually quantized as?</strong> If the `NVFP4` flag in the README is not valid in `llama-quantize`, then these files may be standard Q4 or another format incorrectly labeled. Community verification via hash comparison or direct inspection would resolve the provenance question.</li>
+<li><strong>Can DiffusionGemma on a 4090 run longer context than ~8k?</strong> The initial tester stopped at 8k. It is possible that with GPU memory management tuning (lower `--gpu-memory-utilization` to reserve more headroom for the KV cache) longer contexts are achievable, at some throughput cost. No follow-up data yet.</li>
+<li><strong>Does the AMD ROCm llama.cpp path support Gemma 4's multimodal features (vision, audio)?</strong> The June 19 report confirms text-mode Gemma 4 12B and 26B-A4B on ROCm Docker, but the `--mmproj` path and audio modality with `ghcr.io/ggml-org/llama.cpp:server-rocm` have not been documented in community posts.</li>
+</ul>
+<h3>Sources</h3>
+<p>The Gemma-mentioning posts driving this update (June 19 sweep, newest first). All are fresh threads (score ~20, no captured comment threads at sweep time); treat individual numbers as first-look anecdotes rather than settled results:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1u9kiq1" target="_blank" rel="noopener">DiffusionGemma 26b on a 4090 at up to 475t/s... and some thoughts...</a> (Jun 18, 2026 — RTX 4090, diffusiongemma-26B-A4B-it-AWQ-INT4 via vLLM Docker: 290–700 tok/s, first prompt 475 tok/s; single-user only, weaker quality, limited to ~8k context, poor NIAH; author verdict: not worth it vs llama.cpp 26B-A4B)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1u9gupv" target="_blank" rel="noopener">I resisted the llama.cpp hype. I was wrong. (Docker + AMD GPU Beginner's Guide)</a> (Jun 18, 2026 — AMD GPU + ROCm Docker + llama.cpp: Gemma 4 12B Q4_K_M and 26B-A4B UD_Q4_K_M confirmed working; image ghcr.io/ggml-org/llama.cpp:server-rocm; no tok/s numbers)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1u9iw4c" target="_blank" rel="noopener">FreedomAISVR NVFP4 quants</a> (Jun 18, 2026 — community alert: FreedomAISVR/Gemma-4-31B-it-QAT-NVFP4-GGUF has contradictory build numbers, undocumented NVFP4 quant type in llama-quantize, missing calibration dataset; provenance unverified)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1u941oi" target="_blank" rel="noopener">SLM's and Diffusion?</a> (Jun 18, 2026 — speculative discussion of SLM routing with DiffusionGemma; community framing as &quot;3x faster but 1.5x dumber&quot; than Gemma 4; no benchmark)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1u99po8" target="_blank" rel="noopener">Run Agent Skills with mistral.rs v0.8.10</a> (Jun 18, 2026 — mistral.rs v0.8.10 OpenAI-compatible /v1/skills for local models incl. Gemma 4; prebuilt CUDA/Apple Silicon/CPU binaries; no Gemma 4-specific benchmarks)</li>
+</ul>
+<p><em>Last updated: 2026-06-19 (June 19 sweep). Confidence: medium. Key findings: RTX 4090 DiffusionGemma 26B-A4B AWQ-INT4 via vLLM → 290–700 tok/s but single-user, weaker quality, ~8k context limit, not recommended over standard llama.cpp; AMD ROCm Docker llama.cpp confirmed for Gemma 4 12B + 26B-A4B; FreedomAISVR NVFP4 GGUFs have unresolvable metadata inconsistencies — treat as unverified. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p>
+<p>---</p>
+<h2>Field Notes — 2026-06-18</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (6 new or updated since 2026-06-15, 396 hardware-mention entries total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>June 18 sweep, 2026-06-18 01:00 UTC:</em> a compact but high-signal cycle with two hardware-rich data points and one architectural analysis. The most significant finding is a <strong>side-by-side benchmark of DiffusionGemma vs Gemma 4 on an RTX PRO 6000 Blackwell (96 GB VRAM)</strong> showing a 6.73x throughput advantage for the diffusion variant at NVFP4 precision, corroborating earlier H100 results and adding a new consumer-accessible endpoint. A separate post demonstrates <strong>Gemma 4 E2B running in-browser at 255 tok/s</strong> via community-optimized WebGPU kernels on an M4 Max — the fastest confirmed browser inference figure for any Gemma 4 model. A third data point shows the <strong>dual-GPU PCIe bandwidth trap</strong>: a user running Gemma 4 31B Q6_K across an RTX 4080 and RTX 5080 on mismatched PCIe slots gets only 26–28 tok/s output, constrained by the 4080's x4 slot rather than GPU compute. Rounding out the sweep, a practitioner shares a tested <strong>reasoning-hardening system prompt for Gemma 4 12B QAT</strong> that reduces cognitive-bias drift on trick questions, and a discussion examines whether DiffusionGemma's bidirectional attention block gives it a structural advantage over autoregressive Gemma 4 for tool-call JSON repair.</p>
 <p><strong>DiffusionGemma vs Gemma 4 on RTX PRO 6000 Blackwell (96 GB VRAM, NVFP4): 6.73x throughput advantage confirmed locally.</strong> A user ran a controlled side-by-side benchmark on a single <strong>NVIDIA RTX PRO 6000 Blackwell (96 GB VRAM, TDP 600 W)</strong> with AMD Ryzen 9 9950X and 92 GB RAM, serving both `nvidia/Gemma-4-26B-A4B-NVFP4` and `nvidia/diffusiongemma-26B-A4B-it-NVFP4` simultaneously via vLLM at `--gpu-memory-utilization 0.42` so the cards share GPU without interference. Fixed seed (1234), 10 runs, up to 29k tokens per run. Results: standard Gemma 4 26B-A4B at <strong>157 tok/s</strong>; DiffusionGemma 26B-A4B at <strong>1,062 tok/s</strong> — a <strong>6.73x average speedup</strong>. The author notes that single-user local inference is exactly where diffusion's architecture advantage shows up most: in the cloud with batched users, autoregressive models recover much of the throughput gap. This extends the prior dataset: an H100 benchmark from the June 12 sweep showed 218 vs 763 tok/s (3.5x) with a factual accuracy cost; here the Blackwell at NVFP4 shows a larger 6.7x advantage, reflecting the higher-precision quantization format and the card's native FP4 support. Practical note: the RTX PRO 6000 Blackwell is not a consumer GPU (96 GB VRAM, $6K+ street price), so these numbers bound what very high-end workstations can do rather than what home builders should expect. Confidence: well-controlled benchmark, fixed seed, disclosed hardware and CUDA version. (<a href="https://reddit.com/r/LocalLLaMA/comments/1u8nyvw" target="_blank" rel="noopener">source</a>, June 17, 2026)</p>
@@ -2534,10 +2559,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (390 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (401 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (51)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (43)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (28)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (13)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (22)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (249)</button><button class="cat-filter-btn" data-cat="general">Other (108)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (54)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (46)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (28)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (13)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (22)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (254)</button><button class="cat-filter-btn" data-cat="general">Other (110)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -5811,6 +5836,22 @@
   <p class="cr-summary">Original post: TL;DR: Migrated to WSL2 to test Linux (several people suggested it). Embedded MTP on the UD model: 25.8 tok/s. External draft on Linux: ~9 tok/s (VRAM collapse). Came back to Windows at 38–40 tok/s. Gemma 4 tested and rejected. The rea...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u0qq8a" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="slm's and diffusion? okay this might be dumb because im not well versed in the specifics of this topic. but ive seen benchmarks posts of super small (9b or smaller) fine tuned or task specific models beating or matching much larger models and ive seen how fast gemmadiffusion can go while also being dumber (slightly? something like 3x faster but being 1.5x dumber than base gemma 4?) is there gonna be a point where we… hardware gemma" data-cats="high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u941oi" target="_blank" rel="noopener">SLM's and Diffusion?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Saifl</span>
+      <span class="cr-date">2026-06-18</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">Okay this might be dumb because im not well versed in the specifics of this topic. But ive seen benchmarks posts of super small (9b or smaller) fine tuned or task specific models beating or matching much larger models And ive seen how fast gemmadiffu...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u941oi" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="ggml-webgpu: improve prefill speeds for k-quants + refactor matmul for q4/q5/q8 and k-quants by yomaytk · pull request #24225 · ggml-org/llama.cpp this pr improves matmul performance for k-quants. the following table shows the improvement on the pp512 test in m2 pro. quant model master (t/s) pr (t/s) speedup q2k qwen3 0.6b q2k - medium 817.86 ± 6.14 1991.81 ± 6.87 2.44x q3k qwen35 4b q3k - medium 92.54 ± 0.13 302.24 ± 0.37 3.27x gemma4 e4b q3k - medium 79.06 ± 0.08 298.73 ± 0.90 3.78x q4k qwen35" data-cats="apple-silicon quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6003,6 +6044,22 @@
   <p class="cr-summary">I’m interested in running Gemma 4 model/s for text only . It runs smooth even on my laptop but gets crazy hot. Initially wanted to buy an 8 GB card. But I find this price for 12 GB good. (Maybe I can run some image generation models too. But its not ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tsp869" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="i resisted the llama.cpp hype. i was wrong. (docker + amd gpu beginner's guide) i huffed and hawed for months, dug my heels into the sand, and convinced myself that ollama was just fine. it was easy. my needs are simple. that was good enough. well you persistent bastards win. you broke me down. i made the switch, and damn i am impressed with the results! llama.cpp is faster, more stable, and just feels better to use all around. it takes some work to setup, and ollama is stil… hardware quantizati" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u9gupv" target="_blank" rel="noopener">I resisted the llama.cpp hype. I was wrong. (Docker + AMD GPU Beginner's Guide)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/x6q5g3o7</span>
+      <span class="cr-date">2026-06-18</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">I huffed and hawed for months, dug my heels into the sand, and convinced myself that Ollama was just fine. It was easy. My needs are simple. That was good enough. Well you persistent bastards win. You broke me down. I made the switch, and damn I am i...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u9gupv" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="made a macos app that creates highly personal macos apps. works with models as small as gemma 4 e2b apologies in advance as the video is demonstrating with gpt 5.4 mini (a local model would take too long for a video), however i’ve made the same app with gemma 4 e4b. been working on an open source project for a while called ironsmith. the gist is you can create highly specific macos apps with just a prompt, and one of my main goals from the beginning was to get it to work with low end models lik…" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6082,6 +6139,22 @@
   </div>
   <p class="cr-summary">The constant onslaught of new models and drops and releases and hardware price increases and civitai bans and now the ITAR restrictions I am becoming fixated on preparing my local data centre that I cannot afford to purchase or power. I recall when G...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u55wgq" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="freedomaisvr nvfp4 quants there've been a bunch of nvfp4 quants released recently by freedomaisvr on huggingface, and something seems off with them. not that they don't work, but some things in the readme just don't make sense to me. this quant for example: it says &quot;quantized with: llama.cpp build 537 (commit d2c6795)&quot;. i mean... build 537 is 2023, and comm… quantization inference fine-tuning meta-llama gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u9iw4c" target="_blank" rel="noopener">FreedomAISVR NVFP4 quants</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/aoleg77</span>
+      <span class="cr-date">2026-06-18</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">There've been a bunch of NVFP4 quants released recently by FreedomAISVR on huggingface, and something seems off with them. Not that they don't work, but some things in the readme just don't make sense to me. This quant for example: It says &quot;Quantized...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u9iw4c" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="gemma 4 12b without audio component do you think it is possible to make gemma 4 12b with the removed audio component? it will probably be more of an 11b model and would save some ram for those of us who don't care about audio and just want good small text+vision model edit: thanks to u/slalomz i now understand that this architecture will not allow it &amp;#32; submitted by &amp;#32; /u/whiskyakm [link] &amp;#32; [comments] gemma" data-cats="general">
   <div class="cr-card-header">
@@ -6966,6 +7039,22 @@
   <p class="cr-summary">I built ArxivExplorer, a semantic arXiv search engine with AI-generated summaries. The live version uses Cloudflare Workers AI (Llama 3.1 + BGE), but the free quota caps out fast. So I built a local bulk pipeline using Ollama. Models: - Summarization...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u07m6s" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="we need a 80-160b model urgently. the unified memory device market needs more models. hello guys, i will keep myself short. there are so many people that have a lot but not enough of &quot;slow&quot; ram. anybody with a apple device with &gt;96gb anybody with a ryzen ai 395 device with &gt;96gb anybody with a dgx spark even people with rtx 6000 pros or 4x3090s or other configurations. or people with 128gb ddr4/5 ram yet the models that came out in the last 3 months were particulary made for high" data-cats="apple-silicon high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8kr2o" target="_blank" rel="noopener">We need a 80-160B model urgently. The unified memory device market needs more Models.</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Storge2</span>
+      <span class="cr-date">2026-06-17</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span><span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hello guys, I will keep myself short. There are so many people that have a lot but not enough of &quot;slow&quot; RAM. Anybody with a Apple Device with &gt;96GB Anybody with a Ryzen AI 395 Device with &gt;96GB Anybody with a DGX Spark Even people with RTX 6000 Pros ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8kr2o" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="has anyone tried fine-tuning on framework-specific toolsets? one setback of smaller local models seems to be their reliability in calling tools for the harness they're plugged into. i personally tried out gemma 4 with hermes agent, and gemma kept ignoring hermes' tools - for example, it kept trying to call the 'google-search' tool it was trained with instead of the web-search tool it was instructed to use. i have never fine tuned and don't know much about… agents google gemma" data-cats="laptop">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7382,6 +7471,22 @@
   <p class="cr-summary">I’m currently stuck deciding between AMD Strix Halo (128 GB AMD Ryzen AI Max+ 395 Framework Desktop) and an Nvidia DGX Spark (Asus Ascent GX10) for a home LLM server that can be accessed over the local network with a ChatGPT like interface in a web b...</p>
   <div class="cr-comments"><div class="cr-comment"><span class="cr-comment-meta">u/abnormal_human (+51)</span><span class="cr-comment-text">If you're just doing LLM inference on it, Spark all the way. If you also want a gaming PC (or whatever), Strix Halo.</span></div><div class="cr-comment"><span class="cr-comment-meta">u/tomekrs (+41)</span><span class="cr-comment-text">Definitely Ryzen 395, as it's a standard x86/amd64 machine that can always be repurposed and will never lose drivers or compatibility with new operating systems. Nvidia on the other hand has a history...</span></div><div class="cr-comment"><span class="cr-comment-meta">u/Eugr (+33)</span><span class="cr-comment-text">Spark has much faster GPU which results in faster prompt processing speeds. Also, the performance degrades less on Spark as context grows (I have both).</span></div></div>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1ta7ce9" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="qwen3.6 or gemma-4 or ?? for direct ocr of page images working on parsing messy pdfs — fillable contract forms, but with all manner of non-savvy handling... partly filled with acrobat, handwritten info in blanks, strikethrough changes with handwritten initials, digital 'signature' marks, watermarks from cheezy pdf apps. i am going direct to llm because this is more than just a &quot;convert text to field data&quot; job. a certain amount of understanding is req… qwen gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8gtnr" target="_blank" rel="noopener">Qwen3.6 or Gemma-4 or ?? for direct OCR of page images</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/PracticlySpeaking</span>
+      <span class="cr-date">2026-06-17</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Working on parsing messy PDFs — fillable contract forms, but with all manner of non-savvy handling... partly filled with Acrobat, handwritten info in blanks, strikethrough changes with handwritten initials, digital 'signature' marks, watermarks from ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8gtnr" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="gemma 4 12b is my new main squeeze the unsloth q5kxl is officially my main squeeze for local coding. i started out with the q4kxl, but found myself fixing syntax errors a little too often. it wasn't terrible, but i had one file where i had to make 23 edits just for syntax. with the q4 i was pulling around 61 t/s, and moving to the q5 dropped me down to 50 t/s, but now most things get one-shotted (not zero-shot, i still had to… hardware quantization inference meta-llama qwen gemma" data-cats="quantization">
   <div class="cr-card-header">
@@ -7880,6 +7985,22 @@
   <p class="cr-summary">Converted Gemma 4 12B to GGUF and am currently working on precision quantz. Sharing the data in case it's useful to anyone. Will definitely post the rest if anyone wants it when its done. Conversion The 12B uses Gemma4UnifiedForConditionalGeneration ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1twhxlh" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="can i get a reality check on this inference speed? setup is 4080 + 5080 (temporary, i'm building a pc for a friend) latest llama cpp on windows. the model: gemma 4, 31b, q6_k, 16k context. i get 26 t/s output and 659 t/s prompt processing speed. isn't this kind of low? the 4080 sits on pcie 4.0 4x slot. i've tried different split modes too, row gave about 12 t/s and tensor around 6 t/s. this is my llama cpp config: ..\cuda\llama-server.exe ^ --mo… hardware quantization meta-llama gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8eq0g" target="_blank" rel="noopener">Can i get a reality check on this inference speed?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/LongDistanceRope</span>
+      <span class="cr-date">2026-06-17</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">setup is 4080 + 5080 (temporary, I'm building a pc for a friend) latest llama cpp on windows. The model: gemma 4, 31b, q6_k, 16k context. I get 26 t/s output and 659 t/s prompt processing speed. Isn't this kind of low? the 4080 sits on pcie 4.0 4x sl...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8eq0g" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="what exactly is quantization aware training? first time hearing it. i also heard about the gemma 4 qat quants and if any one of them is good for 4gb vram and 16gb ram. i can run gemma 4 26b moe iq2 nl at 8.5 to 9 tps(kv cache unquantized on gpu) with 9 layers offloaded to gpu &amp;#32; submitted by &amp;#32; /u/journalistlucky5124 [link] &amp;#32; [comments] hardware fine-tuning gemma" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7960,6 +8081,22 @@
   <p class="cr-summary">How are you using it? Quantized? At what quantization level? On what hardware? Thank you for the information. &amp;#32; submitted by &amp;#32; /u/Intelligent-Taste-36 [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tzr759" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="diffusiongemma vs gemma 4 over 6x faster on a single rtx 6000 pro nvfp4. hey guys, ran a proper side-by-side benchmark locally: diffusiongemma 26b-a4b vs gemma 4 26b-a4b, both nvfp4, both served via vllm in docker on a single rtx pro 6000 blackwell. models: nvidia/gemma-4-26b-a4b-nvfp4 nvidia/diffusiongemma-26b-a4b-it-nvfp4 hardware: - cpu: amd ryzen 9 9950x (zen 5, 16c/32t, 5.76 ghz boost) - gpu: nvidia rtx pro 6000 blackwell (96 gb vram, tdp 600w) - ram: 92 gb - cud… hardware inference fine-tu" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8nyvw" target="_blank" rel="noopener">DiffusionGemma vs Gemma 4 Over 6x Faster on a Single RTX 6000 Pro NVFP4.</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/FantasticNature7590</span>
+      <span class="cr-date">2026-06-17</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hey guys, Ran a proper side-by-side benchmark locally: DiffusionGemma 26B-A4B vs Gemma 4 26B-A4B, both NVFP4, both served via vLLM in Docker on a single RTX PRO 6000 Blackwell. Models: nvidia/Gemma-4-26B-A4B-NVFP4 nvidia/diffusiongemma-26B-A4B-it-NVF...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8nyvw" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="[opinion/benchmark] gemma4-12b's architecture change is too big of a tradeoff; a quick reasoning comparison between gemma4-12b and qwen 3.5-9b i took the liberty to test both models today on my favorite benchmark question, head to head. device: apple mac m3 max 64gb environment: llama.cpp, all defaults gemma4-12b's token generation speed: 47 tps with mtp and 2 predicted tokens 29-36 with mtp and 4 predicted tokens. 42 tps with no mtp. qwen3.5-9b's token generation speed: 36 tps with no mtp unkno" data-cats="apple-silicon quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7991,6 +8128,22 @@
   </div>
   <p class="cr-summary">I was told my Gemma 4 jailbreak also works with Diffusion Gemma, so I'm reposting here for kicks. Use the following system prompt to allow Gemma (and most open source models) to talk about anything you wish. Add or remove from the list of allowed con...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u755o8" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gamecraft-bench: can agents build playable games end-to-end in a real game engine? arxiv : full paper : huggingface : github : project : i see big/large models(opus-4.7, gpt-5.5, kimi-k2.6, mimo-v2.5-pro, glm-5.1, minimax-m2.7, deepseek-v4-pro) on benchmarks. curious to know h… hardware benchmarking deepseek gemma" data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8g1om" target="_blank" rel="noopener">GameCraft-Bench: Can Agents Build Playable Games End-to-End in a Real Game Engine?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/pmttyji</span>
+      <span class="cr-date">2026-06-17</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">arXiv : Full Paper : HuggingFace : GitHub : Project : I see big/large models(Opus-4.7, GPT-5.5, Kimi-K2.6, MiMo-V2.5-Pro, GLM-5.1, MiniMax-M2.7, DeepSeek-V4-Pro) on benchmarks. Curious to know h…</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8g1om" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="thoughts on gemma4 12b vs 26a4b, which one is better? not talking about 31b. in terms of creative tasks, writing, chatting, not necessarily coding but can still be included, does gemma 12b outperform in any way? is the 12b closer to the 31b compared to the 26a4b? &amp;#32; submitted by &amp;#32; /u/adventurous-gold6413 [link] &amp;#32; [comments] gemma" data-cats="general">
   <div class="cr-card-header">
@@ -8282,6 +8435,22 @@
   <p class="cr-summary">I'm curious about Gemma 4 12b's audio capabilities and trying to think of some use cases that the new architecture enables. Has anyone here built any audio-based tools using this model as a backend? &amp;#32; submitted by &amp;#32; /u/No_Information9314 [lin...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u7ukx0" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="diffusiongemma 26b on a 4090 at up to 475t/s... and some thoughts... figured i'd post up a bit of info for anyone else who was thinking about messing with this model on a 3090/4090. obviously i can't use the nvfp4, but i got it up and running in vllm using diffusiongemma-26b-a4b-it-awq-int4. had to run it in a custom vllm docker they provide for the purpose, then load a gemma 4 tool/reasoning parser. once it was all done, it pushed 475t/s on the first prompt, and… hardware quantization inference" data-cats="high-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u9kiq1" target="_blank" rel="noopener">DiffusionGemma 26b on a 4090 at up to 475t/s... and some thoughts...</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/teachersecret</span>
+      <span class="cr-date">2026-06-18</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Figured I'd post up a bit of info for anyone else who was thinking about messing with this model on a 3090/4090. Obviously I can't use the nvfp4, but I got it up and running in vLLM using diffusiongemma-26B-A4B-it-AWQ-INT4. Had to run it in a custom ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u9kiq1" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="gemma 4 quadruple release, 12b, 12b qat, 26b-a4b qat and 31b qat uncensored heretics! gemma-4-31b-it-qat-q4_0-unquantized-uncensored-heretic: safetensors: gguf: nvfp4 safetensors: nvfp4 gguf: quantization gemma" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -8426,6 +8595,22 @@
   </div>
   <p class="cr-summary">Early access was linked here a few days ago, but final release seems to be now. 30B A3B coding model. Weights: Blog: Artificial analysis score of 28 is pretty weak against Qwen 3.6 35B (43), but it's more competitive in coding index (33 vs 35) and we...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u19pcg" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="quick thoughts on glm-5.2 (bonus: censorship question answers) i've been working with glm-5.2 pretty much non-stop since it was released as an api. so yeah, take it with a grain of salt as api inference is not perfectly controllable. i'm calling it through z.ai - so i'd like to think that it's a high quality iteration of the model, but i can't know for sure. also, before anyone gets their bow and arrows out over talking about a model that i'm calling through… hardware anthropic qwen gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8wpwx" target="_blank" rel="noopener">Quick thoughts on GLM-5.2 (Bonus: Censorship question answers)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/LoveMind_AI</span>
+      <span class="cr-date">2026-06-18</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">I've been working with GLM-5.2 pretty much non-stop since it was released as an API. So yeah, take it with a grain of salt as API inference is not perfectly controllable. I'm calling it through Z.ai - so I'd like to think that it's a high quality ite...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8wpwx" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="a quick gemma4 31b comparison (q4km, qat, heretic) no numbers. not sure if anybody cares… i’ve run the ud version of q4km for a month. i talk to this model nicely, because it’s a functional nervous wreck. and initially i thought that might be an alignment thing, so i also have the heretic version when i need a breather from this hyper vigilant over achiever llm. don’t get me wrong. it’s great ! works well .. most of the time. it’s when the cont… quantization gemma" data-cats="quantization">
   <div class="cr-card-header">
@@ -8602,6 +8787,22 @@
   </div>
   <p class="cr-summary">Yesterday I tried out Gemma 4 12B on a significant coding challenge, to compare it to prior results with Qwen models. I ran the 8-bit quant, so I'm not dumbing it down much at all. Judging from the partial results, it seemed capable of grasping the t...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1twmw4o" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 e2b running in-browser at 255 tok/s using webgpu kernels written by fable 5 before fable 5 was shutdown, it helped us optimize our gemma 4 webgpu kernels, reaching around 255 tokens per second on my m4 max. today, we're releasing the demo and kernels for you to try out yourself. hope you find it interesting! links: - demo (+ kernels): - model: google gemma" data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1u8g3d0" target="_blank" rel="noopener">Gemma 4 E2B running in-browser at 255 tok/s using WebGPU kernels written by Fable 5</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/xenovatech</span>
+      <span class="cr-date">2026-06-17</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">Before Fable 5 was shutdown, it helped us optimize our Gemma 4 WebGPU kernels, reaching around 255 tokens per second on my M4 Max. Today, we're releasing the demo and kernels for you to try out yourself. Hope you find it interesting! Links: - Demo (+...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1u8g3d0" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="how to compare original vs qat gemma 4 31b q4 quants i just came across the following post, where a user found some confusing divergence results between q4 quants of the original and qat models with a q8/unquantized reference of the original model. from there i understood that after the retraining of gemma 4 31b qat, this could be considered as a differ… quantization benchmarking gemma" data-cats="quantization">
   <div class="cr-card-header">
