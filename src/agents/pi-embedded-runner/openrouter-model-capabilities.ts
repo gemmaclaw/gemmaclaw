@@ -195,13 +195,20 @@ function parseModel(model: OpenRouterApiModel): OpenRouterModelCapabilities {
 // API fetch
 // ---------------------------------------------------------------------------
 
+async function cancelUnreadResponseBody(response: Response | undefined): Promise<void> {
+  if (response && !response.bodyUsed) {
+    await response.body?.cancel().catch(() => undefined);
+  }
+}
+
 async function doFetch(): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let response: Response | undefined;
   try {
     const fetchFn = resolveProxyFetchFromEnv() ?? globalThis.fetch;
 
-    const response = await fetchFn(OPENROUTER_MODELS_URL, {
+    response = await fetchFn(OPENROUTER_MODELS_URL, {
       signal: controller.signal,
     });
 
@@ -229,6 +236,7 @@ async function doFetch(): Promise<void> {
     log.warn(`Failed to fetch OpenRouter models: ${message}`);
   } finally {
     clearTimeout(timeout);
+    await cancelUnreadResponseBody(response);
   }
 }
 
