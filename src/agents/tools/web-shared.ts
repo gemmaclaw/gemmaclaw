@@ -155,6 +155,9 @@ export async function readResponseText(
         // let cleanup turn a bounded read into a hung fetch.
         void reader.cancel().catch(() => undefined);
       }
+      try {
+        reader.releaseLock();
+      } catch {}
     }
 
     parts.push(decoder.decode());
