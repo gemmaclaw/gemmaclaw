@@ -143,6 +143,21 @@ Docs: https://docs.openclaw.ai
 - Gateway: require Talk secret authority before setup-code handoff can include Talk secrets. (#85690) Thanks @ngutman.
 - Agents: keep fallback error reporting scoped to the active model candidate so stale prior-provider quota/auth text is not reported for later fallback attempts. (#86134) thanks @zhangguiping-xydt.
 
+## [2026.8.1](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.0...gemmaclaw-v2026.8.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **agents:** bound Anthropic Messages error response bodies ([ee61f08](https://github.com/gemmaclaw/gemmaclaw/commit/ee61f0897b1ec340bc2341bac5df7215e4c5b05d))
+* **agents:** cancel OpenRouter catalog error bodies ([c82b13d](https://github.com/gemmaclaw/gemmaclaw/commit/c82b13d5ee3efd7d9309146d178552f5ef3d4274))
+* **auth:** cancel unread WHAM probe error bodies ([5dff1d1](https://github.com/gemmaclaw/gemmaclaw/commit/5dff1d1d31b429844a013affe962aa57fd81f246))
+* **config:** enable automatic sandbox free-reign for containerized agents ([3023d09](https://github.com/gemmaclaw/gemmaclaw/commit/3023d0974545a9fedef796c3266888767de3a863))
+* **deps:** patch gaxios ESM crash on vertex token refresh ([66b12d7](https://github.com/gemmaclaw/gemmaclaw/commit/66b12d7fa37aa42cdfe64c992aaedf3fade0e220))
+* **gateway:** normalize secret fallback values ([#304](https://github.com/gemmaclaw/gemmaclaw/issues/304)) ([3ad553a](https://github.com/gemmaclaw/gemmaclaw/commit/3ad553a3fdc72e79064a143099b946c588bc8bee))
+* harden gaxios patch and Gemmaclaw setup defaults ([ba8b987](https://github.com/gemmaclaw/gemmaclaw/commit/ba8b987a90f6a2a5c6a6e1f1d6f20d7ce1cdd6bc))
+* **tools:** release bounded web response readers ([68c5f50](https://github.com/gemmaclaw/gemmaclaw/commit/68c5f500fce8ccf7f08b98645b3c7f2c657bc4fc))
+* TS compilation error in entry.ts gaxios patch ([a7e83a8](https://github.com/gemmaclaw/gemmaclaw/commit/a7e83a8939cf83e03826ff1c66c9a43cc5f0e598))
+
 ## [2026.8.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.7.0...gemmaclaw-v2026.8.0) (2026-06-19)
 
 
