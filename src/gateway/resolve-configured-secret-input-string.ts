@@ -102,6 +102,7 @@ export async function resolveConfiguredSecretInputWithFallback(params: {
     value: params.value,
     defaults: params.config.secrets?.defaults,
   });
+  const readNormalizedFallback = () => normalizeOptionalString(params.readFallback?.());
   const configValue = !ref ? normalizeOptionalString(params.value) : undefined;
   if (configValue) {
     return {
@@ -111,7 +112,7 @@ export async function resolveConfiguredSecretInputWithFallback(params: {
     };
   }
   if (!ref) {
-    const fallback = params.readFallback?.();
+    const fallback = readNormalizedFallback();
     if (fallback) {
       return {
         value: fallback,
@@ -137,7 +138,7 @@ export async function resolveConfiguredSecretInputWithFallback(params: {
     };
   }
 
-  const fallback = params.readFallback?.();
+  const fallback = readNormalizedFallback();
   if (fallback) {
     return {
       value: fallback,
