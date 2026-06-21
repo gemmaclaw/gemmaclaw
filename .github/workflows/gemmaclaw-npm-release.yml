@@ -2,6 +2,11 @@ name: Gemmaclaw npm Release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_existing_tag:
+        description: Existing release tag to publish to npm, for retrying a release after the GitHub release/tag already exists
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -14,6 +19,11 @@ permissions:
 concurrency:
   group: gemmaclaw-npm-release-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NODE_VERSION: "24.x"
+  PNPM_VERSION: "10.33.0"
 
 jobs:
   release-please:
@@ -43,27 +53,42 @@ jobs:
   publish-npm:
     name: Publish to npm
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing_tag != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
+      - name: Resolve release tag
+        id: release-tag
+        env:
+          RELEASE_PLEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+          MANUAL_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_existing_tag || '' }}
+        run: |
+          set -euo pipefail
+          release_tag="${MANUAL_TAG:-$RELEASE_PLEASE_TAG}"
+          if [[ ! "$release_tag" =~ ^gemmaclaw-v[0-9]{4}\.[1-9][0-9]*\.[1-9][0-9]*((-beta\.[1-9][0-9]*)|(-[1-9][0-9]*))?$ ]]; then
+            echo "Invalid Gemmaclaw release tag: ${release_tag}" >&2
+            exit 1
+          fi
+          echo "tag=${release_tag}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout release tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ steps.release-tag.outputs.tag }}
 
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Enable pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@10.33.0 --activate
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -71,7 +96,15 @@ jobs:
       - name: Build package
         run: pnpm build
 
+      - name: Ensure version is not already published
+        run: |
+          set -euo pipefail
+          package_version="$(node -p "require('./package.json').version")"
+          if npm view "gemmaclaw@${package_version}" version >/dev/null 2>&1; then
+            echo "gemmaclaw@${package_version} is already published on npm." >&2
+            exit 1
+          fi
+          echo "Publishing gemmaclaw@${package_version}"
+
       - name: Publish package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: npm publish --access public --provenance
