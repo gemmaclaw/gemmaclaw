@@ -20,6 +20,14 @@ const ENTRY_WRAPPER_PAIRS = [
   { wrapperBasename: "openclaw.js", entryBasename: "entry.js" },
 ] as const;
 
+type GaxiosRequestOptions = Record<string, unknown> & { fetchImplementation?: unknown };
+type GaxiosInstance = { defaults?: { fetchImplementation?: unknown } };
+type GaxiosRequest = ((this: GaxiosInstance, opts?: GaxiosRequestOptions) => unknown) & {
+  __patched_for_esm__?: true;
+};
+type GaxiosPrototype = { request?: GaxiosRequest };
+type GaxiosModuleLike = { Gaxios?: { prototype?: GaxiosPrototype } };
+
 function shouldForceReadOnlyAuthStore(argv: string[]): boolean {
   const tokens = argv.slice(2).filter((token) => token.length > 0 && !token.startsWith("-"));
   for (let index = 0; index < tokens.length - 1; index += 1) {
@@ -28,6 +36,57 @@ function shouldForceReadOnlyAuthStore(argv: string[]): boolean {
     }
   }
   return false;
+}
+
+function asGaxiosModule(value: unknown): GaxiosModuleLike | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  return value as GaxiosModuleLike;
+}
+
+function patchGaxiosFetchFallback(gaxiosModule: unknown): boolean {
+  if (typeof globalThis.fetch !== "function") {
+    return false;
+  }
+  const prototype = asGaxiosModule(gaxiosModule)?.Gaxios?.prototype;
+  const originalRequest = prototype?.request;
+  if (!prototype || typeof originalRequest !== "function" || originalRequest.__patched_for_esm__) {
+    return false;
+  }
+
+  const patchedRequest: GaxiosRequest = function patchedGaxiosRequest(
+    this: GaxiosInstance,
+    opts?: GaxiosRequestOptions,
+  ) {
+    const requestOptions: GaxiosRequestOptions = opts ?? {};
+    requestOptions.fetchImplementation =
+      requestOptions.fetchImplementation ?? this.defaults?.fetchImplementation ?? globalThis.fetch;
+    return originalRequest.call(this, requestOptions);
+  };
+  patchedRequest.__patched_for_esm__ = true;
+  prototype.request = patchedRequest;
+  return true;
+}
+
+function installGaxiosFetchFallbackHotfix(): void {
+  try {
+    const require = createRequire(import.meta.url);
+    const entryPoints = ["google-auth-library", "@google/genai", "gcp-metadata", "gaxios"];
+    for (const entryPoint of entryPoints) {
+      try {
+        const entryPointPath = require.resolve(entryPoint);
+        const entryPointRequire = entryPoint === "gaxios" ? require : createRequire(entryPointPath);
+        const gaxiosModule =
+          entryPoint === "gaxios" ? entryPointRequire(entryPointPath) : entryPointRequire("gaxios");
+        patchGaxiosFetchFallback(gaxiosModule);
+      } catch {
+        // Optional dependency paths vary by install shape.
+      }
+    }
+  } catch {
+    // Startup should not depend on this compatibility patch being installable.
+  }
 }
 
 // Guard: only run entry-point logic when this file is the main module.
@@ -47,39 +106,7 @@ if (
   ensureOpenClawExecMarkerOnProcess();
   installProcessWarningFilter();
   normalizeEnv();
-
-  // Patch gaxios in google-auth-library to use native fetch fallback in ESM environment.
-  // This prevents an ESM loader crash when google-auth-library refreshes credentials.
-  try {
-    const require = createRequire(import.meta.url);
-    const entryPoints = ["google-auth-library", "@google/genai", "gcp-metadata", "gaxios"];
-    for (const ep of entryPoints) {
-      try {
-        const epPath = require.resolve(ep);
-        const epRequire = ep === "gaxios" ? require : createRequire(epPath);
-        const gaxios = ep === "gaxios" ? epRequire(epPath) : epRequire("gaxios");
-        if (gaxios?.Gaxios?.prototype?.request) {
-          const origRequest = gaxios.Gaxios.prototype.request;
-          if (!origRequest.__patched_for_esm__) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const patchedRequest = function (this: any, opts: any) {
-              opts = opts || {};
-              opts.fetchImplementation =
-                opts.fetchImplementation || this.defaults?.fetchImplementation || globalThis.fetch;
-              return origRequest.call(this, opts);
-            };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (patchedRequest as any).__patched_for_esm__ = true;
-            gaxios.Gaxios.prototype.request = patchedRequest;
-          }
-        }
-      } catch {
-        // Skip entrypoint if it cannot be resolved
-      }
-    }
-  } catch {
-    // Best-effort only; silently fail if creation of require fails.
-  }
+  installGaxiosFetchFallbackHotfix();
 
   if (!isTruthyEnvValue(process.env.NODE_DISABLE_COMPILE_CACHE)) {
     try {

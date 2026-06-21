@@ -486,7 +486,7 @@ describe("setupGemmaCommand — agent creation", () => {
     ]);
     expect(hoisted.capturedMutatedConfig.tools?.exec).toMatchObject({
       host: "sandbox",
-      security: "sandbox",
+      security: "full",
       ask: "off",
     });
     expect(hoisted.capturedMutatedConfig.hooks?.internal).toMatchObject({

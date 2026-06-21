@@ -5,6 +5,7 @@ import {
   createBundledRuntimeDependencyInstallArgs,
   createBundledRuntimeDependencyInstallEnv,
   createNestedNpmInstallEnv,
+  applyGaxiosFetchHotfix,
   isDirectPostinstallInvocation,
   pruneInstalledPackageDist,
   discoverBundledPluginRuntimeDeps,
@@ -754,5 +755,56 @@ describe("bundled plugin postinstall", () => {
     });
 
     expect(removePath).not.toHaveBeenCalled();
+  });
+
+  it("patches the installed google-auth-library gaxios fetch fallback", async () => {
+    const packageRoot = await createTempDirAsync("openclaw-gaxios-hotfix-");
+    const targetPath = path.join(
+      packageRoot,
+      "node_modules",
+      "google-auth-library",
+      "node_modules",
+      "gaxios",
+      "build",
+      "cjs",
+      "src",
+      "gaxios.js",
+    );
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(
+      targetPath,
+      [
+        "async _defaultAdapter(config) {",
+        "        const fetchImpl = config.fetchImplementation ||",
+        "            this.defaults.fetchImplementation ||",
+        "            (await _a.#getFetch());",
+        "        return fetchImpl(config.url, config);",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    expect(applyGaxiosFetchHotfix({ packageRoot })).toEqual({ applied: true });
+    await expect(fs.readFile(targetPath, "utf8")).resolves.toContain("globalThis.fetch");
+  });
+
+  it("treats an already patched gaxios fetch fallback as non-fatal", async () => {
+    const packageRoot = await createTempDirAsync("openclaw-gaxios-hotfix-already-");
+    const targetPath = path.join(
+      packageRoot,
+      "node_modules",
+      "gaxios",
+      "build",
+      "cjs",
+      "src",
+      "gaxios.js",
+    );
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, "const fetchImpl = globalThis.fetch;\n");
+
+    expect(applyGaxiosFetchHotfix({ packageRoot })).toEqual({
+      applied: false,
+      reason: "already_patched",
+    });
   });
 });

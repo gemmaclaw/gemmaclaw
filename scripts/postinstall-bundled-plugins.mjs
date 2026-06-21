@@ -113,6 +113,13 @@ const BAILEYS_MEDIA_DISPATCHER_HEADER_REPLACEMENT = [
 const BAILEYS_MEDIA_ONCE_IMPORT_RE = /import\s+\{\s*once\s*\}\s+from\s+['"]events['"]/u;
 const BAILEYS_MEDIA_ASYNC_CONTEXT_RE =
   /async\s+function\s+encryptedStream|encryptedStream\s*=\s*async/u;
+const GAXIOS_FETCH_HOTFIX_RE =
+  /const\s+fetchImpl\s*=\s*config\.fetchImplementation\s*\|\|\s*this\.defaults\.fetchImplementation\s*\|\|\s*\(await\s+[A-Za-z_$][\w$]*\.#getFetch\(\)\);/u;
+const GAXIOS_FETCH_HOTFIX_REPLACEMENT = [
+  "const fetchImpl = config.fetchImplementation ||",
+  "            this.defaults.fetchImplementation ||",
+  "            globalThis.fetch;",
+].join("\n");
 
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -843,8 +850,13 @@ if (isDirectPostinstallInvocation()) {
   runBundledPluginPostinstall();
 }
 
-function applyGaxiosFetchHotfix(params = {}) {
-  const { packageRoot = DEFAULT_PACKAGE_ROOT, existsSync: pathExists = existsSync } = params;
+export function applyGaxiosFetchHotfix(params = {}) {
+  const {
+    packageRoot = DEFAULT_PACKAGE_ROOT,
+    existsSync: pathExists = existsSync,
+    readFileSync: readFile = readFileSync,
+    writeFileSync: writeFile = writeFileSync,
+  } = params;
   const paths = [
     join(
       packageRoot,
@@ -859,24 +871,23 @@ function applyGaxiosFetchHotfix(params = {}) {
     ),
     join(packageRoot, "node_modules", "gaxios", "build", "cjs", "src", "gaxios.js"),
   ];
-  let targetPath = paths.find((p) => pathExists(p));
+  const targetPath = paths.find((p) => pathExists(p));
   if (!targetPath) {
     return { applied: false, reason: "missing" };
   }
 
-  const currentText = readFileSync(targetPath, "utf8");
-  const needle =
-    "const fetchImpl = config.fetchImplementation ||\n                this.defaults.fetchImplementation ||\n                (await _a.#getFetch());";
-  const replacement =
-    "const fetchImpl = config.fetchImplementation ||\n                this.defaults.fetchImplementation ||\n                globalThis.fetch;";
-
-  if (!currentText.includes(needle)) {
+  const currentText = readFile(targetPath, "utf8");
+  if (!GAXIOS_FETCH_HOTFIX_RE.test(currentText)) {
     if (currentText.includes("globalThis.fetch")) {
       return { applied: false, reason: "already_patched" };
     }
     return { applied: false, reason: "needle_not_found" };
   }
 
-  writeFileSync(targetPath, currentText.replace(needle, replacement), "utf8");
+  writeFile(
+    targetPath,
+    currentText.replace(GAXIOS_FETCH_HOTFIX_RE, GAXIOS_FETCH_HOTFIX_REPLACEMENT),
+    "utf8",
+  );
   return { applied: true };
 }

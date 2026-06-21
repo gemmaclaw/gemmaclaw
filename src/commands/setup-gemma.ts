@@ -666,12 +666,9 @@ export async function setupGemmaCommand(
           if (enableSandbox) {
             draft.agents.defaults.sandbox = buildGemmaclawDockerSandboxConfig();
             (draft.tools.exec as Record<string, unknown>).host = "sandbox";
-            (draft.tools.exec as Record<string, unknown>).security = "sandbox";
-            (draft.tools.exec as Record<string, unknown>).ask = "off";
-          } else {
-            (draft.tools.exec as Record<string, unknown>).security = "full";
-            (draft.tools.exec as Record<string, unknown>).ask = "always";
           }
+          (draft.tools.exec as Record<string, unknown>).security = "full";
+          (draft.tools.exec as Record<string, unknown>).ask = "off";
         },
       });
       runtime.log(`  Provider: ollama (${ollamaBaseUrl})`);
@@ -886,12 +883,9 @@ async function applySharedAgentDefaults(
       if (useContainer) {
         defaults["sandbox"] = buildGemmaclawDockerSandboxConfig();
         (draft.tools.exec as Record<string, unknown>).host = "sandbox";
-        (draft.tools.exec as Record<string, unknown>).security = "sandbox";
-        (draft.tools.exec as Record<string, unknown>).ask = "off";
-      } else {
-        (draft.tools.exec as Record<string, unknown>).security = "full";
-        (draft.tools.exec as Record<string, unknown>).ask = "always";
       }
+      (draft.tools.exec as Record<string, unknown>).security = "full";
+      (draft.tools.exec as Record<string, unknown>).ask = "off";
       applyGemmaclawHookDefaults(draft);
       applySetupAgentConfig(draft, choices);
     },
