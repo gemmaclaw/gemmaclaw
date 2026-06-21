@@ -641,6 +641,13 @@ function applyBundledPluginRuntimeHotfixes(params = {}) {
       `[postinstall] could not patch @whiskeysockets/baileys runtime hotfixes: ${baileysResult.reason}`,
     );
   }
+
+  const gaxiosResult = applyGaxiosFetchHotfix(params);
+  if (gaxiosResult.applied) {
+    log.log("[postinstall] patched gaxios runtime hotfix");
+  } else if (gaxiosResult.reason !== "missing" && gaxiosResult.reason !== "already_patched") {
+    log.warn(`[postinstall] could not patch gaxios runtime hotfix: ${gaxiosResult.reason}`);
+  }
 }
 
 export function isSourceCheckoutRoot(params) {
@@ -834,4 +841,42 @@ export function isDirectPostinstallInvocation(params = {}) {
 
 if (isDirectPostinstallInvocation()) {
   runBundledPluginPostinstall();
+}
+
+function applyGaxiosFetchHotfix(params = {}) {
+  const { packageRoot = DEFAULT_PACKAGE_ROOT, existsSync: pathExists = existsSync } = params;
+  const paths = [
+    join(
+      packageRoot,
+      "node_modules",
+      "google-auth-library",
+      "node_modules",
+      "gaxios",
+      "build",
+      "cjs",
+      "src",
+      "gaxios.js",
+    ),
+    join(packageRoot, "node_modules", "gaxios", "build", "cjs", "src", "gaxios.js"),
+  ];
+  let targetPath = paths.find((p) => pathExists(p));
+  if (!targetPath) {
+    return { applied: false, reason: "missing" };
+  }
+
+  const currentText = readFileSync(targetPath, "utf8");
+  const needle =
+    "const fetchImpl = config.fetchImplementation ||\n                this.defaults.fetchImplementation ||\n                (await _a.#getFetch());";
+  const replacement =
+    "const fetchImpl = config.fetchImplementation ||\n                this.defaults.fetchImplementation ||\n                globalThis.fetch;";
+
+  if (!currentText.includes(needle)) {
+    if (currentText.includes("globalThis.fetch")) {
+      return { applied: false, reason: "already_patched" };
+    }
+    return { applied: false, reason: "needle_not_found" };
+  }
+
+  writeFileSync(targetPath, currentText.replace(needle, replacement), "utf8");
+  return { applied: true };
 }
