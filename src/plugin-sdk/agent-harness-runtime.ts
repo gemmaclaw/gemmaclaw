@@ -39,6 +39,7 @@ export { resolveUserPath } from "../utils.js";
 export { callGatewayTool } from "../agents/tools/gateway.js";
 export { isMessagingTool, isMessagingToolSendAction } from "../agents/pi-embedded-messaging.js";
 export {
+  extractToolErrorMessage,
   extractToolResultMediaArtifact,
   filterToolResultMediaUrls,
 } from "../agents/pi-embedded-subscribe.tools.js";
