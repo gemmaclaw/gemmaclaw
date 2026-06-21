@@ -108,8 +108,7 @@ case_local_interactive() {
 
   # Six Enter keystrokes accept defaults: agent=main, container=yes, backend=local,
   # model=auto, thinking=medium, bootstrap=general.
-  printf '\n\n\n\n\n\n' | $GEMMACLAW setup >"$out_file" 2>&1
-  if [ $? -ne 0 ]; then
+  if ! printf '\n\n\n\n\n\n' | $GEMMACLAW setup >"$out_file" 2>&1; then
     case_fail "local-interactive: setup exited non-zero"
     tail -n 80 "$out_file"
     return
@@ -151,7 +150,7 @@ case_local_non_interactive() {
   reset_home local-non-interactive
   local out_file="/tmp/onboard-gemma-local-non-interactive.log"
 
-  $GEMMACLAW setup \
+  if ! $GEMMACLAW setup \
     --non-interactive \
     --setup-mode local \
     --agent-name dev-agent \
@@ -159,8 +158,7 @@ case_local_non_interactive() {
     --thinking high \
     --bootstrap coding \
     --dry-run \
-    >"$out_file" 2>&1
-  if [ $? -ne 0 ]; then
+    >"$out_file" 2>&1; then
     case_fail "local-non-interactive: setup exited non-zero"
     tail -n 80 "$out_file"
     return
@@ -207,7 +205,7 @@ case_gemini_non_interactive() {
   reset_home gemini-non-interactive
   local out_file="/tmp/onboard-gemma-gemini-non-interactive.log"
 
-  GEMINI_API_KEY=AIzaTEST \
+  if ! GEMINI_API_KEY=AIzaTEST \
     $GEMMACLAW setup \
       --non-interactive \
       --setup-mode gemini \
@@ -215,8 +213,7 @@ case_gemini_non_interactive() {
       --thinking low \
       --bootstrap minimal \
       --dry-run \
-      >"$out_file" 2>&1
-  if [ $? -ne 0 ]; then
+      >"$out_file" 2>&1; then
     case_fail "gemini-non-interactive: setup exited non-zero"
     tail -n 80 "$out_file"
     return
@@ -256,7 +253,7 @@ case_vertex_non_interactive() {
   reset_home vertex-non-interactive
   local out_file="/tmp/onboard-gemma-vertex-non-interactive.log"
 
-  $GEMMACLAW setup \
+  if ! $GEMMACLAW setup \
     --non-interactive \
     --setup-mode vertex \
     --agent-name corp \
@@ -264,8 +261,7 @@ case_vertex_non_interactive() {
     --thinking off \
     --bootstrap general \
     --dry-run \
-    >"$out_file" 2>&1
-  if [ $? -ne 0 ]; then
+    >"$out_file" 2>&1; then
     case_fail "vertex-non-interactive: setup exited non-zero"
     tail -n 80 "$out_file"
     return
@@ -313,13 +309,12 @@ case_no_container_legacy_flag() {
   reset_home no-container-legacy
   local out_file="/tmp/onboard-gemma-no-container-legacy.log"
 
-  $GEMMACLAW setup \
+  if ! $GEMMACLAW setup \
     --non-interactive \
     --setup-mode local \
     --no-container \
     --dry-run \
-    >"$out_file" 2>&1
-  if [ $? -ne 0 ]; then
+    >"$out_file" 2>&1; then
     case_fail "no-container-legacy: setup exited non-zero"
     tail -n 80 "$out_file"
     return

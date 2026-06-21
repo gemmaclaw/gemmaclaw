@@ -113,6 +113,13 @@ const BAILEYS_MEDIA_DISPATCHER_HEADER_REPLACEMENT = [
 const BAILEYS_MEDIA_ONCE_IMPORT_RE = /import\s+\{\s*once\s*\}\s+from\s+['"]events['"]/u;
 const BAILEYS_MEDIA_ASYNC_CONTEXT_RE =
   /async\s+function\s+encryptedStream|encryptedStream\s*=\s*async/u;
+const GAXIOS_FETCH_HOTFIX_RE =
+  /const\s+fetchImpl\s*=\s*config\.fetchImplementation\s*\|\|\s*this\.defaults\.fetchImplementation\s*\|\|\s*\(await\s+[A-Za-z_$][\w$]*\.#getFetch\(\)\);/u;
+const GAXIOS_FETCH_HOTFIX_REPLACEMENT = [
+  "const fetchImpl = config.fetchImplementation ||",
+  "            this.defaults.fetchImplementation ||",
+  "            globalThis.fetch;",
+].join("\n");
 
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -641,6 +648,13 @@ function applyBundledPluginRuntimeHotfixes(params = {}) {
       `[postinstall] could not patch @whiskeysockets/baileys runtime hotfixes: ${baileysResult.reason}`,
     );
   }
+
+  const gaxiosResult = applyGaxiosFetchHotfix(params);
+  if (gaxiosResult.applied) {
+    log.log("[postinstall] patched gaxios runtime hotfix");
+  } else if (gaxiosResult.reason !== "missing" && gaxiosResult.reason !== "already_patched") {
+    log.warn(`[postinstall] could not patch gaxios runtime hotfix: ${gaxiosResult.reason}`);
+  }
 }
 
 export function isSourceCheckoutRoot(params) {
@@ -834,4 +848,46 @@ export function isDirectPostinstallInvocation(params = {}) {
 
 if (isDirectPostinstallInvocation()) {
   runBundledPluginPostinstall();
+}
+
+export function applyGaxiosFetchHotfix(params = {}) {
+  const {
+    packageRoot = DEFAULT_PACKAGE_ROOT,
+    existsSync: pathExists = existsSync,
+    readFileSync: readFile = readFileSync,
+    writeFileSync: writeFile = writeFileSync,
+  } = params;
+  const paths = [
+    join(
+      packageRoot,
+      "node_modules",
+      "google-auth-library",
+      "node_modules",
+      "gaxios",
+      "build",
+      "cjs",
+      "src",
+      "gaxios.js",
+    ),
+    join(packageRoot, "node_modules", "gaxios", "build", "cjs", "src", "gaxios.js"),
+  ];
+  const targetPath = paths.find((p) => pathExists(p));
+  if (!targetPath) {
+    return { applied: false, reason: "missing" };
+  }
+
+  const currentText = readFile(targetPath, "utf8");
+  if (!GAXIOS_FETCH_HOTFIX_RE.test(currentText)) {
+    if (currentText.includes("globalThis.fetch")) {
+      return { applied: false, reason: "already_patched" };
+    }
+    return { applied: false, reason: "needle_not_found" };
+  }
+
+  writeFile(
+    targetPath,
+    currentText.replace(GAXIOS_FETCH_HOTFIX_RE, GAXIOS_FETCH_HOTFIX_REPLACEMENT),
+    "utf8",
+  );
+  return { applied: true };
 }

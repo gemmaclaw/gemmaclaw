@@ -663,13 +663,12 @@ export async function setupGemmaCommand(
 
           draft.tools ??= {};
           draft.tools.exec ??= {};
-          (draft.tools.exec as Record<string, unknown>).security = "full";
-          (draft.tools.exec as Record<string, unknown>).ask = "off";
-
           if (enableSandbox) {
             draft.agents.defaults.sandbox = buildGemmaclawDockerSandboxConfig();
             (draft.tools.exec as Record<string, unknown>).host = "sandbox";
           }
+          (draft.tools.exec as Record<string, unknown>).security = "full";
+          (draft.tools.exec as Record<string, unknown>).ask = "off";
         },
       });
       runtime.log(`  Provider: ollama (${ollamaBaseUrl})`);
@@ -879,16 +878,14 @@ async function applySharedAgentDefaults(
       // in the per-agent onboarding.json manifest. They aren't part of the
       // OpenClaw config schema (which would reject unknown keys), and the
       // manifest is the single source of truth for "what did setup choose".
-      if (useContainer) {
-        defaults["sandbox"] = buildGemmaclawDockerSandboxConfig();
-      }
       draft.tools ??= {};
       draft.tools.exec ??= {};
-      (draft.tools.exec as Record<string, unknown>).security = "full";
-      (draft.tools.exec as Record<string, unknown>).ask = "off";
       if (useContainer) {
+        defaults["sandbox"] = buildGemmaclawDockerSandboxConfig();
         (draft.tools.exec as Record<string, unknown>).host = "sandbox";
       }
+      (draft.tools.exec as Record<string, unknown>).security = "full";
+      (draft.tools.exec as Record<string, unknown>).ask = "off";
       applyGemmaclawHookDefaults(draft);
       applySetupAgentConfig(draft, choices);
     },
