@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { enableCompileCache } from "node:module";
+import { enableCompileCache, createRequire } from "node:module";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { isRootHelpInvocation } from "./cli/argv.js";
@@ -47,6 +47,40 @@ if (
   ensureOpenClawExecMarkerOnProcess();
   installProcessWarningFilter();
   normalizeEnv();
+
+  // Patch gaxios in google-auth-library to use native fetch fallback in ESM environment.
+  // This prevents an ESM loader crash when google-auth-library refreshes credentials.
+  try {
+    const require = createRequire(import.meta.url);
+    const entryPoints = ["google-auth-library", "@google/genai", "gcp-metadata", "gaxios"];
+    for (const ep of entryPoints) {
+      try {
+        const epPath = require.resolve(ep);
+        const epRequire = ep === "gaxios" ? require : createRequire(epPath);
+        const gaxios = ep === "gaxios" ? epRequire(epPath) : epRequire("gaxios");
+        if (gaxios?.Gaxios?.prototype?.request) {
+          const origRequest = gaxios.Gaxios.prototype.request;
+          if (!origRequest.__patched_for_esm__) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const patchedRequest = function (this: any, opts: any) {
+              opts = opts || {};
+              opts.fetchImplementation =
+                opts.fetchImplementation || this.defaults?.fetchImplementation || globalThis.fetch;
+              return origRequest.call(this, opts);
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (patchedRequest as any).__patched_for_esm__ = true;
+            gaxios.Gaxios.prototype.request = patchedRequest;
+          }
+        }
+      } catch {
+        // Skip entrypoint if it cannot be resolved
+      }
+    }
+  } catch {
+    // Best-effort only; silently fail if creation of require fails.
+  }
+
   if (!isTruthyEnvValue(process.env.NODE_DISABLE_COMPILE_CACHE)) {
     try {
       enableCompileCache();
