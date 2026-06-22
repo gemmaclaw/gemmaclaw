@@ -104,6 +104,55 @@ describe("createWhatsAppOutboundBase", () => {
     );
   });
 
+  it("uses the native send (not a dep override) when a quote reply resolves", async () => {
+    cacheInboundMessageMeta("work", "15551234567@s.whatsapp.net", "reply-native", {
+      participant: "111@s.whatsapp.net",
+      body: "quoted body",
+    });
+    const sendMessageWhatsApp = vi.fn(async () => ({
+      messageId: "native-1",
+      toJid: "15551234567@s.whatsapp.net",
+    }));
+    const overrideSend = vi.fn(async () => ({
+      messageId: "override-1",
+      toJid: "15551234567@s.whatsapp.net",
+    }));
+    const outbound = createWhatsAppOutboundBase({
+      chunker: (text) => [text],
+      sendMessageWhatsApp,
+      sendPollWhatsApp: vi.fn(),
+      shouldLogVerbose: () => false,
+      resolveTarget: ({ to }) => ({ ok: true as const, to: to ?? "" }),
+    });
+
+    const result = await outbound.sendText!({
+      cfg: {
+        channels: {
+          whatsapp: {
+            defaultAccount: "work",
+            accounts: { work: {} },
+          },
+        },
+      } as never,
+      to: "whatsapp:+15551234567",
+      text: "reply",
+      deps: { sendWhatsApp: overrideSend },
+      replyToId: "reply-native",
+    });
+
+    // A dep-injected send override would drop the native quotedMessageKey; the
+    // quote-reply path must bypass it and call sendMessageWhatsApp directly.
+    expect(overrideSend).not.toHaveBeenCalled();
+    expect(sendMessageWhatsApp).toHaveBeenCalledWith(
+      "whatsapp:+15551234567",
+      "reply",
+      expect.objectContaining({
+        quotedMessageKey: expect.objectContaining({ id: "reply-native" }),
+      }),
+    );
+    expect(result.messageId).toBe("native-1");
+  });
+
   it("normalizes mixed-case defaultAccount before quote metadata lookup", async () => {
     cacheInboundMessageMeta("work", "15551234567@s.whatsapp.net", "reply-case", {
       participant: "333@s.whatsapp.net",
