@@ -148,6 +148,66 @@ describe("normalizeCompatibilityConfigValues", () => {
       "Moved channels.whatsapp single-account top-level values into channels.whatsapp.accounts.default.",
     );
   });
+  it("preserves inherited WhatsApp access policy on named accounts when seeding accounts.default", () => {
+    const res = normalizeCompatibilityConfigValues({
+      channels: {
+        whatsapp: {
+          enabled: true,
+          dmPolicy: "allowlist",
+          allowFrom: ["+15550001111"],
+          groupPolicy: "open",
+          groupAllowFrom: [],
+          accounts: {
+            work: {
+              enabled: true,
+              authDir: "/tmp/wa-work",
+            },
+          },
+        },
+      },
+    });
+
+    // The named account must inherit the channel-level access policy that was
+    // moved into accounts.default, otherwise the migration would silently drop
+    // the policy for the named account.
+    expect(res.config.channels?.whatsapp?.accounts?.work).toEqual({
+      enabled: true,
+      authDir: "/tmp/wa-work",
+      dmPolicy: "allowlist",
+      allowFrom: ["+15550001111"],
+      groupPolicy: "open",
+      groupAllowFrom: [],
+    });
+  });
+  it("keeps named-account access policy overrides when seeding accounts.default", () => {
+    const res = normalizeCompatibilityConfigValues({
+      channels: {
+        discord: {
+          enabled: true,
+          dmPolicy: "allowlist",
+          allowFrom: ["top-dm"],
+          groupPolicy: "allowlist",
+          groupAllowFrom: ["top-group"],
+          accounts: {
+            work: {
+              enabled: true,
+              allowFrom: ["work-dm"],
+              groupPolicy: "disabled",
+            },
+          },
+        },
+      },
+    } as unknown as OpenClawConfig);
+
+    // Existing per-account values win; only missing policy keys are inherited.
+    expect(res.config.channels?.discord?.accounts?.work).toEqual({
+      enabled: true,
+      dmPolicy: "allowlist",
+      allowFrom: ["work-dm"],
+      groupPolicy: "disabled",
+      groupAllowFrom: ["top-group"],
+    });
+  });
   it("migrates browser ssrfPolicy allowPrivateNetwork to dangerouslyAllowPrivateNetwork", () => {
     const res = normalizeCompatibilityConfigValues({
       browser: {

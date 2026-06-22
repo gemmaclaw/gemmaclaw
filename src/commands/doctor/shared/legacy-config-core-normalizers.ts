@@ -12,6 +12,8 @@ import { sanitizeForLog } from "../../../terminal/ansi.js";
 import { hasOwnKey, isRecord } from "./legacy-config-record-shared.js";
 export { normalizeLegacyTalkConfig } from "./legacy-talk-config-normalizer.js";
 
+const INHERITED_ACCOUNT_POLICY_KEYS = ["dmPolicy", "allowFrom", "groupPolicy", "groupAllowFrom"];
+
 export function normalizeLegacyBrowserConfig(
   cfg: OpenClawConfig,
   changes: string[],
@@ -145,10 +147,34 @@ export function seedMissingDefaultAccountsFromSingleAccountBase(
     for (const key of keysToMove) {
       delete nextChannel[key];
     }
-    nextChannel.accounts = {
+    const inheritedPolicyKeys = INHERITED_ACCOUNT_POLICY_KEYS.filter((key) =>
+      keysToMove.includes(key),
+    );
+    const nextAccounts: Record<string, unknown> = {
       ...rawAccounts,
       [DEFAULT_ACCOUNT_ID]: defaultAccount,
     };
+    if (inheritedPolicyKeys.length > 0) {
+      for (const [accountId, rawAccount] of Object.entries(rawAccounts)) {
+        if (!isRecord(rawAccount)) {
+          continue;
+        }
+        const nextAccount = { ...rawAccount };
+        let accountChanged = false;
+        for (const key of inheritedPolicyKeys) {
+          if (hasOwnKey(nextAccount, key)) {
+            continue;
+          }
+          const value = rawChannel[key];
+          nextAccount[key] = value && typeof value === "object" ? structuredClone(value) : value;
+          accountChanged = true;
+        }
+        if (accountChanged) {
+          nextAccounts[accountId] = nextAccount;
+        }
+      }
+    }
+    nextChannel.accounts = nextAccounts;
 
     nextChannels[channelId] = nextChannel;
     channelsChanged = true;

@@ -40,7 +40,19 @@ type ServerNotification = {
 
 const CLAUDE_PERMISSION_REPLY_RE = /^(yes|no)\s+([a-km-z]{5})$/i;
 const QUEUE_LIMIT = 1_000;
+const CONVERSATIONS_LIST_LIMIT = 500;
+const MESSAGES_READ_LIMIT = 200;
+const EVENTS_POLL_LIMIT = 200;
+const EVENTS_WAIT_TIMEOUT_LIMIT_MS = 300_000;
 
+function clampPositiveInteger(value: number | undefined, fallback: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(1, Math.floor(value)));
+}
+
+/** Connects the MCP server surface to a Gateway client and queues channel events for polling. */
 export class OpenClawChannelBridge {
   private gateway: GatewayClient | null = null;
   private readonly verbose: boolean;
@@ -159,8 +171,9 @@ export class OpenClawChannelBridge {
     includeLastMessage?: boolean;
   }): Promise<ConversationDescriptor[]> {
     await this.waitUntilReady();
+    const limit = clampPositiveInteger(params?.limit, 50, CONVERSATIONS_LIST_LIMIT);
     const response: SessionListResult = await this.requestGateway("sessions.list", {
-      limit: params?.limit ?? 50,
+      limit,
       search: params?.search,
       includeDerivedTitles: params?.includeDerivedTitles ?? true,
       includeLastMessage: params?.includeLastMessage ?? true,
@@ -192,9 +205,10 @@ export class OpenClawChannelBridge {
     limit = 20,
   ): Promise<NonNullable<ChatHistoryResult["messages"]>> {
     await this.waitUntilReady();
+    const requestLimit = clampPositiveInteger(limit, 20, MESSAGES_READ_LIMIT);
     const response: ChatHistoryResult = await this.requestGateway("chat.history", {
       sessionKey,
-      limit,
+      limit: requestLimit,
     });
     return response.messages ?? [];
   }
@@ -242,7 +256,10 @@ export class OpenClawChannelBridge {
   }
 
   pollEvents(filter: WaitFilter, limit = 20): { events: QueueEvent[]; nextCursor: number } {
-    const events = this.queue.filter((event) => matchEventFilter(event, filter)).slice(0, limit);
+    const eventLimit = clampPositiveInteger(limit, 20, EVENTS_POLL_LIMIT);
+    const events = this.queue
+      .filter((event) => matchEventFilter(event, filter))
+      .slice(0, eventLimit);
     const nextCursor = events.at(-1)?.cursor ?? filter.afterCursor;
     return { events, nextCursor };
   }
@@ -252,6 +269,7 @@ export class OpenClawChannelBridge {
     if (existing) {
       return existing;
     }
+    const waitTimeoutMs = clampPositiveInteger(timeoutMs, 30_000, EVENTS_WAIT_TIMEOUT_LIMIT_MS);
     return await new Promise<QueueEvent | null>((resolve) => {
       const waiter: PendingWaiter = {
         filter,
@@ -261,11 +279,9 @@ export class OpenClawChannelBridge {
         },
         timeout: null,
       };
-      if (timeoutMs > 0) {
-        waiter.timeout = setTimeout(() => {
-          waiter.resolve(null);
-        }, timeoutMs);
-      }
+      waiter.timeout = setTimeout(() => {
+        waiter.resolve(null);
+      }, waitTimeoutMs);
       this.pendingWaiters.add(waiter);
     });
   }

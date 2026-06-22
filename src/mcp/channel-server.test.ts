@@ -159,6 +159,39 @@ describe("openclaw channel mcp server", () => {
         );
       });
 
+      test("clamps direct bridge session limits to the public MCP windows", async () => {
+        const sessionKey = "agent:main:main";
+        const gatewayRequest = vi.fn(async (method: string) => {
+          if (method === "sessions.list") {
+            return { sessions: [] };
+          }
+          if (method === "chat.history") {
+            return { messages: [] };
+          }
+          throw new Error(`unexpected gateway method ${method}`);
+        });
+        const bridge = new OpenClawChannelBridge({} as never, {
+          claudeChannelMode: "off",
+          verbose: false,
+        });
+        attachReadyGateway(bridge, gatewayRequest);
+
+        await bridge.listConversations({ limit: 10_000 });
+        await bridge.readMessages(sessionKey, 10_000);
+
+        expect(gatewayRequest).toHaveBeenNthCalledWith(
+          1,
+          "sessions.list",
+          expect.objectContaining({ limit: 500 }),
+        );
+        // Fork seam: readMessages dispatches chat.history { sessionKey, limit }
+        // (not upstream's sessions.get { key, limit }).
+        expect(gatewayRequest).toHaveBeenNthCalledWith(2, "chat.history", {
+          sessionKey,
+          limit: 200,
+        });
+      });
+
       test("emits Claude channel and permission notifications", async () => {
         const sessionKey = "agent:main:main";
         let mcp: Awaited<ReturnType<typeof connectMcpWithoutGateway>> | null = null;

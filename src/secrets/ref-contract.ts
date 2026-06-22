@@ -1,5 +1,7 @@
 import {
   DEFAULT_SECRET_PROVIDER_ALIAS,
+  isSecretRef,
+  isValidEnvSecretRefId,
   type SecretRef,
   type SecretRefSource,
 } from "../config/types.secrets.js";
@@ -105,4 +107,21 @@ export function formatExecSecretRefIdValidationMessage(): string {
     'and must not include "." or ".." path segments',
     '(example: "vault/openai/api-key").',
   ].join(" ");
+}
+
+/** Validates a complete SecretRef against the shared provider/source/id grammar. */
+export function isValidSecretRef(ref: SecretRef): boolean {
+  if (!isSecretRef(ref)) {
+    return false;
+  }
+  if (!isValidSecretProviderAlias(ref.provider)) {
+    return false;
+  }
+  if (ref.source === "env") {
+    return isValidEnvSecretRefId(ref.id);
+  }
+  if (ref.source === "file") {
+    return isValidFileSecretRefId(ref.id);
+  }
+  return isValidExecSecretRefId(ref.id);
 }
