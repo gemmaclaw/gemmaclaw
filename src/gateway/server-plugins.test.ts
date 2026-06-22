@@ -773,6 +773,27 @@ describe("loadGatewayPlugins", () => {
     expect(getLastDispatchedClientScopes()).not.toContain("operator.admin");
   });
 
+  test("caps plugin session message reads at the max limit", async () => {
+    const serverPlugins = serverPluginsModule;
+    const runtime = await createSubagentRuntime(serverPlugins);
+    serverPlugins.setFallbackGatewayContext(createTestContext("synthetic-session-read-cap"));
+
+    handleGatewayRequest.mockImplementationOnce(async (opts: HandleGatewayRequestOptions) => {
+      expect(opts.req.method).toBe("sessions.get");
+      expect(opts.req.params).toEqual({ key: "s-limited", limit: 1_000 });
+      opts.respond(true, { messages: [{ id: "m-cap" }] });
+    });
+
+    await expect(
+      runtime.getSessionMessages({
+        sessionKey: "s-limited",
+        limit: 9e15,
+      }),
+    ).resolves.toEqual({
+      messages: [{ id: "m-cap" }],
+    });
+  });
+
   test("rejects fallback session deletion without minting admin scope", async () => {
     const serverPlugins = serverPluginsModule;
     const runtime = await createSubagentRuntime(serverPlugins);
