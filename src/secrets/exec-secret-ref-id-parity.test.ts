@@ -57,6 +57,21 @@ describe("exec SecretRef id parity", () => {
     });
   }
 
+  function configAcceptsRef(ref: unknown): boolean {
+    const result = validateConfigObjectRaw({
+      models: {
+        providers: {
+          openai: {
+            baseUrl: "https://api.openai.com/v1",
+            apiKey: ref,
+            models: [{ id: "gpt-5", name: "gpt-5" }],
+          },
+        },
+      },
+    });
+    return result.ok;
+  }
+
   for (const id of [...VALID_EXEC_SECRET_REF_IDS, ...INVALID_EXEC_SECRET_REF_IDS]) {
     it(`keeps config/plan/gateway/plugin parity for exec id "${id}"`, () => {
       const expected = isValidExecSecretRefId(id);
@@ -66,6 +81,23 @@ describe("exec SecretRef id parity", () => {
       expect(
         pluginSdkSecretInput.safeParse({ source: "exec", provider: "vault", id }).success,
       ).toBe(expected);
+    });
+  }
+
+  for (const ref of [
+    { source: "env", provider: "default", id: "OPENAI_API_KEY", extra: "x" },
+    { source: "file", provider: "default", id: "value", extra: "x" },
+    { source: "exec", provider: "vault", id: "vault/openai/api-key", extra: "x" },
+  ]) {
+    it(`rejects non-canonical ${ref.source} refs with extra properties across config/gateway/plugin`, () => {
+      expect(configAcceptsRef(ref)).toBe(false);
+      // Fork seam: gateway schema is compiled with ajv, so call the validator
+      // directly (upstream uses TypeBox .Check()).
+      expect(validateGatewaySecretRef(ref)).toBe(false);
+      expect(pluginSdkSecretInput.safeParse(ref).success).toBe(false);
+      // Note: the fork's isSecretsApplyPlan ref check does not reject extra
+      // properties (a separate seam this commit does not modify), so plan-level
+      // parity for extra-property refs is intentionally not asserted here.
     });
   }
 
