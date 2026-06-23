@@ -384,6 +384,74 @@ describe("memory cli", () => {
     });
   });
 
+  it("reports all active dreaming phases (light + rem + deep) during status", async () => {
+    // Before the fix the status summary only described the deep
+    // (short-term-promotion) phase, so an operator running light or rem
+    // dreaming saw nothing about them. The fix reports every enabled phase.
+    loadConfig.mockReturnValue({
+      plugins: {
+        entries: {
+          "memory-core": {
+            config: {
+              dreaming: {
+                enabled: true,
+                timezone: "UTC",
+                cron: "0 3 * * *",
+                limit: 7,
+                minScore: 0.72,
+                minRecallCount: 4,
+                minUniqueQueries: 2,
+                recencyHalfLifeDays: 5,
+                maxAgeDays: 30,
+                light: {
+                  enabled: true,
+                  cron: "5 * * * *",
+                  limit: 4,
+                  lookbackDays: 2,
+                },
+                rem: {
+                  enabled: true,
+                  cron: "0 6 * * 0",
+                  limit: 3,
+                  lookbackDays: 9,
+                  minPatternStrength: 0.81,
+                },
+              },
+            },
+          },
+        },
+      },
+      agents: {
+        defaults: { heartbeat: { every: "30m" } },
+        list: [{ id: "main", default: true }],
+      },
+    });
+
+    const close = vi.fn(async () => {});
+    mockManager({
+      probeVectorAvailability: vi.fn(async () => true),
+      status: () => makeMemoryStatus({ workspaceDir: "/tmp/openclaw" }),
+      close,
+    });
+
+    const log = spyRuntimeLogs(defaultRuntime);
+    await runMemoryCli(["status", "--agent", "main"]);
+
+    // The fix labels each enabled phase; pre-fix the summary only described the
+    // deep phase with no "light="/"rem="/"deep=" markers.
+    const dreamingLine = log.mock.calls
+      .map((call) => String(call[0]))
+      .find((line) => line.includes("Dreaming:"));
+    expect(dreamingLine).toBeDefined();
+    expect(dreamingLine).toContain("light=");
+    expect(dreamingLine).toContain("lookbackDays=2");
+    expect(dreamingLine).toContain("rem=");
+    expect(dreamingLine).toContain("minPatternStrength=");
+    expect(dreamingLine).toContain("deep=");
+    expect(dreamingLine).toContain("minScore=");
+    expect(close).toHaveBeenCalled();
+  });
+
   it("reports dreaming blocked when another explicit heartbeat agent excludes main", async () => {
     loadConfig.mockReturnValue({
       plugins: {
