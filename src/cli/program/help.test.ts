@@ -132,13 +132,35 @@ describe("configureProgramHelp", () => {
   });
 
   it("prints version and exits immediately when version flags are present", () => {
+    // argv[1] is "openclaw" (the gemmaclaw bin re-execs openclaw.mjs, so
+    // CLI_NAME resolves to "openclaw" at runtime). The version line must still
+    // be branded "Gemmaclaw", matching the --help banner and launcher.
     process.argv = ["node", "openclaw", "--version"];
-    expectVersionExit({ expectedVersion: "OpenClaw 9.9.9-test (abc1234)" });
+    expectVersionExit({ expectedVersion: "Gemmaclaw 9.9.9-test (abc1234)" });
   });
 
   it("prints version and exits immediately without commit metadata", () => {
     process.argv = ["node", "openclaw", "--version"];
     resolveCommitHashMock.mockReturnValue(null);
-    expectVersionExit({ expectedVersion: "OpenClaw 9.9.9-test" });
+    expectVersionExit({ expectedVersion: "Gemmaclaw 9.9.9-test" });
+  });
+
+  it("brands the version line Gemmaclaw and never OpenClaw", () => {
+    process.argv = ["node", "openclaw", "--version"];
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code ?? ""}`);
+    }) as typeof process.exit);
+
+    try {
+      const program = makeProgramWithCommands();
+      expect(() => configureProgramHelp(program, testProgramContext)).toThrow("exit:0");
+      const printed = logSpy.mock.calls.at(0)?.[0] as string;
+      expect(printed.startsWith("Gemmaclaw ")).toBe(true);
+      expect(printed).not.toContain("OpenClaw");
+    } finally {
+      logSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
   });
 });

@@ -259,7 +259,10 @@ describe("openclaw launcher", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("OpenClaw 1.2.3-test (abcdef0)\n");
+    // Launcher fast-path must brand the version line "Gemmaclaw" (matching the
+    // --help banner and dist version paths), never the upstream "OpenClaw".
+    expect(result.stdout).toBe("Gemmaclaw 1.2.3-test (abcdef0)\n");
+    expect(result.stdout).not.toContain("OpenClaw");
     expect(result.stderr).toBe("");
   });
 
