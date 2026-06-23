@@ -143,6 +143,13 @@ Docs: https://docs.openclaw.ai
 - Gateway: require Talk secret authority before setup-code handoff can include Talk secrets. (#85690) Thanks @ngutman.
 - Agents: keep fallback error reporting scoped to the active model candidate so stale prior-provider quota/auth text is not reported for later fallback attempts. (#86134) thanks @zhangguiping-xydt.
 
+## [2026.8.3](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.2...gemmaclaw-v2026.8.3) (2026-06-23)
+
+
+### Bug Fixes
+
+* brand gemmaclaw --version output Gemmaclaw not OpenClaw ([#311](https://github.com/gemmaclaw/gemmaclaw/issues/311)) ([a2e0b63](https://github.com/gemmaclaw/gemmaclaw/commit/a2e0b63f4d3a9f0d020a8e54f3560b8e01ab20e7))
+
 ## [2026.8.2](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.1...gemmaclaw-v2026.8.2) (2026-06-21)
 
 
