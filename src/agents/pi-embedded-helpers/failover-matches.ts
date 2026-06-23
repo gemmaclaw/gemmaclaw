@@ -126,6 +126,17 @@ const ERROR_PATTERNS = {
     // falls through to reason=unknown (#58315).
     /\boperation was aborted\b/i,
     /\bstream (?:was )?(?:closed|aborted)\b/i,
+    // The generic assistant error text "LLM request failed." is produced when
+    // the underlying provider error cannot be formatted into a specific
+    // category. For local providers (LM Studio, Ollama, llama.cpp) this wraps
+    // connection/availability failures when the model is not loaded or the
+    // endpoint is unreachable. Without this match, cron retry and
+    // payload.fallbacks never engage because the error is not classified as any
+    // transient type (#93931). Use a strict exact-match regex so variants like
+    // "LLM request failed: provider rejected the request schema or tool payload."
+    // (a format/schema error, not transient) are NOT caught here — they fall
+    // through to their own pattern classifications.
+    /^llm request failed\.$/i,
   ],
   billing: [
     /["']?(?:status|code)["']?\s*[:=]\s*402\b|\bhttp\s*402\b|\berror(?:\s+code)?\s*[:=]?\s*402\b|\b(?:got|returned|received)\s+(?:a\s+)?402\b|^\s*402\s+payment/i,
