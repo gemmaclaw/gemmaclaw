@@ -3,6 +3,7 @@ import {
   isAuthErrorMessage,
   isBillingErrorMessage,
   isRateLimitErrorMessage,
+  isTimeoutErrorMessage,
 } from "./failover-matches.js";
 
 describe("Z.ai vendor error codes (#48988)", () => {
@@ -75,5 +76,37 @@ describe("Z.ai vendor error codes (#48988)", () => {
     it("auth still classified correctly", () => {
       expect(isAuthErrorMessage("invalid api key provided")).toBe(true);
     });
+  });
+});
+
+describe("generic assistant error text classification (#93931)", () => {
+  it("classifies the bare 'LLM request failed.' as a timeout (transient)", () => {
+    // The generic error text wraps local-provider availability failures (model
+    // not loaded, endpoint unreachable) that should engage retry/fallback. The
+    // fork produces this exact text from assistant-failover.ts and the
+    // lifecycle handlers.
+    expect(isTimeoutErrorMessage("LLM request failed.")).toBe(true);
+  });
+
+  it("classifies lowercase 'llm request failed.' as a timeout (case-insensitive)", () => {
+    expect(isTimeoutErrorMessage("llm request failed.")).toBe(true);
+  });
+
+  it("does NOT match the schema-rejection variant via the exact-match pattern", () => {
+    // A format/schema error is not transient; it must fall through to its own
+    // classification, not the generic LLM-request-failed match.
+    expect(
+      isTimeoutErrorMessage(
+        "LLM request failed: provider rejected the request schema or tool payload.",
+      ),
+    ).toBe(false);
+  });
+
+  it("does NOT match the connection-refused variant via the exact-match pattern", () => {
+    // The colon-suffixed sanitized variant must not be caught by the strict
+    // /^llm request failed\.$/i regex.
+    expect(
+      isTimeoutErrorMessage("LLM request failed: connection refused by the provider endpoint."),
+    ).toBe(false);
   });
 });
