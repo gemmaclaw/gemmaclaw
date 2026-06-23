@@ -249,12 +249,16 @@ export async function listPage(state: CronServiceState, opts?: CronListPageOptio
 export async function add(state: CronServiceState, input: CronJobCreate) {
   return await locked(state, async () => {
     warnIfDisabled(state, "add");
-    await ensureLoaded(state);
+    await ensureLoaded(state, { skipRecompute: true });
     const job = createJob(state, input);
     state.store?.jobs.push(job);
 
-    // Defensive: recompute all next-run times to ensure consistency
-    recomputeNextRuns(state);
+    // Maintenance recompute backfills missing next-run times but never advances
+    // a present past-due slot, so an unrelated add no longer silently discards a
+    // due-but-unfired recurring occurrence on a sibling job (#94323). The full
+    // recomputeNextRuns advanced nextRunAtMs whenever now >= nextRun, dropping
+    // the run with no error and no log. Matches every other ops.ts caller.
+    recomputeNextRunsForMaintenance(state);
 
     await persist(state);
     armTimer(state);
@@ -332,13 +336,18 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
 export async function remove(state: CronServiceState, id: string) {
   return await locked(state, async () => {
     warnIfDisabled(state, "remove");
-    await ensureLoaded(state);
+    await ensureLoaded(state, { skipRecompute: true });
     const before = state.store?.jobs.length ?? 0;
     if (!state.store) {
       return { ok: false, removed: false } as const;
     }
     state.store.jobs = state.store.jobs.filter((j) => j.id !== id);
     const removed = (state.store.jobs.length ?? 0) !== before;
+
+    // Use maintenance recompute (never advances a present past-due slot) so a
+    // remove cannot silently drop a due-but-unfired run on a sibling job (#94323).
+    recomputeNextRunsForMaintenance(state);
+
     await persist(state);
     armTimer(state);
     if (removed) {
