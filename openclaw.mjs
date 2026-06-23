@@ -459,7 +459,11 @@ function tryOutputLauncherVersion(argv) {
     }
     const version = resolveLauncherVersion();
     const commit = resolveLauncherCommit();
-    process.stdout.write(commit ? `OpenClaw ${version} (${commit})\n` : `OpenClaw ${version}\n`);
+    // Keep this branded product name in sync with the --help banner
+    // (src/cli/banner.ts "💎 Gemmaclaw") and the dist version paths
+    // (src/entry.version-fast-path.ts, src/cli/program/help.ts). This launcher
+    // fast-path runs before dist loads and is what `gemmaclaw --version` hits.
+    process.stdout.write(commit ? `Gemmaclaw ${version} (${commit})\n` : `Gemmaclaw ${version}\n`);
     return true;
   } catch {
     return false;

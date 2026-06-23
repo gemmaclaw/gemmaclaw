@@ -114,7 +114,12 @@ export function configureProgramHelp(program: Command, ctx: ProgramContext) {
     hasFlag(process.argv, "--version") ||
     hasRootVersionAlias(process.argv)
   ) {
-    const brandName = CLI_NAME === "openclaw" ? "OpenClaw" : "Gemmaclaw";
+    // Always brand the version line "Gemmaclaw", matching the --help banner
+    // (src/cli/banner.ts "💎 Gemmaclaw") and the launcher fast-path
+    // (openclaw.mjs). The gemmaclaw bin re-execs openclaw.mjs, so CLI_NAME
+    // resolves to "openclaw" at runtime; a CLI_NAME ternary would always pick
+    // the upstream "OpenClaw" string and drift from the rest of the branding.
+    const brandName = "Gemmaclaw";
     const commit = resolveCommitHash({ moduleUrl: import.meta.url });
     console.log(
       commit
