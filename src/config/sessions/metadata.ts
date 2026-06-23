@@ -6,9 +6,17 @@ import {
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
 } from "../../shared/string-coerce.js";
-import { normalizeMessageChannel } from "../../utils/message-channel.js";
+import {
+  INTERNAL_MESSAGE_CHANNEL,
+  isInternalNonDeliveryChannel,
+  normalizeMessageChannel,
+} from "../../utils/message-channel.js";
 import { buildGroupDisplayName, resolveGroupSessionKey } from "./group.js";
 import type { GroupKeyResolution, SessionEntry, SessionOrigin } from "./types.js";
+
+function isSystemEventProvider(provider?: string): boolean {
+  return provider === "heartbeat" || provider === "cron-event" || provider === "exec-event";
+}
 
 const mergeOrigin = (
   existing: SessionOrigin | undefined,
@@ -22,9 +30,21 @@ const mergeOrigin = (
   // moving Slack -> Telegram, or between Slack accounts). Channel-keyed fields belong to the prior
   // channel; drop them so an inbound that omits them does not keep reactions, native threading, and
   // status reads pointed at the previous channel.
+  // Only a real, deliverable channel switch should reset the bound identity. A
+  // non-delivery turn (gateway webchat send, heartbeat/cron/webhook tick,
+  // voice, internal sessions_send, or a system-event provider) derives its
+  // origin provider as an internal channel and must not wipe the session's live
+  // native channel/thread identity even though the session never left it.
+  const nextProvider = next?.provider;
+  const nextIsDeliverableChannel =
+    nextProvider != null &&
+    nextProvider !== INTERNAL_MESSAGE_CHANNEL &&
+    !isInternalNonDeliveryChannel(nextProvider) &&
+    !isSystemEventProvider(nextProvider);
   const channelChanged =
     existing != null &&
-    ((existing.provider != null && next?.provider != null && next.provider !== existing.provider) ||
+    nextIsDeliverableChannel &&
+    ((existing.provider != null && nextProvider !== existing.provider) ||
       (existing.surface != null && next?.surface != null && next.surface !== existing.surface) ||
       (existing.accountId != null &&
         next?.accountId != null &&
@@ -72,9 +92,7 @@ export function deriveSessionOrigin(
   ctx: MsgContext,
   opts?: { skipSystemEventOrigin?: boolean },
 ): SessionOrigin | undefined {
-  const isSystemEventProvider =
-    ctx.Provider === "heartbeat" || ctx.Provider === "cron-event" || ctx.Provider === "exec-event";
-  if (opts?.skipSystemEventOrigin && isSystemEventProvider) {
+  if (opts?.skipSystemEventOrigin && isSystemEventProvider(ctx.Provider)) {
     return undefined;
   }
   const label = normalizeOptionalString(resolveConversationLabel(ctx));
