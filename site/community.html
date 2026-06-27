@@ -1796,7 +1796,35 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-25</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-27</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (4 new or updated since 2026-06-26, 440 hardware-mention entries total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>June 27 sweep, 2026-06-27 00:00 UTC:</em> a compact cycle with four signals across three practical themes. The headline is a <strong>multi-GPU tensor split mode incompatibility</strong> with Gemma 4 26B running across three GPUs (RTX 5080 + 2× 5060 Ti) in llama.cpp: tensor-parallel split causes tool-call loops and reasoning trace repetition in OpenCode, while layer split runs cleanly — a concrete configuration warning for multi-GPU builders. A second post documents a <strong>known image resolution deficit in Gemma 4 12B</strong> compared to Qwen 3.6: the standard llama.cpp vision token range flags for the 31B crash the 12B server, leaving no obvious workaround yet. A community fine-tuner released a <strong>Gemma-4-12B-IT-Uncensored</strong> variant with benchmarks that show abliteration alone costs a large fraction of reasoning capability, while a chain-of-thought SFT step largely recovers it — a useful data point on abliteration cost for this model family. A fourth post from the same cycle (Qwen-centric, touching Gemma 4 in name only) adds peripheral evidence that MTP can reduce code-review quality versus throughput in multi-GPU llama.cpp configurations. Two further threads from the batch were reviewed and excluded as carrying no Gemma-4-specific signal (Ornith-1.0 release and Ornith-1.0 terminology guide).</p>
+<p><strong>Multi-GPU tensor split mode causes tool-call loops with Gemma 4 26B in OpenCode — layer split is safe.</strong> A user running Gemma 4 26B-A4B (and Qwen 3.6 27B) across an <strong>RTX 5080 + 2× RTX 5060 Ti</strong> reports that setting llama.cpp split mode to <strong>tensor</strong> (`-sm tensor`) causes looping problems specifically in tool calls and reasoning traces when using OpenCode. Layer split mode (`-sm layer`, the default for multi-GPU in llama.cpp) works correctly. The user noticed the issue affects both models consistently, suggesting this is a llama.cpp tensor-parallelism behavior rather than a Gemma 4 model defect. No comments were captured at sweep time, so the community consensus on a root cause or fix is unknown. Practical guidance for multi-GPU builders running Gemma 4 26B-A4B with OpenCode or similar agentic frameworks: use layer split (`-sm layer` or omit the flag to accept the default) rather than tensor split until this incompatibility is resolved or investigated in a dedicated thread. Confidence: single-author field report, hardware disclosed, both models affected consistently, no captured community response. (<a href="https://reddit.com/r/LocalLLaMA/comments/1ufy09k" target="_blank" rel="noopener">source</a>, June 26, 2026)</p>
+<p><strong>Gemma 4 12B vision: poor resolution for small-text detection, and the 31B's image token flags crash the 12B server.</strong> A user using Gemma 4 12B as an all-purpose assistant reports a consistent failure to detect smaller text in images that Qwen 3.6 handles reliably. Even larger compositional elements in images fail intermittently. When the user attempted to apply the llama.cpp vision resolution flags documented for the Gemma 4 31B — `--image-min-tokens 560 --image-max-tokens 2240` — the 12B server crashed and quit rather than improving performance. This suggests the 31B's token range parameters are not directly transferable to the 12B. No alternative workaround was captured in the thread. This is a practical limitation note rather than a regression: Gemma 4's image resolution handling is a known area where the community has documented gaps relative to Qwen 3.6 in previous sweeps, and this report extends that pattern to small-text detection on the 12B. For users who rely on image OCR or small-text extraction, Qwen 3.6 remains the stronger choice under llama.cpp at the current community signal level. Confidence: single anecdote, crash confirmed by the author applying 31B flags to 12B, no fix found. (<a href="https://reddit.com/r/LocalLLaMA/comments/1uga06q" target="_blank" rel="noopener">source</a>, June 26, 2026)</p>
+<p><strong>Gemma-4-12B-IT-Uncensored-Opus4.7-CoT: abliteration hurts, CoT SFT largely recovers — a quantified benchmark.</strong> A community packager released `gemma-4-12B-it-uncensored-opus4.7-cot`, a variant of the Gemma 4 12B base model where safety filtering is removed via abliteration and reasoning capability is partially restored via chain-of-thought supervised fine-tuning. The published benchmarks against the base model: <strong>MMLU</strong> 0.777 (base) → 0.635 (abliterated) → <strong>0.739</strong> (this model, SFT); <strong>GSM8K</strong> 0.949 (base) → 0.496 (abliterated) → <strong>0.920</strong> (SFT); <strong>WikiText-2 bits/byte</strong> 1.834 (base) → 2.095 (abliterated) → <strong>1.717</strong> (SFT, better than base). The benchmarks reveal a consistent pattern: raw abliteration degrades Gemma 4 12B substantially (MMLU −18 points, GSM8K −47 points), while the subsequent CoT SFT recovers most of the loss — and notably <em>reduces</em> per-token perplexity below the original (WikiText-2 bits/byte 1.717 < 1.834), which the author attributes to the quality of the CoT fine-tuning data. GGUFs are available on HuggingFace. This is a useful calibration point for practitioners evaluating community-uncensored Gemma 4 variants: the capability cost of abliteration alone is large on this model family; a quality-recovering SFT step is not optional if reasoning benchmarks matter. Limitations: self-reported benchmarks from the releasing author, no third-party reproduction; the WikiText perplexity improvement should be treated as an artifact of the SFT training distribution rather than a general capability gain. Confidence: developer benchmark release, methodology disclosed, independent verification absent. (<a href="https://reddit.com/r/LocalLLaMA/comments/1uf8ksz" target="_blank" rel="noopener">source</a>, June 25, 2026)</p>
+<h3>Open questions</h3>
+<ul class="setup-list">
+<li><strong>What llama.cpp image token flags are correct for the Gemma 4 12B?</strong> The 31B flags (`--image-min-tokens 560 --image-max-tokens 2240`) crash the 12B server. The right parameter range for the 12B is undocumented in the community at this sweep. A working configuration that improves small-text detection without crashing would resolve the practical question from this sweep.</li>
+<li><strong>Does tensor split in llama.cpp consistently cause tool-call loops across all agentic frameworks, or is it specific to the OpenCode integration with Gemma 4?</strong> The report covers one user's OpenCode setup. If the loop behavior is llama.cpp-level (the tensor-parallel execution path mis-handles the attention sink or tool-call grammar), it would affect any framework; if it is an OpenCode prompt-handling issue, it might have a workaround. A second data point from a different framework (Ollama with the Gemma 4 GGUF, a bare llama-server, or a different front end) would help localize the cause.</li>
+<li><strong>Is the CoT SFT improvement in WikiText-2 perplexity for the Uncensored model a training-distribution artifact or a reproducible general gain?</strong> Perplexity below the base model is unusual after abliteration + SFT. If the WikiText improvement is consistent with other perplexity probes (e.g., a diverse domain-balanced test set), it would suggest the CoT data improved the model beyond the abliteration baseline. If it's narrow to WikiText-style text, it may simply reflect the nature of the training corpus.</li>
+</ul>
+<h3>Sources</h3>
+<p>The Gemma-mentioning posts driving this update (June 27 sweep, newest first). All are fresh threads (score ~20, no captured comment threads at sweep time); treat individual numbers as first-look anecdotes rather than settled results:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1uga06q" target="_blank" rel="noopener">Gemma 4 12b needs glasses</a> (Jun 26, 2026 — Gemma 4 12B llama.cpp vision; poor small-text detection; 31B image-min/max-tokens flags crash the 12B server; Qwen 3.6 handles the same images correctly; no fix found)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1ufy09k" target="_blank" rel="noopener">Does llama cpp split mode tensor cause issues?</a> (Jun 26, 2026 — RTX 5080 + 2× 5060 Ti; Gemma 4 26B-A4B + Qwen 3.6 27B split across three GPUs; tensor split mode (`-sm tensor`) causes looping in OpenCode tool calls and reasoning traces; layer split works fine)</li>
+<li>[[R] Gemma-4-12B-IT-Uncensored-Opus4.7-CoT (No Intel Loss)](https://reddit.com/r/LocalLLaMA/comments/1uf8ksz) (Jun 25, 2026 — abliteration + CoT SFT on Gemma 4 12B; MMLU 0.777→0.739, GSM8K 0.949→0.920, WikiText-2 bits/byte 1.834→1.717; GGUFs on HuggingFace; self-reported benchmarks, no independent validation)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1uf2wn9" target="_blank" rel="noopener">Worse quality with MTP - Qwen 3.6, Gemma 4</a> (Jun 25, 2026 — 4× RTX 5070 Ti; Qwen 3.6 27B Q8_K_XL with MTP shows worse code-review output in 8/10 tests versus non-MTP, despite higher TG throughput (50–60 vs 100–120 tok/s); Gemma 4 mentioned in title but post is Qwen-centric; relevant as a multi-GPU MTP quality-tradeoff signal)</li>
+</ul>
+<p>Two Gemma-mentioning threads were reviewed and intentionally excluded for carrying no Gemma-4-specific hardware, quant, or quality signal:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1ufc9vp" target="_blank" rel="noopener">Ornith-1.0 released on Hugging Face</a> (Jun 25, 2026 — announcement of a new open model family; no Gemma 4 mention)</li>
+<li><a href="https://reddit.com/r/LocalLLaMA/comments/1ufykja" target="_blank" rel="noopener">Ornith 1.0 - terminology and concepts explained (basic)</a> (Jun 26, 2026 — introductory guide to Dense vs MoE concepts using Ornith as the example; no Gemma 4 mention)</li>
+</ul>
+<p><em>Last updated: 2026-06-27 (June 27 sweep). Confidence: medium. Key findings: tensor split mode (`-sm tensor`) in llama.cpp causes tool-call loops with Gemma 4 26B-A4B across a 5080+2×5060 Ti setup in OpenCode — use layer split; Gemma 4 12B vision has documented small-text detection gaps vs Qwen 3.6 and the 31B's image token flags crash the 12B server; Gemma-4-12B-IT-Uncensored-Opus4.7-CoT benchmarks show abliteration alone costs MMLU −18 pts and GSM8K −47 pts, CoT SFT recovers most of that. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p>
+<p>---</p>
+<p>---</p>
+<h2>Field Notes — 2026-06-25</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (5 new or updated since 2026-06-24, 434 hardware-mention entries total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>June 25 sweep, 2026-06-25 01:00 UTC:</em> a release-driven cycle with one model drop and three practical reports. The headline is the arrival of <strong>MTP-equipped &quot;Uncensored Balanced&quot; QAT builds of the larger Gemma 4 models</strong> — Gemma 4 26B-A4B and 31B — from the HauhauCS community packager, who claims a <strong>35% (26B-A4B) and 53% (31B) decode speedup from the bundled multi-token-prediction draft heads</strong> and a 0/465 refusal rate on their internal GenRM probe. These are repackages of the official Google QAT weights, not new base models, so the value is the bundled MTP plus the uncensoring rather than any change to Gemma 4's underlying quality. Beyond the release, the cycle adds an Apple Silicon low-quant data point — <strong>Gemma 4 26B-A4B at IQ3_S running ~25 tok/s on a 16 GB M3 MacBook Air</strong>, reported &quot;really close to bf16&quot; for non-coding assistant use — a llama.cpp <strong>Vulkan-backend corruption report</strong> on an old Intel iGPU (duplicate and `<unusedXX>` tokens with Gemma 4 E2B IQ4_NL), and a <strong>multi-GPU PCIe-splitting calibration question</strong> on a 5070 Ti + 4070 box running a Gemma 4 26B agent. One further Gemma-mentioning thread was reviewed and left out for carrying no Gemma-specific signal.</p>
 <p><strong>MTP &quot;Uncensored Balanced&quot; QAT builds of Gemma 4 26B-A4B and 31B claim 35% and 53% decode speedups.</strong> The HauhauCS community packager released MTP-equipped, uncensored &quot;Balanced&quot; builds of the two larger Gemma 4 QAT models — `Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP` and `Gemma4-31B-QAT-Uncensored-HauhauCS-Balanced-MTP` — with the post title claiming a <strong>35% speed boost on the 26B-A4B and 53% on the 31B</strong>. The speedup comes from the bundled <strong>multi-token-prediction (MTP) draft head</strong>, the same speculative-decoding mechanism documented in earlier sweeps (the June 17 RX 6600 XT report measured 64–99% MTP acceptance on Gemma 4 12B QAT). Two things bound how to read the headline numbers. First, MTP gains are workload-dependent: prior community data (the MTP benchmark thread from the back catalog) found speculative decoding helps structured/coding generation but can <em>slow</em> creative writing, so a single percentage is a best-case average rather than a guarantee for your task. Second, these are <strong>repackages of the original Google Gemma 4 26B-A4B-QAT and 31B-QAT weights</strong>, &quot;just uncensored&quot; per the author, with a &quot;light reasoning preamble on the absolute edgiest stuff&quot; — there is no claim of improved reasoning or knowledge over stock Gemma 4, and the author notes a handful of edge-case prompts still deflect on the first try. The provenance signal is moderate: the packager reports nearing 20 million HuggingFace downloads on their account and ~5,000 Discord members, but the 0/465 refusal figure is their own internal GenRM probe, not an independent eval, and no throughput methodology (hardware, quant, context, acceptance rate) is published for the 35%/53% claims. Practical read: if you already run Gemma 4 26B-A4B or 31B QAT and want MTP speculative decoding plus uncensoring in one GGUF, this is a convenient prepackaged path — but verify the speedup on your own hardware and workload, and treat the uncensored behavior as something to validate against your use case rather than assume. Confidence: developer release announcement, self-reported speed and refusal numbers, no independent benchmark. (<a href="https://reddit.com/r/LocalLLaMA/comments/1ueuki7" target="_blank" rel="noopener">source</a>, June 25, 2026)</p>
@@ -2721,10 +2749,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (434 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (440 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (56)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (51)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (30)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (14)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (23)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (273)</button><button class="cat-filter-btn" data-cat="general">Other (121)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (56)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (51)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (32)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (14)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (23)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (276)</button><button class="cat-filter-btn" data-cat="general">Other (123)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -9781,6 +9809,102 @@
   </div>
   <p class="cr-summary">Hey all! I’ve been working on CUDA performance in mistral.rs, and v0.8.2 is focused on CUDA throughput. The result: on Gemma 4 (dense &amp; MoE), mistral.rs is faster than llama.cpp at every point in my release sweep on GB10/H100/B200. See some results b...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tttevw" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="ornith-1.0 released on hugging face including 9b dense, 31b dense, 35b moe, and 397b moe and reporting sota on different benchmark (let's see if this holds). &amp;#32; submitted by &amp;#32; /u/paf1138 [link] &amp;#32; [comments] benchmarking" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1ufc9vp" target="_blank" rel="noopener">Ornith-1.0 released on Hugging Face</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/paf1138</span>
+      <span class="cr-date">2026-06-25</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Including 9B Dense, 31B Dense, 35B MoE, and 397B MoE and reporting sota on different benchmark (let's see if this holds). &amp;#32; submitted by &amp;#32; /u/paf1138 [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1ufc9vp" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="[r] gemma-4-12b-it-uncensored-opus4.7-cot (no intel loss) hi everyone, i just released gemma-4-12b-uncensored-opus4.7-cot . to remove the safety filters without destroying the model's reasoning, i combined a precise ablation method with a cot (chain-of-thought) data fine-tune to fully recover the intelligence loss . it retains its complex reasoning and answers completely unrestricted. i’ve personally quantized the model for local execution: quantization fine-tuning benchmarking google gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uf8ksz" target="_blank" rel="noopener">[R] Gemma-4-12B-IT-Uncensored-Opus4.7-CoT (No Intel Loss)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/One-Pain6799</span>
+      <span class="cr-date">2026-06-25</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hi everyone, I just released Gemma-4-12B-Uncensored-Opus4.7-CoT . To remove the safety filters without destroying the model's reasoning, I combined a precise ablation method with a CoT (Chain-of-Thought) data fine-tune to fully recover the intelligen...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uf8ksz" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="ornith 1.0 - terminology and concepts explained (basic) i made a quick guide for myself while wanting to try the new models, so i share it with you. it's pretty basic, but it may be useful for new people here. i also published the repo with the open code config and the commands: guide quick guide to read before running ornith 1.0, so you actually know what you are downloading / running. this docum… quantization inference" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1ufykja" target="_blank" rel="noopener">Ornith 1.0 - terminology and concepts explained (basic)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/facu_75</span>
+      <span class="cr-date">2026-06-26</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">I made a quick guide for myself while wanting to try the new models, so I share it with you. It's pretty basic, but it may be useful for new people here. I also published the repo with the open code config and the commands: GUIDE Quick guide to read ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1ufykja" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="worse quality with mtp - qwen 3.6, gemma 4 hi. i am self-hosting qwen 3.6 27b q8kxl with llama.cpp on 4x5070ti. (all 4 cards are on single x16 slot bifurcated to 4x4 with risers). i've been testing it on several work repos with opencode cli and in like 8/10 situations the output of non-mtp model is far superior to the mtp ones. the prompt is simple `do a code review of this branch.`. the non mtp produces more findings, with more detaile… hardware quantization inference agents meta-llama qwen gem" data-cats="mid-gpu quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uf2wn9" target="_blank" rel="noopener">Worse quality with MTP - Qwen 3.6, Gemma 4</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Significant_Bar_460</span>
+      <span class="cr-date">2026-06-25</span>
+
+      <span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hi. I am self-hosting Qwen 3.6 27B Q8KXL with Llama.cpp on 4x5070ti. (All 4 cards are on single x16 slot bifurcated to 4x4 with risers). I've been testing it on several work repos with Opencode CLI and in like 8/10 situations the output of non-MTP mo...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uf2wn9" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="does llama cpp split mode tensor cause issues? i split qwen 27b and gemma 4 26b (moe) across a 5080, and 2x 5060ti. i noticed setting split mode to tensor mode will cause looping issues in opencode with tool calls or just through the reasoning traces. anyone else get this or understand why? split mode layer seems to work fine &amp;#32; submitted by &amp;#32; /u/mapsensitive9894 [link] &amp;#32; [comments] meta-llama qwen gemma" data-cats="mid-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1ufy09k" target="_blank" rel="noopener">Does llama cpp split mode tensor cause issues?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/MapSensitive9894</span>
+      <span class="cr-date">2026-06-26</span>
+
+      <span class="cr-cat-badge">Mid-range GPU (8-16 GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">I split qwen 27b and Gemma 4 26b (moe) across a 5080, and 2x 5060ti. I noticed setting split mode to tensor mode will cause looping issues in OpenCode with tool calls or just through the reasoning traces. Anyone else get this or understand why? Split...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1ufy09k" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 12b needs glasses having a lot of fun using gemma 4 as an assistant, but is growing frustrated with the poor default image resolution setting for image vision. tasks like identifying smaller text in an image that qwen 3.6 flies through, gemma 4 are never able to decipher. even larger overall elements of composition it consistently fails at. i tried adding some param to llamacpp that supposedly worked with gemma 4… inference qwen gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uga06q" target="_blank" rel="noopener">Gemma 4 12b needs glasses</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/nixudos</span>
+      <span class="cr-date">2026-06-26</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Having a lot of fun using Gemma 4 as an assistant, but is growing frustrated with the poor default image resolution setting for image vision. Tasks like identifying smaller text in an image that Qwen 3.6 flies through, Gemma 4 are never able to decip...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uga06q" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="anyone tried +- 100b models locally with foreign languages? community discussion comparing gemma 4 31b, qwen 3.6 27b, and glm 4.7 30b on non-english (primarily european) languages. original poster reports gemma 4 31b as the best at czech, noting it &quot;blows their mind&quot; at 18gb. key community finding: gemma 4 31b (16-bit) is reported as &quot;extremely good in hungarian&quot; while the 26b 8-bit variant shows some &quot;slightly chinese&quot; output contamination. expert commenter conclud" data-cats="high-gpu quantization">
   <div class="cr-card-header">
