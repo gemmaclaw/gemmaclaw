@@ -1796,7 +1796,28 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-29</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-06-30</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (3 new or updated since 2026-06-29, 450 hardware-mention entries total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
+<p><em>June 30 sweep, 2026-06-30 00:00 UTC:</em> a compact cycle carrying three watchlist-grade signals rather than headline benchmark data. The strongest finding is a domain-specific structured-output comparison from a custom medical VQA benchmark: one user reports that Gemma 4 completes structured output generation roughly 5× faster than Qwen when thinking mode is enabled and output format is enforced. A second post repeats a recurring DiffusionGemma friction point — the model cannot be loaded in LM Studio without building llama.cpp from a not-yet-merged PR branch. A third post documents a performance regression when migrating from GPT-OSS 20B Q4 to Gemma 4 12B Q8 on the same hardware, dropping from roughly 70 tok/s to 10 tok/s; the configuration flags in the post suggest a likely misconfiguration rather than a model limitation.</p>
+<p><strong>Domain-specific structured-output speed: Gemma 4 runs ~5× faster than Qwen when thinking mode and enforced structured outputs are combined.</strong> A user benchmarked 900 manually labeled scanned medical documents with a false-negative-penalizing scoring scheme, finding that Qwen reasoning ran approximately 5× longer than Gemma 4 when thinking mode was enabled and structured output was enforced. The author notes they could not get Qwen to run thinking mode with structured output enforcement at reasonable speed in their setup. The benchmark results were described as &quot;very surprising&quot; because the model ranking did not match the user's expectations from coding task benchmarks, suggesting this is a domain-specific finding tied to structured output generation rather than a general capability ordering. No hardware disclosure, no cloud baseline comparison details, no specific model quants mentioned, no comments captured. Confidence: single-author custom domain benchmark, no controlled methodology disclosed, no comparison to Qwen without thinking mode as a baseline; treat as a directional signal for structured output generation in Gemma 4 vs Qwen, not a general quality verdict. (<a href="https://reddit.com/r/localllama/comments/1uj7mlh" target="_blank" rel="noopener">source</a>, June 29, 2026)</p>
+<p><strong>DiffusionGemma in LM Studio: still blocked by unmerged llama.cpp PR.</strong> A community member asked whether DiffusionGemma can be run in LM Studio and found that it requires an unmerged PR from the llama.cpp repository to function. Because LM Studio ships its own embedded llama.cpp build, PR-branch features are unavailable until the PR is merged and a new LM Studio release incorporates that build. This is consistent with community reports tracked since June 11 in multiple sweeps. The only working path for DiffusionGemma today is to build llama.cpp from source on the PR branch, which requires manual compilation and is not accessible to users relying on prebuilt frontends. No response or workaround was captured in comments. Confidence: confirmed by multiple reports over multiple weeks; no resolution or workaround available as of this sweep. (<a href="https://reddit.com/r/localllama/comments/1uixmib" target="_blank" rel="noopener">source</a>, June 29, 2026)</p>
+<p><strong>Gemma 4 12B Dense at Q8/Q5 runs ~10 tok/s on a 20 GB GPU — likely a configuration issue, not a model ceiling.</strong> A user migrated from GPT-OSS 20B Q4 (approximately 70 tok/s) to Gemma 4 12B Q8 on what appears to be a server GPU with 20 GB VRAM, reporting a drop to approximately 10 tok/s. The llama.cpp systemd configuration in the post contains several flags that commonly degrade single-user inference performance: `--threads 16` (CPU thread count is irrelevant when the model is fully loaded on GPU), `--prio 2` (reduces process priority), and `-b 4096 -ub 4096` (large batch sizes that add scheduling overhead for low-concurrency workloads). nvidia-smi showed 10 GB of 20 GB VRAM used, confirming the model is fully GPU-loaded. Switching to Q5_K_XL showed no improvement, ruling out quantization as the bottleneck. At 12B Dense Q8, the model requires approximately 13 GB VRAM; the 20 GB card has enough headroom. A working starting point would be: remove or reduce `--threads` to match physical CPU cores (not logical threads), remove `--prio 2`, and reduce batch size to `-b 512 -ub 512` for single-user use. No follow-up or resolution was captured. Hardware: GPU with 20 GB VRAM (exact model not disclosed), running Linux with CUDA. Confidence: single anecdotal misconfiguration report, no resolution captured, no GPU model disclosed; treat as a configuration warning rather than a Gemma 4 capability finding. (<a href="https://reddit.com/r/localllama/comments/1uio284" target="_blank" rel="noopener">source</a>, June 29, 2026)</p>
+<h3>Open questions</h3>
+<ul class="setup-list">
+<li><strong>Does the Gemma 4 vs Qwen structured-output speed difference hold across other structured output frameworks?</strong> The medical VQA benchmark used a single enforcement mechanism and a single hardware setup. The 5× figure could reflect Qwen's longer reasoning traces rather than a fundamental inference architecture difference. A controlled test with thinking mode disabled on both models, then enabled, would isolate the effect.</li>
+<li><strong>When will the DiffusionGemma llama.cpp PR merge?</strong> Multiple posts across six weeks have referenced the same unmerged PR. The community benefit of a merged path is high — it would unlock DiffusionGemma support in all llama.cpp-based frontends (LM Studio, Ollama, Jan, etc.) without requiring source builds.</li>
+<li><strong>What is the realistic single-user inference speed for Gemma 4 12B Dense Q8 on a well-configured 20 GB GPU?</strong> The post in this sweep is a misconfiguration example. A properly configured reference run (minimal threads, small batch, full GPU layers, flash attention) on the same hardware class would close this knowledge gap and give practitioners a reliable baseline.</li>
+</ul>
+<h3>Sources</h3>
+<p>The Gemma-mentioning posts driving this update (June 30 sweep, newest first). All are fresh threads (score ~20, no captured comment threads at sweep time); treat individual numbers as first-look anecdotes rather than settled results:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/localllama/comments/1uj7mlh" target="_blank" rel="noopener">I manually labeled ~900 scanned documents for medical VQA, results were a bit surprising</a> (Jun 29, 2026 — 900-document custom medical VQA benchmark; Gemma 4 ~5× faster than Qwen with thinking + enforced structured output; hardware not disclosed; domain-specific single-author result)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uixmib" target="_blank" rel="noopener">How to run DiffusionGemma in LM Studio?</a> (Jun 29, 2026 — DiffusionGemma blocked by unmerged llama.cpp PR; LM Studio has no workaround; source-build only)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uio284" target="_blank" rel="noopener">Slow performance Unsloth Gemma 12B Q8</a> (Jun 29, 2026 — 20 GB GPU; Gemma 4 12B Q8 at 10 tok/s vs GPT-OSS 20B Q4 at 70 tok/s; likely --threads 16, --prio 2, and large batch size; no resolution captured)</li>
+</ul>
+<p><em>Last updated: 2026-06-30 (June 30 sweep). Confidence: medium. Key findings: Gemma 4 structured output in thinking mode completes ~5× faster than Qwen in a custom domain benchmark (anecdotal, domain-specific); DiffusionGemma still blocked in LM Studio by unmerged llama.cpp PR; Gemma 4 12B Q8 performance regression on 20 GB GPU likely caused by misconfiguration. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p>
+<p>---</p>
+<h2>Field Notes — 2026-06-29</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (4 new or updated since 2026-06-28, 447 hardware-mention entries total) and their top comment threads. Confidence is <strong>medium</strong> unless noted, since this is community signal rather than a controlled benchmark.</p>
 <p><em>June 29 sweep, 2026-06-29 00:00 UTC:</em> a cycle dominated by ecosystem and tooling evidence rather than raw benchmark numbers. The headline signals are not about throughput: they are about where Gemma 4 is being deployed and what gaps practitioners are working around. The strongest single data point is a <strong>complete game NPC backend built on Gemma 4 26B A4B</strong> — a concrete end-to-end application with a production stack (STT, LLM, TTS) and a documented architectural choice to use RAG for prompt length control. Alongside that, a community developer published an <strong>agent harness explicitly designed around Gemma and Qwen failure modes</strong> in small-model settings, listing and addressing a set of known tool-call, state-tracking, and recovery problems that make generic harnesses less suitable for local models. On the infrastructure side, <strong>DeepSpec released speculative decoding draft checkpoints for Gemma 4-12B-it</strong> (Eagle3, DFlash, and DSpark algorithms) as part of an open-source training and evaluation codebase — the first external speculative decode training kit with a public Gemma 4 entry. A fourth practical post documents a <strong>llama.cpp VRAM and buffer analysis script</strong> from a practitioner who uses Gemma 4 MoE as a daily workhorse on a 9060XT 16 GB.</p>
 <p><strong>Game NPC backend built on Gemma 4 26B A4B: SillyTavern architecture, RAG-controlled prompts, fast local response.</strong> A developer published a game-agnostic NPC engine using a local model stack: NVIDIA Parakeet 0.6 for speech-to-text, <strong>Gemma 4 26B A4B</strong> as the inference model, and Qwen3-TTS for voice output. The reported result is &quot;super fast response times with pretty decent quality.&quot; The architectural detail worth noting is the prompt-length strategy: the game has hundreds of possible NPC actions, and only the subset that make contextual sense for the current turn is injected via RAG rather than flooding the prompt with the full action list. This is a practical demonstration of RAG-as-filter for structured constrained generation — a use pattern where Gemma 4 26B A4B's 128K context headroom is available but is deliberately kept short to preserve latency. No specific token-per-second figures are reported; the author's emphasis is on the response speed being subjectively fast enough for real-time game use. The SillyTavern-style architecture comment suggests the harness handles multi-turn memory and character state in addition to the per-turn RAG injection. Hardware not disclosed. Confidence: single-author first-person report, architecture disclosed, no throughput numbers. (<a href="https://reddit.com/r/LocalLLaMA/comments/1uibt9o" target="_blank" rel="noopener">source</a>, June 28, 2026)</p>
@@ -2803,10 +2824,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (447 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (450 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (56)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (51)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (32)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (14)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (23)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (278)</button><button class="cat-filter-btn" data-cat="general">Other (128)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (56)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (51)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (32)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (14)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (23)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (279)</button><button class="cat-filter-btn" data-cat="general">Other (130)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6352,6 +6373,22 @@
   <p class="cr-summary">Hi, so I have a pretty low-end laptop regarding running LLMs locally (NVIDIA GeForce RTX 3050 with 4GB VRAM, AMD Ryzen 7 5800H and 16GB DDR4) and while I'm not looking for anything to realistically work with, I'd be interested in how could I toy with...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tzaw60" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="it’s time, sam, it’s time. mostly /s but, i mean….. i’m no ceo…. but it seems like this would be the absolute perfect time to drop a super powerful gpt-oss-2 to throw a big ol’ wet blanket on anthropic’s ipo. it doesn’t need to be like frontier or anything, just a 20b and a 120b that is as fast as the old versions, add agentic coding focus, and maybe vision capabilities. it would fill the void left by qwen in the 120b size… anthropic google qwen gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uj1kna" target="_blank" rel="noopener">It’s time, Sam, it’s time.</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Porespellar</span>
+      <span class="cr-date">2026-06-29</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Mostly /s but, I mean….. I’m no CEO…. but it seems like this would be the absolute perfect time to drop a super powerful GPT-OSS-2 to throw a big ol’ wet blanket on Anthropic’s IPO. It doesn’t need to be like frontier or anything, just a 20b and a 12...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uj1kna" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="should i buy this rtx 2060 12gb graphics card at around $260 for ai purpose ? i’m interested in running gemma 4 model/s for text only . it runs smooth even on my laptop but gets crazy hot. initially wanted to buy an 8 gb card. but i find this price for 12 gb good. (maybe i can run some image generation models too. but its not important.) it has 6 month manufacturer warranty, and 2 years extended warranty for extra $22. while rtx 3060 12 gb has almost double price. hardware gemma" data-cats="mid-gpu laptop">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6977,6 +7014,22 @@
   </div>
   <p class="cr-summary">I've been experimenting with using lower quants of Gemma 4 26B on my M3 16gb MacBook Air. The Quant runs at a solid 25 tokens per second decoding and is really close to the bf16 for my use cases (No coding, tool calling). Do I have confirmation bias ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1ueb1n1" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="i manually labeled ~900 scanned documents for medical vqa, results were a bit surprising this is a medical vqa of 900 scanned real medical documents that i personally labeled, the scores heavily punish false negatives for security reasons... the results were very surprising since i thought the same lineup will transfer from coding task benchmark to here but it didn't... i thought it might be worth discussing here. for cloud models they all get the same (or equivalent) thinking effort… benchmarki" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uj7mlh" target="_blank" rel="noopener">I manually labeled ~900 scanned documents for medical VQA, results were a bit surprising</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Littlepharaoh</span>
+      <span class="cr-date">2026-06-29</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">This is a medical VQA of 900 scanned real medical documents that I personally labeled, the scores heavily punish false negatives for security reasons... The results were very surprising since i thought the same lineup will transfer from coding task b...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uj7mlh" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="what llms+mmproj can recognize width of pci express slots on the motherboard? edit: the upvoted comment seems to imply i have failed to add &quot;physical layout&quot; to my question. i might hope even small llms are smart enough to answer what they see and then add info what it means. i have tried to get several llms to tell me exactly what ports i have on photo of my motherboard (view from above same as attached, photo of part of the board having barely more than pcie slots). iirc… gemma" data-cats="general">
   <div class="cr-card-header">
@@ -9879,6 +9932,22 @@
   </div>
   <p class="cr-summary">Did anyone manage to launch that in LMStudio? I am on the most recent update with the most recent llama.cpp available in LMStudio. I downloaded the QAT assistant model, and it doesn't show up in speculative decoding side panel. Am I missing something...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u0jrsc" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="slow performance unsloth gemma 12b q8 i recently replaced gpt-oss 20b q4 with gemma 4 12b q8 but i went from roughly 70 t/s to 10 t/s. am i doing something wrong? in the current session i am trying a q5 modell with no change in performance meassured against the q8. [service] type=simple user=root workingdirectory=/root/llama.cpp execstart=/root/llama.cpp/build/bin/llama-server \ -m /root/models/gemma-4-12b-it-ud-q5kxl.gguf \ --host… hardware quantization inference meta-llama gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uio284" target="_blank" rel="noopener">Slow performance Unsloth Gemma 12B Q8</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/FishIndividual2208</span>
+      <span class="cr-date">2026-06-29</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">I recently replaced GPT-OSS 20B Q4 with Gemma 4 12B Q8 but i went from roughly 70 t/s to 10 t/s. Am I doing something wrong? In the current session I am trying a Q5 modell with no change in performance meassured against the Q8. [Service] Type=simple ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uio284" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="9060 xt 16gb vs 9070 vs 9070 xt performance i'm still trying to figure out what parts to buy for a good local llm machine, and i was wondering how much of a performance difference there would be between a 9060 xt 16, a 9070 and a 9070 xt (for llm inference only). notably i have three questions: the 9060 xt 16 has about half the bandwidth of the 9070 (xt), does that basically mean it's going to be twice as slow? the 9070 has the same memory… gemma" data-cats="general">
   <div class="cr-card-header">
