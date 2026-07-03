@@ -21,20 +21,31 @@ type PackageJson = {
 
 const OPENCLAW_VERSION_RANGE_RE = /^>=\d{4}\.\d{1,2}\.\d{1,2}(?:[-.][^"\s]+)?$/u;
 
+// Bundled extensions declare their host package as "gemmaclaw"; "openclaw"
+// remains recognized for plugins ported from upstream.
+const HOST_PACKAGE_DEPENDENCY_KEYS = ["gemmaclaw", "openclaw"] as const;
+
 function syncOpenClawDependencyRange(
   deps: Record<string, string> | undefined,
   targetVersion: string,
 ): boolean {
-  const current = deps?.openclaw;
-  if (!current || current === "workspace:*" || !OPENCLAW_VERSION_RANGE_RE.test(current)) {
+  if (!deps) {
     return false;
   }
-  const next = `>=${targetVersion}`;
-  if (current === next) {
-    return false;
+  let changed = false;
+  for (const key of HOST_PACKAGE_DEPENDENCY_KEYS) {
+    const current = deps[key];
+    if (!current || current === "workspace:*" || !OPENCLAW_VERSION_RANGE_RE.test(current)) {
+      continue;
+    }
+    const next = `>=${targetVersion}`;
+    if (current === next) {
+      continue;
+    }
+    deps[key] = next;
+    changed = true;
   }
-  deps.openclaw = next;
-  return true;
+  return changed;
 }
 
 function syncPluginApiVersion(pkg: PackageJson, targetVersion: string): boolean {
