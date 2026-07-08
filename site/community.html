@@ -1845,7 +1845,64 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-07-07</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes — 2026-07-08</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (10 new posts from the July 7, 2026 sweep, 493 hardware-mention entries total) and their threads. Confidence is <strong>low-to-medium</strong> this cycle: the July 7 ingest again fell back to Reddit's Atom feed, so no comment threads were captured and every post score is a placeholder (~20). Treat each item below as a single-author anecdote with no community corroboration yet. Where an author published methodology or repro scripts, that is called out per item.</p>
+<p><em>July 8 sweep, 2026-07-08 00:00 UTC:</em> the clearest theme of the cycle is <strong>Gemma 4's smallest variants earning their keep on edge, low-VRAM, mobile, and browser hardware</strong> — and a parallel wave of <strong>runtime work (speculative decoding and CPU decode) that speeds Gemma 4 up without new silicon.</strong> The standout hardware datapoint is one Gemma 4 E2B doing vision, audio, and RAG at once on a <strong>4 GB GTX 1650</strong>. E4B shows up inside two shipping products (a cross-platform text-transform app and an on-device mobile STT/TTS app), and Gemma 4 12B runs fully in a browser with text, image, and audio input. On the runtime side, a Mac MLX port of DeepSeek's DSpark drafter gives Gemma 4 12B a <strong>lossless ~1.4–1.6× (up to ~2× on code/math)</strong> speedup on an M4 Pro, mistral.rs claims <strong>up to 1.8× faster CPU decode than llama.cpp</strong>, and DFlash speculative decoding has now merged into llama.cpp (the same author previously measured 3.34× MTP on Gemma 4). Two useful caveats round out the sweep: a Jacobian-Lens experiment builds a working <strong>hallucination detector for Gemma 4 E4B</strong>, and one coding-harness author reports Gemma 4 simply does not work well in his setup. No controlled benchmarks were published this cycle.</p>
+<p><strong>Edge / low-VRAM headline: one Gemma 4 E2B does vision, audio, and RAG simultaneously on a 4 GB GTX 1650, kept real-time.</strong> A developer runs a single `gemma-4 E2B` through `llama-server` as the <em>only</em> model behind a local tool that watches the screen and lets the user search and chat over that history later. The one model covers all three jobs: it reads the screen and turns it into structured info (which app, what the user is doing, rough layout); it handles audio — voice memos plus meeting transcription — using <strong>E2B's built-in audio encoder, so no separate Whisper is bolted on</strong>; and it does the chat/RAG over accumulated history plus daily summaries. Because everything shares one GPU, the author built it on a <strong>4 GB GTX 1650</strong> and optimized aggressively to keep it a background service: `llama-server` runs with `--parallel 1` (a single slot — on 4 GB the author would rather have one good response than two slow ones), and an incoming chat message pre-empts an in-flight screen analysis by closing the HTTP connection, which makes `llama-server` drop the slot in under a second before answering. The killed analysis is re-queued. For Gemmaclaw this is the most useful edge datapoint of the cycle: E2B's unified multimodal design lets a genuinely tiny 4 GB card cover screen understanding, transcription, and retrieval from one model, provided you serialize the work. Confidence: single-author anecdote, no comments, no measured tokens-per-second or latency figures; the &quot;real time&quot; claim is subjective and hardware-specific. (<a href="https://reddit.com/r/localllama/comments/1upx3gm" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<p><strong>E4B in shipping products: system-wide text transforms on desktop and on-device STT/TTS on mobile.</strong> Two independent developers report Gemma 4 E4B as the local model behind a real product this cycle. <em>Rewire Text</em> is a Windows + macOS menu-bar/tray app that transforms text in any app from a hotkey; deterministic transforms (case, whitespace, Markdown, encoding) run locally with no model, while AI transforms (style/tone rewrites, proofreading, summarization, translation) use either a remote BYOK API or a <strong>local model served through LM Studio, Ollama, or llama.cpp</strong> — the developer reports &quot;good success with Gemma 4 E4B&quot; and frames local models as the obvious privacy-preserving choice (<a href="https://reddit.com/r/localllama/comments/1uqbfun" target="_blank" rel="noopener">1uqbfun</a>). Separately, <em>Off Grid AI Mobile</em> — an on-device privacy-first app — added text-to-speech to its existing text/image/transcription features and reports <strong>completely offline, real-time STT + TTS with reasoning using Gemma 4 E4B</strong> (<a href="https://reddit.com/r/localllama/comments/1uq4q9e" target="_blank" rel="noopener">1uq4q9e</a>). Both are developer self-reports for paid products, so treat them as adoption signals rather than benchmarks: they show E4B is now considered good enough to embed in shipping consumer software, but neither discloses hardware, quantization, throughput, or latency. Confidence: promotional single-author posts, no measurements, no independent verification.</p>
+<p><strong>Browser tier: Gemma 4 runs fully local in a browser with text, image, and audio input.</strong> A developer building a browser-model playground reports that Gemma 4 works in-browser with <strong>text, image, and audio input</strong> — &quot;I did not expect that&quot; — alongside transcription and speech use cases, via a demo site (`browserlab.missionsquad.ai`) and an open-source SDK (`github.com/MissionSquad/BrowserAI`) for embedding local browser models in other projects (<a href="https://reddit.com/r/localllama/comments/1upp3pv" target="_blank" rel="noopener">1upp3pv</a>). This continues a multi-sweep thread of WebGPU/browser Gemma 4 reports (the May Transformers.js + Reachy Mini demo and the unverified 255 tok/s WebGPU claim from the July 3 sweep). It is a capability confirmation, not a performance report: no throughput, model variant, quantization, or browser/GPU details are given. Confidence: developer demo, no measured performance, no independent replication.</p>
+<p><strong>Apple Silicon speculative decoding: a Mac MLX port of DSpark gives Gemma 4 12B a lossless ~1.4–1.6× (up to ~2× on code/math).</strong> A developer ported DeepSeek's <strong>DSpark</strong> speculative-decoding drafter (from the DeepSpec repo) to native MLX because no Mac port existed. The key property is that it is <strong>lossless</strong>: DSpark is an EAGLE-style drafter, so the target model still verifies every drafted token and the output is identical to normal decoding (byte-for-byte for greedy up to floating-point ties; a verified exact sample in temperature mode). It works today on Qwen3 4B/8B/14B and <strong>Gemma 4 12B</strong>. Measured on an <strong>M4 Pro, warm, against 8-bit instruct targets</strong> using the official `mlx_lm`/`mlx_vlm` tools as the baseline, the author reports roughly <strong>1.4–1.6× single-user, up to ~2× on code/math with Gemma</strong> — and is candid that this is below the 2–4× often quoted for speculative decoding. For Apple Silicon Gemma 4 12B users this is a rare <em>lossless</em> speedup with disclosed methodology and a runnable OpenAI-compatible server. Confidence: author-measured with a stated baseline and repro tool, but single-run single-machine, no variance reported, and no comment corroboration. (<a href="https://reddit.com/r/localllama/comments/1upxtf3" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<p><strong>CPU-only runtime: mistral.rs v0.9.0 claims up to 1.8× faster CPU decode than llama.cpp on x86 and ARM.</strong> The mistral.rs author released v0.9.0 with granular CPU optimizations and reports that on <strong>Qwen3 4B Q4_K, mistral.rs decodes faster than llama.cpp at every context depth measured</strong>, on both <strong>x86 (Sapphire Rapids) and ARM (GB10)</strong> — up to 1.8×. The post states the optimizations are general (AVX2/AVX512 on x86, NEON on ARM) and that the engine runs Gemma 4 among other models; full methodology, tables, and repro scripts are linked in the release report. The headline number is a Qwen measurement, not a Gemma one, so the Gemma-specific gain is unverified — but a faster CPU decode path is directly relevant to the CPU-only and low-power Gemma 4 tier that recurs in these sweeps (the i5-6500 and N100 reports from the July 4 cycle). Confidence: vendor benchmark from the engine's own author with published methodology and repro; independent numbers and a Gemma-specific measurement are still needed. (<a href="https://reddit.com/r/localllama/comments/1upynpt" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<p><strong>llama.cpp gains DFlash speculative decoding — and the same author's earlier MTP run hit 3.34× on Gemma 4.</strong> A practitioner reports that <strong>DFlash</strong> — speculative decoding with a block-diffusion drafter from z-lab that fills a block of up to 15 tokens per pass — has now <strong>merged into llama.cpp (PR #22105)</strong>, shipped with a one-click Docker-compose llama-server setup. Their new run measures <strong>4.44× at 36K context on Qwen 3.6 27B on an RTX 6000 PRO</strong> (NVIDIA aiperf synthetic sweeps, greedy, concurrency 1). The Gemma 4 relevance is by lineage: this is the same author whose <strong>prior MTP benchmark reached 3.34× on Gemma 4</strong>, and DFlash is now a merged, drop-in alternative drafter in the same runtime. No Gemma 4 DFlash number was published yet, so the direct Gemma speedup is an open question, but the tooling is now upstream. Confidence: rigorous disclosed methodology for the Qwen result; the Gemma 4 figure quoted here is the author's earlier MTP measurement, not a new DFlash-on-Gemma benchmark. (<a href="https://reddit.com/r/localllama/comments/1uq0h4o" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<p><strong>Reliability tooling: a Jacobian-Lens experiment builds a working &quot;about-to-hallucinate&quot; detector for Gemma 4 E4B.</strong> Prompted by Anthropic's Global Workspace / Jacobian Lens paper, a community member fit interpretability &quot;lenses&quot; for <strong>Gemma 4 E4B, Gemma 4 12B, Gemma 4 12B abliterated, Gemma 4 26B MoE, and Qwen 3.6 27B</strong>, then turned it into a practical question: can you tell when a small local model is about to confidently guess? The observation: when the model knows the answer the internal &quot;workspace&quot; looks calm (one candidate wins early, layers agree); when it is about to confidently BS, competing candidates survive into the deep layers before a fluent answer is picked. Tested on <strong>500 TriviaQA questions per model</strong>, on <strong>Gemma 4 E4B</strong> confident answers with a <em>clean</em> workspace were <strong>77% correct</strong> versus <strong>42% correct</strong> for a <em>noisy</em> workspace — and a tiny logistic-regression router on top of that signal makes the distinction usable. Repo, demo, and HF lenses are published. This is a genuinely useful Known-limits datapoint: it quantifies how often confident Gemma 4 E4B answers are wrong and offers a lightweight way to flag the risky ones. Confidence: single-author research anecdote with published code and a concrete metric, but a custom method on one QA set, not independently reproduced. (<a href="https://reddit.com/r/localllama/comments/1upy31x" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<p><strong>Harness caveat: one coding/computer-use harness author reports Gemma 4 &quot;does not work well&quot; in his setup.</strong> The author of <em>Koder</em>, a local browser-UI coding and computer-use agent harness, released it publicly and is explicit that it is tuned for his specific scenario — <strong>Linux, llama.cpp, Qwen 3.6 27B Q8</strong> — where he calls it &quot;rock solid,&quot; while noting plainly that <strong>&quot;for me Gemma 4 does not work well with this.&quot;</strong> No configuration detail, chat template, or failure mode is given for the Gemma 4 case. It is a single negative anecdote, not a controlled comparison, but it is a useful counterweight to the positive small-model reports above: agentic coding/computer-use harnesses remain harness-and-template sensitive for Gemma 4, and a harness tuned around Qwen may not transfer. Confidence: offhand single-author remark, no repro, no error detail. (<a href="https://reddit.com/r/localllama/comments/1upqbqz" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<p><strong>Reference: the Gemma 4 Technical Report was posted.</strong> A link to the <strong>Gemma 4 Technical Report</strong> (arXiv 2607.02770) surfaced in the sweep — logged here as a primary-source reference for readers who want architecture and training details behind the community reports above. No community analysis was attached to the post. (<a href="https://reddit.com/r/localllama/comments/1uprjf3" target="_blank" rel="noopener">source</a>, July 7, 2026)</p>
+<h3>Best current setup (this cycle's additions)</h3>
+<ul class="setup-list">
+<li><strong>Tiny / 4 GB GPU:</strong> a single Gemma 4 <strong>E2B</strong> on `llama-server` with `--parallel 1` can cover vision + audio + RAG at once if you serialize requests — demonstrated on a 4 GB GTX 1650 (<a href="https://reddit.com/r/localllama/comments/1upx3gm" target="_blank" rel="noopener">1upx3gm</a>). Anecdotal, no throughput published.</li>
+<li><strong>Apple Silicon (M4 Pro), Gemma 4 12B:</strong> add the <strong>mlx-dspark</strong> drafter for a lossless ~1.4–1.6× (up to ~2× code/math) at 8-bit (<a href="https://reddit.com/r/localllama/comments/1upxtf3" target="_blank" rel="noopener">1upxtf3</a>).</li>
+<li><strong>CPU-only:</strong> <strong>mistral.rs v0.9.0</strong> is worth trying as a faster-decode alternative to llama.cpp on x86/ARM (Gemma-specific gain unverified) (<a href="https://reddit.com/r/localllama/comments/1upynpt" target="_blank" rel="noopener">1upynpt</a>).</li>
+<li><strong>Embedded in apps / mobile:</strong> Gemma 4 <strong>E4B</strong> is the variant developers are shipping for text transforms and on-device STT/TTS (<a href="https://reddit.com/r/localllama/comments/1uqbfun" target="_blank" rel="noopener">1uqbfun</a>, <a href="https://reddit.com/r/localllama/comments/1uq4q9e" target="_blank" rel="noopener">1uq4q9e</a>).</li>
+</ul>
+<h3>What works</h3>
+<ul class="setup-list">
+<li>Gemma 4 <strong>E2B</strong> as a one-model multimodal stack (screen vision + audio transcription + RAG) on a 4 GB GPU, using its native audio encoder instead of a separate Whisper.</li>
+<li>Gemma 4 <strong>E4B</strong> as an embeddable local model for desktop text transforms (via LM Studio / Ollama / llama.cpp) and offline mobile STT/TTS.</li>
+<li>Gemma 4 <strong>12B</strong> fully in-browser with text, image, and audio input; and a <strong>lossless</strong> MLX speculative-decode speedup on M4 Pro.</li>
+<li>Speculative-decoding and CPU-decode runtimes are advancing fast: DFlash merged into llama.cpp, mistral.rs claims up to 1.8× faster CPU decode.</li>
+</ul>
+<h3>Known limits</h3>
+<ul class="setup-list">
+<li>Every number this cycle is a single-author, single-run anecdote with placeholder scores and no comment corroboration (Atom-fallback ingest).</li>
+<li>On a 4 GB card the multimodal E2B stack must run one request at a time (`--parallel 1`); concurrent work is not viable at that VRAM.</li>
+<li>Confident Gemma 4 E4B answers are wrong a meaningful fraction of the time — measured at 42% correct when the internal &quot;workspace&quot; is noisy versus 77% when clean on 500 TriviaQA (<a href="https://reddit.com/r/localllama/comments/1upy31x" target="_blank" rel="noopener">1upy31x</a>).</li>
+<li>Agentic coding/computer-use harnesses are still template-sensitive: at least one author finds Gemma 4 &quot;does not work well&quot; in a harness tuned for Qwen 3.6 27B (<a href="https://reddit.com/r/localllama/comments/1upqbqz" target="_blank" rel="noopener">1upqbqz</a>).</li>
+<li>The mistral.rs 1.8× and DFlash 4.44× headline numbers were measured on Qwen models, not Gemma 4; the Gemma-specific gains are not yet published.</li>
+</ul>
+<h3>Open questions</h3>
+<ul class="setup-list">
+<li><strong>What tokens-per-second does the one-model Gemma 4 E2B multimodal stack actually sustain on a 4 GB GTX 1650?</strong> The report proves the workload fits and stays interactive but publishes no throughput or latency numbers; a measured screen-analysis and chat latency curve would turn a promising build into an evaluable low-VRAM recommendation.</li>
+<li><strong>What DFlash speedup does Gemma 4 (12B or 31B) get in llama.cpp now that PR #22105 has merged?</strong> The 4.44× figure is Qwen 3.6 27B; the author's Gemma number (3.34×) predates DFlash and used MTP. A direct DFlash-on-Gemma-4 benchmark on the same rig would settle whether Gemma matches, beats, or trails Qwen on the new drafter.</li>
+<li><strong>Does mistral.rs's up-to-1.8× CPU decode advantage hold for Gemma 4 specifically?</strong> The published sweep is Qwen3 4B Q4_K; a Gemma 4 E2B/E4B/12B CPU decode comparison against llama.cpp on the same x86 and ARM hardware would make this directly citable for the CPU-only and low-power Gemma tier.</li>
+<li><strong>How well does the Jacobian-Lens hallucination router generalize beyond TriviaQA and E4B?</strong> The 77%/42% split is compelling on one QA set; whether the clean-vs-noisy-workspace signal transfers to coding, RAG, or the larger Gemma 4 12B/26B variants would determine if this is a practical reliability tool or a single-benchmark curiosity.</li>
+</ul>
+<h3>Sources</h3>
+<p>The Gemma-mentioning posts driving this update (July 8 sweep, newest first). The July 7 ingest fell back to Reddit's Atom feed, so <strong>no comment threads were captured and all post scores are placeholders (~20)</strong> — treat every item as an uncorroborated single-author anecdote, not a settled result:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/localllama/comments/1upx3gm" target="_blank" rel="noopener">Running a vision + audio + reasoning on one Gemma 4 E2B locally on 4 GB VRAM — and keeping it real time</a> (Jul 7, 2026 — one `gemma-4 E2B` via `llama-server`, only model; screen vision + voice-memo/meeting transcription via E2B's audio encoder (no Whisper) + chat/RAG over history; 4 GB GTX 1650; `--parallel 1` single slot; chat pre-empts screen analysis by dropping the slot in <1s; no measured TPS)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uqbfun" target="_blank" rel="noopener">Rewire Text — system-wide text transforms on Windows and macOS with local AI support</a> (Jul 7, 2026 — menu-bar text-transform app; deterministic transforms local, AI transforms via BYOK API or local model through LM Studio / Ollama / llama.cpp; developer reports &quot;good success with Gemma 4 E4B&quot;; $29 product; no hardware or speed data)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uq4q9e" target="_blank" rel="noopener">Completely on-device offline real time STT and TTS with reasoning using Gemma 4 E4B</a> (Jul 7, 2026 — Off Grid AI Mobile; added TTS to text/image/transcription; offline real-time STT+TTS with Gemma 4 E4B on-device; promotional; no hardware/latency figures)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1upp3pv" target="_blank" rel="noopener">I made a fun site to test out some small models in the browser</a> (Jul 7, 2026 — Gemma 4 runs in-browser with text, image, and audio input; demo `browserlab.missionsquad.ai`; open-source `MissionSquad/BrowserAI` SDK; capability confirmation, no throughput/variant/quant details)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1upxtf3" target="_blank" rel="noopener">mlx-dspark: DeepSeek's DSpark drafter running lossless on a Mac (native MLX, ~1.6×, OpenAI server + benchmarks)</a> (Jul 7, 2026 — MLX port of DSpark EAGLE-style drafter; lossless (target verifies every token); works on Qwen3 4B/8B/14B and Gemma 4 12B; M4 Pro, warm, 8-bit instruct targets vs official mlx_lm/mlx_vlm; ~1.4–1.6× single-user, up to ~2× on code/math with Gemma)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1upynpt" target="_blank" rel="noopener">mistral.rs v0.9.0: up to 1.8x faster CPU decode than llama.cpp on x86 and ARM</a> (Jul 7, 2026 — Qwen3 4B Q4_K decodes faster than llama.cpp at every measured context depth on x86 Sapphire Rapids and ARM GB10; AVX2/AVX512/NEON; runs Gemma 4; methodology + repro in release report; Gemma-specific number not published)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uq0h4o" target="_blank" rel="noopener">I tested freshly merged DFlash in llama.cpp on Qwen 3.6 27B ... 4.44x faster at 36K context ... RTX 6000 PRO</a> (Jul 7, 2026 — DFlash (block-diffusion drafter from z-lab, up to 15 tokens/pass) merged into llama.cpp PR #22105; 4.44× at 36K on Qwen 3.6 27B, RTX 6000 PRO, aiperf greedy concurrency 1; same author's earlier MTP run = 3.34× on Gemma 4; no DFlash-on-Gemma number yet)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1upy31x" target="_blank" rel="noopener">I tested Anthropic's new Jacobian Lens on open models, then it turned into a local-model hallucination router</a> (Jul 7, 2026 — lenses fit for Gemma 4 E4B/12B/12B-abliterated/26B-MoE + Qwen 3.6 27B; clean vs noisy &quot;workspace&quot; predicts correctness; 500 TriviaQA/model; Gemma 4 E4B clean-workspace 77% correct vs noisy 42%; logistic-regression router; repo/demo/HF published)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1upqbqz" target="_blank" rel="noopener">Koder: browser UI based harness for coding and computer use</a> (Jul 7, 2026 — local coding/computer-use agent harness; tuned for Linux + llama.cpp + Qwen 3.6 27B Q8 (&quot;rock solid&quot;); author notes &quot;for me Gemma 4 does not work well with this&quot;; no detail on the Gemma failure)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uprjf3" target="_blank" rel="noopener">Gemma 4 Technical Report</a> (Jul 7, 2026 — link to the Gemma 4 Technical Report, arXiv 2607.02770; primary-source reference, no community analysis attached)</li>
+</ul>
+<p><em>Last updated: 2026-07-08 (July 8 sweep). Confidence: low-to-medium (Atom-fallback ingest, no comment threads, placeholder scores). Key findings: Gemma 4's small variants are proving out on edge/low-VRAM/mobile/browser hardware — one E2B does vision+audio+RAG on a 4 GB GTX 1650 with `--parallel 1`; E4B is shipping inside desktop text-transform and mobile STT/TTS apps; 12B runs fully in-browser with text/image/audio. Runtime gains: an MLX port of DSpark gives Gemma 4 12B a lossless ~1.4–1.6× (up to ~2× code/math) on M4 Pro, mistral.rs v0.9.0 claims up to 1.8× faster CPU decode than llama.cpp (Qwen-measured), and DFlash merged into llama.cpp (PR #22105; author's prior Gemma MTP = 3.34×). Caveats: a Jacobian-Lens router flags Gemma 4 E4B hallucinations (clean 77% vs noisy 42% correct on TriviaQA), and one harness author finds Gemma 4 &quot;does not work well&quot; in a Qwen-tuned coding/computer-use setup. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p>
+<p>---</p>
+<h2>Field Notes — 2026-07-07</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (5 new posts from the July 6, 2026 sweep, 483 hardware-mention entries total) and their threads. Confidence is <strong>low-to-medium</strong> this cycle: the July 6 ingest was forced onto the Reddit Atom fallback because the JSON API was blocked, so no comment threads were captured and every post score is a placeholder. Treat each item below as a single-author anecdote with no community corroboration yet.</p>
 <p><em>July 7 sweep, 2026-07-07 00:00 UTC:</em> a cycle with no benchmark data and a clear practitioner theme — <strong>deployment and orchestration questions outnumber results.</strong> Two of the five Gemma-mentioning posts are Apple Silicon reports, and both circle the same wall: on unified-memory Macs the limiting factor for Gemma 4 (and every other local model tested) is context length, not model size. The most useful signal is a hands-on account of a <strong>map-reduce agent pattern</strong> used to work around that wall on an M5 128 GB machine. Two more posts extend Gemma 4 into agentic desktop tooling — <strong>AnythingLLM's &quot;OpenComputer&quot;</strong> drives an observable, isolated VM with a Gemma 4 12B QAT model on an M4 Pro — and into casual one-shot coding, where <strong>Gemma 4 12B at Q8_0 produced a working (if rough) WebGL bowling simulator</strong> through the opencode harness. A laptop-shopping question about the <strong>Framework 13 Pro</strong> and a low-content sentiment post about Qwen-vs-Gemma benchmark stagnation round out the sweep. No new speeds, quant comparisons, or hardware benchmarks were published this cycle.</p>
 <p><strong>Apple Silicon unified memory: context length, not parameter count, is the real Gemma 4 bottleneck — and map-reduce is the community's workaround.</strong> A practitioner running local models on a MacBook Pro M5 with 128 GB of unified memory reports that the binding constraint is context size, not which model is loaded. Across `qwen3.6`, DeepSeek V4 Flash, and `gemma4` variants, inference &quot;slows to a crawl&quot; once a conversation grows long — the author puts the practical bottleneck at around <strong>16k tokens</strong>, which is already near the default working context for a heavier agent harness. Their response is an explicitly stateless design: chop every task into small pieces, spin up a fresh short-context session per piece, and pass only the summarized output forward to the next step — a map-reduce shape where many small parallel workers each do one tiny extraction and an aggregator sees only the short summaries. The concrete use case given is an overnight multi-source scrape feeding a morning dashboard, which the author says is &quot;unusable locally&quot; with the naive single-growing-context approach. The open frustration is tooling: the poster notes that CrewAI, AutoGen, and default LangChain all drag the full history along, the opposite of what a tiny-context-per-call pattern needs. For Gemmaclaw readers this is the most actionable item of the cycle because it reframes the Apple Silicon buying question: 128 GB of unified memory does not buy you long-context comfort, so architecting around short contexts matters more than raising the memory ceiling. Confidence: single-author anecdote, no comment corroboration, no per-context TPS numbers; the ~16k figure is a subjective &quot;feels slow&quot; threshold, not a measured latency curve. (<a href="https://reddit.com/r/localllama/comments/1upatna" target="_blank" rel="noopener">source</a>, July 6, 2026)</p>
@@ -3027,10 +3084,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (483 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (493 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (65)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (54)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (32)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (15)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (24)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (292)</button><button class="cat-filter-btn" data-cat="general">Other (144)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (66)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (54)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (32)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (17)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (24)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (295)</button><button class="cat-filter-btn" data-cat="general">Other (149)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -6432,6 +6489,22 @@
   <p class="cr-summary">Gemma4? &amp;#32; submitted by &amp;#32; /u/br_web [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tyrg3z" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="gemma 4 technical report &amp;#32; submitted by &amp;#32; /u/jacek2023 [link] &amp;#32; [comments] gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uprjf3" target="_blank" rel="noopener">Gemma 4 Technical Report</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/jacek2023</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">&amp;#32; submitted by &amp;#32; /u/jacek2023 [link] &amp;#32; [comments]</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uprjf3" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="gemma 4 qat accuracy inconsistencies table from i heard that moe models are usually more susceptible to quantization error, but what happened with the 12b? i thought lower-parameter models usually quantized worse and yet, e2b/e4b are pretty much perfect while the 12b deviates from fp16 the most. do we have an explanation for that, or did maybe something go wrong during quantiza… quantization fine-tuning google gemma" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7154,6 +7227,22 @@
   <p class="cr-summary">Title: Gemma 4 QAT MTP assistant heads now public on HuggingFace + PARALLEL=2 crash fix + 12B 2-slot bench (Strix Halo / Vulkan) Three things in one update: the converted QAT-matched draft heads are now uploaded for anyone to use, we found and fixed ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tyto0j" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="rewire text - system-wide text transforms on windows and macos with local ai support i'm the developer, and i just launched rewire text , a windows + macos tool that transforms text in any app at the press of a hotkey. it sits in the menu bar / system tray until needed. deterministic transforms (case changes, whitespace cleanup, markdown fixes, encoding, etc.) run instantly on your machine, no key or network needed. ai based transforms (style and tone rewrites, proofreading, bull… inference meta" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uqbfun" target="_blank" rel="noopener">Rewire Text - system-wide text transforms on Windows and macOS with local AI support</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/digitalhobbit</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">I'm the developer, and I just launched Rewire Text , a Windows + macOS tool that transforms text in any app at the press of a hotkey. It sits in the menu bar / system tray until needed. Deterministic transforms (case changes, whitespace cleanup, Mark...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uqbfun" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="120 tok/s on 12gb vram with gemma 4 12b qat mtp google just released the qat (quantization-aware training) variant of their gemma 4 models, including 12b, so it was only natural for me to benchmark it on my 12gb gpu since it fits entirely in vram. i was pleasantly surprised with the result! by using llama.cpp patched with the gemma 4 mtp pr, and loading unsloth's gemma-4-12b-it-qat-gguf quant and google's gemma-4-12b-it-qat-q4_0-unquantized-as… hardware quantization inference fine-tuning benchma" data-cats="mid-gpu quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7297,6 +7386,22 @@
   </div>
   <p class="cr-summary">This is a medical VQA of 900 scanned real medical documents that I personally labeled, the scores heavily punish false negatives for security reasons... The results were very surprising since i thought the same lineup will transfer from coding task b...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1uj7mlh" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="completely on-device offline real time speech to text (stt) and text to speech (tts) with reasoning using gemma 4 e4b off grid ai mobile is a privacy first application. commonly called the swiss army knife of on-device ai. i started off with support for text / image / transcriptions and just added support for text to speech (tts) as well. check it out at: ps: this is a pro feature, happy to send over a license key to the f… gemma" data-cats="cpu-only">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uq4q9e" target="_blank" rel="noopener">Completely on-device offline real time Speech To Text (STT) and Text To Speech (TTS) with reasoning using Gemma 4 E4B</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/alichherawalla</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">CPU / Raspberry Pi</span>
+    </div>
+  </div>
+  <p class="cr-summary">Off Grid AI Mobile is a privacy first application. Commonly called the Swiss Army Knife of on-device AI. I started off with support for text / image / transcriptions and just added support for Text To Speech (TTS) as well. Check it out at: PS: This i...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uq4q9e" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="what llms+mmproj can recognize width of pci express slots on the motherboard? edit: the upvoted comment seems to imply i have failed to add &quot;physical layout&quot; to my question. i might hope even small llms are smart enough to answer what they see and then add info what it means. i have tried to get several llms to tell me exactly what ports i have on photo of my motherboard (view from above same as attached, photo of part of the board having barely more than pcie slots). iirc… gemma" data-cats="general">
   <div class="cr-card-header">
@@ -7474,6 +7579,22 @@
   <p class="cr-summary">&amp;#32; submitted by &amp;#32; /u/pinkyellowneon [link] &amp;#32; [comments]</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tzbcyp" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="running a vision + audio + reasoning on one gemma 4 e2b locally on 4 gb vram — and keeping it real time. so i've had one gemma 4 e2b running through llama-server as the only model in a local tool that watches my screen and lets me search/chat over it later. same model does all three jobs: - looks at the screen and turns it into structured info (what app, what i'm doing, rough layout) - audio — voice memos + meeting transcription using e2b's audio encoder, so i didn't have to bolt on whisper - th" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1upx3gm" target="_blank" rel="noopener">Running a vision + audio + reasoning on one Gemma 4 E2B locally on 4 GB VRAM — and keeping it real time.</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Top_Speaker_7785</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">So I've had one Gemma 4 E2B running through llama-server as the only model in a local tool that watches my screen and lets me search/chat over it later. Same model does all three jobs: - looks at the screen and turns it into structured info (what app...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1upx3gm" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="gemma 4 webgpu kernels 255 tok/s by x/@xenovacom we need more of this, 100+ t/s on dense models is the difference between defaulting to claude/codex for everything vs having a local private model doing most of the heavy lifting and only reaching for frontier for heavy intelligence work. &amp;#32; submitted by &amp;#32; /u/yonz- [link] &amp;#32; [comments] anthropic gemma" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7650,6 +7771,22 @@
   <p class="cr-summary">My main project is an all in one chatbot that focuses on research with a huge RAG and web browsing abilities (I ingest all my books, most of Wiki, all the big data sets for research papers and such). The idea is to have an auditable process that help...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1ujbbv8" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="mlx-dspark: deepseek's dspark drafter running lossless on a mac (native mlx, ~1.6×, openai server + benchmarks) deepseek published dspark, the speculative-decoding drafter they built for deepseek-v4 (it's in their deepspec repo, with pretrained drafter checkpoints on hf). there was no mlx port, so none of it could run on a mac. i wrote one. gif - left: normal decoding, right: dspark. same output, faster. the part that matters: it's lossless. dspark is an eagle-style drafter, so the main model st" data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1upxtf3" target="_blank" rel="noopener">mlx-dspark: DeepSeek's DSpark drafter running lossless on a Mac (native MLX, ~1.6×, OpenAI server + benchmarks)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/A-Rahim</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">DeepSeek published DSpark, the speculative-decoding drafter they built for DeepSeek-V4 (it's in their DeepSpec repo, with pretrained drafter checkpoints on HF). There was no MLX port, so none of it could run on a Mac. I wrote one. GIF - left: normal ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1upxtf3" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="psa: test your &quot;threads&quot; argument in llama.cpp (+80% performance in my case) when gpt-oss 120b has released last year i played around and tried to maximize it's performance. one thing that many people pointed out was that for hybrid cpu (performance + efficiency cores) you should use only p-cores with &quot;--threads&quot; argument and taskset/affinity. back then i've setup that model on my friend's 14700k and yea limiting threads to 8 (because 8 p-cores) increased performance. so… har" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -7713,6 +7850,22 @@
   </div>
   <p class="cr-summary">I’m a web developer doing mostly coding, but also project management, requirements analysis, testing, etc. I recently started experimenting with local LLMs, mostly because agentic stuff finally made them feel useful. Note: This text was fed to chartg...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tyjc8z" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="i tested anthropic’s new jacobian lens on open models, then it turned into a local-model hallucination router anthropic dropped their global workspace / jacobian lens paper yesterday, and i thought it was too cool not to try on open models. at first i was just curious what models looked like inside. normal prompts, emotional prompts, ragebait prompts, deletion-threat prompts, base vs abliterated, small vs bigger models. so i fit lenses for: - gemma 4 e4b - gemma 4 12b - gemma 4 12b abliterated -" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1upy31x" target="_blank" rel="noopener">I tested Anthropic’s new Jacobian Lens on open models, then it turned into a local-model hallucination router</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/RenewAi</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Anthropic dropped their Global Workspace / Jacobian Lens paper yesterday, and I thought it was too cool not to try on open models. At first I was just curious what models looked like inside. Normal prompts, emotional prompts, ragebait prompts, deleti...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1upy31x" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="can llms adhere to strict 2d spatial constraints? (testing with sokoban) i recently ran a benchmark to test how well modern large language models (llms) handle spatial geometry and logical reasoning under zero-shot conditions. to eliminate cheat-guessing, i used a custom sokoban (box-pushing) map with extremely strict formatting constraints (no chain-of-thought allowed, only raw directional outputs). the results showed a massive divide between top-tier closed-source m… benchmarking openai anthro" data-cats="general">
   <div class="cr-card-header">
@@ -8580,6 +8733,22 @@
   <p class="cr-summary">Overview Currently, the Top-N-Sigma sampler does an unconditional softmax+sort at the end. In the (common, I believe) case of Top-N-Sigma being followed by Dist, this expensive work is completely wasted. Additional information On my M3 Max MacBook Pr...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1ucqs1k" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="i tested freshly merged dflash in llama.cpp on qwen 3.6 27b local ai win. 4.44x faster at 36k context. here are my findings rtx 6000 pro. hey guys, a month ago i posted my mtp benchmarks here (3.34x on gemma 4). dflash support just merged into llama.cpp (pr #22105), so i ran it on the same rig with the qwen 3.6 27b and it beat my best mtp numbers at every draft length. dflash is speculative decoding with a block diffusion drafter from z-lab. instead of drafting tokens one by one, it fills a bloc" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uq0h4o" target="_blank" rel="noopener">I tested freshly merged DFlash in llama.cpp on Qwen 3.6 27B Local AI win. 4.44x faster at 36K context. Here are my findi</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/FantasticNature7590</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hey guys, A month ago I posted my MTP benchmarks here (3.34x on Gemma 4). DFlash support just merged into llama.cpp (PR #22105), so I ran it on the same rig with the Qwen 3.6 27B and it beat my best MTP numbers at every draft length. DFlash is specul...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uq0h4o" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="who ya got?? welcome to the competition! let's do ranked-style voting thing and determine what the best local model truly is. list your top 3 models by weight class like so: welterweight: 1. qwen3.6:27b 2. gemma4:26b 3. granite4.1:30b the weight classes are as follows: - featherweight - fits in under 8gb ram - lightweight - fits in under 16gb ram - welterweight - fits in under 32gb ram - middleweight - fits i… discussion" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -8981,6 +9150,22 @@
   <p class="cr-summary">Due to my bad english, OPUS 4.8 wrote below article. Thanks for you attention, and I'd like to share benchmark results from a layer-expansion experiment on Gemma4-31B, because the outcome turned out to be a useful (if negative) data point for anyone ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1um20ev" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
+<div class="cr-card" data-search="koder: browser ui based harness for coding and computer use warning: incoming self-promotion of 11-weeks worth (1300 commits) of ai vibe-coding. i'll take the down-votes if they come - and i'll understand since it's pouring in with projects nowadays, but i thought i'd share this anyway. i'm releasing &quot;koder&quot; - my coding and computer use harness (agent+tooling) publicly today. it's meant for local/offline use on linux, but since it's openai compatible it's… quantization inference agents" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1upqbqz" target="_blank" rel="noopener">Koder: browser UI based harness for coding and computer use</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/lkarlslund</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Warning: Incoming self-promotion of 11-weeks worth (1300 commits) of AI vibe-coding. I'll take the down-votes if they come - and I'll understand since it's pouring in with projects nowadays, but I thought I'd share this anyway. I'm releasing &quot;koder&quot; ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1upqbqz" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
 <div class="cr-card" data-search="gemma 4 26b a4b is genuinely the best model i have tried for language learning and scientific queries! i know gemma 4 26b is (according to this sub) a bit behind for coding tasks but for language learning and scientific (health/biology/medical/clinical/biochem) queries it’s unbeaten even by qwen 3.5/3.6. since the competition in the small moe models is generally between qwen 3.5/3.6 and gemma 4 i want to know who has use cases other than coding and rp here and which one wins for your use case? i" data-cats="general">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -9012,6 +9197,22 @@
   </div>
   <p class="cr-summary">BeeLlama v0.3.0 and v0.3.1 are here! Big architectural update to align the fork with upstream llama.cpp and integrate all its additions like MTP and Gemma 4 12B support, while also updating DFlash to handle complex configurations like multi-slot and ...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1tx12t1" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="i made a fun site to test out some small models in the browser. recently i wanted to see what was possible with running and using models in a browser, and was pleasantly surprised to find everything seemed to work pretty well. text, multimodal, transcription, speech - gemma 4 works with text, image and audio input.. in a browser. i did not expect that. check out the site - there are a bunch of pre-defined models listed, and a couple use cases defined. let me… gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1upp3pv" target="_blank" rel="noopener">I made a fun site to test out some small models in the browser.</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/j4ys0nj</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Recently I wanted to see what was possible with running and using models in a browser, and was pleasantly surprised to find everything seemed to work pretty well. Text, multimodal, transcription, speech - Gemma 4 works with text, image and audio inpu...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1upp3pv" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="oscar rotationzoo - offline spectral covariance-aware rotation for 2-bit kv cache quantization previously i did post a thread on this. now with some more details. gguf downloads: gemma-4-12b-it: qwen3-32b: qwen3-4b-thinking-2507: code: llamacpp: quantization inference gemma" data-cats="quantization">
   <div class="cr-card-header">
@@ -10151,6 +10352,22 @@
   </div>
   <p class="cr-summary">Wondering how much model quantization matters here. Daily driver on my 32gb unified memory setup is the qwen model outputting ~15 tokens a second. Heard good things about the 12B Gemma 4 model so interested in trying it against my codebase. Given its...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1u5xd7x" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="mistral.rs v0.9.0: up to 1.8x faster cpu decode than llama.cpp on x86 and arm! on qwen3 4b q4_k, mistral.rs decodes faster than llama.cpp at every context depth we measured, on x86 (sapphire rapids) and arm (gb10). we optimized mistral.rs at granular levels to achieve general speedups for all models . additionally, our optimizations apply to cpus of all calib… quantization inference google meta-llama qwen mistral gemma" data-cats="cpu-only quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1upynpt" target="_blank" rel="noopener">mistral.rs v0.9.0: up to 1.8x faster CPU decode than llama.cpp on x86 and ARM!</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/EricBuehler</span>
+      <span class="cr-date">2026-07-07</span>
+
+      <span class="cr-cat-badge">CPU / Raspberry Pi</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">On Qwen3 4B Q4_K, mistral.rs decodes faster than llama.cpp at every context depth we measured, on x86 (Sapphire Rapids) and ARM (GB10). We optimized mistral.rs at granular levels to achieve general speedups for all models . Additionally, our optimiza...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1upynpt" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="cohere north mini code 1.0 early access was linked here a few days ago, but final release seems to be now. 30b a3b coding model. weights: blog: artificial analysis score of 28 is pretty weak against qwen 3.6 35b (43), but it's more competitive in coding index (33 vs 35) and well above gemma 4 26b (22) th… benchmarking qwen gemma" data-cats="general">
   <div class="cr-card-header">
