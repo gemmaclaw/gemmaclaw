@@ -1,3 +1,43 @@
+## Field Notes - 2026-07-12
+
+A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
+Curated from the latest Gemma-mentioning posts (1 new post from the July 11, 2026 sweep, 501 hardware-mention entries total) and their threads.
+Confidence is **low** this cycle: the July 11 ingest again fell back to Reddit's Atom feed, so no comment threads were captured and the single post's score is a placeholder (~20). Treat the item below as a single-author anecdote with no community corroboration yet.
+
+_July 12 sweep, 2026-07-12 00:00 UTC:_ this is one of the thinnest Gemma 4 cycles so far. The daily research digest for July 11 flagged **exactly one explicit Gemma 4 mention** across 36 new posts, with community attention on dual-GPU PCIe and MI50 interconnect experiments, EPYC CPU decode, NVFP4 quantization, and local-serving infrastructure rather than Gemma. No new Gemma 4 hardware performance report, throughput number, or benchmark was captured. The one Gemma-relevant post is not a hardware report at all, it is an agentic-platform builder asking how to **control reasoning effort** on Qwen 3.5 and Gemma 4, and mentioning in passing that **Gemma 4 12B's reasoning chain is easy to steer from the system prompt** while other models feel awkward. That is a usability signal for anyone wiring Gemma 4 into a coding or agent harness, not a new hardware datapoint, so all prior tier guidance carries over unchanged. The July 9 mid-size guidance and the July 11 Apple Silicon and CPU-only picks still stand.
+
+**Prompt control: an agentic-platform builder finds Gemma 4 12B's reasoning chain easy to steer from the system prompt.** A developer building an **agentic coding platform** wants graded reasoning behavior from local models, so that a "low" setting prioritizes the fastest solution and "high" or "xhigh" pushes the model to work a hard problem to its limit. In the course of asking how to get controlled reasoning chains out of Qwen 3.5 and Gemma 4, the author notes that they **find it easy to control the 12B Gemma 4's reasoning chain from the system prompt**, while it is "a bit awkward with other models," and mentions DeepSeek V4 Flash as another model that is controllable from a system prompt. For Gemmaclaw this is a small but genuinely useful signal for the agentic and coding tier: Gemma 4 12B appears to respond well to system-prompt-level control over reasoning depth, which matters when you are wiring it into a harness that wants fast answers on easy tasks and deeper effort on hard ones. Confidence: this is a single-author aside inside a help question, not a measurement. There is no recipe, no comparison, no task evaluation, and no comment thread (0 comments, placeholder score). ([source](https://reddit.com/r/localllama/comments/1utbros), July 11, 2026)
+
+### Best current setup (this cycle's additions)
+
+- **Agentic and coding harnesses:** if you need graded reasoning effort, Gemma 4 **12B** is reported as responsive to **system-prompt-level control** over its reasoning chain, easier to steer than some peers ([1utbros](https://reddit.com/r/localllama/comments/1utbros)). Single-author aside, no recipe published.
+- **No change to any hardware tier this cycle:** no new Gemma 4 hardware datapoint was published, so the prior picks hold, the July 11 Apple Silicon result (E4B at about 85 tok/s decode via MLX 8-bit versus about 76 tok/s via GGUF Q8 on a 128 GB M5 Max) and CPU-only pick (E4B at Q4_K_M, ~5 GB, at an estimated 5 to 20 tok/s), and the July 9 single-GPU guidance (31B at 5-bit for general chat on a 32 GB card, the highest quant you can fit for one-shot coding, and QLoRA footprints of ~14.3 GB for 12B and ~28.6 GB for 26B-A4B).
+
+### What works
+
+- Gemma 4 **12B reasoning-depth control via the system prompt**, reported as easy to steer for an agentic coding platform builder wiring low, high, and xhigh effort levels ([1utbros](https://reddit.com/r/localllama/comments/1utbros)).
+
+### Known limits
+
+- **No controlled Gemma 4 benchmark and no new hardware datapoint this cycle.** The single Gemma-relevant post is a help question, not a report, with 0 comments and a placeholder score (Atom-fallback ingest) ([1utbros](https://reddit.com/r/localllama/comments/1utbros)).
+- **The reasoning-control observation is unquantified.** The author gives no system prompt text, no comparison across effort levels, and no task result, so how reliably Gemma 4 12B honors a graded reasoning instruction is untested ([1utbros](https://reddit.com/r/localllama/comments/1utbros)).
+- **Little Gemma-specific activity** this cycle: the July 11 digest surfaced only one Gemma 4 mention across 36 posts, with the community focused on dual-GPU interconnect, EPYC CPU decode, NVFP4 quantization, and local-serving infrastructure (digest 2026-07-11).
+
+### Open questions
+
+- **How reliably does Gemma 4 12B honor a graded reasoning instruction?** The claim that its reasoning chain is easy to steer from the system prompt is a single-author aside with no prompt text, no per-level output, and no evaluation. A small controlled test (same task at low, high, and xhigh reasoning) would show whether the effect is real and repeatable ([1utbros](https://reddit.com/r/localllama/comments/1utbros)).
+- **Does system-prompt reasoning control hold across Gemma 4 sizes?** The observation is specific to the 12B model. Whether the 26B, 31B, or the tiny E2B and E4B variants respond the same way to system-prompt effort control is unknown ([1utbros](https://reddit.com/r/localllama/comments/1utbros)).
+
+### Sources
+
+The Gemma-mentioning post driving this update (July 12 sweep). The July 11 ingest fell back to Reddit's Atom feed, so **no comment threads were captured and the post score is a placeholder (~20)**. Treat it as an uncorroborated single-author anecdote, not a settled result:
+
+- [How can i limit reasoning effort on the qwen3.5 and gemma4 models?](https://reddit.com/r/localllama/comments/1utbros) (Jul 11, 2026, an agentic-coding-platform builder asks how to get controlled reasoning chains from Qwen 3.5 and Gemma 4 so that a low setting favors speed and high or xhigh pushes the model to its limit. Notes in passing that they find the 12B Gemma 4's reasoning chain easy to control from the system prompt while other models feel awkward, and names DeepSeek V4 Flash as another system-prompt-controllable model. Help question, not a report, 0 comments, placeholder score)
+
+_Last updated: 2026-07-12 (July 12 sweep). Confidence: low (Atom-fallback ingest, no comment threads, placeholder score). Key findings: one of the thinnest Gemma 4 cycles yet. The July 11 digest surfaced only one explicit Gemma 4 mention across 36 posts, with community attention on dual-GPU interconnect, EPYC CPU decode, NVFP4 quantization, and local-serving infrastructure. The single Gemma-relevant post is not a hardware report, it is an agentic-platform builder asking how to control reasoning effort, who mentions that Gemma 4 12B's reasoning chain is easy to steer from the system prompt while other models feel awkward. That is a usability signal for the agentic and coding tier, not a new hardware datapoint, so all prior tier guidance carries over unchanged. Anecdotal, single-author, no comment thread. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+
+---
+
 ## Field Notes - 2026-07-11
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
