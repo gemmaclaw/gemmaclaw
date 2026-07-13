@@ -20,11 +20,29 @@ if [ "$BRANCH" != "main" ]; then
 fi
 git pull --rebase origin main 2>/dev/null || true
 
-# Step 1: Copy community data if source exists
+# Step 1: Copy community data if source exists.
+# Raw Reddit excerpts routinely contain typographic dashes (em/en/figure dash,
+# minus sign). Those violate the deliverable style rule and trip the
+# no-typographic-dashes gate, so sanitize them to a plain ASCII hyphen during the
+# copy. This is a byte-level replacement of the dash characters only: all other
+# JSON formatting is preserved verbatim to keep the committed diff minimal.
 mkdir -p site/data
 if [ -f "$CONFIGS_SRC" ]; then
-  cp "$CONFIGS_SRC" site/data/gemma4-hardware-configs.json
-  echo "Copied gemma4-hardware-configs.json to site/data/"
+  CONFIGS_SRC="$CONFIGS_SRC" python3 - <<'PY'
+import os
+src = os.environ["CONFIGS_SRC"]
+dst = "site/data/gemma4-hardware-configs.json"
+# Typographic dash code points -> ASCII hyphen. Listed numerically (not as literal
+# characters) so this script itself stays free of typographic dashes.
+codepoints = (0x2010, 0x2011, 0x2012, 0x2013, 0x2014,
+              0x2015, 0x2043, 0x2E3A, 0x2E3B, 0x2212)
+table = {cp: "-" for cp in codepoints}
+with open(src, encoding="utf-8") as f:
+    data = f.read()
+with open(dst, "w", encoding="utf-8") as f:
+    f.write(data.translate(table))
+PY
+  echo "Copied + dash-sanitized gemma4-hardware-configs.json to site/data/"
 else
   echo "WARN: $CONFIGS_SRC not found, skipping community data copy"
 fi
