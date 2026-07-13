@@ -1388,8 +1388,32 @@ def clean_generated_html(text):
     return "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
 
 
+# Typographic dash characters that must never appear in published site text.
+# Raw Reddit excerpts routinely contain these (em/en/figure dashes, minus sign);
+# they violate the deliverable style rule and trip the no-typographic-dashes gate.
+# Map every one to a plain ASCII hyphen so generated community output is clean and
+# deterministic. Code points are listed numerically (not as literal characters) so
+# this source file itself stays free of typographic dashes.
+# Covers: U+2010 hyphen, U+2011 non-breaking hyphen, U+2012 figure dash,
+# U+2013 en dash, U+2014 em dash, U+2015 horizontal bar, U+2043 hyphen bullet,
+# U+2E3A two-em dash, U+2E3B three-em dash, U+2212 minus sign.
+_TYPOGRAPHIC_DASH_CODEPOINTS = (
+    0x2010, 0x2011, 0x2012, 0x2013, 0x2014,
+    0x2015, 0x2043, 0x2E3A, 0x2E3B, 0x2212,
+)
+_TYPOGRAPHIC_DASH_MAP = {cp: "-" for cp in _TYPOGRAPHIC_DASH_CODEPOINTS}
+
+
+def normalize_typographic_dashes(text):
+    """Replace typographic dashes with a plain ASCII hyphen in published text."""
+    return str(text).translate(_TYPOGRAPHIC_DASH_MAP)
+
+
 def clean_markdown(text):
     """Strip markdown syntax to plain text for display in HTML cards."""
+    # Normalize typographic dashes to ASCII hyphen so community card text (summary,
+    # search index, comments) never emits em/en dashes from raw Reddit excerpts.
+    text = normalize_typographic_dashes(text)
     # Remove markdown links where the text is itself a URL: [url](url) -> empty
     text = re.sub(r'\[https?://[^\]]*\]\([^\)]+\)', '', text)
     # Convert remaining markdown links [text](url) to just text
@@ -1659,7 +1683,7 @@ def generate_community_cards(posts):
     cards = []
     for post in posts:
         post_id = post["id"]
-        title = html_escape(post["title"][:120])
+        title = html_escape(normalize_typographic_dashes(post["title"])[:120])
         score = post["score"]
         clean_summary = clean_markdown(post["summary"])
         if not clean_summary:
@@ -1671,7 +1695,7 @@ def generate_community_cards(posts):
             summary += "..."
         author = html_escape(post["author"])
         date_str = post["date"]
-        flair = html_escape(post["flair"]) if post["flair"] else ""
+        flair = html_escape(normalize_typographic_dashes(post["flair"])) if post["flair"] else ""
         reddit_url = f"https://reddit.com/r/LocalLLaMA/comments/{post_id}"
         cats = " ".join(post["categories"])
 

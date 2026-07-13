@@ -104,5 +104,37 @@ class MeasuredWinsOverOutputEst(unittest.TestCase):
         self.assertNotIn("1.3 tok/s", html)
 
 
+class TypographicDashNormalization(unittest.TestCase):
+    """Community-card text must never emit typographic dashes (em/en/etc.).
+
+    Raw Reddit excerpts routinely contain them and they trip the deliverable
+    no-typographic-dashes gate. Guards the 2026-07-13 QA fix.
+    """
+
+    # Code points listed numerically so this test file stays free of typographic
+    # dashes (which the no-typographic-dashes gate would otherwise flag here).
+    DASHES = "".join(chr(cp) for cp in (
+        0x2010, 0x2011, 0x2012, 0x2013, 0x2014,
+        0x2015, 0x2043, 0x2E3A, 0x2E3B, 0x2212,
+    ))
+
+    def test_normalize_maps_every_dash_to_hyphen(self):
+        for ch in self.DASHES:
+            self.assertEqual(gen.normalize_typographic_dashes(f"a{ch}b"), "a-b")
+
+    def test_clean_markdown_strips_typographic_dashes(self):
+        em_dash = chr(0x2014)
+        out = gen.clean_markdown(f"RTX 3060 (12 GB){em_dash}PCIe is Gen 3")
+        for ch in self.DASHES:
+            self.assertNotIn(ch, out)
+        self.assertIn("(12 GB)-PCIe is Gen 3", out)
+
+    def test_normalize_preserves_plain_text(self):
+        self.assertEqual(
+            gen.normalize_typographic_dashes("already-hyphenated 26B-A4B"),
+            "already-hyphenated 26B-A4B",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
