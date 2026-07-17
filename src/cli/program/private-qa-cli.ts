@@ -31,7 +31,13 @@ function resolvePrivateQaSourceModuleSpecifier(params?: {
     return null;
   }
   const existsSync = params?.existsSync ?? fs.existsSync;
-  const sourceModulePath = path.join(packageRoot, PRIVATE_QA_DIST_RELATIVE_PATH);
+  
+  const isTsMode = import.meta.url.endsWith(".ts") || import.meta.url.endsWith(".mts");
+  const qaRelativePath = isTsMode 
+    ? path.join("src", "plugin-sdk", "qa-lab.ts")
+    : path.join("dist", "plugin-sdk", "qa-lab.js");
+
+  const sourceModulePath = path.join(packageRoot, qaRelativePath);
   if (
     !existsSync(path.join(packageRoot, ".git")) ||
     !existsSync(path.join(packageRoot, "src")) ||

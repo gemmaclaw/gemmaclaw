@@ -68,6 +68,7 @@ function narrowContractIncludePatterns(
 
 export function createContractsVitestConfig(
   includePatterns: string[],
+  name?: string,
   env: Record<string, string | undefined> = process.env,
   argv: string[] = process.argv,
 ) {
@@ -88,6 +89,7 @@ export function createContractsVitestConfig(
       setupFiles: baseTest.setupFiles ?? [],
       include: envIncludePatterns ?? cliIncludePatterns ?? includePatterns,
       passWithNoTests: true,
+      ...(name ? { name } : {}),
     },
   });
 }
