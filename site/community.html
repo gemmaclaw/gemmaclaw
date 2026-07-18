@@ -1845,7 +1845,53 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes - 2026-07-16</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes - 2026-07-18</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (6 new hardware-mention entries from the July 17 ingest, 523 entries total) and their threads. Confidence is <strong>low-to-mixed</strong> this cycle. The July 17 batch came in through the Atom fallback, so scores and comment counts are unreliable (every new post shows a placeholder score around 20 with no captured comments). The one exception is a reproducible, human-run MacBook Pro benchmark that publishes its harness and raw result files, which is the strongest single datapoint in several sweeps.</p>
+<p><em>July 18 sweep, 2026-07-18 00:00 UTC:</em> a thin cycle anchored by one solid benchmark. After the July 16 ZenDNN and ExLlamaV3 items, this ingest brought a reproducible Apple-Silicon comparison that puts Gemma 4 26B at the top of a five-model average on a MacBook Pro, a coding-agent preference report that swaps Gemma 4 31B in as the primary coder over Qwen3.6-27B, a phone stunt that streams Gemma 26B (and larger MoE models) off flash storage on an 11 GB Android device, and a low-detail report that Gemma 4 12B and E2B fail to load in tensor parallel. Only the MacBook benchmark carries measured numbers; the rest are single-author anecdotes, so read the confidence notes carefully. One in-progress Gemma frankenmerge experiment and two non-Gemma model/tooling posts from the same batch were intentionally left out (see the note at the end).</p>
+<p><strong>Apple Silicon, the one measured result: on a MacBook Pro, Gemma 4 26B topped a five-model average and aced the reasoning suite, but needed about 14.7 GB of RAM and was the weakest of the group at open-ended generation.</strong> A contributor who discloses helping build the benchmark tool (rapid-mlx) ran five models that fit a MacBook Pro through the same four suites: <strong>coding (HumanEval+), reasoning (MATH-500), general (MMLU-Pro), and 30 tool-calling tests</strong>, tracking real peak RAM. The reported table: <strong>Gemma 4 26B at 14.7 GB scored Tools 87%, Code 90%, Reason 100%, Gen 60%, for an 84% average, the highest of the five</strong>. Qwen3.6-27B (15.5 GB) led raw coding at 100% and tied the best tool-calling score at 93% but fell to 50% on reasoning for a 78% average; the ternary 2-bit Bonsai-27B fit in just 8.0 GB and landed second overall at 81%; GPT-OSS-20B (12.2 GB) and Nemotron-Nano-30B (18.0 GB) trailed at 65% and 61%. For Gemmaclaw's Apple Silicon tier this is a useful, on-topic datapoint: Gemma 4 26B is a strong all-rounder that wins on reasoning and overall average, but its roughly 14.7 GB peak means a base 16 GB MacBook has little headroom, and it is the weakest here at open-ended generation. Confidence: measured and explicitly reproducible (harness and all five raw result files are in the repo), but a single run of small suites, a self-disclosed tool author, an AI-assisted writeup, and a placeholder score with no comments. (<a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">source</a>, July 16, 2026)</p>
+<p><strong>Single-GPU coding agents: one user swapped Gemma 4 31B in as the primary coder over Qwen3.6-27B in a multi-agent workflow and was much happier, but calls it possibly a fluke.</strong> After a month running <strong>Qwen3.6-27B Q8_0 as the main coding agent</strong> in a <strong>6-plus agent workflow with a GPT-5.5 orchestrator</strong>, the author got stuck cycling on a medium-complexity project. They switched to <strong>Gemma 4 31B Q8 as the main coding agent</strong>, kept <strong>27B for QA and review</strong>, and used <strong>35B for ops, security, and research</strong>, and report resolving several bugs and reaching a working prototype in a day. They also found the 27B more useful as a reviewer/QA model than as the coder. For Gemmaclaw's single-GPU and workstation tiers this reinforces Gemma 4 31B as a credible primary coder in an agentic setup, and it lines up loosely with the MacBook benchmark above where Gemma edged Qwen on the overall average. The author is explicit that it <strong>&quot;could be a fluke&quot;</strong>, and the post gives <strong>no hardware, quant-beyond-Q8, tokens-per-second, or context detail</strong>. Confidence: a single satisfaction anecdote, placeholder score, zero comments. (<a href="https://reddit.com/r/localllama/comments/1uz8532" target="_blank" rel="noopener">source</a>, July 17, 2026)</p>
+<p><strong>CPU-only and edge: Gemma 26B ran on an 11 GB Android phone by streaming MoE experts off flash, at roughly 1 to 5 tokens per second.</strong> A developer demonstrated running <strong>Gemma 26B (the 26B-A4B MoE), Qwen 30B, and even gpt-oss-120B on a OnePlus 15R with about 11 GB usable RAM, CPU only, four cores</strong>. The trick is that a Mixture-of-Experts layer only uses a few experts per token, so the always-needed weights stay resident and the specific experts a token needs are read straight off flash (with the O_DIRECT flag) just before that layer runs, with a small hot cache and reads overlapped with compute. The headline number is <strong>gpt-oss-120B (Q4_K_M, 60 GB on disk, about 5x the phone's RAM) at 1.3 tok/s at default routing width and about 1.8 tok/s on fewer experts</strong>, versus <strong>0.089 tok/s for a plain mmap load, roughly a 14x speedup</strong>; the Gemma and Qwen clips use the same technique at 6 experts per layer instead of 8. For Gemmaclaw's CPU-only and edge tier this is a feasibility stunt rather than a usable speed: it shows Gemma-class MoE weights can be run far outside their memory budget on a phone, but 1 to 5 tok/s is demo-grade, not interactive. Confidence: a single-author anecdote with concrete self-measured numbers but a placeholder score, zero captured comments, and device-specific (OnePlus 15R, four CPU cores, flash streaming). (<a href="https://reddit.com/r/localllama/comments/1uz5n2j" target="_blank" rel="noopener">source</a>, July 17, 2026)</p>
+<p><strong>Multi-GPU reliability, low detail: a user reports Gemma 4 12B and E2B fail to load in tensor parallel.</strong> A short post claims <strong>Gemma 4 12B and E2B fail to load when run in tensor parallel</strong>, says the issue persists for multiple people, and asks whether it is appropriate to ping the maintainers. It <strong>names no backend, version, error message, or GPU configuration</strong>, so it is a lead to watch rather than a documented limitation. It is worth noting because it points the other way from the July 16 ExLlamaV3 1.0.0 item, which extended tensor parallel to Gemma 4 in that runtime: tensor-parallel support for Gemma 4 is clearly runtime-specific and not uniformly working. Confidence: a very-low-detail report, placeholder score, zero comments, no reproduction specifics. (<a href="https://reddit.com/r/localllama/comments/1uyars3" target="_blank" rel="noopener">source</a>, July 16, 2026)</p>
+<h3>Best current setup (this cycle's additions)</h3>
+<ul class="setup-list">
+<li><strong>Apple Silicon, MacBook-class:</strong> for a <strong>16 GB or larger MacBook</strong>, <strong>Gemma 4 26B</strong> is a strong measured all-rounder, topping a five-model average at <strong>84%</strong> and scoring <strong>100% on reasoning</strong>, at roughly <strong>14.7 GB peak RAM</strong> so it wants a 16 GB machine with little to spare. It was the weakest of the five at open-ended generation (60%), and if you need real headroom on a 16 GB Mac the ternary <strong>Bonsai-27B (2-bit, 8 GB)</strong> was the only model in the test with room to spare (<a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">1uxrpv5</a>).</li>
+<li><strong>Single-GPU or workstation coding agent:</strong> <strong>Gemma 4 31B Q8</strong> is reaffirmed as a credible primary coder in a multi-agent setup, with <strong>Qwen3.6-27B better used as a reviewer/QA model</strong> than as the coder, per one anecdotal report (<a href="https://reddit.com/r/localllama/comments/1uz8532" target="_blank" rel="noopener">1uz8532</a>).</li>
+<li><strong>CPU-only and edge, feasibility only:</strong> <strong>Gemma 26B (26B-A4B)</strong> can be run on an <strong>11 GB Android phone</strong> by streaming MoE experts off flash, but at <strong>1 to 5 tok/s</strong> it is a demo, not an interactive assistant (<a href="https://reddit.com/r/localllama/comments/1uz5n2j" target="_blank" rel="noopener">1uz5n2j</a>).</li>
+<li><strong>Multi-GPU, caveat:</strong> <strong>tensor-parallel loading of Gemma 4 12B and E2B is reported broken</strong> in at least one unnamed runtime, so confirm tensor parallel works in your specific backend before relying on it (<a href="https://reddit.com/r/localllama/comments/1uyars3" target="_blank" rel="noopener">1uyars3</a>).</li>
+<li><strong>No change to prior tiers otherwise:</strong> the July 16 items (ZenDNN Q8_0 prompt-processing speedup on AMD EPYC, ExLlamaV3 1.0.0 tensor parallel plus free KV-cache quant, the Google chat-template announcement, and the consumer single-GPU OpenClaw/QAT reports) and all earlier tier guidance still stand; nothing this cycle contradicts them.</li>
+</ul>
+<h3>What works</h3>
+<ul class="setup-list">
+<li><strong>Gemma 4 26B is a measured, reproducible all-rounder on Apple Silicon</strong>, topping a five-model MacBook Pro average (84%) and acing the MATH-500 reasoning suite (100%), with the harness and raw results published for replication (<a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">1uxrpv5</a>).</li>
+<li><strong>Gemma 4 31B Q8 works well as the primary coder in an agentic, multi-model workflow</strong>, at least for one user who preferred it over Qwen3.6-27B for that role (<a href="https://reddit.com/r/localllama/comments/1uz8532" target="_blank" rel="noopener">1uz8532</a>).</li>
+<li><strong>Gemma-class MoE weights can be run far outside their RAM budget on commodity hardware</strong> via expert streaming off flash, demonstrated on an 11 GB phone (<a href="https://reddit.com/r/localllama/comments/1uz5n2j" target="_blank" rel="noopener">1uz5n2j</a>).</li>
+</ul>
+<h3>Known limits</h3>
+<ul class="setup-list">
+<li>The <strong>MacBook benchmark is a single run of small suites</strong> (HumanEval+, MATH-500, MMLU-Pro, 30 tool-calling tests) from a <strong>self-disclosed tool author with an AI-assisted writeup</strong> and a placeholder score, so treat the exact percentages as directional and reproduce before quoting (<a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">1uxrpv5</a>).</li>
+<li><strong>Gemma 4 26B needed about 14.7 GB of RAM</strong> in that test and was <strong>the weakest of the five at open-ended generation (60%)</strong>, so it is not a free win on a 16 GB machine and not the pick if generation quality matters most (<a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">1uxrpv5</a>).</li>
+<li>The <strong>Gemma 4 31B coding win is one anecdote</strong> the author himself flags as possibly a fluke, with <strong>no hardware, throughput, or context numbers</strong> (<a href="https://reddit.com/r/localllama/comments/1uz8532" target="_blank" rel="noopener">1uz8532</a>).</li>
+<li><strong>Phone-side Gemma 26B is 1 to 5 tok/s</strong>, which is a feasibility demonstration, not usable interactive speed, and is specific to one device and streaming implementation (<a href="https://reddit.com/r/localllama/comments/1uz5n2j" target="_blank" rel="noopener">1uz5n2j</a>).</li>
+<li><strong>Tensor-parallel loading of Gemma 4 12B and E2B is reported to fail</strong> in an unspecified runtime, and the report has no backend, version, or error detail to act on (<a href="https://reddit.com/r/localllama/comments/1uyars3" target="_blank" rel="noopener">1uyars3</a>).</li>
+</ul>
+<h3>Open questions</h3>
+<ul class="setup-list">
+<li><strong>Does Gemma 4 26B hold its top-of-average result</strong> across larger, multi-run benchmark suites and other hardware, or is the 84% average an artifact of small suites and a single run (<a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">1uxrpv5</a>)?</li>
+<li><strong>Is Gemma 4 31B genuinely a better agentic coder than Qwen3.6-27B</strong>, or was the one-day turnaround project-specific luck (<a href="https://reddit.com/r/localllama/comments/1uz8532" target="_blank" rel="noopener">1uz8532</a>)?</li>
+<li><strong>Which runtimes support tensor parallel for Gemma 4 today</strong> and which fail, given ExLlamaV3 1.0.0 added it while another user reports 12B and E2B failing to load (<a href="https://reddit.com/r/localllama/comments/1uyars3" target="_blank" rel="noopener">1uyars3</a>, <a href="https://reddit.com/r/localllama/comments/1uwylut" target="_blank" rel="noopener">1uwylut</a>)?</li>
+<li><strong>What is the realistic floor for interactive Gemma 4 on CPU-only or phone hardware</strong>, given expert streaming buys feasibility (about 14x over mmap) but still lands at 1 to 5 tok/s (<a href="https://reddit.com/r/localllama/comments/1uz5n2j" target="_blank" rel="noopener">1uz5n2j</a>)?</li>
+</ul>
+<h3>Sources</h3>
+<p>The Gemma-mentioning posts driving this update (July 18 sweep, newest first). The rapid-mlx MacBook post carries a <strong>reproducible measured benchmark table</strong>; the remaining three are <strong>placeholder-score (~20), zero-comment</strong> anecdotes from the Atom-fallback ingest, so weight them accordingly:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/localllama/comments/1uxrpv5" target="_blank" rel="noopener">I benchmarked 5 local models that fit a MacBook Pro - a 2-bit 27B in 8GB came in second</a> (Jul 16, 2026, a human-run rapid-mlx benchmark across HumanEval+, MATH-500, MMLU-Pro, and 30 tool-calling tests, tracking peak RAM. Gemma 4 26B at 14.7 GB scored 87/90/100/60 for an 84% average, the highest of five models; harness and raw results published for replication. Author discloses helping build the tool; writeup AI-assisted)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uz8532" target="_blank" rel="noopener">Gemma4-31b better than Qwen3.6-27b</a> (Jul 17, 2026, a user switched their primary coding agent from Qwen3.6-27B Q8_0 to Gemma 4 31B Q8 in a 6-plus agent GPT-5.5-orchestrated workflow, kept 27B for QA/review, and reports resolving bugs and a working prototype in a day, while calling it possibly a fluke. No hardware or throughput numbers)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uz5n2j" target="_blank" rel="noopener">GPT-OSS-120B, Qwen 30B and Gemma 26B on an Android phone at 1-5 tok/s</a> (Jul 17, 2026, streaming MoE experts off flash with the O_DIRECT flag on a OnePlus 15R with about 11 GB RAM, CPU only. gpt-oss-120B at 1.3 to 1.8 tok/s vs 0.089 for plain mmap, about 14x; Gemma 26B and Qwen 30B use the same technique at 6 experts per layer. A feasibility demo, not interactive speed)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1uyars3" target="_blank" rel="noopener">Gemma 4 12B and E2B fail to load in tensor parallel</a> (Jul 16, 2026, a short report that Gemma 4 12B and E2B fail to load in tensor parallel for multiple people, with no backend, version, or error detail, asking whether to ping maintainers)</li>
+</ul>
+<p><em>Last updated: 2026-07-18 (July 18 sweep). Confidence: low-to-mixed (one reproducible MacBook Pro benchmark, three placeholder-score Atom-fallback anecdotes). Key findings: on a MacBook Pro, Gemma 4 26B (14.7 GB) topped a five-model average at 84% and scored 100% on the MATH-500 reasoning suite, but was weakest at open-ended generation (60%) and leaves little headroom on a 16 GB Mac. One user swapped Gemma 4 31B Q8 in as the primary coder over Qwen3.6-27B in a multi-agent workflow and preferred it, while flagging it as possibly a fluke. A phone demo streamed Gemma 26B and larger MoE models off flash on an 11 GB Android device at 1 to 5 tok/s (about 14x over mmap), a feasibility stunt rather than interactive speed. And Gemma 4 12B and E2B were reported to fail loading in tensor parallel in an unnamed runtime, a caveat against the July 16 ExLlamaV3 tensor-parallel item. An in-progress Gemma frankenmerge and two non-Gemma model/tooling posts from the same batch were left out for low confidence or off-topic scope. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p>
+<p>---</p>
+<h2>Field Notes - 2026-07-16</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (5 new posts from the July 15, 2026 sweep, 517 hardware-mention entries total) and their threads. Confidence is <strong>mixed</strong> this cycle: three of the five posts are placeholder-score (~20), zero-comment anecdotes or a vendor announcement, but two items are more solid. The ZenDNN post ships a full measured benchmark table with real Gemma 4 numbers, and ExLlamaV3 1.0.0 is an official production release that names Gemma 4 explicitly.</p>
 <p><em>July 16 sweep, 2026-07-16 00:00 UTC:</em> a step up from the recent thin reliability-only cycles. After several sweeps with no measured hardware datapoint, the July 15 ingest brought the first Gemma 4 benchmark table in a while (ZenDNN Q8_0 on AMD EPYC CPUs), a major runtime release that extends tensor parallel to Gemma 4 and removes the KV-cache-quantization speed penalty (ExLlamaV3 1.0.0), a Google-announced chat-template update aimed at tool calling and laziness plus Flash Attention 4 on Hopper, and two consumer single-GPU satisfaction reports that land squarely on the Gemmaclaw use case (OpenClaw driven by local Gemma 4 on a 16GB RTX 5070 Ti, and a gemma-4-12b QAT Q4 daily driver). The one hard number this cycle is a CPU prompt-processing speedup, the rest is either an official release without a Gemma 4 benchmark or an anecdote, so read the confidence notes carefully.</p>
 <p><strong>CPU-only, AMD EPYC: ZenDNN Q8_0 roughly doubles Gemma 4 31B prompt processing but leaves decode unchanged, and the sparse 26B-A4B already decodes about four times faster on the same CPU.</strong> A contributor posted the benchmark table from <strong>llama.cpp pull request #23414 (ggml-zendnn: add Q8_0 support)</strong>, run on an <strong>AMD EPYC CPU at 96 threads</strong> with bf16 KV cache. For <strong>gemma4 31B Q8_0</strong>, the ZenDNN backend lifts prompt processing sharply over stock ggml-cpu: <strong>pp512 rises from 112.53 to 229.12 t/s (+104%)</strong>, with gains ranging <strong>+68% at pp256 up to +115% at pp1024</strong> across the swept prompt sizes, while <strong>decode (tg128) is essentially flat at 8.50 to 8.47 t/s (-0.35%)</strong>. For the sparse <strong>gemma-4-26B-A4B-it Q8_0</strong>, the prompt-processing gains are much smaller (<strong>+4.7% to +19%</strong>) and decode is again unchanged (<strong>33.96 to 33.83 t/s</strong>). Two things matter for Gemmaclaw's CPU-only tier. First, ZenDNN accelerates the compute-bound prefill on the dense 31B a great deal but does nothing for the memory-bandwidth-bound decode, so it helps long-prompt ingestion, not generation speed. Second, the numbers make the dense-vs-sparse CPU tradeoff concrete: the MoE <strong>26B-A4B decodes at roughly 34 t/s versus about 8.5 t/s for dense 31B</strong> on the same EPYC box, because only about 4B parameters are active per token. The author notes the gains are for AMD EPYC CPUs specifically. Confidence: a measured table (the cycle's one hard datapoint), but it comes from a single PR announcement with zero comments captured and no third-party replication, and it is AMD-EPYC-specific. (<a href="https://reddit.com/r/localllama/comments/1ux4co7" target="_blank" rel="noopener">source</a>, July 15, 2026)</p>
@@ -3382,10 +3428,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (517 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (523 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (68)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (56)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (34)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (18)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (26)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (310)</button><button class="cat-filter-btn" data-cat="general">Other (155)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (69)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (56)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (34)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (18)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (26)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (311)</button><button class="cat-filter-btn" data-cat="general">Other (159)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -11770,6 +11816,102 @@
   </div>
   <p class="cr-summary">Hi all, We made several updates to the SWE-rebench leaderboard: added new models, refreshed recent results, and reworked the leaderboard UI to make results easier to read, compare, and understand. New Models: Claude Opus 4.8 xhigh: 56.5% - 2.48M toke...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1uknx14" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="soofi s - 30b-a3b european open source model i just saw that these had dropped. still very much early days, but nice to see a new locally runnable foundation model, along with a couple of thinking preview versions. anyone taken a look at this yet? am intrigued to see how it holds up compared to qwen 3.6 and gemma 4 (my current stack) &amp;#32; submitted by &amp;#32; /u/graemer71 [link] &amp;#32; [comments] qwen gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uyysg1" target="_blank" rel="noopener">Soofi S - 30B-A3B European Open Source Model</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Graemer71</span>
+      <span class="cr-date">2026-07-17</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">I just saw that these had dropped. Still very much early days, but nice to see a new locally runnable foundation model, along with a couple of thinking preview versions. Anyone taken a look at this yet? Am intrigued to see how it holds up compared to...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uyysg1" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="we launched cortex: a knowledge graph designed for local models cortex is an institutional memory layer for teams and communities, allowing them to curate data which gets automatically organized so that agents can query it very efficiently using llms that can be hosted on consumer-grade hardware. goal is to democratize the memory layer in community driven fashion. cortex is open-sourced under apache 2.0 and you are invited to use it. checkout the repository:… hardware rag agents" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uy1066" target="_blank" rel="noopener">We launched Cortex: A Knowledge Graph designed for Local Models</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/reneil1337</span>
+      <span class="cr-date">2026-07-16</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Cortex is an institutional memory layer for teams and communities, allowing them to curate data which gets automatically organized so that agents can query it very efficiently using LLMs that can be hosted on consumer-grade hardware. Goal is to democ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uy1066" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma4-31b better than qwen3.6-27b so i know this is going to incur the wrath of the qwen cult but after a month of using 27b q8_0 as my primary coding agent in 6+ agent coding workflow with gpt-5.5 as the orchestrator, i got very frustrated with the amount of back and forth i was doing just to always end up in the same place without a resolution to a simple bug. out of desperation and lack of progress on a medium complexity proje… quantization agents qwen gemma" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uz8532" target="_blank" rel="noopener">Gemma4-31b better than Qwen3.6-27b</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/d4mations</span>
+      <span class="cr-date">2026-07-17</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">So I know this is going to incur the wrath of the Qwen cult but after a month of using 27b q8_0 as my primary coding agent in 6+ agent coding workflow with GPT-5.5 as the orchestrator, I got very frustrated with the amount of back and forth I was doi...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uz8532" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 12b and e2b fail to load in tensor parallel hey everyone, have you noticed this issue too? in a scenario where a model fails to load when it should for multiple people but the issue persist for a while without being looked into, is it appropiate to ping the maintainers? &amp;#32; submitted by &amp;#32; /u/kahvana [link] &amp;#32; [comments] gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uyars3" target="_blank" rel="noopener">Gemma 4 12B and E2B fail to load in tensor parallel</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Kahvana</span>
+      <span class="cr-date">2026-07-16</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hey everyone, have you noticed this issue too? In a scenario where a model fails to load when it should for multiple people but the issue persist for a while without being looked into, is it appropiate to ping the maintainers? &amp;#32; submitted by &amp;#32...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uyars3" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="prayers requested for an abomination(modified gemma) ​i recently dug up the fresh corpse of a gemma-4-12b, and i'm currently stuffing its belly with what might be moe blocks or just rotten sausage. assuming this horrifying creation actually wakes up this weekend, it will be a 22b-a17b model, taking its place as a weird new brother be… gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uy8fg7" target="_blank" rel="noopener">Prayers requested for an Abomination(Modified Gemma)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Desperate-Sir-5088</span>
+      <span class="cr-date">2026-07-16</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">​I recently dug up the fresh corpse of a Gemma-4-12B, and I'm currently stuffing its belly with what might be MoE blocks or just rotten sausage. Assuming this horrifying creation actually wakes up this weekend, it will be a 22B-A17B model, taking its...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uy8fg7" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="i benchmarked 5 local models that fit a macbook pro - a 2-bit 27b in 8gb came in second edit / disclosure: i help build rapid-mlx (the tool here). the writeup was ai-assisted, but the benchmark is real and human-run - raw results + harness are in the repo, reproduce it yourself. i got tired of &quot;best local model&quot; advice that's either vibes or benchmarked on a $6k mac studio, so i ran 5 models that actually fit a macbook pro through the same coding (humaneval+), reasoning (math-500),… ha" data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1uxrpv5" target="_blank" rel="noopener">I benchmarked 5 local models that fit a MacBook Pro - a 2-bit 27B in 8GB came in second</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Striking-Swim6702</span>
+      <span class="cr-date">2026-07-16</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">EDIT / disclosure: I help build rapid-mlx (the tool here). The writeup was AI-assisted, but the benchmark is real and human-run - raw results + harness are in the repo, reproduce it yourself. I got tired of &quot;best local model&quot; advice that's either vib...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1uxrpv5" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="anyone tried +- 100b models locally with foreign languages? community discussion comparing gemma 4 31b, qwen 3.6 27b, and glm 4.7 30b on non-english (primarily european) languages. original poster reports gemma 4 31b as the best at czech, noting it &quot;blows their mind&quot; at 18gb. key community finding: gemma 4 31b (16-bit) is reported as &quot;extremely good in hungarian&quot; while the 26b 8-bit variant shows some &quot;slightly chinese&quot; output contamination. expert commenter conclud" data-cats="high-gpu quantization">
   <div class="cr-card-header">
