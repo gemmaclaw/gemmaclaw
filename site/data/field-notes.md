@@ -1,3 +1,55 @@
+## Field Notes - 2026-07-19
+
+A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
+Curated from the latest Gemma-mentioning posts (5 new hardware-mention entries from the July 18 ingest, 528 entries total) and their threads.
+Confidence is **low** this cycle. All five new posts came in through the Atom fallback, so every one carries a placeholder score around 20 with no captured comments, and none is a reproducible measured benchmark. The single hardware number this cycle is one user's self-reported throughput figure, so treat the whole sweep as directional community signal rather than evidence.
+
+_July 19 sweep, 2026-07-19 00:00 UTC:_ a thin cycle with no new measured benchmark. After the July 18 MacBook Pro comparison, this ingest of 40 posts surfaced five Gemma-mentioning items, four of them on-topic: a single consumer-GPU throughput datapoint (about 23 tok/s for Gemma 4 26B A4B on an RTX 4060 Ti 16GB, bottlenecked by memory bandwidth), a byte-exact KV cache grafting preprint that reports a large accuracy jump on Gemma 4 12B, a precise-reasoning failure where Gemma 4 31B QAT could not predict piped `dd` output, and an open question about which quantization provider to trust for Gemma 4 26B. A fifth post, a model-swapping MCP tool that only tags Gemma in passing, is left out of the narrative as off-topic tooling but is included as a community card. Nothing this cycle changes the tier guidance from prior sweeps.
+
+**Mid-range single GPU: one user reports about 23 tokens per second on Gemma 4 26B A4B with an RTX 4060 Ti 16GB, and says memory bandwidth, not VRAM, is the ceiling.** In an upgrade-shopping thread about inflated GPU prices, the author notes that although the **RTX 4060 Ti 16GB** has plenty of VRAM to hold the **Gemma 4 26B-A4B MoE**, its **narrow memory bus caps decode at roughly 23 tok/s**. They are weighing a next card and find the options poor: the cheapest step up is the **Intel Arc B60** (which they say has weak software support), then the **Radeon RX 7900 XT**, with little else usable under **$1,000**. For Gemmaclaw's mid-range GPU tier this is a useful, if single-user, datapoint. The sparse 26B-A4B is comfortably runnable at interactive speed on a 16 GB consumer card, and the practical limit on that class of card is memory bandwidth rather than capacity, so a card with more raw VRAM but a similar bus width will not necessarily decode faster. Confidence: a single anecdote with a placeholder score and no captured comments, and the post names no quant, context length, or backend, so the 23 tok/s figure is indicative only. ([source](https://reddit.com/r/localllama/comments/1v07ell), July 18, 2026)
+
+**Technique to watch: a preprint claims byte-exact KV cache grafting on frozen Gemma 4 12B, lifting an AIME 2025 routing setup from 76.7% to 90.0%.** The author published a method to store verified knowledge as KV state and restore it **byte identical** to fresh computation, and reports that on **Gemma 4 12B** the cached knowledge raised the same routing system from **76.7% to 90.0% on AIME 2025** (paper: arXiv 2607.14431). This is interesting for Gemmaclaw beyond a single number because it frames Gemma 4 as a candidate for cached-knowledge and prefill-reuse experiments, and it sits in the same cluster as this week's other cache-reuse work, a cache-invalidation proxy tool and a Mac Studio KV-reuse report. It is a fresh single-author preprint with a promotional framing (the author says they will pitch it at a summit the next day), a placeholder score, and no independent replication, so it is a lead to watch rather than an established result. Confidence: low, an unreplicated preprint from one author with no captured discussion. ([source](https://reddit.com/r/localllama/comments/1v07tib), July 18, 2026)
+
+**Known limit, precise reasoning: Gemma 4 31B QAT could not predict the exact output and exit code of a piped `dd` command, and neither could two other large local models.** A tester asked several models, all in reasoning mode, to predict the printout and error code of a specific two-stage `set -o pipefail; dd ... | dd ...` pipeline on Linux. **Gemma 4 31B QAT, Qwen 3.6 27B Q6, and DeepSeek V4 Flash MXFP4 all failed**, and a fourth model was still thinking when the tester gave up. These are the largest models the author runs locally. For Gemmaclaw this is a narrow but concrete reminder that Gemma 4 31B, even in reasoning mode, is unreliable at precise mechanical reasoning about tool output, the kind of exact-value prediction that matters for agentic shell work. The author had not yet tried a coding harness, which might catch or correct such errors. Confidence: a single tester, a one-shot task, a placeholder score, and no comments, so read it as one datapoint on a hard sub-skill, not a benchmark. ([source](https://reddit.com/r/localllama/comments/1uzuebx), July 18, 2026)
+
+### Best current setup (this cycle's additions)
+
+- **Mid-range single GPU (16 GB):** the sparse **Gemma 4 26B-A4B** runs at interactive speed (about **23 tok/s** for one user) on an **RTX 4060 Ti 16 GB**, with **memory bandwidth, not VRAM, the limiting factor** on that class of card ([1v07ell](https://reddit.com/r/localllama/comments/1v07ell)).
+- **Prefill and cache reuse, experimental:** if you experiment with cached-knowledge or prefill reuse, **Gemma 4 12B** is now the subject of a **byte-exact KV grafting** preprint reporting a large AIME jump, worth tracking but not yet replicated ([1v07tib](https://reddit.com/r/localllama/comments/1v07tib)).
+- **Precise shell and tool reasoning:** do **not** rely on **Gemma 4 31B QAT** to predict exact command output, since at least one deterministic `dd` test tripped it and two peer models ([1uzuebx](https://reddit.com/r/localllama/comments/1uzuebx)).
+- **No change to prior tiers:** the July 18 items (Gemma 4 26B topping a five-model MacBook Pro average at 14.7 GB, Gemma 4 31B Q8 as a credible agentic coder, phone-side MoE expert streaming at 1 to 5 tok/s, and the tensor-parallel load caveat) and all earlier tier guidance still stand. Nothing this cycle contradicts them.
+
+### What works
+
+- **Gemma 4 26B-A4B is comfortably interactive on a 16 GB consumer GPU**, about 23 tok/s on an RTX 4060 Ti for one user ([1v07ell](https://reddit.com/r/localllama/comments/1v07ell)).
+- **Gemma 4 12B is a viable base for KV-cache and prefill-reuse research**, per a new byte-exact grafting preprint, though the result is unreplicated ([1v07tib](https://reddit.com/r/localllama/comments/1v07tib)).
+
+### Known limits
+
+- **The one hardware number this cycle is a single self-report** (about 23 tok/s, RTX 4060 Ti 16 GB, Gemma 4 26B A4B) with no quant, context, or backend named, so treat it as indicative only ([1v07ell](https://reddit.com/r/localllama/comments/1v07ell)).
+- **Gemma 4 31B QAT failed a precise piped-`dd` output prediction** in reasoning mode, alongside Qwen 3.6 27B and DeepSeek V4 Flash, a reminder it is weak at exact mechanical tool-output reasoning ([1uzuebx](https://reddit.com/r/localllama/comments/1uzuebx)).
+- **The KV grafting result is an unreplicated single-author preprint** with a promotional framing and a placeholder score, not yet independent evidence ([1v07tib](https://reddit.com/r/localllama/comments/1v07tib)).
+
+### Open questions
+
+- **Which quantization provider is best for Gemma 4 26B by task?** A user running MoE Gemma 4 26B and Qwen 3.6 35B sees quality differences across bartowski, unsloth, LM Studio, and Google builds but cannot find a rule of thumb for coding versus general chat ([1uzr4ia](https://reddit.com/r/localllama/comments/1uzr4ia)).
+- **Does the byte-exact KV grafting result hold up** under independent replication and on larger Gemma 4 sizes, or is the 76.7 to 90.0 jump specific to one routing setup ([1v07tib](https://reddit.com/r/localllama/comments/1v07tib))?
+- **What is the memory-bandwidth floor for interactive Gemma 4 26B-A4B** across consumer cards, given a 16 GB RTX 4060 Ti lands near 23 tok/s and the bus, not the VRAM, is the bottleneck ([1v07ell](https://reddit.com/r/localllama/comments/1v07ell))?
+
+### Sources
+
+The Gemma-mentioning posts driving this update (July 19 sweep, newest first). All five are **placeholder-score (~20), zero-comment** items from the Atom-fallback ingest, so weight them accordingly. There is **no reproducible measured benchmark** this cycle:
+
+- [How are y'all stomaching the "AI Boom" prices?](https://reddit.com/r/localllama/comments/1v07ell) (Jul 18, 2026, an upgrade thread reporting about 23 tok/s on Gemma 4 26B A4B with an RTX 4060 Ti 16GB and calling out the narrow memory bus as the bottleneck. No quant, context, or backend named)
+- [Byte exact KV cache grafting on frozen Gemma 4](https://reddit.com/r/localllama/comments/1v07tib) (Jul 18, 2026, a preprint (arXiv 2607.14431) claiming byte-identical KV state restore, with Gemma 4 12B improving from 76.7% to 90.0% on an AIME 2025 routing setup. Single author, promotional framing, unreplicated)
+- [Which models can predict piped dd output in Linux?](https://reddit.com/r/localllama/comments/1uzuebx) (Jul 18, 2026, a precise reasoning test where Gemma 4 31B QAT, Qwen 3.6 27B Q6, and DeepSeek V4 Flash all failed to predict the exact output and exit code of a two-stage dd pipeline)
+- [Qwen and Gemma providers](https://reddit.com/r/localllama/comments/1uzr4ia) (Jul 18, 2026, a user asks which provider quant, bartowski, unsloth, LM Studio, or Google, is best for Gemma 4 26B and Qwen 3.6 35B for coding versus general use. No answer reached)
+- [promptchain: pin, preload, and swap local models across backends](https://reddit.com/r/localllama/comments/1v032br) (Jul 18, 2026, a model-swapping Python library and MCP server that tags Gemma only in passing. Included as a community card but off-topic for the Gemma 4 hardware narrative)
+
+_Last updated: 2026-07-19 (July 19 sweep). Confidence: low (five placeholder-score Atom-fallback anecdotes, no reproducible measured benchmark this cycle). Key findings: one user reports about 23 tok/s for Gemma 4 26B A4B on an RTX 4060 Ti 16 GB and identifies memory bandwidth, not VRAM, as the ceiling on that class of card. A single-author preprint claims byte-exact KV cache grafting on frozen Gemma 4 12B, raising an AIME 2025 routing setup from 76.7% to 90.0%, an unreplicated lead to watch. Gemma 4 31B QAT failed a precise piped-dd output prediction test in reasoning mode alongside two peer models, a reminder it is weak at exact tool-output reasoning. And a user reports unresolved quality differences between Gemma 4 26B quant providers. A model-swapping MCP tool was added as a card but left out of the narrative as off-topic. Prior-cycle tier guidance is unchanged. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+
+---
+
 ## Field Notes - 2026-07-18
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
