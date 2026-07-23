@@ -1845,7 +1845,60 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
-      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes - 2026-07-21</h2>
+      <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes - 2026-07-23</h2>
+<p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (9 new hardware-mention entries from the July 22 ingest, 545 entries total) and their threads. Confidence is <strong>low-to-mixed</strong> this cycle, but it is richer than the last few. Two items carry <strong>measured throughput numbers</strong>: a dual RTX 5060 Ti report where multi-token prediction (MTP) lifts Gemma 4 26B A4B from 88 to 132 tok/s, and an AMD Radeon AI PRO R9700 report where Gemma 4 26B A4B runs at about 20 tok/s instead of the expected 50 on ROCm vLLM. The rest are qualitative: two more reports of Gemma 4 struggling on agentic loops (now on an RTX 5090 and against Qwen 3.6 in Hermes), a real triple-3090 24/7 deployment, an on-device confidence-routing project on the E2B model, and a 48 GB Mac visual benchmark. Every new post arrived through the Atom fallback with a placeholder score around 20 and no captured comments, so weight even the measured items as single-author datapoints.</p>
+<p><em>July 23 sweep, 2026-07-23 00:00 UTC:</em> a broad cycle spanning multi-GPU, AMD, single-GPU, Apple Silicon, and edge. The July 22 ingest of 63 posts surfaced nine Gemma-mentioning hardware entries. The two that move anything are both measured. First, a dual RTX 5060 Ti user shows that MTP is a real speedup for the sparse 26B A4B MoE (88 to 132 tok/s) with the right draft depth, which complicates rather than contradicts the July 20 dual-3090 result where MTP made the dense 31B QAT slower: the lesson is that MTP for Gemma 4 is tuning and architecture sensitive, not a blanket win or loss. Second, an AMD R9700 owner measures Gemma 4 26B A4B at roughly half its expected ROCm vLLM throughput, traced to a missing tuned MoE kernel config. The remaining seven reinforce standing patterns (chat-strong, agentic-weak) or are context, and none overturns the tier picks carried since the July 16 through July 21 sweeps.</p>
+<p><strong>Multi-GPU, the measured headline: on dual RTX 5060 Ti 16 GB, enabling MTP took Gemma 4 26B A4B QAT from 88 to 132 tok/s, the opposite of the July 20 dual-3090 result on the dense 31B.</strong> A user running <strong>Gemma 4 26B A4B IT QAT</strong> on <strong>dual RTX 5060 Ti 16 GB</strong> (llama.cpp b9999, CUDA 13.3, sm tensor, Windows 11) reports token generation rising from <strong>88 tok/s to 132 tok/s</strong> once MTP (speculative decoding) is enabled, using <strong>draft depth n-max 3 with min-p 0.2</strong> for natural-language tasks (measured on a roughly 20K-token prefill with a 10K-token generation). The same user finds the <strong>dense 31B</strong> prefers <strong>n-max 4, min-p 0.1</strong>, and that for programming both Gemma models and Qwen 3.6 27B MTP prefer a much deeper <strong>n-max 11, min-p 0.0</strong>. This directly complicates the July 20 finding, where MTP made <strong>Gemma 4 31B QAT slower</strong> on dual RTX 3090s: taken together, MTP for Gemma 4 is neither a free win nor a reliable loss, it depends on the model (the sparse 26B A4B MoE gained the most here), the draft depth, and whether the task is coding or natural language. Practical takeaway for the multi-GPU tier: if you run the 26B A4B MoE, MTP is worth enabling and tuning per task, but benchmark your own n-max and min-p rather than copying a single setting, and do not assume MTP helps the dense 31B. Confidence: single user, placeholder score, no comments, but the tok/s figures and settings are specific and self-consistent. (<a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">source</a>, July 21, 2026)</p>
+<p><strong>AMD, a measured shortfall: Gemma 4 26B A4B on a single Radeon AI PRO R9700 ran at about 20 tok/s on ROCm vLLM, roughly half the ~50 tok/s the owner expected, with a missing tuned MoE kernel config the likely cause.</strong> A user testing <strong>cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit</strong> on one <strong>AMD Radeon AI PRO R9700 (32 GB, gfx1201)</strong> under <strong>vLLM ROCm</strong> (TP 1, max-model-len 8192, fp8 KV cache, Triton attention, enforce-eager) measures <strong>about 19 to 20 generated tok/s after warmup</strong> against a published R9700 result nearer <strong>50 tok/s</strong>. The startup log flags the likely root cause: a warning that no tuned mixture-of-experts kernel config exists for this GPU and quantization (E=128, N=704, gfx1201, int4 w4a16), so vLLM falls back to a generic one. For Gemmaclaw's AMD guidance this is a useful caveat: Gemma 4 26B A4B is runnable on a 32 GB R9700, but out-of-the-box ROCm vLLM throughput can be about half of what a tuned setup reaches, and the untuned MoE config plus enforce-eager are the first things to revisit. Confidence: single user, placeholder score, no comments, a troubleshooting question rather than a finished benchmark, but the measured number and the config warning are concrete. (<a href="https://reddit.com/r/localllama/comments/1v3vy45" target="_blank" rel="noopener">source</a>, July 22, 2026)</p>
+<p><strong>Single GPU, agentic reinforcement: on an RTX 5090 with opencode and Hermes, a new user could not get Gemma 4 31B (NVFP4 4-bit) to complete any agentic task, not even a snake game, while Claude Sonnet did it fine.</strong> A user new to local models reports that <strong>Gemma 4 31B</strong> in <strong>NVFP4 4-bit</strong> (the nvidia and Red Hat quants) on an <strong>RTX 5090</strong> fails every agentic use case they try in opencode and Hermes, including trivial ones like generating a snake game, whereas the same tasks work through the Claude Sonnet API. They wonder whether the 4-bit quant is to blame. This is a third independent voice on the agentic-weakness pattern (after the July 20 26B A4B doomloop and the July 21 31B QAT early-stop), now on a top-end single GPU, though here it is unclear how much is the model versus the 4-bit NVFP4 quant, the harness, or first-time setup. It reinforces the standing guidance without adding a hardware number. Confidence: low, an open question from a self-described beginner, placeholder score, no comments, quant and harness confound the result. (<a href="https://reddit.com/r/localllama/comments/1v3ef7r" target="_blank" rel="noopener">source</a>, July 22, 2026)</p>
+<p><strong>Chat-strong, agentic-weak, restated with the new chat template: a user reports Gemma 4 26B A4B now edges out Qwen 3.6 and 3.5 MoE fine-tunes on instruct-mode quality and reasoning efficiency, yet Qwen 3.6 still beats it in the Hermes agent.</strong> The same author behind the Apple Silicon benchmark below posts that an <strong>updated Gemma 4 chat template</strong> makes <strong>Gemma 4 26B A4B</strong> come out ahead of <strong>Qwen 3.6 MoE and Qwen 3.5 MoE</strong> fine-tunes on instruct-mode responses and reasoning efficiency, calling it a win for local users, but concedes <strong>Qwen 3.6 still does better in Hermes</strong> (agentic tool use) and asks for a future Gemma 4.1 fine-tuned for agentic tasks. This lines up cleanly with the rest of the cycle: Gemma 4 keeps winning on chat and reasoning quality while trailing on multi-step agentic loops. No hardware or throughput numbers are given. Confidence: low, a single-author qualitative claim with a placeholder score and no comments, but consistent with multiple independent reports. (<a href="https://reddit.com/r/localllama/comments/1v2rqbd" target="_blank" rel="noopener">source</a>, July 21, 2026)</p>
+<p><strong>Multi-GPU deployment, a real one: Gemma 4 runs the language side of a 24/7 AI radio station on two RTX 3090s (lyrics, tool use, news summarization, and DJ decisions), with a third 3090 shared by image and music models.</strong> A user built a continuously streaming radio station driven end to end by local models: <strong>Gemma 4 on two RTX 3090s</strong> handles lyrics, tool calling, and news summarization and acts as the AI DJ deciding what plays, while <strong>ACE-Step (music) and Krea (images) share a third RTX 3090</strong> loaded on demand, and Kokoro reads the news on CPU. The station generates about <strong>60 new songs a day</strong> and has run continuously for several days. There are no throughput numbers, so this is not a benchmark, but it is a concrete, sustained example of Gemma 4 doing reliable tool use and summarization in a real triple-3090 deployment, which is a useful counterpoint to the agentic-weakness reports: constrained, well-scoped tool use in a fixed pipeline works, open-ended autonomous loops are where it struggles. Confidence: low as a measurement (none given), but a genuine running system rather than a claim. (<a href="https://reddit.com/r/localllama/comments/1v3woyv" target="_blank" rel="noopener">source</a>, July 22, 2026)</p>
+<p><strong>Edge and hybrid: Cactus post-trained Gemma 4 E2B to emit a per-response confidence score, so an on-device app can answer locally when confident and fall back to a cloud model when not.</strong> A team (Cactus) added a small <strong>68K-parameter probe layer</strong> (LayerNorm, low-rank projection, attention pooling, and a small MLP head) that reads an intermediate layer of <strong>Gemma 4 E2B</strong> during decoding and predicts a <strong>0 to 1 confidence score</strong> per response. Their pitch is a hybrid edge pattern: run the tiny model on-device, and route only the <strong>15 to 35 percent</strong> of queries where confidence is low to a larger cloud model (Gemini 3.1 Flash-Lite), which they claim lets Gemma 4 E2B match that cloud model on several benchmarks (ChartQA, LibriSpeech, MMBench, GigaSpeech, MMAU, MMLU-Pro). This is a vendor announcement with author-reported benchmarks and no local-hardware throughput, so treat the numbers as unverified, but the pattern (small on-device Gemma with a learned uncertainty signal plus selective cloud fallback) is a credible direction for phone and embedded deployments where E2B already runs. Confidence: low, a project announcement with self-reported benchmarks, placeholder score, no comments. (<a href="https://reddit.com/r/localllama/comments/1v3nw3j" target="_blank" rel="noopener">source</a>, July 22, 2026)</p>
+<p><strong>Apple Silicon, a visual bench: Gemma 4 26B at 6-bit was one of seven small MoE models compared on a 48 GB Mac generating a single-file HTML flight simulator, run through MLX with up to three attempts.</strong> A user ran a one-shot HTML flight-simulator generation prompt across seven models on a <strong>48 GB Mac</strong> via <strong>oMLX</strong>, including <strong>Gemma 4 26B at 6-bit</strong> (temperature 1.0, top-p 1.0, top-k 64, min-p 0.01, repeat-penalty 1.1), alongside Qwen 3.6 27B and various Qwen MoE and abliterated variants, giving each model up to three tries from a clean session. The output is a set of GIFs rather than scores, so there is no ranking or throughput to cite, but it confirms Gemma 4 26B fits and runs in the 48 GB Apple Silicon &quot;local SOTA&quot; bracket at 6-bit for single-shot code generation. Confidence: low, a qualitative visual comparison with no numeric result, placeholder score, no comments. (<a href="https://reddit.com/r/localllama/comments/1v33dlq" target="_blank" rel="noopener">source</a>, July 22, 2026)</p>
+<p>Two further posts mention Gemma 4 only in passing and are kept as searchable community cards but left out of the tier guidance: a discussion thread listing Gemma 4 31B among the mainline local models worth saving offline (<a href="https://reddit.com/r/localllama/comments/1v2m3mh" target="_blank" rel="noopener">1v2m3mh</a>), and a release post for Nanbeige 4.2 3B, a competitor model whose authors claim it beats Gemma 4 12B on coding and agentic benchmarks, a table the community is already flagging for inconsistencies and which has no independent verification yet (<a href="https://reddit.com/r/localllama/comments/1v336od" target="_blank" rel="noopener">1v336od</a>).</p>
+<h3>Best current setup (this cycle's additions)</h3>
+<ul class="setup-list">
+<li><strong>Multi-GPU (26B A4B MoE): enable and tune MTP.</strong> On dual RTX 5060 Ti 16 GB, MTP lifted Gemma 4 26B A4B QAT from 88 to 132 tok/s with draft depth n-max 3 and min-p 0.2 for natural language; tune n-max and min-p per task (coding wants a much deeper n-max 11) and benchmark your own numbers rather than copying one setting (<a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">1v25pwp</a>).</li>
+<li><strong>Multi-GPU (dense 31B): do not assume MTP helps.</strong> The July 20 dual-3090 result had MTP slowing the dense 31B QAT, and this cycle's win was on the sparse MoE, so treat MTP on the 31B as something to measure, not enable blindly (<a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">1v25pwp</a>, <a href="https://reddit.com/r/localllama/comments/1v0ipfe" target="_blank" rel="noopener">1v0ipfe</a>).</li>
+<li><strong>AMD (R9700, 26B A4B on ROCm vLLM): expect tuning work.</strong> Out-of-the-box ROCm vLLM gave about 20 tok/s versus an expected ~50; check for a tuned MoE kernel config for your gfx target and revisit enforce-eager before trusting the number (<a href="https://reddit.com/r/localllama/comments/1v3vy45" target="_blank" rel="noopener">1v3vy45</a>).</li>
+<li><strong>No tier changes otherwise:</strong> the single-consumer-GPU, Apple Silicon, CPU-only, and enterprise picks from the July 16 through July 21 sweeps stand.</li>
+</ul>
+<h3>What works</h3>
+<ul class="setup-list">
+<li><strong>MTP is a real speedup for the 26B A4B MoE</strong> on consumer dual-GPU setups when tuned (88 to 132 tok/s measured) (<a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">1v25pwp</a>).</li>
+<li><strong>Constrained, well-scoped tool use is reliable:</strong> Gemma 4 runs the language side (lyrics, summarization, DJ tool calls) of a 24/7 triple-3090 radio deployment (<a href="https://reddit.com/r/localllama/comments/1v3woyv" target="_blank" rel="noopener">1v3woyv</a>).</li>
+<li><strong>Gemma 4 26B A4B stays strong on chat and reasoning quality,</strong> edging Qwen 3.6 and 3.5 MoE fine-tunes on instruct-mode responses with the updated chat template (<a href="https://reddit.com/r/localllama/comments/1v2rqbd" target="_blank" rel="noopener">1v2rqbd</a>).</li>
+<li><strong>E2B runs on-device well enough</strong> to carry a learned confidence signal for hybrid edge routing (<a href="https://reddit.com/r/localllama/comments/1v3nw3j" target="_blank" rel="noopener">1v3nw3j</a>), and 26B fits the 48 GB Apple Silicon bracket at 6-bit (<a href="https://reddit.com/r/localllama/comments/1v33dlq" target="_blank" rel="noopener">1v33dlq</a>).</li>
+</ul>
+<h3>Known limits</h3>
+<ul class="setup-list">
+<li><strong>Open-ended agentic loops remain the weak spot.</strong> A new RTX 5090 user could not get Gemma 4 31B (NVFP4 4-bit) to complete any agentic task in opencode or Hermes, while Claude Sonnet did, and a separate user confirms Qwen 3.6 still beats Gemma 4 in Hermes (<a href="https://reddit.com/r/localllama/comments/1v3ef7r" target="_blank" rel="noopener">1v3ef7r</a>, <a href="https://reddit.com/r/localllama/comments/1v2rqbd" target="_blank" rel="noopener">1v2rqbd</a>).</li>
+<li><strong>ROCm vLLM throughput for the 26B A4B MoE can be about half of tuned</strong> without a matching MoE kernel config for the GPU (<a href="https://reddit.com/r/localllama/comments/1v3vy45" target="_blank" rel="noopener">1v3vy45</a>).</li>
+<li><strong>MTP is not a portable setting:</strong> the best draft depth differs by model (26B A4B versus dense 31B) and by task (natural language versus coding), and MTP can slow the dense 31B outright (<a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">1v25pwp</a>, <a href="https://reddit.com/r/localllama/comments/1v0ipfe" target="_blank" rel="noopener">1v0ipfe</a>).</li>
+<li><strong>Every new post this cycle is a placeholder-score, zero-comment Atom-fallback item,</strong> and the two benchmark-style claims (Cactus routing, Nanbeige 3B) are author-reported and unverified (<a href="https://reddit.com/r/localllama/comments/1v3nw3j" target="_blank" rel="noopener">1v3nw3j</a>, <a href="https://reddit.com/r/localllama/comments/1v336od" target="_blank" rel="noopener">1v336od</a>).</li>
+</ul>
+<h3>Open questions</h3>
+<ul class="setup-list">
+<li><strong>Does MTP help the dense Gemma 4 31B on any setup, or only the sparse 26B A4B MoE?</strong> One user gained 50 percent on the 26B A4B while the July 20 dual-3090 report lost throughput on the 31B, so the dense-model story is still unsettled (<a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">1v25pwp</a>, <a href="https://reddit.com/r/localllama/comments/1v0ipfe" target="_blank" rel="noopener">1v0ipfe</a>).</li>
+<li><strong>Is Gemma 4's agentic failure a model limit or a quant and harness artifact?</strong> The RTX 5090 report used a 4-bit NVFP4 quant and a first-time opencode/Hermes setup, so it is unclear how much a higher-precision quant or a tuned harness would recover (<a href="https://reddit.com/r/localllama/comments/1v3ef7r" target="_blank" rel="noopener">1v3ef7r</a>).</li>
+<li><strong>What tuned ROCm vLLM recipe reaches ~50 tok/s for Gemma 4 26B A4B on the R9700?</strong> The owner is asking for the exact image, flags, and MoE config, which no one has posted yet (<a href="https://reddit.com/r/localllama/comments/1v3vy45" target="_blank" rel="noopener">1v3vy45</a>).</li>
+</ul>
+<h3>Sources</h3>
+<p>The Gemma-related posts driving this update (July 23 sweep, newest first). All are <strong>placeholder-score (about 20), zero-comment</strong> items from the Atom-fallback ingest; the two measured throughput reports are the exceptions worth trusting numerically:</p>
+<ul class="setup-list">
+<li><a href="https://reddit.com/r/localllama/comments/1v3vy45" target="_blank" rel="noopener">Performance issue: about 20 tok/s vs 50 tok/s on Radeon AI PRO R9700 with vLLM ROCm and Gemma 4 26B</a> (Jul 22, 2026, gemma-4-26B-A4B-it-AWQ-4bit at about 19 to 20 tok/s on a single R9700 32 GB under ROCm vLLM vs an expected ~50, likely a missing tuned MoE kernel config for gfx1201, measured)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v3woyv" target="_blank" rel="noopener">24/7 Subreddit Radio</a> (Jul 22, 2026, Gemma 4 on two RTX 3090s runs lyrics, tool use, news summarization and DJ decisions in a continuous radio deployment, a third 3090 shares music and image models, no throughput numbers)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v3nw3j" target="_blank" rel="noopener">Cactus Hybrid: we taught Gemma 4 to know when it is wrong</a> (Jul 22, 2026, a 68K-param probe on Gemma 4 E2B emits a per-response confidence score for on-device plus selective cloud-fallback routing, author-reported benchmarks only)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v3ef7r" target="_blank" rel="noopener">Gemma 4 agentic capabilities?</a> (Jul 22, 2026, RTX 5090 user cannot get Gemma 4 31B NVFP4 4-bit to complete any agentic task in opencode or Hermes while Claude Sonnet works, possibly quant or harness related)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v33dlq" target="_blank" rel="noopener">FlightSimulatorBench: small MoE edition</a> (Jul 22, 2026, Gemma 4 26B at 6-bit among seven small MoE models compared on a 48 GB Mac via MLX on a single-file HTML flight-sim prompt, GIFs not scores)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v336od" target="_blank" rel="noopener">Nanbeige 4.2 3B drops, claims to beat 9B/12B on agentic tasks</a> (Jul 22, 2026, a competitor 3B model claiming to beat Gemma 4 12B on coding and agentic benchmarks, author table with community-flagged inconsistencies, unverified)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v2rqbd" target="_blank" rel="noopener">Updated Gemma 4 chat template: 26B A4B edges Qwen 3.6 and 3.5 MoE fine-tunes on instruct and reasoning</a> (Jul 21, 2026, qualitative claim that Gemma 4 26B A4B beats Qwen MoE fine-tunes on chat quality with the new chat template but still loses to Qwen 3.6 in Hermes agentic use)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v25pwp" target="_blank" rel="noopener">MTP on MoE matters</a> (Jul 21, 2026, dual RTX 5060 Ti 16 GB, Gemma 4 26B A4B QAT rises from 88 to 132 tok/s with MTP at n-max 3 min-p 0.2, the cycle's strongest measured result, complicating the July 20 dense-31B MTP regression)</li>
+<li><a href="https://reddit.com/r/localllama/comments/1v2m3mh" target="_blank" rel="noopener">Important small/tiny local models to download before the shutdowns</a> (Jul 21, 2026, lists Gemma 4 31B among mainline models to keep offline, a discussion prompt, no hardware report)</li>
+</ul>
+<p><em>Last updated: 2026-07-23 (July 23 sweep). Confidence: low-to-mixed (nine placeholder-score, zero-comment Atom-fallback posts, two of them carrying measured throughput). Key point: MTP is a real, tunable speedup for the sparse Gemma 4 26B A4B MoE (88 to 132 tok/s on dual RTX 5060 Ti) but not a portable setting, since the July 20 dual-3090 report showed MTP slowing the dense 31B, so treat MTP as architecture and task dependent. Second measured item: Gemma 4 26B A4B ran at about half its expected throughput (about 20 vs 50 tok/s) on an AMD R9700 under ROCm vLLM, traced to a missing tuned MoE kernel config. The agentic-weakness pattern gained two more voices (RTX 5090 NVFP4 31B, and Qwen 3.6 still winning in Hermes), while a triple-3090 radio deployment shows constrained tool use is reliable, and Cactus added on-device confidence routing to E2B. Tier guidance carries over from the July 16 through July 21 sweeps with multi-GPU MTP and AMD ROCm caveats added. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p>
+<p>---</p>
+<h2>Field Notes - 2026-07-21</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma-mentioning posts (3 Gemma-related items from the July 20 ingest, 536 hardware-mention entries total) and their threads. Confidence is <strong>low</strong> this cycle. Every item is a placeholder-score (about 20), zero-comment Atom-fallback post, and there is <strong>no new speed, VRAM, quantization, or context-length measurement</strong>. The one item that matters is a hands-on agentic-laziness report on Gemma 4 31B QAT that reinforces and extends the July 20 finding, so prior tier picks stand and the agentic-guard caveat gets stronger rather than any tier changing.</p>
 <p><em>July 21 sweep, 2026-07-21 00:00 UTC:</em> a thin cycle. The daily digest flagged two Gemma-mentioning posts (a hobby architecture experiment and an ecosystem-sentiment thread), but the hardware extraction also surfaced a third, more useful one: a user running Gemma 4 31B QAT who pastes a full config and reports that the model still stops early on multi-turn agentic tasks even after the recent chat-template update. That agentic-laziness report is the only actionable item and it strengthens the July 20 pattern (Gemma 4 26B A4B doomlooping on agentic loops) by showing the dense 31B QAT has the same weakness for one more user, against models like Qwen 3.6 27B and DeepSeek V4 Flash that keep going. Nothing here is a new hardware number, and none of it overturns the standing single-GPU, multi-GPU, Apple Silicon, CPU-only, or enterprise guidance.</p>
 <p><strong>The one actionable item: a user reports Gemma 4 31B QAT is &quot;still lazy&quot; on agentic work, stopping after a couple of tool calls even with the latest chat template and preserve-thinking enabled, while Qwen 3.6, DeepSeek V4 Flash, and GPT-OSS 120B keep going.</strong> A user running <strong>unsloth/gemma-4-31B-it-qat-GGUF at UD-Q4_K_XL</strong> with a fully pasted config (<strong>147K context, tensor split, temperature 1.0, top-p 0.95, top-k 64, flash attention on, `preserve_thinking` true, the latest Unsloth GGUF with the new chat template, spec decoding on</strong>) says that in the Hermes agent the model does a couple of tool calls, narrates something like &quot;I did A but B and C happened, now I am going to do D,&quot; and then <strong>just stops</strong>. Telling it to continue and not stop produces the same early exit again. The same user reports this is <strong>not</strong> a problem with <strong>Qwen 3.6 27B (UD-Q5_K_XL)</strong>, <strong>DeepSeek V4 Flash (UD-IQ3_XXS)</strong>, or even older <strong>GPT-OSS 120B</strong>, all of which keep &quot;fruitfully chewing on the problem,&quot; and concedes Gemma 4 is a great chatbot. For Gemmaclaw this is a directly on-topic reinforcement of the standing agentic caveat: the weakness earlier reported for the sparse 26B A4B now shows up on the dense 31B QAT too, and importantly the recent chat-template and preserve-thinking changes that were meant to reduce Gemma 4 laziness did <strong>not</strong> fix multi-turn agentic drop-off for this user. The practical takeaway is unchanged and a little firmer: for autonomous multi-step loops, do not run Gemma 4 unsupervised, pair it with a stronger orchestrator or an anti-stall guard, and reserve Gemma 4 for chat, comprehension, and single-shot generation where it is strong. Confidence: low, a single-author report with a placeholder score and no comments, and no completion-rate or throughput numbers, but the config is fully specified and the failure mode matches independent July 20 reports. (<a href="https://reddit.com/r/localllama/comments/1v1ccun" target="_blank" rel="noopener">source</a>, July 20, 2026)</p>
@@ -3555,10 +3608,10 @@
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
       <div class="community-section" id="community">
-      <h3>Community Reports (536 from r/LocalLLaMA)</h3>
+      <h3>Community Reports (545 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
-      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (70)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (57)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (35)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (18)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (27)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (316)</button><button class="cat-filter-btn" data-cat="general">Other (164)</button></div>
+      <div class="cat-filter-bar"><button class="cat-filter-btn active" data-cat="all">All</button><button class="cat-filter-btn" data-cat="apple-silicon">Apple Silicon (71)</button><button class="cat-filter-btn" data-cat="high-gpu">High-end GPU (24+ GB) (59)</button><button class="cat-filter-btn" data-cat="mid-gpu">Mid-range GPU (8-16 GB) (35)</button><button class="cat-filter-btn" data-cat="cpu-only">CPU / Raspberry Pi (20)</button><button class="cat-filter-btn" data-cat="laptop">Laptops (27)</button><button class="cat-filter-btn" data-cat="quantization">Quantization &amp; Backends (319)</button><button class="cat-filter-btn" data-cat="general">Other (166)</button></div>
 <div id="community-cards"><div class="cr-card" data-search="gemma 4 has been released [ quantization agents anthropic google gemma google is going to show what open weights is about. happy easter everyone. gemma-4 has native thinking, tool calling and is multimodal! use temperature = 1.0, top_p = and after a week maybe : &quot;gemma 4 26b heretic uncensored ablated claude opus 4.6 reasoning distlled" data-cats="quantization">
   <div class="cr-card-header">
     <div class="cr-title-row">
@@ -12247,6 +12300,150 @@
   </div>
   <p class="cr-summary">Hi all, We made several updates to the SWE-rebench leaderboard: added new models, refreshed recent results, and reworked the leaderboard UI to make results easier to read, compare, and understand. New Models: Claude Opus 4.8 xhigh: 56.5% - 2.48M toke...</p>
   <a href="https://reddit.com/r/LocalLLaMA/comments/1uknx14" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="cactus hybrid: we taught gemma 4 to know when it's wrong hey hn, henry &amp; roman here from cactus. a small, on-device model is fast and private, but sometimes wrong, but frontier models are getting expensive pretty fast. so, we post-trained gemma 4 e2b post-trained to know when it's wrong. every response comes with a confidence score between 0 and 1. developers can accept the on-device when it's high, hand off to a bigger cloud model when it's low. by ro… fine-tuning benchmarking google gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v3nw3j" target="_blank" rel="noopener">Cactus Hybrid: We taught Gemma 4 to know when it's wrong</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Henrie_the_dreamer</span>
+      <span class="cr-date">2026-07-22</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hey HN, Henry &amp; Roman here from Cactus. A small, on-device model is fast and private, but sometimes wrong, but frontier models are getting expensive pretty fast. So, we post-trained Gemma 4 E2B post-trained to know when it's wrong. Every response com...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v3nw3j" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="what are some important small/tiny local models to download that aren't the main chatbot llms, but are things for like audio, tts, stt, vision, or whatever random important miscellaneous things like that which might be useful to get before the bans and shutdowns come in? most of us already know the main important mainline local llms to save like qwen3.6 27b, gemma4 31b, glm5.2, etc. and then for diffusion models, z-image turbo, flux klein, ltx2.3, and wan2.2. but, what about those random little " data-cats="apple-silicon">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v2m3mh" target="_blank" rel="noopener">What are some important small/tiny local models to download that aren't the main chatbot LLMs, but are things for like a</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/DeepOrangeSky</span>
+      <span class="cr-date">2026-07-21</span>
+
+      <span class="cr-cat-badge">Apple Silicon</span>
+    </div>
+  </div>
+  <p class="cr-summary">Most of us already know the main important mainline local LLMs to save like Qwen3.6 27b, Gemma4 31b, GLM5.2, etc. And then for diffusion models, Z-Image Turbo, Flux Klein, LTX2.3, and Wan2.2. But, what about those random little special use case model...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v2m3mh" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="performance issue: low token generation (~20 tok/s vs 50 tok/s) on radeon ai pro r9700 (gfx1201) with vllm rocm &amp; gemma 4-26b i’m testing cyankiwi/gemma-4-26b-a4b-it-awq-4bit on a single amd radeon ai pro r9700 (32 gb, gfx1201) using vllm rocm. current result: about 19-20 generated tok/s after warmup, with a short single-user decode benchmark. i expected something closer to 50 tok/s based on a published r9700 result for this model. my current vllm setup: - vllm: 0.22.1rc1.dev499+g470229c37.d" data-cats="cpu-only quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v3vy45" target="_blank" rel="noopener">Performance issue: Low token generation (~20 tok/s vs 50 tok/s) on Radeon AI PRO R9700 (gfx1201) with vLLM ROCm &amp; Gemma </a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/veryhasselglad</span>
+      <span class="cr-date">2026-07-22</span>
+
+      <span class="cr-cat-badge">CPU / Raspberry Pi</span><span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">I’m testing cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit on a single AMD Radeon AI PRO R9700 (32 GB, gfx1201) using vLLM ROCm. Current result: about 19-20 generated tok/s after warmup, with a short single-user decode benchmark. I expected something closer to...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v3vy45" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="mtp on moe matters hey everyone, back when mtp came available on llama.cpp, it seemed like the common consensus was that mtp didn't matter much for moe models. after spending an evening running tests, i got some really decent performance increases out of gemma4-26b-a4b-it-qat. from 88 t/s tg to 132 t/s tg seems for me that n-max 3 min-p 0.2 gives the best performance on my hardware for natural language tasks (teste… hardware inference meta-llama" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v25pwp" target="_blank" rel="noopener">MTP on MoE matters</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/Kahvana</span>
+      <span class="cr-date">2026-07-21</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hey everyone, Back when MTP came available on llama.cpp, it seemed like the common consensus was that MTP didn't matter much for MoE models. After spending an evening running tests, I got some really decent performance increases out of Gemma4-26B-A4B...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v25pwp" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="24/7 subreddit radio i built a 24/7 radio station about r/wallstreetbets everyone hears the same second at the same time. real radio, not a playlist. you don't pick a track, you tune into wherever the tape is and vibe. it's essentially a subreddit as radio, in theory it could be done with any subreddit i'm using locally hosted models for all of it: gemma 4 on two 3090s for lyrics, tool use, and news summarization. an… hardware agents gemma" data-cats="high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v3woyv" target="_blank" rel="noopener">24/7 Subreddit Radio</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/nuclear-falcon</span>
+      <span class="cr-date">2026-07-22</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">I built a 24/7 radio station about r/wallstreetbets Everyone hears the same second at the same time. Real radio, not a playlist. You don't pick a track, you tune into wherever the tape is and vibe. It's essentially a subreddit as radio, in theory it ...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v3woyv" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="flightsimulatorbench: small moe edition properly done this time. models as the gifs are displayed: qwen3.6-27b - 4bit qwen3.6-moe - 6bit ornith-35b - 6bit gemma-4-26b - 6bit qwen3.6-moe - 4bit huihui-qwen3.6-moe - 6bit agents-a1 - 6bit inference parameters: qwen3.6 &amp; huihui abliterated: temperature 0.6 - topp 0.95 - topk 20 - minp 0.01 - repeatpenalty 1.05 ornith-1.0-35b: temperature 1.0 - topp 1.0 - topk 40 - min_p 0.01 - repeat… gemma" data-cats="general">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v33dlq" target="_blank" rel="noopener">FlightSimulatorBench: Small MoE edition</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/JLeonsarmiento</span>
+      <span class="cr-date">2026-07-22</span>
+
+      <span class="cr-cat-badge">General</span>
+    </div>
+  </div>
+  <p class="cr-summary">Properly done this time. Models as the GIFs are displayed: Qwen3.6-27B - 4bit Qwen3.6-MoE - 6bit Ornith-35B - 6bit Gemma-4-26B - 6bit Qwen3.6-MoE - 4bit HuiHui-Qwen3.6-MoE - 6bit Agents-A1 - 6bit Inference parameters: Qwen3.6 &amp; HuiHui Abliterated: te...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v33dlq" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="gemma 4 - agentic capabilities? hi all, just started the local llm journey and testing gemma on an rtx5090 with opencode, hermes etc. i see lots of chats on gemma and qwen, but for me no agentic use case seems to work, not even creating simple games like snake as a test. am i doing something wrong, or is it because im using a 4bit version? the same tests with claude sonnet via api work without any problems... but here i thought… hardware anthropic qwen gemma" data-cats="high-gpu">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v3ef7r" target="_blank" rel="noopener">Gemma 4 - Agentic Capabilities?</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/kolliwolli</span>
+      <span class="cr-date">2026-07-22</span>
+
+      <span class="cr-cat-badge">High-end GPU (24+ GB)</span>
+    </div>
+  </div>
+  <p class="cr-summary">Hi all, Just started the local llm journey and testing gemma on an rtx5090 with opencode, hermes etc. I see lots of chats on Gemma and Qwen, but for me no agentic use case seems to work, not even creating simple games like snake as a test. Am I doing...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v3ef7r" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="nanbeige4.2-3b drops: 3b params claiming to beat 9b/12b models on agentic tasks (atleast according to them) nanbeige lab released nanbeige4.2-3b, and if the benchmark claims hold up, the numbers are pretty crazy for a model this small. it’s built on a &quot;looped transformer&quot; architecture that reuses transformer layers to increase effective depth without inflating the parameter footprint. with just 3b non_embedding parameters, they are reporting an swe-bench verified score of 63.6 and swe-" data-cats="quantization">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v336od" target="_blank" rel="noopener">Nanbeige4.2-3B drops: 3B params claiming to beat 9B/12B models on agentic tasks (atleast according to them)</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/UsedMorning9886</span>
+      <span class="cr-date">2026-07-22</span>
+
+      <span class="cr-cat-badge">Quantization &amp; Backends</span>
+    </div>
+  </div>
+  <p class="cr-summary">Nanbeige Lab released Nanbeige4.2-3B, and if the benchmark claims hold up, the numbers are pretty crazy for a model this small. It’s built on a &quot;Looped Transformer&quot; architecture that reuses transformer layers to increase effective depth without infla...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v336od" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
+</div>
+<div class="cr-card" data-search="updated gemma-4 chat template witchcraft: gemma-4-26b-a4b shows dominance over qwen3.6-moe and qwen3.5-moe fine tunes (instruct mode and reasoning efficiency) kind of unexpected. happy for gemma-4/google, big win for us, localllmers. yet qwen3.6 still does better in hermes than gemma-4 somehow. we need gemma-4.1 fine-tuned on agentic-tasks. that would be killer. &amp;#32; submitted by &amp;#32; /u/jleonsarmiento [link] &amp;#32; [comments] google gemma" data-cats="cpu-only">
+  <div class="cr-card-header">
+    <div class="cr-title-row">
+      <h4 class="cr-title"><a href="https://reddit.com/r/LocalLLaMA/comments/1v2rqbd" target="_blank" rel="noopener">Updated Gemma-4 chat template witchcraft: Gemma-4-26B-a4B shows dominance over Qwen3.6-MoE and Qwen3.5-MoE fine tunes (I</a></h4>
+      <span class="cr-score ">+20</span>
+    </div>
+    <div class="cr-meta">
+      <span class="cr-author">u/JLeonsarmiento</span>
+      <span class="cr-date">2026-07-21</span>
+
+      <span class="cr-cat-badge">CPU / Raspberry Pi</span>
+    </div>
+  </div>
+  <p class="cr-summary">Kind of unexpected. Happy for Gemma-4/Google, big win for us, LocalLLMers. Yet Qwen3.6 still does better in Hermes than Gemma-4 somehow. We need Gemma-4.1 fine-tuned on Agentic-tasks. That would be killer. &amp;#32; submitted by &amp;#32; /u/JLeonsarmiento [...</p>
+  <a href="https://reddit.com/r/LocalLLaMA/comments/1v2rqbd" class="cr-source" target="_blank" rel="noopener">View full discussion on r/LocalLLaMA</a>
 </div>
 <div class="cr-card" data-search="anyone tried +- 100b models locally with foreign languages? community discussion comparing gemma 4 31b, qwen 3.6 27b, and glm 4.7 30b on non-english (primarily european) languages. original poster reports gemma 4 31b as the best at czech, noting it &quot;blows their mind&quot; at 18gb. key community finding: gemma 4 31b (16-bit) is reported as &quot;extremely good in hungarian&quot; while the 26b 8-bit variant shows some &quot;slightly chinese&quot; output contamination. expert commenter conclud" data-cats="high-gpu quantization">
   <div class="cr-card-header">
