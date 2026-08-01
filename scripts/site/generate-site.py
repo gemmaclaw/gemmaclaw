@@ -1811,8 +1811,17 @@ def render_field_notes_markdown(md_text):
         escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
         escaped = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", escaped)
         # Underscore italic, but not inside identifiers like Q5_K_M.
+        #
+        # The delimiters must sit on an identifier boundary, which is what stops
+        # Q4_0 from opening an emphasis span. The span body then has to tolerate
+        # those same identifiers: field-notes prose regularly italicises a whole
+        # sentence that mentions a quant name (_Last updated: ... at Q4_0 ..._),
+        # and a body class of [^_]+ silently dropped the emphasis and printed the
+        # literal underscores instead. Allow an inner underscore only when it is
+        # flanked by alphanumerics, so identifiers pass through and a stray
+        # underscore still terminates the span.
         escaped = re.sub(
-            r"(?<![A-Za-z0-9_])_([^_\n]+)_(?![A-Za-z0-9_])",
+            r"(?<![A-Za-z0-9_])_((?:[^_\n]|(?<=[A-Za-z0-9])_(?=[A-Za-z0-9]))+)_(?![A-Za-z0-9_])",
             r"<em>\1</em>",
             escaped,
         )
