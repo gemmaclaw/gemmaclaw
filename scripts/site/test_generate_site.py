@@ -136,6 +136,38 @@ class TypographicDashNormalization(unittest.TestCase):
         )
 
 
+class TestFieldNotesItalics(unittest.TestCase):
+    """Field-notes prose italicises whole sentences that mention quant names, so
+    an inner identifier underscore must not cancel the emphasis and leak literal
+    underscores onto the page."""
+
+    def _render(self, md):
+        return gen.render_field_notes_markdown(md)
+
+    def test_italic_span_survives_an_identifier_underscore(self):
+        out = self._render("_Last updated: 2026-08-01. Gemma 4 26B A4B at Q4_0 hit 18.35 tok/s._")
+        self.assertIn("<em>Last updated: 2026-08-01. Gemma 4 26B A4B at Q4_0 hit 18.35 tok/s.</em>", out)
+        self.assertNotIn("<p>_Last updated", out)
+
+    def test_italic_span_survives_multiple_identifier_underscores(self):
+        out = self._render("_Compared Q4_K_M against Q8_0 on the same box._")
+        self.assertIn("<em>Compared Q4_K_M against Q8_0 on the same box.</em>", out)
+
+    def test_plain_identifier_does_not_open_an_italic_span(self):
+        out = self._render("Use Q4_0 or Q8_0 for the sparse model.")
+        self.assertNotIn("<em>", out)
+        self.assertIn("Q4_0 or Q8_0", out)
+
+    def test_snake_case_word_is_left_alone(self):
+        out = self._render("The helper is named load_community_configs today.")
+        self.assertNotIn("<em>", out)
+        self.assertIn("load_community_configs", out)
+
+    def test_simple_italic_still_renders(self):
+        out = self._render("_August 1 sweep:_ an Apple Silicon runtime cycle.")
+        self.assertIn("<em>August 1 sweep:</em>", out)
+
+
 class TestCategorizePost(unittest.TestCase):
     """Community cards are filtered by hardware category, so a post that only
     identifies its platform in prose (for example "a Mac engine") must still land
