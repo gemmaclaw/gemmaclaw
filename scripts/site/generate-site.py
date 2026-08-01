@@ -1444,9 +1444,13 @@ def clean_markdown(text):
 HARDWARE_CATEGORIES = {
     "apple-silicon": {
         "label": "Apple Silicon",
+        # "mac " (with the trailing space), "macos" and "m-series" catch posts that
+        # only say "a Mac engine" or "macOS" and never name a specific chip, which
+        # the chip-model keywords below miss.
         "keywords": ["apple silicon", "m1", "m2", "m3", "m4", "m5", "macbook", "mac mini",
                       "mac studio", "mac pro", "metal", "unified memory", "mbp", "m4 max",
-                      "m4 pro", "m5 max", "m5 pro", "m3 max", "m3 pro", "mlx"],
+                      "m4 pro", "m5 max", "m5 pro", "m3 max", "m3 pro", "mlx",
+                      "mac ", "macos", "m-series"],
         "icon": "apple",
     },
     "high-gpu": {
@@ -1664,20 +1668,25 @@ def generate_community_cards(posts):
         for c in p["categories"]:
             cat_counts[c] = cat_counts.get(c, 0) + 1
 
-    tabs = ['<button class="cat-filter-btn active" data-cat="all">All</button>']
+    # aria-pressed tells a screen reader which category is currently applied;
+    # the click handler keeps it in sync with the .active class.
+    tabs = ['<button type="button" class="cat-filter-btn active" data-cat="all" aria-pressed="true">All</button>']
     for cat_id, cat_def in HARDWARE_CATEGORIES.items():
         if cat_id in cat_counts:
             tabs.append(
-                f'<button class="cat-filter-btn" data-cat="{cat_id}">'
+                f'<button type="button" class="cat-filter-btn" data-cat="{cat_id}" aria-pressed="false">'
                 f'{html_escape(cat_def["label"])} ({cat_counts[cat_id]})</button>'
             )
     if "general" in cat_counts:
         tabs.append(
-            f'<button class="cat-filter-btn" data-cat="general">'
+            f'<button type="button" class="cat-filter-btn" data-cat="general" aria-pressed="false">'
             f'Other ({cat_counts["general"]})</button>'
         )
 
-    filter_bar = f'<div class="cat-filter-bar">{"".join(tabs)}</div>'
+    filter_bar = (
+        '<div class="cat-filter-bar" role="group" aria-label="Filter community reports by hardware category">'
+        f'{"".join(tabs)}</div>'
+    )
 
     # Build cards
     cards = []
@@ -3915,7 +3924,7 @@ def generate_community_page(community_cards, community_count, field_notes_html):
         community_section = f"""<div class="community-section" id="community">
       <h3>Community Reports ({community_count} from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
-      <div class="search-bar"><input type="text" id="community-search" placeholder="Search community reports..." autocomplete="off"></div>
+      <div class="search-bar"><input type="search" id="community-search" aria-label="Search community reports" placeholder="Search community reports..." autocomplete="off"></div>
       {community_cards}
     </div>"""
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Community</div>
@@ -3949,8 +3958,12 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     if (searchInput) { searchInput.addEventListener('input', applyFilters); }
     document.querySelectorAll('.cat-filter-btn').forEach(btn => {
       btn.addEventListener('click', function() {
-        document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.cat-filter-btn').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
         this.classList.add('active');
+        this.setAttribute('aria-pressed', 'true');
         activeCat = this.getAttribute('data-cat');
         applyFilters();
       });

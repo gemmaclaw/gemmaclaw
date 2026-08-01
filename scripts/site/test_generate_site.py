@@ -136,5 +136,48 @@ class TypographicDashNormalization(unittest.TestCase):
         )
 
 
+class TestCategorizePost(unittest.TestCase):
+    """Community cards are filtered by hardware category, so a post that only
+    identifies its platform in prose (for example "a Mac engine") must still land
+    in the Apple Silicon filter rather than falling through to "general"."""
+
+    @staticmethod
+    def _post(title="", summary="", tags=None, comments=None):
+        return {
+            "title": title,
+            "summary": summary,
+            "tags": tags or [],
+            "comments": comments or [],
+        }
+
+    def test_mac_engine_prose_is_apple_silicon(self):
+        post = self._post(
+            title="I ported an engine to another model and it runs in 1.4 GB of RAM",
+            summary="Was playing around with a Mac engine that runs Gemma 4 26B in ~2 GB.",
+        )
+        self.assertIn("apple-silicon", gen.categorize_post(post))
+
+    def test_macos_only_question_is_apple_silicon(self):
+        post = self._post(title="Gemma 4 12B Ollama models: MacOS only?")
+        self.assertIn("apple-silicon", gen.categorize_post(post))
+
+    def test_m_series_prose_is_apple_silicon(self):
+        post = self._post(summary="Runs on M-series Macs with very low RAM.")
+        self.assertIn("apple-silicon", gen.categorize_post(post))
+
+    def test_machine_word_does_not_match_apple_silicon(self):
+        """The "mac " keyword carries a trailing space precisely so that words
+        like "machine" do not drag unrelated posts into the Apple filter."""
+        post = self._post(
+            title="Benchmarked on a dedicated machine",
+            summary="A single machine with an RTX 3090 and no Apple hardware involved.",
+        )
+        self.assertNotIn("apple-silicon", gen.categorize_post(post))
+
+    def test_uncategorized_post_falls_back_to_general(self):
+        post = self._post(title="Thoughts on prompt style", summary="No hardware here.")
+        self.assertEqual(gen.categorize_post(post), ["general"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
