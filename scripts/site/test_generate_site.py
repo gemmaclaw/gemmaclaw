@@ -9,6 +9,7 @@ Pure stdlib (unittest) so it runs in CI without extra deps:
     python3 scripts/site/test_generate_site.py
 """
 import importlib.util
+import re
 import unittest
 from pathlib import Path
 
@@ -134,6 +135,113 @@ class TypographicDashNormalization(unittest.TestCase):
             gen.normalize_typographic_dashes("already-hyphenated 26B-A4B"),
             "already-hyphenated 26B-A4B",
         )
+
+
+class TestQuantSearchNormalization(unittest.TestCase):
+    """Q4_K_M is the quant this site recommends most and the one a reader is most
+    likely to type, yet it was unreachable in the community search box.
+
+    Reddit serves underscores pre-escaped, so summary text arrived as Q4\\_K\\_M.
+    clean_markdown() read the two underscores as an emphasis pair, removed them
+    and left the backslashes behind, indexing the unmatchable token q4\\k\\m.
+    These tests pin both halves of the repair: the escaped form must clean up to
+    the literal identifier, and index and query must agree on one canonical form.
+
+    Hermetic: every case builds a synthetic post, so nothing here reads the live
+    591-entry dataset or the network.
+    """
+
+    @staticmethod
+    def _post(title="", summary="", tags=None, comments=None):
+        return {
+            "id": "test123",
+            "title": title,
+            "summary": summary,
+            "tags": tags or [],
+            "comments": comments or [],
+            "categories": ["general"],
+            "author": "tester",
+            "date": "2026-08-02",
+            "score": 10,
+            "flair": "",
+        }
+
+    def _data_search(self, post):
+        html = gen.generate_community_cards([post])
+        match = re.search(r'<div class="cr-card" data-search="([^"]*)"', html)
+        self.assertIsNotNone(match, "expected exactly one rendered community card")
+        return match.group(1)
+
+    def _matches(self, post, query):
+        """True when a reader typing `query` would see this card, applying the
+        same normalization the generated page applies to the input value."""
+        return gen.normalize_search_text(query) in self._data_search(post)
+
+    def test_escaped_q4_k_m_is_reachable(self):
+        post = self._post(
+            title="Quant comparison",
+            summary="Evaluated bf16, Q4\\_K\\_M, and Q8\\_0 gguf variants with llama-cpp-python.",
+        )
+        indexed = self._data_search(post)
+        self.assertNotIn("\\", indexed, "no markdown escape may survive into the index")
+        for query in ("Q4_K_M", "q4_k_m", "Q4\\_K\\_M", "q4km", "K_M"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
+    def test_escaped_q8_0_is_reachable(self):
+        post = self._post(
+            title="Quant comparison",
+            summary="Evaluated bf16, Q4\\_K\\_M, and Q8\\_0 gguf variants with llama-cpp-python.",
+        )
+        for query in ("Q8_0", "q8_0", "Q8\\_0", "q80"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
+    def test_clean_markdown_unescapes_quant_underscores(self):
+        self.assertEqual(
+            gen.clean_markdown("Ran Q4\\_K\\_M and Q8\\_0 today"),
+            "Ran Q4_K_M and Q8_0 today",
+        )
+
+    def test_clean_markdown_keeps_intraword_underscores(self):
+        self.assertEqual(gen.clean_markdown("Q4_K_M beat Q8_0"), "Q4_K_M beat Q8_0")
+        self.assertEqual(
+            gen.clean_markdown("call preserve_thinking here"),
+            "call preserve_thinking here",
+        )
+
+    def test_clean_markdown_still_strips_real_emphasis(self):
+        self.assertEqual(gen.clean_markdown("that was _really_ fast"), "that was really fast")
+        self.assertEqual(gen.clean_markdown("that was __really__ fast"), "that was really fast")
+
+    def test_clean_markdown_drops_an_unclosed_emphasis_delimiter(self):
+        """Reddit summaries get truncated mid-span, so an opener often has no
+        partner. It must not render as a literal stray underscore, and it must not
+        take an identifier underscore with it on the way out."""
+        self.assertEqual(
+            gen.clean_markdown("_2026-05-07 edit: I do not recommend q4_0 KV cache"),
+            "2026-05-07 edit: I do not recommend q4_0 KV cache",
+        )
+
+    def test_adjacent_tokens_stay_searchable(self):
+        post = self._post(
+            title="Mixed token soak test",
+            summary=(
+                "Ran llama.cpp and llama-cpp-python on 26B-A4B with UD-Q4_K_XL, "
+                "Q4_K_S, NVFP4 and MXFP4 at 128k context on a 5090 with 48 GB, "
+                "served through vLLM."
+            ),
+        )
+        for query in ("llama.cpp", "llama-cpp-python", "26B-A4B", "UD-Q4_K_XL",
+                      "Q4_K_S", "NVFP4", "MXFP4", "5090", "48 GB", "128k", "vLLM"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
+    def test_normalize_search_text_is_idempotent(self):
+        once = gen.normalize_search_text("Q4\\_K\\_M / llama.cpp  26B-A4B")
+        self.assertEqual(once, "q4km llamacpp 26ba4b")
+        self.assertEqual(gen.normalize_search_text(once), once)
+
+    def test_every_spelling_reduces_to_one_token(self):
+        spellings = ["Q4_K_M", "q4_k_m", "Q4\\_K\\_M", "q4km", "Q4K_M", "q4-k-m"]
+        self.assertEqual({gen.normalize_search_text(s) for s in spellings}, {"q4km"})
 
 
 class TestFieldNotesItalics(unittest.TestCase):
