@@ -221,6 +221,27 @@ class TestQuantSearchNormalization(unittest.TestCase):
             "2026-05-07 edit: I do not recommend q4_0 KV cache",
         )
 
+    def test_clean_markdown_keeps_a_trailing_handle_underscore(self):
+        """Reddit handles routinely end in one or more underscores. Stripping the
+        trailing run to tidy up stranded emphasis closers renames a real person, so
+        the cleanup deliberately only fires on the opener shape."""
+        self.assertEqual(
+            gen.clean_markdown("sincerely thank u/jipok_ for helping out"),
+            "sincerely thank u/jipok_ for helping out",
+        )
+        self.assertEqual(
+            gen.clean_markdown("submitted by /u/mjsxi__ [link]"),
+            "submitted by /u/mjsxi__ [link]",
+        )
+
+    def test_trailing_handle_underscore_does_not_leak_into_search(self):
+        """The handle keeps its underscore for display, but the search index and the
+        typed query both drop identifier punctuation, so it stays reachable."""
+        post = self._post(title="Credit", summary="thanks u/jipok_ for the audit")
+        self.assertIn("jipok", self._data_search(post))
+        for query in ("jipok", "jipok_", "u/jipok_"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
     def test_adjacent_tokens_stay_searchable(self):
         post = self._post(
             title="Mixed token soak test",

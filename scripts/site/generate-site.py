@@ -1450,11 +1450,15 @@ def clean_markdown(text):
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
     text = re.sub(r'(?<![A-Za-z0-9])__([^_]+)__(?![A-Za-z0-9])', r'\1', text)
     text = re.sub(r'(?<![A-Za-z0-9])_([^_]+)_(?![A-Za-z0-9])', r'\1', text)
-    # Every matched emphasis pair is gone by now, so any underscore still sitting at
-    # a word boundary is an unclosed delimiter (Reddit summaries are truncated
-    # mid-span all the time) and would render as a literal stray _. Drop those and
-    # keep only the intraword ones, which belong to identifiers like Q4_K_M.
-    text = re.sub(r'(?<![A-Za-z0-9])_|_(?![A-Za-z0-9])', '', text)
+    # Every matched emphasis pair is gone by now, so an underscore that opened a span
+    # and never closed it is left over (Reddit summaries get truncated mid-span all
+    # the time) and would render as a literal stray _. Drop only that shape: a run of
+    # underscores with no alphanumeric before and a word right after, which is what a
+    # stranded CommonMark opener looks like. A TRAILING underscore is deliberately
+    # left alone, because it is far more often the tail of a real Reddit handle
+    # (u/jipok_, /u/mjsxi__) than a stranded closer, and eating it misattributes a
+    # named person. Intraword underscores survive either way; they belong to Q4_K_M.
+    text = re.sub(r'(?<![A-Za-z0-9])_+(?=[A-Za-z0-9])', '', text)
     # Remove markdown escape backslashes
     text = re.sub(r'\\([_*#\[\]()])', r'\1', text)
     # Remove markdown headings
