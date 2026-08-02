@@ -1409,6 +1409,25 @@ def normalize_typographic_dashes(text):
     return str(text).translate(_TYPOGRAPHIC_DASH_MAP)
 
 
+# Punctuation that lives *inside* model, quant and tooling identifiers, which
+# readers type inconsistently: Q4_K_M vs q4km, llama.cpp vs llamacpp, 26B-A4B vs
+# 26ba4b. Dropping it from the generated index and the typed query alike is what
+# keeps the two sides symmetric. The backslash is in the set as a backstop: any
+# markdown escape that survives upstream cleaning cannot then poison the index.
+SEARCH_PUNCTUATION_RE = re.compile(r'[\\_./-]')
+
+
+def normalize_search_text(text):
+    """Canonical form shared by the community search index and the typed query.
+
+    Pure and deterministic: lowercase, drop identifier punctuation, collapse
+    whitespace. Applied identically on both sides so Q4_K_M, q4_k_m, Q4\\_K\\_M
+    and q4km all reduce to the same token and match the same cards. The client
+    side mirrors this in generate_community_page(); the two must stay in step.
+    """
+    return re.sub(r'\s+', ' ', SEARCH_PUNCTUATION_RE.sub('', str(text).lower())).strip()
+
+
 def clean_markdown(text):
     """Strip markdown syntax to plain text for display in HTML cards."""
     # Normalize typographic dashes to ASCII hyphen so community card text (summary,
@@ -1420,11 +1439,22 @@ def clean_markdown(text):
     text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
     # Remove bare URLs (http/https) that aren't useful as display text
     text = re.sub(r'https?://\S+', '', text)
-    # Remove markdown emphasis
+    # Reddit serves underscores pre-escaped, so a quant name arrives as Q4\_K\_M.
+    # Unescape before the emphasis rules below run: otherwise the _..._ rule eats
+    # the two underscores and strands their backslashes, yielding q4\k\m.
+    text = text.replace('\\_', '_')
+    # Remove markdown emphasis. The underscore forms need non-alphanumeric flanks
+    # (the CommonMark intraword rule) so identifiers such as Q4_K_M, Q8_0 and
+    # preserve_thinking keep their underscores instead of being read as emphasis.
     text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
-    text = re.sub(r'__([^_]+)__', r'\1', text)
-    text = re.sub(r'_([^_]+)_', r'\1', text)
+    text = re.sub(r'(?<![A-Za-z0-9])__([^_]+)__(?![A-Za-z0-9])', r'\1', text)
+    text = re.sub(r'(?<![A-Za-z0-9])_([^_]+)_(?![A-Za-z0-9])', r'\1', text)
+    # Every matched emphasis pair is gone by now, so any underscore still sitting at
+    # a word boundary is an unclosed delimiter (Reddit summaries are truncated
+    # mid-span all the time) and would render as a literal stray _. Drop those and
+    # keep only the intraword ones, which belong to identifiers like Q4_K_M.
+    text = re.sub(r'(?<![A-Za-z0-9])_|_(?![A-Za-z0-9])', '', text)
     # Remove markdown escape backslashes
     text = re.sub(r'\\([_*#\[\]()])', r'\1', text)
     # Remove markdown headings
@@ -1708,12 +1738,15 @@ def generate_community_cards(posts):
         reddit_url = f"https://reddit.com/r/LocalLLaMA/comments/{post_id}"
         cats = " ".join(post["categories"])
 
-        # Build search text from all meaningful fields (cleaned)
-        search_text = html_escape(clean_markdown(
+        # Build search text from all meaningful fields (cleaned), then reduce it to
+        # the canonical search form. html_escape runs first because it also applies
+        # sanitize_public_text, whose word-boundary redactions need the punctuation
+        # and the original casing still in place.
+        search_text = normalize_search_text(html_escape(clean_markdown(
             f"{post['title']} {post['summary']} "
             f"{' '.join(post.get('tags', []))} "
             f"{' '.join(c.get('text', '')[:100] for c in post.get('comments', [])[:3])}"
-        )).lower()[:500]
+        )))[:500]
 
         # Build top comments (max 3, only those with actual text)
         comment_html = ""
@@ -3947,8 +3980,15 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     const searchInput = document.getElementById('community-search');
     const crCards = document.querySelectorAll('#community-cards .cr-card');
     let activeCat = 'all';
+    // Mirror of normalize_search_text() in scripts/site/generate-site.py. Every
+    // data-search value is emitted in that canonical form already, so only the
+    // typed query is converted here. Both sides must apply the identical rule or
+    // a token like Q4_K_M becomes unreachable no matter how it is spelled.
+    function normalizeQuery(value) {
+      return value.toLowerCase().replace(/[\\\\_.\\/-]/g, '').replace(/\\s+/g, ' ').trim();
+    }
     function applyFilters() {
-      const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      const q = normalizeQuery(searchInput ? searchInput.value : '');
       crCards.forEach(card => {
         const text = card.getAttribute('data-search') || '';
         const cats = card.getAttribute('data-cats') || '';
