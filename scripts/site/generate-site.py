@@ -10,6 +10,8 @@ import os
 import re
 import sys
 import ast
+import unicodedata
+from html.entities import html5 as HTML5_ENTITIES
 from pathlib import Path
 from datetime import datetime
 
@@ -1409,6 +1411,52 @@ def normalize_typographic_dashes(text):
     return str(text).translate(_TYPOGRAPHIC_DASH_MAP)
 
 
+# Reddit serves some characters PRE-ESCAPED as HTML entities inside the post
+# markdown this site archives: a submission footer arrives literally as
+# "&#32; submitted by &#32; /u/name", and "&amp;", "&gt;", "&lt;" turn up in
+# titles and comment bodies. html_escape() then escapes that ampersand again, so
+# the browser receives "&amp;#32;" and paints the characters "&#32;" mid-sentence.
+# Only well-formed, semicolon-terminated entities are decoded. html.unescape() is
+# deliberately NOT used: it also resolves the bare legacy forms, so it rewrites
+# "&notarealentity;" to "not-sign + arealentity;" and "2 &times 3090s" to a
+# multiplication sign, corrupting ordinary prose that merely contains an ampersand.
+_UPSTREAM_ENTITY_RE = re.compile(
+    r'&(?:#\d{1,7}|#[xX][0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});'
+)
+
+
+def _decode_upstream_entity(match):
+    """Resolve one entity token, or return it untouched if it is not a real one."""
+    token = match.group(0)
+    body = token[1:-1]
+    if body.startswith("#"):
+        try:
+            codepoint = int(body[2:], 16) if body[1] in "xX" else int(body[1:])
+        except (ValueError, IndexError):
+            return token
+        if not 0 <= codepoint <= 0x10FFFF or 0xD800 <= codepoint <= 0xDFFF:
+            return token
+        decoded = chr(codepoint)
+        # A numeric reference to a control character is upstream noise, never
+        # display text; leaving it encoded keeps it out of the generated page.
+        if decoded not in "\t\n\r" and unicodedata.category(decoded) == "Cc":
+            return token
+        return decoded
+    # Keyed with the trailing semicolon so only the canonical form resolves.
+    return HTML5_ENTITIES.get(body + ";", token)
+
+
+def unescape_upstream_entities(text):
+    """Decode HTML entities that upstream already escaped, before we escape again.
+
+    Pure and deterministic. An unrecognized "&name;" is left verbatim. Must run
+    BEFORE normalize_typographic_dashes() and before html_escape(): a decoded
+    "&mdash;" is a real em dash and has to reach the dash normalizer, and a
+    decoded "&" has to reach the escaper so it ships as a single "&amp;".
+    """
+    return _UPSTREAM_ENTITY_RE.sub(_decode_upstream_entity, str(text))
+
+
 # Punctuation that lives *inside* model, quant and tooling identifiers, which
 # readers type inconsistently: Q4_K_M vs q4km, llama.cpp vs llamacpp, 26B-A4B vs
 # 26ba4b. Dropping it from the generated index and the typed query alike is what
@@ -1430,6 +1478,11 @@ def normalize_search_text(text):
 
 def clean_markdown(text):
     """Strip markdown syntax to plain text for display in HTML cards."""
+    # Decode what upstream already escaped FIRST, for the same ordering reason the
+    # backslash unescape below exists: every rule after this point (dash mapping,
+    # link stripping, whitespace collapse) and html_escape() downstream must see the
+    # character an entity denotes, not the entity's own punctuation.
+    text = unescape_upstream_entities(text)
     # Normalize typographic dashes to ASCII hyphen so community card text (summary,
     # search index, comments) never emits em/en dashes from raw Reddit excerpts.
     text = normalize_typographic_dashes(text)
@@ -1726,7 +1779,10 @@ def generate_community_cards(posts):
     cards = []
     for post in posts:
         post_id = post["id"]
-        title = html_escape(normalize_typographic_dashes(post["title"])[:120])
+        # Titles and flair skip clean_markdown(), so they need the same upstream
+        # entity decode: three archived titles carry "&amp;" and would otherwise
+        # render the six literal characters instead of an ampersand.
+        title = html_escape(normalize_typographic_dashes(unescape_upstream_entities(post["title"]))[:120])
         score = post["score"]
         clean_summary = clean_markdown(post["summary"])
         if not clean_summary:
@@ -1738,7 +1794,7 @@ def generate_community_cards(posts):
             summary += "..."
         author = html_escape(post["author"])
         date_str = post["date"]
-        flair = html_escape(normalize_typographic_dashes(post["flair"])) if post["flair"] else ""
+        flair = html_escape(normalize_typographic_dashes(unescape_upstream_entities(post["flair"]))) if post["flair"] else ""
         reddit_url = f"https://reddit.com/r/LocalLLaMA/comments/{post_id}"
         cats = " ".join(post["categories"])
 
@@ -1807,6 +1863,11 @@ def generate_community_cards(posts):
     return filter_bar + '\n<div id="community-cards">' + "\n".join(cards) + '</div>'
 
 
+def _reescape_angle_brackets(text):
+    """Re-escape only the angle brackets in text that is already HTML-escaped."""
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def render_field_notes_markdown(md_text):
     """Render the curated field-notes Markdown into an HTML fragment.
 
@@ -1837,8 +1898,14 @@ def render_field_notes_markdown(md_text):
         # Inline links [text](url)
         def link_sub(m):
             label, url = m.group(1), m.group(2)
-            return (f'<a href="{html_escape(url)}" target="_blank" '
-                    f'rel="noopener">{html_escape(label)}</a>')
+            # Both groups come out of the already-escaped string below, so escaping
+            # them again turns a quoted title's &quot; into &amp;quot; and paints
+            # the literal characters &quot; on the page (and would break any URL
+            # carrying a query string). Only "<" and ">" need re-escaping, because
+            # they are the two the caller temporarily decoded so this regex could
+            # see the markdown at all.
+            return (f'<a href="{_reescape_angle_brackets(url)}" target="_blank" '
+                    f'rel="noopener">{_reescape_angle_brackets(label)}</a>')
         # Escape first, then re-apply markdown so links/emphasis work safely.
         escaped = html_escape(text)
         # Convert escaped brackets back so the regex matches our markdown links.

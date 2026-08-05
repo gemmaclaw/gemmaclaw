@@ -340,5 +340,115 @@ class TestCategorizePost(unittest.TestCase):
         self.assertEqual(gen.categorize_post(post), ["general"])
 
 
+class TestUpstreamEntityUnescaping(unittest.TestCase):
+    """Reddit serves some characters PRE-ESCAPED inside the archived markdown, so
+    the submission footer of post 1vfeick arrives as the literal sequence
+    "&#32; submitted by &#32; /u/jacek2023 [link] &#32; [comments]".
+
+    html_escape() escaped that ampersand a second time, the browser received
+    "&amp;#32;", and the card painted the characters "&#32;" mid-sentence. Same
+    ordering defect as the pre-escaped-underscore search bug: normalize what
+    upstream escaped BEFORE applying our own transformation.
+    """
+
+    def test_numeric_space_entity_becomes_whitespace_not_literal_text(self):
+        raw = "&#32; submitted by &#32; /u/jacek2023 [link] &#32; [comments]"
+        cleaned = gen.clean_markdown(raw)
+        self.assertNotIn("&#32;", cleaned)
+        self.assertNotIn("#32", cleaned)
+        self.assertEqual(cleaned, "submitted by /u/jacek2023 [link] [comments]")
+
+    def test_rendered_card_summary_carries_no_double_escaped_entity(self):
+        """End of the real pipeline: clean_markdown() then html_escape() is what
+        writes the card body, and neither "&amp;#32;" nor "&#32;" may survive."""
+        rendered = gen.html_escape(gen.clean_markdown(
+            "&#32; submitted by &#32; /u/jacek2023 [link] &#32; [comments]"
+        ))
+        self.assertNotIn("&amp;#32;", rendered)
+        self.assertNotIn("#32", rendered)
+        self.assertEqual(rendered, "submitted by /u/jacek2023 [link] [comments]")
+
+    def test_named_entities_render_as_their_character(self):
+        """A comment body carrying "&lt;turn|&gt;" must reach the page as the
+        angle-bracketed token, escaped exactly once."""
+        rendered = gen.html_escape(gen.clean_markdown("harmony leaks &lt;turn|&gt; markers"))
+        self.assertNotIn("&amp;lt;", rendered)
+        self.assertNotIn("&amp;gt;", rendered)
+        self.assertEqual(rendered, "harmony leaks &lt;turn|&gt; markers")
+
+    def test_escaped_ampersand_ships_as_one_amp_entity(self):
+        rendered = gen.html_escape(gen.clean_markdown("v1.0.13 &amp; v1.0.14 updates"))
+        self.assertNotIn("&amp;amp;", rendered)
+        self.assertEqual(rendered, "v1.0.13 &amp; v1.0.14 updates")
+
+    def test_title_path_unescapes_too(self):
+        """Titles skip clean_markdown(), so they carry their own decode."""
+        title = gen.html_escape(gen.normalize_typographic_dashes(
+            gen.unescape_upstream_entities("Setup &amp; Working Config")
+        ))
+        self.assertNotIn("&amp;amp;", title)
+        self.assertEqual(title, "Setup &amp; Working Config")
+
+    def test_decoded_dash_entity_still_reaches_the_dash_normalizer(self):
+        """Ordering guard: the decode must run BEFORE normalize_typographic_dashes,
+        or "&mdash;" would smuggle a real em dash past the no-dashes gate."""
+        out = gen.clean_markdown("24 GB &mdash; enough for the 26B")
+        for cp in (0x2012, 0x2013, 0x2014, 0x2015, 0x2E3A, 0x2E3B, 0x2212):
+            self.assertNotIn(chr(cp), out)
+        self.assertEqual(out, "24 GB - enough for the 26B")
+
+    def test_bare_ampersand_prose_is_left_alone(self):
+        """Only well-formed semicolon-terminated entities decode. A stray "&times"
+        or "&copy" in ordinary prose must not be rewritten into a symbol."""
+        self.assertEqual(
+            gen.unescape_upstream_entities("2 &times 3090s, R&D budget, AT&T"),
+            "2 &times 3090s, R&D budget, AT&T",
+        )
+
+    def test_unknown_entity_name_is_preserved(self):
+        self.assertEqual(gen.unescape_upstream_entities("&notarealentity;"), "&notarealentity;")
+
+    def test_unescape_is_idempotent_on_plain_text(self):
+        plain = "Q4_K_M on a 3090 at 26 tok/s"
+        self.assertEqual(gen.unescape_upstream_entities(plain), plain)
+
+
+class TestFieldNotesLinkDoubleEscape(unittest.TestCase):
+    """Second, DISTINCT escaping defect with the same reader-visible symptom.
+
+    render_inline() escapes the whole line, then link_sub() escaped the captured
+    label a second time, so a Sources entry whose Reddit title carries a plain
+    ASCII quote shipped as "&amp;quot;" and painted the characters &quot; on the
+    community page. Unlike the entity defect above, nothing upstream is
+    pre-escaped here: the generator escapes its own output twice.
+    """
+
+    def test_quoted_link_label_is_escaped_exactly_once(self):
+        out = gen.render_field_notes_markdown(
+            '- [My local AI developed an "attitude"](https://reddit.com/r/localllama/comments/1v7kf8o) (Jul 27)'
+        )
+        self.assertNotIn("&amp;quot;", out)
+        self.assertIn("developed an &quot;attitude&quot;</a>", out)
+
+    def test_ampersand_link_label_is_escaped_exactly_once(self):
+        out = gen.render_field_notes_markdown(
+            "- [Qwen & Gemma on deadlock situation](https://reddit.com/r/localllama/comments/1uoppuz)"
+        )
+        self.assertNotIn("&amp;amp;", out)
+        self.assertIn("Qwen &amp; Gemma on deadlock situation</a>", out)
+
+    def test_url_query_string_is_not_double_escaped(self):
+        out = gen.render_field_notes_markdown("- [docs](https://example.com/a?x=1&y=2)")
+        self.assertIn('href="https://example.com/a?x=1&amp;y=2"', out)
+        self.assertNotIn("&amp;amp;", out)
+
+    def test_angle_brackets_in_a_label_stay_escaped(self):
+        """The caller decodes &lt;/&gt; so this regex can see the markdown, so the
+        link builder has to put them back or raw markup would reach the page."""
+        out = gen.render_field_notes_markdown("- [a <b> tag](https://example.com)")
+        self.assertIn("a &lt;b&gt; tag</a>", out)
+        self.assertNotIn("<b>", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
