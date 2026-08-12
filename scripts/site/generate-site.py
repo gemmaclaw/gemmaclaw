@@ -1915,9 +1915,11 @@ def render_field_notes_markdown(md_text):
         # Convert escaped brackets back so the regex matches our markdown links.
         escaped = escaped.replace("&lt;", "<").replace("&gt;", ">")
         escaped = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link_sub, escaped)
-        # Bold then italic (order matters so ** wins over *).
-        escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
-        escaped = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", escaped)
+        # Bold then italic (order matters so ** wins over *). A backslash in front
+        # of the opening delimiter escapes it, so it must not open a span; the
+        # backslash itself is dropped at the end of this function.
+        escaped = re.sub(r"(?<!\\)\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+        escaped = re.sub(r"(?<![\\*])\*([^*]+)\*(?!\*)", r"<em>\1</em>", escaped)
         # Underscore italic, but not inside identifiers like Q5_K_M.
         #
         # The delimiters must sit on an identifier boundary, which is what stops
@@ -1927,12 +1929,26 @@ def render_field_notes_markdown(md_text):
         # and a body class of [^_]+ silently dropped the emphasis and printed the
         # literal underscores instead. Allow an inner underscore only when it is
         # flanked by alphanumerics, so identifiers pass through and a stray
-        # underscore still terminates the span.
+        # underscore still terminates the span. A backslash-escaped underscore is
+        # excluded from opening one for the same reason as the asterisk forms above.
         escaped = re.sub(
-            r"(?<![A-Za-z0-9_])_((?:[^_\n]|(?<=[A-Za-z0-9])_(?=[A-Za-z0-9]))+)_(?![A-Za-z0-9_])",
+            r"(?<![A-Za-z0-9_\\])_((?:[^_\n]|(?<=[A-Za-z0-9])_(?=[A-Za-z0-9]))+)_(?![A-Za-z0-9_])",
             r"<em>\1</em>",
             escaped,
         )
+        # Drop the backslash from an escaped emphasis character, which is the last
+        # step so the escape has already done its job of NOT opening a span above.
+        #
+        # This is not optional politeness towards hand-written Markdown: oxfmt runs
+        # over site/data/field-notes.md from the pre-commit hook and escapes a
+        # word-boundary underscore itself, so a Reddit handle such as u/_maverick98
+        # is rewritten to u/\_maverick98 on the way into the commit. Without this
+        # rule the generator then paints that backslash into reader-visible prose,
+        # and because the formatter restores the escape every time it is deleted,
+        # the file and the committed HTML can never agree. Only the two characters
+        # this renderer treats as markup are unescaped; a Windows path (D:\a\...)
+        # and an escaped dot are left exactly as written.
+        escaped = re.sub(r"\\([_*])", r"\1", escaped)
         return escaped
 
     for raw in lines:
