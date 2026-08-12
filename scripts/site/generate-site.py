@@ -1511,7 +1511,11 @@ def clean_markdown(text):
     # left alone, because it is far more often the tail of a real Reddit handle
     # (u/jipok_, /u/mjsxi__) than a stranded closer, and eating it misattributes a
     # named person. Intraword underscores survive either way; they belong to Q4_K_M.
-    text = re.sub(r'(?<![A-Za-z0-9])_+(?=[A-Za-z0-9])', '', text)
+    # A LEADING handle underscore (u/_maverick98) is the same misattribution risk
+    # from the other end: it wears the stranded-opener shape exactly, because the
+    # slash in front of it is non-alphanumeric, so it needs its own exemption or the
+    # cleanup silently renames the person to u/maverick98.
+    text = re.sub(r'(?<![A-Za-z0-9])(?<!u/)_+(?=[A-Za-z0-9])', '', text)
     # Remove markdown escape backslashes
     text = re.sub(r'\\([_*#\[\]()])', r'\1', text)
     # Remove markdown headings

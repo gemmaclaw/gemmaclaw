@@ -234,6 +234,36 @@ class TestQuantSearchNormalization(unittest.TestCase):
             "submitted by /u/mjsxi__ [link]",
         )
 
+    def test_clean_markdown_keeps_a_leading_handle_underscore(self):
+        """Reddit handles also routinely START with an underscore, and that shape is
+        indistinguishable from a stranded emphasis opener: the slash before it is
+        non-alphanumeric and a word follows it. Dropping it renames a real person,
+        exactly the way eating a trailing underscore would."""
+        self.assertEqual(
+            gen.clean_markdown("a report from u/_maverick98 on a Mac"),
+            "a report from u/_maverick98 on a Mac",
+        )
+        self.assertEqual(
+            gen.clean_markdown("submitted by /u/_maverick98 [link]"),
+            "submitted by /u/_maverick98 [link]",
+        )
+
+    def test_leading_handle_underscore_survives_the_reddit_escape(self):
+        """Reddit serves the handle pre-escaped as u/\\_maverick98. The unescape must
+        run first and the opener cleanup must then leave the bare underscore alone, so
+        neither a literal backslash nor a renamed author reaches the page."""
+        cleaned = gen.clean_markdown("a report from u/\\_maverick98 on a Mac")
+        self.assertEqual(cleaned, "a report from u/_maverick98 on a Mac")
+        self.assertNotIn("\\", cleaned, "no markdown escape may survive into display text")
+
+    def test_leading_handle_underscore_does_not_leak_into_search(self):
+        """The handle keeps its leading underscore for display, while the search index
+        and the typed query both drop identifier punctuation, so it stays reachable."""
+        post = self._post(title="Credit", summary="thanks u/_maverick98 for the audit")
+        self.assertIn("maverick98", self._data_search(post))
+        for query in ("maverick98", "_maverick98", "u/_maverick98"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
     def test_trailing_handle_underscore_does_not_leak_into_search(self):
         """The handle keeps its underscore for display, but the search index and the
         typed query both drop identifier punctuation, so it stays reachable."""
