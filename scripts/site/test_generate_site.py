@@ -327,6 +327,51 @@ class TestFieldNotesItalics(unittest.TestCase):
         self.assertIn("<em>August 1 sweep:</em>", out)
 
 
+class TestFieldNotesEscapedEmphasis(unittest.TestCase):
+    """oxfmt formats site/data/field-notes.md from the pre-commit hook and escapes
+    a word-boundary underscore itself, so a Reddit handle like u/_maverick98 is
+    rewritten to u/\\_maverick98 on the way into the commit. The renderer has to
+    honour that escape, or the backslash lands in reader-visible prose and the
+    committed HTML can never be reproduced from the Markdown that generated it."""
+
+    def _render(self, md):
+        return gen.render_field_notes_markdown(md)
+
+    def test_leading_underscore_handle_keeps_its_underscore_and_drops_the_backslash(self):
+        out = self._render("A report from u/\\_maverick98 on a MacBook Pro M4.")
+        self.assertIn("u/_maverick98", out)
+        self.assertNotIn("\\", out)
+
+    def test_trailing_underscore_handle_drops_the_backslash(self):
+        out = self._render("A community thread (u/opoot\\_, no numbers given).")
+        self.assertIn("u/opoot_", out)
+        self.assertNotIn("\\", out)
+
+    def test_escaped_underscore_does_not_open_an_italic_span(self):
+        out = self._render("The \\_old non-QAT build and the \\_new one both ran.")
+        self.assertNotIn("<em>", out)
+        self.assertIn("_old", out)
+        self.assertIn("_new", out)
+
+    def test_escaped_asterisk_renders_literally(self):
+        out = self._render("The flag is \\*not\\* a wildcard here.")
+        self.assertNotIn("<em>", out)
+        self.assertIn("*not*", out)
+
+    def test_windows_path_backslashes_are_left_alone(self):
+        out = self._render("The build lives at D:\\a\\llama-cpp-binaries and is unrelated.")
+        self.assertIn("D:\\a\\llama-cpp-binaries", out)
+
+    def test_escaped_dot_is_left_alone(self):
+        out = self._render('Pass --override-tensor-draft "token_embd\\.weight=CUDA0" to fix it.')
+        self.assertIn("token_embd\\.weight", out)
+
+    def test_real_emphasis_still_renders_beside_an_escaped_underscore(self):
+        out = self._render("_August 12 sweep:_ a report from u/\\_maverick98.")
+        self.assertIn("<em>August 12 sweep:</em>", out)
+        self.assertIn("u/_maverick98", out)
+
+
 class TestCategorizePost(unittest.TestCase):
     """Community cards are filtered by hardware category, so a post that only
     identifies its platform in prose (for example "a Mac engine") must still land
