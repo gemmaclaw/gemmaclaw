@@ -1900,6 +1900,7 @@ def render_field_notes_markdown(md_text):
 
     def render_inline(text):
         # Inline links [text](url)
+        link_tags = []
         def link_sub(m):
             label, url = m.group(1), m.group(2)
             # Both groups come out of the already-escaped string below, so escaping
@@ -1908,8 +1909,9 @@ def render_field_notes_markdown(md_text):
             # carrying a query string). Only "<" and ">" need re-escaping, because
             # they are the two the caller temporarily decoded so this regex could
             # see the markdown at all.
-            return (f'<a href="{_reescape_angle_brackets(url)}" target="_blank" '
-                    f'rel="noopener">{_reescape_angle_brackets(label)}</a>')
+            idx = len(link_tags)
+            link_tags.append(f'<a href="{_reescape_angle_brackets(url)}" target="_blank" rel="noopener">')
+            return f"\x00{idx}O\x00{_reescape_angle_brackets(label)}\x00C\x00"
         # Escape first, then re-apply markdown so links/emphasis work safely.
         escaped = html_escape(text)
         # Convert escaped brackets back so the regex matches our markdown links.
@@ -1948,6 +1950,8 @@ def render_field_notes_markdown(md_text):
         # the file and the committed HTML can never agree. Only the two characters
         # this renderer treats as markup are unescaped; a Windows path (D:\a\...)
         # and an escaped dot are left exactly as written.
+        escaped = re.sub(r"\x00(\d+)O\x00", lambda m: link_tags[int(m.group(1))], escaped)
+        escaped = escaped.replace("\x00C\x00", "</a>")
         escaped = re.sub(r"\\([_*])", r"\1", escaped)
         return escaped
 
