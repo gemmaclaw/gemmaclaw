@@ -1,3 +1,45 @@
+## Field Notes - 2026-08-14
+
+A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
+Curated from the latest Gemma-mentioning posts (5 new Gemma 4 posts from the August 14, 2026 ingest, 644 community index entries total) and their threads.
+Confidence is **moderate** for quantization tuning potential but **low** for generalized agentic performance on Gemma 4 31B. This five-post cycle highlights task-aware quantization gains and struggles with multi-turn autonomous coding. On the quantization front, one user reported that reallocating a fixed bit budget at the tensor level above the quantization cliff recovered 8.55 percent relative coding performance on a custom Gemma 4 12B Q3 imatrix, though at the expected cost of degradation in other categories. Meanwhile, Gemma 4 31B QAT remains a strong daily driver for natural language tasks, with one user preferring it over Muse Glimmer 30B. However, for autonomous agentic coding, a user with a triple-RTX 5060 Ti setup running Gemma 4 31B reported that the model fails to understand the agent framework, contrasting with other models that panic or loop. **No hardware tier recommendations change on measured grounds this cycle.**
+
+_August 14 sweep, 2026-08-14 00:00 UTC:_ a **five-post cycle focusing on task-aware quantization and multi-GPU agent setups**. The ingest surfaced **five Gemma-mentioning entries dated August 13**, taking the community index from **639 to 644**. The categoriser places four posts in **Quantization & Backends** (one of which also falls under **High-end GPU (24+ GB)** and **Mid-range GPU (8-16 GB)**), and one in **Mid-range GPU (8-16 GB)**. The cycle documents a proof-of-concept for tensor-level quantization allocation on Gemma 4 12B Q3 yielding an 8.55 percent coding score uplift on a hand-tuned imatrix, and hardware reports covering single RTX 5090, dual RTX 5060 Ti, and triple RTX 5060 Ti setups. The triple 5060 Ti rig self-reports 70 to 110 tok/s (the author notes this is unconfirmed and read off the pi agent web UI while running several models), yet that same report still describes friction running Gemma 4 31B under a multi-turn autonomous coding framework. **No Apple Silicon, laptop, integrated-graphics, single-GPU, CPU-only, Raspberry-Pi-class, or enterprise and cloud tier guidance changes.** All five entries are **single-author, placeholder-score (20) and zero-comment**, and **carry archived body text**.
+
+### Best current setup (this cycle's additions)
+
+- **No tier recommendation changes on measured grounds.** The hardware posts in this cycle are configuration questions and anecdotal agentic reports, so core hardware picks remain based on earlier sweeps.
+
+### What works
+
+- **Tensor-level precision reallocation above the quantization cliff can recover task-specific performance.** Shifting bits to the most damaged tensors under a fixed budget improved a Gemma 4 12B Q3 coding score by 8.55 percent (45.974 to 49.905) without a meaningful size increase (+0.119 percent) ([1vnltec](https://reddit.com/r/localllama/comments/1vnltec)).
+- **Gemma 4 31B QAT remains a preferred daily driver for natural language.** A user comparing it against Muse Glimmer 30B reported keeping Gemma 4 31B QAT as the go-to model for day-to-day tasks like websearch, QA, summarization, and translation ([1vn20yw](https://reddit.com/r/localllama/comments/1vn20yw)).
+- **Dual RTX 5060 Ti 16GB setups can fit 128k context windows for 30B-class models.** Using BF16 with dflash-kquant allows large contexts to fit comfortably across 32 GB of distributed VRAM ([1vn20yw](https://reddit.com/r/localllama/comments/1vn20yw)).
+- **Mini-PCs can serve 26B MoE models with large contexts.** A NucBox K8 Plus home server was reported running Gemma 4 26B A4B IT QAT at Q4_K_XL with a 131k context window ([1vndaih](https://reddit.com/r/localllama/comments/1vndaih)).
+
+### Known limits
+
+- **Gemma 4 31B struggles with autonomous agent coding frameworks.** A user running it on a triple RTX 5060 Ti setup reported that the model does not understand the agent framework during autonomous sketching, failing to build working code ([1vn5y7p](https://reddit.com/r/localllama/comments/1vn5y7p)).
+- **Category-specialized quantization causes degradation elsewhere.** Reallocating bits for coding performance damages capabilities in categories that were not selected for the imatrix tuning ([1vnltec](https://reddit.com/r/localllama/comments/1vnltec)).
+- **All five posts in this cycle are single-author and placeholder-score (20) with zero comments.** None of the reports carry community verification threads yet ([1vndaih](https://reddit.com/r/localllama/comments/1vndaih), [1vnltec](https://reddit.com/r/localllama/comments/1vnltec), [1vn5s3o](https://reddit.com/r/localllama/comments/1vn5s3o), [1vn20yw](https://reddit.com/r/localllama/comments/1vn20yw), [1vn5y7p](https://reddit.com/r/localllama/comments/1vn5y7p)).
+
+### Open questions
+
+- **How much performance drops in non-coding categories when tuning an imatrix specifically for code on Gemma 4 12B Q3?** The degradation is expected but unmeasured in the report ([1vnltec](https://reddit.com/r/localllama/comments/1vnltec)).
+- **Will the new ggml-cpu/ops F16 to F32 conversion vectorization improve Gemma 4 prompt processing?** The PR brings 17-31 percent gains for Qwen3 4B via F16C intrinsics, but Gemma 4 models remain unmeasured ([1vn5s3o](https://reddit.com/r/localllama/comments/1vn5s3o)).
+
+### Sources
+
+The five Gemma-mentioning posts driving this update (August 14 sweep). **All five are placeholder-score (20), zero-comment and carry archived body text**:
+
+- [5090 alone or 5090 and 4070Ti Super ?](https://reddit.com/r/localllama/comments/1vndaih) (Aug 13, 2026, u/Fz1zz. Hardware configuration query detailing an RTX 5090 setup for Qwen and a NucBox K8 Plus home server running Gemma 4 26B A4B IT QAT at Q4_K_XL with a 131k context window. Categorised High-end GPU (24+ GB), Mid-range GPU (8-16 GB), Quantization and Backends)
+- [Gemma 4 12B Q3: +8.55% Coding Performance From Tensor-Level Quantization Allocation](https://reddit.com/r/localllama/comments/1vnltec) (Aug 13, 2026, u/devildip. A proof-of-concept report on task-aware GGUF quantization. The author generated a custom imatrix for Gemma 4 12B Q3 and reallocated the bit budget at the tensor level to recover precision for coding tasks. Claims an 8.55 percent relative coding score improvement (45.974 to 49.905) with a 0.119 percent size increase (5.528 GB to 5.535 GB). Categorised Quantization and Backends)
+- [ggml-cpu/ops: vectorize flash-attention V-cache F16 to F32 conversion by jinzihao · Pull Request #26947 · ggml-org/llama.cpp](https://reddit.com/r/localllama/comments/1vn5s3o) (Aug 13, 2026, u/pmttyji. Notes a llama.cpp PR that leverages hardware F16C intrinsics for V-cache conversion, improving prompt processing by 17 to 31 percent for small Qwen models, and asks for Gemma 4 benchmarks. Categorised Quantization and Backends)
+- [Interesting uses for Muse Glimmer 30B?](https://reddit.com/r/localllama/comments/1vn20yw) (Aug 13, 2026, u/Kahvana. Comparative evaluation noting that Gemma 4 31B QAT remains the author's preferred model for day-to-day natural language tasks over Muse Glimmer 30B. Mentions running 128k context BF16 with dflash-kquant on dual RTX 5060 Ti 16GB GPUs. Categorised Quantization and Backends)
+- [Local autonomous coding agent?](https://reddit.com/r/localllama/comments/1vn5y7p) (Aug 13, 2026, u/Ejo2001. A user running a triple RTX 5060 Ti 16GB setup reports a self-measured, unconfirmed 70 to 110 tok/s across the models tried, and says Gemma 4 31B in particular fails to understand the autonomous agent framework to write code. Categorised Mid-range GPU (8-16 GB))
+
+_Last updated: 2026-08-14 (August 14 sweep). Confidence: moderate for quantization tuning potential but low for generalized agentic performance on Gemma 4 31B, on a five-post cycle documenting task-aware quantization gains, hardware setups, and friction with multi-turn autonomous coding. Key finding: reallocating a fixed bit budget toward the most damaged tensors on a custom imatrix recovered 8.55 percent relative coding performance on Gemma 4 12B Q3, with less than 0.2 percent size bloat, at the cost of expected degradation in other capabilities. Meanwhile, on a triple RTX 5060 Ti rig whose owner self-reports an unconfirmed 70 to 110 tok/s across several models, Gemma 4 31B was reported to fail at understanding autonomous agent frameworks. No Apple Silicon, laptop, integrated-graphics, single-GPU, CPU-only, Raspberry-Pi-class, or enterprise and cloud tier guidance changes. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+
 ## Field Notes - 2026-08-13
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
