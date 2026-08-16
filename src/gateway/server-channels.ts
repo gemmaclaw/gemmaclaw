@@ -306,6 +306,19 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
     await Promise.all(
       accountIds.map(async (id) => {
         if (store.tasks.has(id)) {
+          const existingAbort = store.aborts.get(id);
+          if (existingAbort?.signal.aborted && !opts.preserveManualStop) {
+            const rKey = restartKey(channelId, id);
+            manuallyStopped.delete(rKey);
+            recoveryStopTimedOut.add(rKey);
+            channelLogs[channelId].info?.(
+              `[${id}] restart deferred until timed-out channel stop completes`,
+            );
+            setRuntime(channelId, id, {
+              accountId: id,
+              restartPending: true,
+            });
+          }
           return;
         }
         const existingStart = store.starting.get(id);
@@ -504,7 +517,7 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
                   preserveManualStop: true,
                 });
               } catch {
-                // abort or startup failure — next crash will retry
+                // Abort or startup failure. The next crash will retry.
               }
             })
             .finally(() => {
@@ -573,7 +586,9 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
         if (!abort && !task && !plugin?.gateway?.stopAccount) {
           return;
         }
-        manuallyStopped.add(restartKey(channelId, id));
+        const rKey = restartKey(channelId, id);
+        manuallyStopped.add(rKey);
+        recoveryStopTimedOut.delete(rKey);
         abort?.abort();
         const log = channelLogs[channelId];
         if (plugin?.gateway?.stopAccount) {
