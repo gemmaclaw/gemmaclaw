@@ -117,13 +117,15 @@ export function createTypingSignaler(params: {
   };
 
   const signalReasoningDelta = async () => {
-    if (disabled || !shouldStartOnReasoning) {
+    if (disabled) {
       return;
     }
-    if (!hasRenderableText) {
-      return;
+    if (!typing.isActive()) {
+      if (!shouldStartOnReasoning || !hasRenderableText) {
+        return;
+      }
+      await typing.startTypingLoop();
     }
-    await typing.startTypingLoop();
     typing.refreshTypingTtl();
   };
 
