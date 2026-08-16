@@ -1197,6 +1197,8 @@ export async function runEmbeddedAttempt(
               params.model.contextWindow ?? params.model.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
             ),
           ),
+          reserveTokens: settingsManager.getCompactionReserveTokens(),
+          baseContextChars: systemPromptText.length,
         });
       } else {
         removeToolResultContextGuard = installContextEngineLoopHook({

@@ -96,10 +96,12 @@ async function applyGuardToContext(
   agent: { transformContext?: (messages: AgentMessage[], signal: AbortSignal) => unknown },
   contextForNextCall: AgentMessage[],
   contextWindowTokens = 1_000,
+  options: { reserveTokens?: number; baseContextChars?: number } = {},
 ) {
   installToolResultContextGuard({
     agent,
     contextWindowTokens,
+    ...options,
   });
   return await agent.transformContext?.(contextForNextCall, new AbortController().signal);
 }
@@ -133,6 +135,38 @@ describe("installToolResultContextGuard", () => {
     const contextForNextCall = [makeUser("u".repeat(3_200))];
 
     const transformed = await applyGuardToContext(agent, contextForNextCall);
+
+    expect(transformed).toBe(contextForNextCall);
+  });
+
+  it("honors the configured compaction reserve during a live tool loop", async () => {
+    const agent = makeGuardableAgent();
+    const contextForNextCall = [makeUser("u".repeat(2_000))];
+
+    await expect(
+      applyGuardToContext(agent, contextForNextCall, 1_000, { reserveTokens: 500 }),
+    ).rejects.toThrow(PREEMPTIVE_CONTEXT_OVERFLOW_MESSAGE);
+  });
+
+  it("counts fixed system prompt context against the live tool-loop budget", async () => {
+    const agent = makeGuardableAgent();
+    const contextForNextCall = [makeUser("u".repeat(1_000))];
+
+    await expect(
+      applyGuardToContext(agent, contextForNextCall, 1_000, {
+        reserveTokens: 250,
+        baseContextChars: 1_800,
+      }),
+    ).rejects.toThrow(PREEMPTIVE_CONTEXT_OVERFLOW_MESSAGE);
+  });
+
+  it("caps an oversized reserve so small-context models retain a prompt budget", async () => {
+    const agent = makeGuardableAgent();
+    const contextForNextCall = [makeUser("u".repeat(1_000))];
+
+    const transformed = await applyGuardToContext(agent, contextForNextCall, 1_000, {
+      reserveTokens: 10_000,
+    });
 
     expect(transformed).toBe(contextForNextCall);
   });

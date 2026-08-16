@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ContextEngine, ContextEngineRuntimeContext } from "../../context-engine/types.js";
+import { MIN_PROMPT_BUDGET_RATIO, MIN_PROMPT_BUDGET_TOKENS } from "../pi-compaction-constants.js";
 import {
   CHARS_PER_TOKEN_ESTIMATE,
   TOOL_RESULT_CHARS_PER_TOKEN_ESTIMATE,
@@ -141,9 +142,13 @@ function toolResultsNeedTruncation(params: {
 function exceedsPreemptiveOverflowThreshold(params: {
   messages: AgentMessage[];
   maxContextChars: number;
+  baseContextChars?: number;
 }): boolean {
   const estimateCache = createMessageCharEstimateCache();
-  return estimateContextChars(params.messages, estimateCache) > params.maxContextChars;
+  const baseContextChars = Math.max(0, Math.floor(params.baseContextChars ?? 0));
+  return (
+    baseContextChars + estimateContextChars(params.messages, estimateCache) > params.maxContextChars
+  );
 }
 
 function applyMessageMutationInPlace(
@@ -295,12 +300,25 @@ export function installContextEngineLoopHook(params: {
 export function installToolResultContextGuard(params: {
   agent: GuardableAgent;
   contextWindowTokens: number;
+  reserveTokens?: number;
+  baseContextChars?: number;
 }): () => void {
   const contextWindowTokens = Math.max(1, Math.floor(params.contextWindowTokens));
+  const requestedReserveTokens = Math.max(0, Math.floor(params.reserveTokens ?? 0));
+  const minPromptBudget = Math.min(
+    MIN_PROMPT_BUDGET_TOKENS,
+    Math.max(1, Math.floor(contextWindowTokens * MIN_PROMPT_BUDGET_RATIO)),
+  );
+  const effectiveReserveTokens = Math.min(
+    requestedReserveTokens,
+    Math.max(0, contextWindowTokens - minPromptBudget),
+  );
+  const promptBudgetTokens = Math.max(1, contextWindowTokens - effectiveReserveTokens);
   const maxContextChars = Math.max(
     1_024,
-    Math.floor(contextWindowTokens * CHARS_PER_TOKEN_ESTIMATE * PREEMPTIVE_OVERFLOW_RATIO),
+    Math.floor(promptBudgetTokens * CHARS_PER_TOKEN_ESTIMATE * PREEMPTIVE_OVERFLOW_RATIO),
   );
+  const baseContextChars = Math.max(0, Math.floor(params.baseContextChars ?? 0));
   const maxSingleToolResultChars = Math.max(
     1_024,
     Math.floor(
@@ -335,6 +353,7 @@ export function installToolResultContextGuard(params: {
       exceedsPreemptiveOverflowThreshold({
         messages: contextMessages,
         maxContextChars,
+        baseContextChars,
       })
     ) {
       throw new Error(PREEMPTIVE_CONTEXT_OVERFLOW_MESSAGE);
