@@ -122,6 +122,7 @@ export type HeartbeatDeps = OutboundSendDeps &
   };
 
 const log = createSubsystemLogger("gateway/heartbeat");
+const HEARTBEAT_SKIP_SESSION_ACTIVE = "session-active";
 let heartbeatRunnerRuntimePromise: Promise<typeof import("./heartbeat-runner.runtime.js")> | null =
   null;
 
@@ -1497,6 +1498,7 @@ export function startHeartbeatRunner(opts: {
     const startedAt = Date.now();
     const now = startedAt;
     let ran = false;
+    let skippedBusyInterval = false;
     // Track requests-in-flight so we can skip re-arm in finally — the wake
     // layer handles retry for this case (DEFAULT_RETRY_MS = 1 s).
     let requestsInFlight = false;
@@ -1519,6 +1521,13 @@ export function startHeartbeatRunner(opts: {
           });
           if (res.status !== "skipped" || res.reason !== "disabled") {
             advanceAgentSchedule(targetAgent, now, reason);
+          }
+          if (
+            isInterval &&
+            res.status === "skipped" &&
+            res.reason === HEARTBEAT_SKIP_REQUESTS_IN_FLIGHT
+          ) {
+            return { status: "skipped", reason: HEARTBEAT_SKIP_SESSION_ACTIVE };
           }
           return res.status === "ran" ? { status: "ran", durationMs: Date.now() - startedAt } : res;
         } catch (err) {
@@ -1552,6 +1561,11 @@ export function startHeartbeatRunner(opts: {
           continue;
         }
         if (res.status === "skipped" && res.reason === "requests-in-flight") {
+          if (isInterval) {
+            advanceAgentSchedule(agent, now, reason);
+            skippedBusyInterval = true;
+            continue;
+          }
           // Do not advance the schedule — the main lane is busy and the wake
           // layer will retry shortly (DEFAULT_RETRY_MS = 1 s).  Calling
           // scheduleNext() here would register a 0 ms timer that races with
@@ -1569,6 +1583,9 @@ export function startHeartbeatRunner(opts: {
 
       if (ran) {
         return { status: "ran", durationMs: Date.now() - startedAt };
+      }
+      if (skippedBusyInterval) {
+        return { status: "skipped", reason: HEARTBEAT_SKIP_SESSION_ACTIVE };
       }
       return { status: "skipped", reason: isInterval ? "not-due" : "disabled" };
     } finally {
