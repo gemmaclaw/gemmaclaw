@@ -487,8 +487,8 @@ export const dispatchTelegramMessage = async ({
   const previewToolProgressEnabled =
     Boolean(answerLane.stream) && resolveChannelStreamingPreviewToolProgress(telegramCfg);
   let previewToolProgressSuppressed = false;
-  let previewToolProgressLines: string[] = [];
-  const pushPreviewToolProgress = (line?: string) => {
+  let previewToolProgressLines: Array<{ key?: string; text: string }> = [];
+  const pushPreviewToolProgress = (line?: string, key?: string) => {
     if (!previewToolProgressEnabled || previewToolProgressSuppressed || !answerLane.stream) {
       return;
     }
@@ -496,14 +496,34 @@ export const dispatchTelegramMessage = async ({
     if (!normalized) {
       return;
     }
-    const previous = previewToolProgressLines.at(-1);
-    if (previous === normalized) {
-      return;
+    const normalizedKey = key?.trim();
+    if (normalizedKey) {
+      const existingIndex = previewToolProgressLines.findIndex(
+        (entry) => entry.key === normalizedKey,
+      );
+      if (existingIndex >= 0) {
+        if (previewToolProgressLines[existingIndex]?.text === normalized) {
+          return;
+        }
+        previewToolProgressLines = previewToolProgressLines.map((entry, index) =>
+          index === existingIndex ? { key: normalizedKey, text: normalized } : entry,
+        );
+      } else {
+        previewToolProgressLines = [
+          ...previewToolProgressLines,
+          { key: normalizedKey, text: normalized },
+        ].slice(-8);
+      }
+    } else {
+      if (previewToolProgressLines.some((entry) => entry.text === normalized)) {
+        return;
+      }
+      previewToolProgressLines = [...previewToolProgressLines, { text: normalized }].slice(-8);
     }
-    previewToolProgressLines = [...previewToolProgressLines, normalized].slice(-8);
-    const previewText = ["Working…", ...previewToolProgressLines.map((entry) => `• ${entry}`)].join(
-      "\n",
-    );
+    const previewText = [
+      "Working…",
+      ...previewToolProgressLines.map((entry) => `• ${entry.text}`),
+    ].join("\n");
     answerLane.lastPartialText = previewText;
     answerLane.stream.update(previewText);
   };
@@ -1084,11 +1104,15 @@ export const dispatchTelegramMessage = async ({
             if (statusReactionController && toolName) {
               await statusReactionController.setTool(toolName);
             }
+            if (payload.phase === "update") {
+              return;
+            }
             pushPreviewToolProgress(toolName ? `tool: ${toolName}` : "tool running");
           },
           onItemEvent: async (payload) => {
             pushPreviewToolProgress(
               payload.progressText ?? payload.summary ?? payload.title ?? payload.name,
+              payload.itemId,
             );
           },
           onPlanUpdate: async (payload) => {
@@ -1103,6 +1127,7 @@ export const dispatchTelegramMessage = async ({
             }
             pushPreviewToolProgress(
               payload.command ? `approval: ${payload.command}` : "approval requested",
+              payload.itemId ?? payload.approvalId,
             );
           },
           onCommandOutput: async (payload) => {
@@ -1113,13 +1138,17 @@ export const dispatchTelegramMessage = async ({
               payload.name
                 ? `${payload.name}${payload.exitCode === 0 ? " ✓" : payload.exitCode != null ? ` (exit ${payload.exitCode})` : ""}`
                 : payload.title,
+              payload.itemId ?? payload.toolCallId,
             );
           },
           onPatchSummary: async (payload) => {
             if (payload.phase !== "end") {
               return;
             }
-            pushPreviewToolProgress(payload.summary ?? payload.title ?? "patch applied");
+            pushPreviewToolProgress(
+              payload.summary ?? payload.title ?? "patch applied",
+              payload.itemId ?? payload.toolCallId,
+            );
           },
           onCompactionStart:
             statusReactionController || answerLane.stream

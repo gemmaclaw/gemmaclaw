@@ -639,6 +639,61 @@ describe("dispatchTelegramMessage draft streaming", () => {
     expect(answerDraftStream.update).toHaveBeenCalledWith("Visible answer");
   });
 
+  it("coalesces repeated updates for the same tool preview item", async () => {
+    const answerDraftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(answerDraftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ replyOptions }) => {
+      await replyOptions?.onToolStart?.({ name: "exec", phase: "start" });
+      await replyOptions?.onItemEvent?.({
+        itemId: "command:call-1",
+        kind: "command",
+        title: "exec run transcript inspector",
+        phase: "start",
+        status: "running",
+      });
+      for (let index = 0; index < 4; index += 1) {
+        await replyOptions?.onToolStart?.({ name: "exec", phase: "update" });
+        await replyOptions?.onItemEvent?.({
+          itemId: "command:call-1",
+          kind: "command",
+          title: "exec run transcript inspector",
+          phase: "update",
+          status: "running",
+        });
+      }
+      return { queuedFinal: false };
+    });
+
+    await dispatchWithContext({ context: createContext(), streamMode: "partial" });
+
+    expect(answerDraftStream.update).toHaveBeenLastCalledWith(
+      "Working…\n• tool: exec\n• exec run transcript inspector",
+    );
+  });
+
+  it("keeps identical progress labels for distinct tool preview items", async () => {
+    const answerDraftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(answerDraftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ replyOptions }) => {
+      for (const itemId of ["command:call-1", "command:call-2"]) {
+        await replyOptions?.onItemEvent?.({
+          itemId,
+          kind: "command",
+          title: "exec run health check",
+          phase: "start",
+          status: "running",
+        });
+      }
+      return { queuedFinal: false };
+    });
+
+    await dispatchWithContext({ context: createContext(), streamMode: "partial" });
+
+    expect(answerDraftStream.update).toHaveBeenLastCalledWith(
+      "Working…\n• exec run health check\n• exec run health check",
+    );
+  });
+
   it("does not overwrite finalized preview when additional final payloads are sent", async () => {
     const draftStream = createDraftStream(999);
     createTelegramDraftStream.mockReturnValue(draftStream);
