@@ -211,7 +211,7 @@ describe("startHeartbeatRunner", () => {
     expect(runSpy).not.toHaveBeenCalled();
   });
 
-  it("reschedules timer when runOnce returns requests-in-flight", async () => {
+  it("defers a busy interval heartbeat until the next scheduled slot", async () => {
     useFakeHeartbeatTime();
 
     const runSpy = createRequestsInFlightRunSpy(1);
@@ -227,53 +227,33 @@ describe("startHeartbeatRunner", () => {
     await vi.advanceTimersByTimeAsync(firstDueMs + 1);
     expect(runSpy).toHaveBeenCalledTimes(1);
 
-    // The wake layer retries after DEFAULT_RETRY_MS (1 s).  No scheduleNext()
-    // is called inside runOnce, so we must wait for the full cooldown.
+    // A scheduled heartbeat must not poll the active session or launch as soon
+    // as the current turn finishes.
     await vi.advanceTimersByTimeAsync(1_000);
+    expect(runSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(runSpy).toHaveBeenCalledTimes(2);
 
     runner.stop();
   });
 
-  it("does not push nextDueMs forward on repeated requests-in-flight skips", async () => {
+  it("still retries an explicit wake after requests-in-flight", async () => {
     useFakeHeartbeatTime();
 
-    // Simulate a long-running heartbeat: the first 5 calls return
-    // requests-in-flight (retries from the wake layer), then the 6th succeeds.
-    const callTimes: number[] = [];
-    let callCount = 0;
-    const runSpy = vi.fn().mockImplementation(async () => {
-      callTimes.push(Date.now());
-      callCount++;
-      if (callCount <= 5) {
-        return { status: "skipped", reason: "requests-in-flight" } as const;
-      }
-      return { status: "ran", durationMs: 1 } as const;
-    });
+    const runSpy = createRequestsInFlightRunSpy(1);
 
     const runner = startHeartbeatRunner({
       cfg: heartbeatConfig(),
       runOnce: runSpy,
       stableSchedulerSeed: TEST_SCHEDULER_SEED,
     });
-    const intervalMs = 30 * 60_000;
-    const firstDueMs = resolveDueFromNow(0, intervalMs, "main");
-
-    // Trigger the first heartbeat at the agent's first slot — returns requests-in-flight.
-    await vi.advanceTimersByTimeAsync(firstDueMs + 1);
+    requestHeartbeatNow({ reason: "manual", coalesceMs: 0 });
+    await vi.advanceTimersByTimeAsync(1);
     expect(runSpy).toHaveBeenCalledTimes(1);
 
-    // Simulate 4 more retries at short intervals (wake layer retries).
-    for (let i = 0; i < 4; i++) {
-      requestHeartbeatNow({ reason: "retry", coalesceMs: 0 });
-      await vi.advanceTimersByTimeAsync(1_000);
-    }
-    expect(callTimes.some((time) => time >= firstDueMs + intervalMs)).toBe(false);
-
-    // The next interval tick at the next scheduled slot should still fire —
-    // the retries must not push the phase out by multiple intervals.
-    await vi.advanceTimersByTimeAsync(firstDueMs + intervalMs - Date.now() + 1);
-    expect(callTimes.some((time) => time >= firstDueMs + intervalMs)).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(runSpy).toHaveBeenCalledTimes(2);
 
     runner.stop();
   });

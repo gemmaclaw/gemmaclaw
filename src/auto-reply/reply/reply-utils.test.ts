@@ -631,6 +631,21 @@ describe("createTypingSignaler", () => {
     expect(typing.startTypingOnText).not.toHaveBeenCalled();
   });
 
+  it("refreshes active instant-mode typing while reasoning is still streaming", async () => {
+    const typing = createMockTypingController();
+    (typing.isActive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    const signaler = createTypingSignaler({
+      typing,
+      mode: "instant",
+      isHeartbeat: false,
+    });
+
+    await signaler.signalReasoningDelta();
+
+    expect(typing.refreshTypingTtl).toHaveBeenCalledTimes(1);
+    expect(typing.startTypingLoop).not.toHaveBeenCalled();
+  });
+
   it("does not start typing for media-only deltas", async () => {
     const typing = createMockTypingController();
     const signaler = createTypingSignaler({

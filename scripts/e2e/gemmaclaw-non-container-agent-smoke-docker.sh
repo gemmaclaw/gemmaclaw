@@ -57,7 +57,12 @@ NODE
 HOST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/gemmaclaw-non-container-host.XXXXXX")"
 HOST_SENTINEL="$HOST_ROOT/sentinel.txt"
 HOST_MARKER="$HOST_ROOT/container-write-marker.txt"
+NODE_MODULES_DIR="$(readlink -f "$ROOT_DIR/node_modules")"
 printf 'HOST_SENTINEL_ORIGINAL\n' > "$HOST_SENTINEL"
+
+if [ ! -d "$NODE_MODULES_DIR" ]; then
+  skip_or_fail "repository dependencies are missing. Run pnpm install before the smoke"
+fi
 
 cleanup() {
   local status=$?
@@ -91,6 +96,7 @@ docker run --rm -i \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_TIMEOUT="${GEMMACLAW_LOCAL_AGENT_SMOKE_TIMEOUT:-1200}" \
   -e GEMMACLAW_LOCAL_AGENT_SMOKE_THINKING="${GEMMACLAW_LOCAL_AGENT_SMOKE_THINKING:-off}" \
   -v "$ROOT_DIR:/repo" \
+  -v "$NODE_MODULES_DIR:/repo/node_modules:ro" \
   -w /repo \
   "$IMAGE" \
   bash -lc 'printf '"'"'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n'"'"' > /etc/apt/apt.conf.d/99gemmaclaw-network-retries; printf '"'"'#!/bin/sh\napt-get "$@"\nstatus=$?\nif [ "$status" -eq 0 ]; then exit 0; fi\nexec apt-get -o Acquire::ForceIPv4=true "$@"\n'"'"' > /usr/local/bin/apt-get-retry; chmod 755 /usr/local/bin/apt-get-retry; apt-get-retry update >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get-retry install -y ca-certificates curl git >/dev/null && corepack enable >/dev/null 2>&1 || true; bash scripts/e2e/gemmaclaw-local-agent-smoke.sh'

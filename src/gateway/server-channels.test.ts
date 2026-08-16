@@ -227,13 +227,13 @@ describe("server-channels auto restart", () => {
     }
   });
 
-  it("does not allow a second account task to start when stop times out", async () => {
-    const startAccount = vi.fn(
-      async ({ abortSignal }: { abortSignal: AbortSignal }) =>
-        await new Promise<void>(() => {
-          abortSignal.addEventListener("abort", () => {}, { once: true });
-        }),
-    );
+  it("restarts the account after a timed-out stop finishes draining", async () => {
+    const firstRun = createDeferred();
+    const secondRun = createDeferred();
+    const startAccount = vi.fn(async ({ abortSignal }: { abortSignal: AbortSignal }) => {
+      abortSignal.addEventListener("abort", () => {}, { once: true });
+      return startAccount.mock.calls.length === 1 ? firstRun.promise : secondRun.promise;
+    });
     installTestRegistry(
       createTestPlugin({
         startAccount,
@@ -251,8 +251,50 @@ describe("server-channels auto restart", () => {
     const account = snapshot.channelAccounts.discord?.[DEFAULT_ACCOUNT_ID];
     expect(startAccount).toHaveBeenCalledTimes(1);
     expect(account?.running).toBe(true);
-    expect(account?.restartPending).toBe(false);
+    expect(account?.restartPending).toBe(true);
     expect(account?.lastError).toContain("channel stop timed out");
+
+    firstRun.resolve();
+    await vi.waitFor(() => expect(startAccount).toHaveBeenCalledTimes(2));
+
+    const restartedSnapshot = manager.getRuntimeSnapshot();
+    const restartedAccount = restartedSnapshot.channelAccounts.discord?.[DEFAULT_ACCOUNT_ID];
+    expect(restartedAccount?.running).toBe(true);
+    expect(restartedAccount?.restartPending).toBe(false);
+    expect(restartedAccount?.lastError).toBeNull();
+
+    secondRun.resolve();
+  });
+
+  it("lets a later manual stop cancel a pending timed-out recovery", async () => {
+    const firstRun = createDeferred();
+    const startAccount = vi.fn(async () => await firstRun.promise);
+    installTestRegistry(
+      createTestPlugin({
+        startAccount,
+      }),
+    );
+    const manager = createManager();
+
+    await manager.startChannels();
+    const firstStop = manager.stopChannel("discord", DEFAULT_ACCOUNT_ID);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await firstStop;
+    await manager.startChannel("discord", DEFAULT_ACCOUNT_ID);
+
+    const pendingAccount =
+      manager.getRuntimeSnapshot().channelAccounts.discord?.[DEFAULT_ACCOUNT_ID];
+    expect(pendingAccount?.restartPending).toBe(true);
+
+    const finalStop = manager.stopChannel("discord", DEFAULT_ACCOUNT_ID);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await finalStop;
+    firstRun.resolve();
+    await vi.waitFor(() => {
+      const account = manager.getRuntimeSnapshot().channelAccounts.discord?.[DEFAULT_ACCOUNT_ID];
+      expect(account?.running).toBe(false);
+    });
+    expect(startAccount).toHaveBeenCalledTimes(1);
   });
 
   it("marks enabled/configured when account descriptors omit them", () => {
