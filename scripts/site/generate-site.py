@@ -1580,6 +1580,31 @@ HARDWARE_CATEGORIES = {
     },
 }
 
+# Keywords short enough that a plain substring test bleeds into unrelated words.
+# "m3" alone matched the AM3 motherboard socket, "m1" matched SM120 and the
+# GitHub handle am17an, and all of those filed Nvidia builds under Apple Silicon.
+# These are matched with an explicit non-alphanumeric lookaround instead: a plain
+# \b is useless here because the neighbours ("a" in am3, "0" in sm120) are word
+# characters themselves. Every other keyword keeps its substring behaviour.
+BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5"}
+
+_BOUNDARY_PATTERNS = {
+    kw: re.compile(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])")
+    for kw in BOUNDARY_KEYWORDS
+}
+
+
+def keyword_matches(keyword, search_text):
+    """True when `keyword` occurs in `search_text` (already lowercased).
+
+    Short alphanumeric tokens must sit on a non-alphanumeric boundary; every
+    other keyword is an ordinary substring test.
+    """
+    pattern = _BOUNDARY_PATTERNS.get(keyword)
+    if pattern is not None:
+        return pattern.search(search_text) is not None
+    return keyword in search_text
+
 
 def parse_reddit_post(post_id):
     """Parse a Reddit post markdown file into structured data."""
@@ -1713,7 +1738,7 @@ def categorize_post(post):
 
     categories = []
     for cat_id, cat_def in HARDWARE_CATEGORIES.items():
-        if any(kw in search_text for kw in cat_def["keywords"]):
+        if any(keyword_matches(kw, search_text) for kw in cat_def["keywords"]):
             categories.append(cat_id)
 
     return categories if categories else ["general"]

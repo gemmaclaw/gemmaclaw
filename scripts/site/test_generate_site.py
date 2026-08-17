@@ -415,6 +415,93 @@ class TestCategorizePost(unittest.TestCase):
         self.assertEqual(gen.categorize_post(post), ["general"])
 
 
+class TestShortChipTokenBoundaries(unittest.TestCase):
+    """"m1" through "m5" are two characters long, so a plain substring test drags
+    any word that happens to contain them into the Apple Silicon filter. An AM3
+    motherboard socket, an SM120 part number and the handle am17an all did exactly
+    that, and 21 of the 95 apple-silicon posts matched on nothing else."""
+
+    @staticmethod
+    def _post(title="", summary="", tags=None, comments=None):
+        return {
+            "title": title,
+            "summary": summary,
+            "tags": tags or [],
+            "comments": comments or [],
+        }
+
+    def test_am3_socket_is_not_apple_silicon(self):
+        post = self._post(
+            title="Did I throw money in the mud?",
+            summary="Two RTX 5060 Ti cards on an old AM3 board. No Apple hardware anywhere.",
+        )
+        self.assertNotIn("apple-silicon", gen.categorize_post(post))
+
+    def test_sm120_part_number_is_not_apple_silicon(self):
+        post = self._post(summary="Built the kernels for sm120 and it finally compiled.")
+        self.assertNotIn("apple-silicon", gen.categorize_post(post))
+
+    def test_github_handle_containing_m1_is_not_apple_silicon(self):
+        post = self._post(summary="Thanks to am17an for landing the patch upstream.")
+        self.assertNotIn("apple-silicon", gen.categorize_post(post))
+
+    def test_m3_max_is_still_apple_silicon(self):
+        post = self._post(summary="Running it on an M3 Max with 64 GB.")
+        self.assertIn("apple-silicon", gen.categorize_post(post))
+
+    def test_bare_chip_token_on_a_boundary_is_still_apple_silicon(self):
+        """The boundary is non-alphanumeric, not whitespace, so a hyphenated or
+        parenthesised chip name still matches."""
+        for text in ["I use an M1 daily.", "on the M4-Pro", "(M2) 24 GB", "M5,"]:
+            with self.subTest(text=text):
+                self.assertIn("apple-silicon", gen.categorize_post(self._post(summary=text)))
+
+    def test_macbook_pro_is_still_apple_silicon(self):
+        post = self._post(summary="MacBook Pro, 36 GB unified memory.")
+        self.assertIn("apple-silicon", gen.categorize_post(post))
+
+    def test_no_hardware_signal_still_falls_back_to_general(self):
+        post = self._post(title="How do you write system prompts?", summary="Curious.")
+        self.assertEqual(gen.categorize_post(post), ["general"])
+
+    def test_keyword_matches_leaves_long_keywords_as_substrings(self):
+        """Only the short chip tokens get boundary treatment; every other keyword
+        keeps its substring behaviour so no existing categorisation moves."""
+        self.assertTrue(gen.keyword_matches("quant", "unsloth quantizations"))
+        self.assertTrue(gen.keyword_matches("3090", "rtx3090"))
+        self.assertFalse(gen.keyword_matches("m3", "am3"))
+        self.assertTrue(gen.keyword_matches("m3", "m3"))
+
+
+class TestAppleSiliconIndexCount(unittest.TestCase):
+    """A count assertion over the real index, because the unit cases above cannot
+    tell you whether the boundary rule actually cleared the 21 bad matches or
+    silently swallowed genuine Apple posts too."""
+
+    APPLE_SILICON_EXPECTED = 74
+
+    def test_apple_silicon_count_over_the_real_index(self):
+        configs = gen.load_community_configs()
+        self.assertGreater(len(configs), 0, "community index failed to load")
+        count = sum(1 for c in configs if "apple-silicon" in c.get("categories", []))
+        self.assertEqual(
+            count,
+            self.APPLE_SILICON_EXPECTED,
+            "apple-silicon post count moved; if the index grew, re-derive this "
+            "number and update the Field Notes prose that cites it",
+        )
+
+    def test_known_non_apple_posts_are_not_apple_silicon(self):
+        """1vq2fk7 is two Nvidia cards on an AM3 board, 1syjflw matched on the
+        sm120 part number and 1tif9vv on the handle am17an. All three used to sit
+        under the Apple Silicon chip."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1vq2fk7", "1syjflw", "1tif9vv"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertNotIn("apple-silicon", configs[post_id].get("categories", []))
+
+
 class TestUpstreamEntityUnescaping(unittest.TestCase):
     """Reddit serves some characters PRE-ESCAPED inside the archived markdown, so
     the submission footer of post 1vfeick arrives as the literal sequence
