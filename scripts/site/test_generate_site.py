@@ -480,6 +480,119 @@ class TestShortChipTokenBoundaries(unittest.TestCase):
         self.assertTrue(gen.keyword_matches("m3", "m3"))
 
 
+class TestShortAlphabeticTokenBoundaries(unittest.TestCase):
+    """Same defect as the chip tokens, in alphabetic form. "sli" is a substring of
+    "slightly" and "slip", and r/LocalLLaMA writes "slightly better" constantly, so
+    the High-end GPU chip collected eight posts that never mention SLI. "arm" is a
+    substring of "warmup", "armed", "army", "pycharm" and "harmbench", which is how
+    half of CPU / Raspberry Pi filled up."""
+
+    @staticmethod
+    def _post(title="", summary="", tags=None, comments=None):
+        return {
+            "title": title,
+            "summary": summary,
+            "tags": tags or [],
+            "comments": comments or [],
+        }
+
+    def test_slightly_is_not_a_high_end_gpu_signal(self):
+        post = self._post(summary="Gemma 4 31B is slightly better than Qwen at refactoring.")
+        self.assertNotIn("high-gpu", gen.categorize_post(post))
+
+    def test_freudian_slip_is_not_a_high_end_gpu_signal(self):
+        post = self._post(summary="EDIT: Qwen 3.8 not Opus 4.8, freudian slip lol")
+        self.assertNotIn("high-gpu", gen.categorize_post(post))
+
+    def test_real_sli_mention_is_still_high_end_gpu(self):
+        for text in ["Two cards in SLI.", "sli-bridged cards", "(SLI)"]:
+            with self.subTest(text=text):
+                self.assertIn("high-gpu", gen.categorize_post(self._post(summary=text)))
+
+    def test_warmup_and_army_and_pycharm_are_not_cpu_only(self):
+        for text in [
+            "about 19 to 20 generated tok/s after warmup",
+            "commonly called the swiss army knife of on-device AI",
+            "a personal webproject in python, using pycharm",
+            "weight analysis, KL divergence, harmbench safety",
+            "submitted by /u/jleonsarmiento",
+        ]:
+            with self.subTest(text=text):
+                self.assertNotIn("cpu-only", gen.categorize_post(self._post(summary=text)))
+
+    def test_real_arm_mention_is_still_cpu_only(self):
+        for text in [
+            "faster CPU decode than llama.cpp on x86 and arm!",
+            "their proprietary ARM SoC, making them a paperweight",
+            "measured on x86 (sapphire rapids) and arm (gb10)",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("cpu-only", gen.categorize_post(self._post(summary=text)))
+
+    def test_numeric_gpu_tokens_deliberately_keep_substring_matching(self):
+        """"4x3090" and "5060ti" are genuine mentions written without a boundary,
+        so those keywords must NOT be promoted alongside sli and arm."""
+        self.assertTrue(gen.keyword_matches("3090", "best models in 3x3090 (72gb vram)"))
+        self.assertTrue(gen.keyword_matches("5060", "dual 5060ti16's"))
+        self.assertNotIn("3090", gen.BOUNDARY_KEYWORDS)
+        self.assertNotIn("5060", gen.BOUNDARY_KEYWORDS)
+
+    def test_keyword_matches_boundary_rule_for_the_new_tokens(self):
+        self.assertFalse(gen.keyword_matches("sli", "slightly"))
+        self.assertTrue(gen.keyword_matches("sli", "in sli mode"))
+        self.assertFalse(gen.keyword_matches("arm", "warmup"))
+        self.assertTrue(gen.keyword_matches("arm", "on arm hardware"))
+
+
+@unittest.skipUnless(
+    _WORKSPACE_POSTS_AVAILABLE,
+    "requires workspace Reddit post markdown (gen.POSTS_DIR); absent in a bare "
+    "repo checkout / CI, where load_community_configs() cannot enrich the index",
+)
+class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
+    """Count assertions over the real index, because the unit cases above cannot
+    tell you whether the boundary rule cleared exactly the bad matches or also
+    swallowed the genuine SLI and ARM posts."""
+
+    HIGH_GPU_EXPECTED = 66
+    CPU_ONLY_EXPECTED = 10
+
+    def test_category_counts_over_the_real_index(self):
+        configs = gen.load_community_configs()
+        if not configs:
+            self.skipTest("community index enrichment produced no posts (workspace data unavailable)")
+        for cat, expected in (
+            ("high-gpu", self.HIGH_GPU_EXPECTED),
+            ("cpu-only", self.CPU_ONLY_EXPECTED),
+        ):
+            with self.subTest(category=cat):
+                count = sum(1 for c in configs if cat in c.get("categories", []))
+                self.assertEqual(
+                    count,
+                    expected,
+                    f"{cat} post count moved; if the index grew, re-derive this "
+                    "number and update the Field Notes prose that cites it",
+                )
+
+    def test_slightly_posts_left_the_high_end_gpu_chip(self):
+        """1vr2oq8 matched on "freudian slip" and 1tw0lua, 1ura4d0, 1u941oi and
+        1v6d2ou on "slightly" or "slight". None of the five names a GPU."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1vr2oq8", "1tw0lua", "1ura4d0", "1u941oi", "1v6d2ou"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertNotIn("high-gpu", configs[post_id].get("categories", []))
+
+    def test_genuine_arm_posts_stayed_on_the_cpu_chip(self):
+        """1upynpt measures CPU decode on x86 and arm, 1ta7ce9 discusses an ARM
+        SoC. Both must survive the boundary rule."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1upynpt", "1ta7ce9"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertIn("cpu-only", configs[post_id].get("categories", []))
+
+
 @unittest.skipUnless(
     _WORKSPACE_POSTS_AVAILABLE,
     "requires workspace Reddit post markdown (gen.POSTS_DIR); absent in a bare "

@@ -1586,7 +1586,17 @@ HARDWARE_CATEGORIES = {
 # These are matched with an explicit non-alphanumeric lookaround instead: a plain
 # \b is useless here because the neighbours ("a" in am3, "0" in sm120) are word
 # characters themselves. Every other keyword keeps its substring behaviour.
-BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5"}
+#
+# "sli" and "arm" are the same failure in alphabetic form. Over the 658-entry
+# index "sli" occurs nine times and every one of them is "slightly", "slight" or
+# "freudian slip", so the High-end GPU chip carried eight posts that never
+# mention SLI. "arm" occurs thirteen times and ten are "warmup", "heavily armed",
+# "swiss army", "pycharm", "harmbench" or the author handle jleonsarmiento; only
+# "proprietary arm soc" and "x86 and arm" are real, so half of CPU / Raspberry Pi
+# was noise. The numeric GPU tokens ("3090", "5060") deliberately stay on
+# substring matching, because "4x3090" and "5060ti" are genuine mentions that a
+# boundary rule would throw away.
+BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5", "sli", "arm"}
 
 _BOUNDARY_PATTERNS = {
     kw: re.compile(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])")
