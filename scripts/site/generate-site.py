@@ -1548,7 +1548,7 @@ HARDWARE_CATEGORIES = {
         "label": "High-end GPU (24+ GB)",
         "keywords": ["rtx 3090", "rtx 4090", "rtx 5090", "a100", "a6000", "h100",
                       "48gb", "24gb vram", "80gb", "3090", "4090", "5090", "a100",
-                      "titan", "dual gpu", "multi gpu", "sli", "nvlink"],
+                      "titan", "dual gpu", "multi gpu", "triple gpu", "sli", "nvlink"],
         "icon": "gpu-high",
     },
     "mid-gpu": {
@@ -1561,7 +1561,8 @@ HARDWARE_CATEGORIES = {
     "cpu-only": {
         "label": "CPU / Raspberry Pi",
         "keywords": ["cpu only", "cpu-only", "no gpu", "raspberry pi", "gemma.cpp",
-                      "arm", "aarch64", "pi 5", "cpu inference", "cpu only"],
+                      "arm", "aarch64", "pi 5", "cpu inference", "cpu only",
+                      "on cpu"],
         "icon": "cpu",
     },
     "laptop": {
@@ -1596,21 +1597,55 @@ HARDWARE_CATEGORIES = {
 # was noise. The numeric GPU tokens ("3090", "5060") deliberately stay on
 # substring matching, because "4x3090" and "5060ti" are genuine mentions that a
 # boundary rule would throw away.
-BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5", "sli", "arm"}
+#
+# "on cpu" is the same shape once more: it is the phrase people actually write
+# ("agent on cpu", "6-7tg/s on cpu"), but as a substring it also sits inside
+# "xeon cpu". Over the 660-entry index the phrase occurs six times and exactly
+# that one, a $100 x79 and Xeon build, is spurious.
+BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5", "sli", "arm", "on cpu"}
 
 _BOUNDARY_PATTERNS = {
     kw: re.compile(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])")
     for kw in BOUNDARY_KEYWORDS
 }
 
+# A bare capacity token names a GPU only when nothing immediately after it says
+# otherwise. "48gb" is the live case: over the 660-entry index it occurs nine
+# times and only two are VRAM ("48GB VRAM users, what are your daily drivers?"
+# and "262k context on 48GB"). The other seven are DDR4 or DDR5 sticks
+# ("ram: 48gb ddr4", "dual 48gb ddr5-6000cl30") or Apple unified memory
+# ("48gb unified memory"), so High-end GPU was collecting CPU and Mac builds.
+# This is not the substring bleed above: the token really is "48gb" in both
+# senses, and the discriminator is the noun that follows it.
+#
+# The suffix test is deliberately narrow. It disqualifies one occurrence, not
+# the whole document, so a post that mentions both its RAM and its GPU still
+# matches on the GPU. "ram" is matched as a whole word so that "48gb vram"
+# stays a match. "80gb" carries the same rule for symmetry; all three of its
+# current occurrences are "h100 80gb" and none are affected.
+#
+# Known gap: an Apple capacity written without a trailing qualifier
+# ("macbook 4 pro with 48gb has", "m5 pro with 48gb,") still matches. Fixing
+# that needs a preceding-context rule with its own census, and both posts
+# already carry apple-silicon, so they are left alone rather than guessed at.
+CAPACITY_KEYWORDS = {"48gb", "80gb"}
+
+_NON_VRAM_SUFFIX = r"(?!\s*(?:of\s+)?(?:ddr\d|ram(?![a-z])|unified(?![a-z])))"
+
+_CAPACITY_PATTERNS = {
+    kw: re.compile(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])" + _NON_VRAM_SUFFIX)
+    for kw in CAPACITY_KEYWORDS
+}
+
 
 def keyword_matches(keyword, search_text):
     """True when `keyword` occurs in `search_text` (already lowercased).
 
-    Short alphanumeric tokens must sit on a non-alphanumeric boundary; every
-    other keyword is an ordinary substring test.
+    Short alphanumeric tokens must sit on a non-alphanumeric boundary, bare
+    capacity tokens must not be immediately qualified as system RAM or unified
+    memory, and every other keyword is an ordinary substring test.
     """
-    pattern = _BOUNDARY_PATTERNS.get(keyword)
+    pattern = _BOUNDARY_PATTERNS.get(keyword) or _CAPACITY_PATTERNS.get(keyword)
     if pattern is not None:
         return pattern.search(search_text) is not None
     return keyword in search_text
