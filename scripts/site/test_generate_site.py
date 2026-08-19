@@ -543,6 +543,77 @@ class TestShortAlphabeticTokenBoundaries(unittest.TestCase):
         self.assertFalse(gen.keyword_matches("arm", "warmup"))
         self.assertTrue(gen.keyword_matches("arm", "on arm hardware"))
 
+    def test_xeon_is_not_a_cpu_only_signal(self):
+        """"on cpu" is the phrase people actually write, but as a bare substring it
+        also sits inside "xeon cpu", which is why it needs the boundary rule."""
+        post = self._post(summary="an x79 motherboard with a basic xeon cpu and 16gb of ddr3 for about $100")
+        self.assertNotIn("cpu-only", gen.categorize_post(post))
+
+    def test_real_on_cpu_mention_is_cpu_only(self):
+        for text in [
+            "Agent on CPU, which to pick?",
+            "i was getting 6-7tg/s on cpu. gpu with vulkan",
+            "qwen 3.5 9b gave me 7 t/s on cpu on iphone 15pm",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("cpu-only", gen.categorize_post(self._post(summary=text)))
+
+
+class TestBareCapacityTokensAreNotAlwaysVram(unittest.TestCase):
+    """A capacity token names a GPU only when nothing right after it says otherwise.
+    Over the 660-entry index "48gb" occurs nine times and only two are VRAM; the
+    other seven are DDR4 or DDR5 sticks or Apple unified memory, so High-end GPU was
+    collecting CPU and Mac builds. Unlike sli and arm this is not a substring bleed,
+    the token really is "48gb" in both senses, so the discriminator is the following
+    noun rather than a word boundary."""
+
+    @staticmethod
+    def _post(title="", summary="", tags=None, comments=None):
+        return {
+            "title": title,
+            "summary": summary,
+            "tags": tags or [],
+            "comments": comments or [],
+        }
+
+    def test_system_ram_capacity_is_not_a_high_end_gpu_signal(self):
+        for text in [
+            "os: kubuntu 26.04, cpu: ryzen 5 3600, ram: 48gb ddr4",
+            "finally get to put my 96GB DDR5 (dual 48GB DDR5-6000CL30) to good use",
+            "this is my hardware: ryzen 9 5950x 48gb ddr4 3600 some nvme disk",
+            "a box with 48GB of RAM and no discrete card",
+        ]:
+            with self.subTest(text=text):
+                self.assertNotIn("high-gpu", gen.categorize_post(self._post(summary=text)))
+
+    def test_unified_memory_capacity_is_not_a_high_end_gpu_signal(self):
+        post = self._post(summary="5.0t/s with 5gb of memory usage on m5 pro with 48gb unified memory")
+        self.assertNotIn("high-gpu", gen.categorize_post(post))
+
+    def test_real_vram_capacity_is_still_high_end_gpu(self):
+        for text in [
+            "48GB VRAM users, what are your daily drivers?",
+            "262k context on 48GB - fixed chat template",
+            "the setup was simple. one h100 80gb, vllm 0.19.1",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("high-gpu", gen.categorize_post(self._post(summary=text)))
+
+    def test_disqualifier_is_scoped_to_one_occurrence_not_the_document(self):
+        """A rig post that lists its RAM and its GPU must still match on the GPU."""
+        post = self._post(summary="r7 5700x, 48gb ddr4, and a 48GB VRAM card")
+        self.assertIn("high-gpu", gen.categorize_post(post))
+
+    def test_vram_is_not_swallowed_by_the_whole_word_ram_disqualifier(self):
+        self.assertTrue(gen.keyword_matches("48gb", "48gb vram"))
+        self.assertFalse(gen.keyword_matches("48gb", "48gb ram"))
+
+    def test_triple_gpu_is_a_high_end_gpu_signal(self):
+        """Added alongside the capacity rule: without it the 48gb fix would drop
+        a genuine "triple gpu with 31gb vram combined" build off the chip."""
+        post = self._post(summary="benchmarks using single system running triple gpu with 31gb vram combined")
+        self.assertIn("high-gpu", gen.categorize_post(post))
+
 
 @unittest.skipUnless(
     _WORKSPACE_POSTS_AVAILABLE,
@@ -555,7 +626,11 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     swallowed the genuine SLI and ARM posts."""
 
     HIGH_GPU_EXPECTED = 66
-    CPU_ONLY_EXPECTED = 10
+    # Re-derived for the 660-entry index of 2026-08-19. The capacity-token rule
+    # left high-gpu unchanged at 66 (1vbw2pm lost a spurious DDR match, 1u5ul4k
+    # gained a genuine "triple gpu" one). cpu-only moved 10 -> 14: "on cpu" added
+    # 1vq2fk7, 1ttyzpi and 1t0k6fj, and the cycle's own 1vrojhv is the fourth.
+    CPU_ONLY_EXPECTED = 14
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
