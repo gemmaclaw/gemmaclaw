@@ -625,11 +625,17 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     tell you whether the boundary rule cleared exactly the bad matches or also
     swallowed the genuine SLI and ARM posts."""
 
-    HIGH_GPU_EXPECTED = 66
-    # Re-derived for the 660-entry index of 2026-08-19. The capacity-token rule
-    # left high-gpu unchanged at 66 (1vbw2pm lost a spurious DDR match, 1u5ul4k
-    # gained a genuine "triple gpu" one). cpu-only moved 10 -> 14: "on cpu" added
-    # 1vq2fk7, 1ttyzpi and 1t0k6fj, and the cycle's own 1vrojhv is the fourth.
+    # Re-derived for the 669-entry index of 2026-08-24. high-gpu moved 66 -> 67:
+    # the cycle's 1vwhj0l matches on "3090", where the author says they run
+    # GLM-4.5-Air on 3090s. That post is a GLM announcement rather than a Gemma
+    # benchmark, so the Field Notes section reports the count change without
+    # attributing any throughput to Gemma. Prior derivation, for the 660-entry
+    # index of 2026-08-19: the capacity-token rule left high-gpu at 66 (1vbw2pm
+    # lost a spurious DDR match, 1u5ul4k gained a genuine "triple gpu" one).
+    HIGH_GPU_EXPECTED = 67
+    # Unchanged at 14 since that same 2026-08-19 index: no post in the cycles
+    # since then mentions CPU-only or Pi-class inference. It moved 10 -> 14 when
+    # "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with 1vrojhv the fourth.
     CPU_ONLY_EXPECTED = 14
 
     def test_category_counts_over_the_real_index(self):
