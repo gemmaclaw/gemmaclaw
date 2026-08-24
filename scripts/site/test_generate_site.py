@@ -10,6 +10,7 @@ Pure stdlib (unittest) so it runs in CI without extra deps:
 """
 import importlib.util
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -300,6 +301,191 @@ class TestQuantSearchNormalization(unittest.TestCase):
     def test_every_spelling_reduces_to_one_token(self):
         spellings = ["Q4_K_M", "q4_k_m", "Q4\\_K\\_M", "q4km", "Q4K_M", "q4-k-m"]
         self.assertEqual({gen.normalize_search_text(s) for s in spellings}, {"q4km"})
+
+
+class TestBodyTextIsSearchable(unittest.TestCase):
+    """The community search index used to cover only the title, the Short summary,
+    the tags and the top three comments. Short summary is an upstream truncation
+    of the post body that stops mid-sentence, so a report's quant name, backend
+    or download instruction routinely lived only in the body and was unreachable.
+
+    The worked example is 1vvtu9z, the 2026-08-24 cycle's only Gemma-specific
+    report. Its field note quotes "fp16 to Q4_K_M weights for llama.cpp or
+    ollama", and every one of those terms sits past the truncation point, in the
+    body, on a post with zero comments. Searching Q4_K_M, fp16, ollama or
+    llama.cpp returned the card's neighbours and not the card itself.
+
+    Hermetic apart from the two cases that say otherwise in their own docstring.
+    """
+
+    @staticmethod
+    def _post(title="", summary="", body="", tags=None, comments=None):
+        return {
+            "id": "1vvtu9z",
+            "title": title,
+            "summary": summary,
+            "body": body,
+            "tags": tags or [],
+            "comments": comments or [],
+            "categories": ["general"],
+            "author": "tester",
+            "date": "2026-08-23",
+            "score": 20,
+            "flair": "",
+        }
+
+    def _matches(self, post, query):
+        return gen.normalize_search_text(query) in gen.build_card_search_text(post)
+
+    def test_quant_and_backend_past_the_summary_truncation_are_reachable(self):
+        """Mirrors 1vvtu9z: the summary is cut off before the sentence that names
+        the quant and the runtimes, and the post has no comments to fall back to."""
+        post = self._post(
+            title="I fine tuned Gemma 4 12B for a 2.7x improvement on tool calling",
+            summary="Gemma 12B is obviously a very well trained model, I always thought the fine tuning...",
+            body=(
+                "Gemma 12B is obviously a very well trained model, I always thought the fine tuning "
+                "they did on it wasn't really cut out for agentic coding. I have fp16 -> Q4\\_K\\_M "
+                "weights uploaded and ready for use with llama.cpp or ollama"
+            ),
+        )
+        for query in ("Q4_K_M", "q4km", "fp16", "ollama", "llama.cpp", "llamacpp"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
+    def test_body_is_indexed_when_there_is_no_summary_and_no_comments(self):
+        post = self._post(title="Untitled", body="Served with vLLM at 128k context on an MI60.")
+        for query in ("vLLM", "128k", "MI60"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
+    def test_a_summary_that_is_not_a_body_prefix_is_still_indexed(self):
+        """Link posts carry a summary the body never repeats. Dropping the copy is
+        only ever safe when the body already holds every one of its characters."""
+        post = self._post(summary="Benchmarked on a Strix Halo", body="Numbers are in the linked gist.")
+        self.assertTrue(self._matches(post, "Strix Halo"))
+        self.assertTrue(self._matches(post, "linked gist"))
+
+    def test_a_truncated_summary_copy_is_not_indexed_twice(self):
+        body = "Ran Gemma 4 26B A4B at Q8_0 overnight and it held 18.35 tok/s the whole time."
+        post = self._post(summary="Ran Gemma 4 26B A4B at Q8_0 overnight and it held...", body=body)
+        indexed = gen.build_card_search_text(post)
+        self.assertEqual(indexed.count("overnight"), 1, "the copied sentence must appear once")
+        self.assertTrue(self._matches(post, "Q8_0"))
+        self.assertTrue(self._matches(post, "18.35"))
+
+    def test_summary_duplicates_body_needs_both_halves(self):
+        self.assertFalse(gen.summary_duplicates_body("anything", ""))
+        self.assertFalse(gen.summary_duplicates_body("", "anything"))
+        self.assertFalse(gen.summary_duplicates_body("...", "anything"))
+        self.assertFalse(gen.summary_duplicates_body("a different sentence", "the body"))
+        self.assertTrue(gen.summary_duplicates_body("the body sta...", "the body starts here"))
+
+    def test_index_is_deterministic(self):
+        post = self._post(title="T", summary="S", body="B", tags=["gemma"])
+        self.assertEqual(gen.build_card_search_text(post), gen.build_card_search_text(post))
+
+    def test_index_is_capped(self):
+        post = self._post(body="tok " * 5000)
+        self.assertLessEqual(len(gen.build_card_search_text(post)), gen.COMMUNITY_SEARCH_INDEX_LIMIT)
+
+    def test_no_markdown_escape_survives_into_the_body_index(self):
+        post = self._post(body="uploaded Q4\\_K\\_M and Q8\\_0 gguf files")
+        self.assertNotIn("\\", gen.build_card_search_text(post))
+
+    def test_parser_reads_a_body_section(self):
+        """The body block used to fall through the generic '## ' branch and be
+        discarded, which is why nothing downstream could index it. The other
+        sections must keep parsing into their own fields."""
+        raw = (
+            "# A title\n\n- Score: 20\n- Author: u/tester\n- Date: 2026-08-23T01:30:21.000Z\n\n"
+            "## Short summary\n\nTruncated prefix of the body...\n\n"
+            "## Key takeaways from comments\n\n(No comments captured)\n\n"
+            "## Tags\n\n- quantization\n\n"
+            "## Post text (excerpt)\n\nfp16 -> Q4\\_K\\_M weights for llama.cpp or ollama\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            posts_dir = Path(tmp)
+            (posts_dir / "1vvtu9z.md").write_text(raw, encoding="utf-8")
+            original = gen.POSTS_DIR
+            gen.POSTS_DIR = posts_dir
+            try:
+                post = gen.parse_reddit_post("1vvtu9z")
+            finally:
+                gen.POSTS_DIR = original
+        self.assertIsNotNone(post, "expected the archived post to parse")
+        self.assertIn("Q4\\_K\\_M", post["body"])
+        self.assertIn("ollama", post["body"])
+        self.assertNotIn("## Tags", post["body"])
+        self.assertNotIn("No comments captured", post["body"])
+        self.assertEqual(post["summary"], "Truncated prefix of the body...")
+        self.assertEqual(post["tags"], ["quantization"])
+        self.assertTrue(gen.build_card_search_text(post).endswith("ollama"))
+
+
+@unittest.skipUnless(
+    _WORKSPACE_POSTS_AVAILABLE,
+    "requires workspace Reddit post markdown (gen.POSTS_DIR); absent in a bare "
+    "repo checkout / CI, where load_community_configs() cannot enrich the index",
+)
+class TestSearchIndexOverTheRealIndex(unittest.TestCase):
+    """The cap only earns its place if it clears the whole corpus. A synthetic
+    case cannot tell you that, because the defect being fixed is precisely a cap
+    that bit every real post while every unit test stayed green."""
+
+    def test_the_cap_clears_every_archived_post(self):
+        posts = gen.load_community_configs()
+        self.assertGreater(len(posts), 0, "expected the live community index to load")
+        longest = max(len(gen.build_card_search_text(p)) for p in posts)
+        self.assertLess(longest, gen.COMMUNITY_SEARCH_INDEX_LIMIT,
+                        "no archived post may be truncated by the search-index cap")
+
+    def test_the_worked_example_is_reachable_by_its_quant_and_backend(self):
+        """1vvtu9z is the report this whole change exists for: its field note
+        publishes fp16, Q4_K_M, llama.cpp and ollama, and none of them reached
+        the card while only the truncated Short summary was indexed."""
+        post = next((p for p in gen.load_community_configs() if p["id"] == "1vvtu9z"), None)
+        self.assertIsNotNone(post, "expected 1vvtu9z in the live community index")
+        indexed = gen.build_card_search_text(post)
+        for query in ("Q4_K_M", "q4km", "fp16", "ollama", "llama.cpp"):
+            self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
+
+
+class TestPostIdLookup(unittest.TestCase):
+    """Cite-then-find: every Field Notes claim cites a Reddit id, and a reader who
+    pastes that id into the community search box should land on the card.
+
+    The id is carried on its own data-id attribute and compared for EQUALITY
+    rather than folded into data-search, because ids are 7 base36 characters and
+    a substring index makes short queries collide: 'm4' would match 1vkm42m and
+    'q8' would match 1vr2oq8, neither of which mentions either term.
+    """
+
+    def _card(self, post_id="1vvtu9z"):
+        post = {
+            "id": post_id, "title": "A report", "summary": "", "body": "",
+            "tags": [], "comments": [], "categories": ["general"],
+            "author": "tester", "date": "2026-08-23", "score": 20, "flair": "",
+        }
+        return gen.generate_community_cards([post])
+
+    def test_card_carries_its_reddit_id(self):
+        self.assertIn('data-id="1vvtu9z"', self._card())
+
+    def test_id_is_not_folded_into_the_substring_index(self):
+        for post_id, colliding_query in (("1vkm42m", "m4"), ("1vr2oq8", "q8"), ("1u4bne8", "4b")):
+            card = self._card(post_id)
+            indexed = re.search(r'data-search="([^"]*)"', card).group(1)
+            self.assertNotIn(colliding_query, indexed,
+                             f"{post_id} must not answer a {colliding_query!r} search on its id alone")
+
+    def test_every_card_is_emitted_with_exactly_one_id(self):
+        posts = [
+            {"id": pid, "title": "A report", "summary": "", "body": "", "tags": [],
+             "comments": [], "categories": ["general"], "author": "tester",
+             "date": "2026-08-23", "score": 20, "flair": ""}
+            for pid in ("1vvtu9z", "1vwhj0l", "1vw9lp9")
+        ]
+        html = gen.generate_community_cards(posts)
+        self.assertEqual(re.findall(r'data-id="([^"]*)"', html), [p["id"] for p in posts])
 
 
 class TestFieldNotesItalics(unittest.TestCase):
