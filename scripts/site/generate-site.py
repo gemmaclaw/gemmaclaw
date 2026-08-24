@@ -82,6 +82,9 @@ def resolve_workspace_dir():
 WORKSPACE_DIR = resolve_workspace_dir()
 POSTS_DIR = WORKSPACE_DIR / "knowledge" / "reddit" / "localllama" / "posts"
 
+# Heading the Reddit archiver writes above a post's own body text.
+BODY_SECTION_HEADING = "## Post text (excerpt)"
+
 
 def load_benchmark_results():
     """Load all benchmark result JSON files."""
@@ -1476,6 +1479,75 @@ def normalize_search_text(text):
     return re.sub(r'\s+', ' ', SEARCH_PUNCTUATION_RE.sub('', str(text).lower())).strip()
 
 
+# Upper bound on one card's search index, in canonical-form characters. Sized to
+# clear the longest archived post (2031 characters at the time of writing) with
+# headroom, so nothing currently in the corpus is truncated. It exists to stop a
+# single runaway body from bloating the page, not to trim ordinary reports: the
+# old 500-character cap silently dropped the tail of most posts, which is one of
+# the two reasons quant and backend terms were unreachable.
+COMMUNITY_SEARCH_INDEX_LIMIT = 2400
+
+
+def summary_duplicates_body(summary, body):
+    """True when the Short summary adds no searchable text the body lacks.
+
+    The archiver builds Short summary by truncating the body and appending an
+    ellipsis, so for the large majority of archived posts the two blocks are the
+    same sentences twice. Indexing both would nearly double the page's search
+    payload for zero recall, so the copy is skipped whenever it is fully
+    contained in the body. Posts whose summary is not a body prefix (link posts,
+    posts with no body at all) keep both, so this can only ever remove text the
+    index still holds elsewhere.
+    """
+    if not summary or not body:
+        return False
+    canonical_summary = normalize_search_text(html_escape(clean_markdown(summary)))
+    # Upstream truncation marks are not part of the copied sentence.
+    canonical_summary = canonical_summary.rstrip("…. ")
+    if not canonical_summary:
+        return False
+    return canonical_summary in normalize_search_text(html_escape(clean_markdown(body)))
+
+
+def build_card_search_text(post):
+    """Canonical search index for one community report card.
+
+    Indexes the Reddit id, title, tags, top comments and the archived post body.
+    The body is the important addition: Short summary is an upstream truncation
+    that routinely stops mid-sentence, so a report's quant, backend or download
+    instruction often exists only in the body. 1vvtu9z is the worked example,
+    publishing "fp16 -> Q4_K_M weights ... ready for use with llama.cpp or
+    ollama" there and nowhere else, which left that card unreachable by every one
+    of those terms while its own field note quoted them.
+
+    The Reddit id is deliberately NOT folded in here. Cite-then-find is served by
+    the separate data-id attribute, which the client compares for equality: ids
+    are 7 base36 characters, so a substring index would make two-character
+    queries such as m4 or q8 collide with 1vkm42m and 1vr2oq8, neither of which
+    mentions either term.
+
+    Text is kept contiguous rather than tokenised or deduplicated word by word,
+    because the client matches by substring containment and phrase queries such
+    as "tool calling" have to survive. Pure and deterministic: same post in, same
+    string out.
+    """
+    body = post.get("body", "")
+    summary = post.get("summary", "")
+
+    parts = [post.get("title", "")]
+    if not summary_duplicates_body(summary, body):
+        parts.append(summary)
+    parts.append(" ".join(post.get("tags", [])))
+    parts.append(" ".join(c.get("text", "")[:100] for c in post.get("comments", [])[:3]))
+    parts.append(body)
+
+    # clean_markdown runs before html_escape because html_escape also applies
+    # sanitize_public_text, whose word-boundary redactions need the punctuation
+    # and the original casing still in place.
+    joined = " ".join(part for part in parts if part)
+    return normalize_search_text(html_escape(clean_markdown(joined)))[:COMMUNITY_SEARCH_INDEX_LIMIT]
+
+
 def clean_markdown(text):
     """Strip markdown syntax to plain text for display in HTML cards."""
     # Decode what upstream already escaped FIRST, for the same ordering reason the
@@ -1663,13 +1735,14 @@ def parse_reddit_post(post_id):
         return None
 
     post = {"id": post_id, "title": "", "score": 0, "comments_count": 0,
-            "author": "", "date": "", "summary": "", "flair": "",
+            "author": "", "date": "", "summary": "", "body": "", "flair": "",
             "comments": [], "tags": []}
 
     lines = text.split("\n")
     in_summary = False
     in_takeaways = False
     in_tags = False
+    in_body = False
     current_comment = None
 
     for line in lines:
@@ -1708,11 +1781,13 @@ def parse_reddit_post(post_id):
             in_summary = True
             in_takeaways = False
             in_tags = False
+            in_body = False
             continue
         if stripped == "## Key takeaways from comments":
             in_summary = False
             in_takeaways = True
             in_tags = False
+            in_body = False
             if current_comment:
                 post["comments"].append(current_comment)
                 current_comment = None
@@ -1721,14 +1796,30 @@ def parse_reddit_post(post_id):
             in_summary = False
             in_takeaways = False
             in_tags = True
+            in_body = False
             if current_comment:
                 post["comments"].append(current_comment)
                 current_comment = None
             continue
-        if stripped.startswith("## ") and stripped not in ("## Short summary", "## Key takeaways from comments", "## Tags"):
+        # The archived post body. It is strictly longer than "## Short summary",
+        # which upstream truncates mid-sentence, so a post's own quant name,
+        # backend or download instruction routinely lives only in this block.
+        if stripped == BODY_SECTION_HEADING:
             in_summary = False
             in_takeaways = False
             in_tags = False
+            in_body = True
+            if current_comment:
+                post["comments"].append(current_comment)
+                current_comment = None
+            continue
+        if stripped.startswith("## ") and stripped not in (
+            "## Short summary", "## Key takeaways from comments", "## Tags", BODY_SECTION_HEADING,
+        ):
+            in_summary = False
+            in_takeaways = False
+            in_tags = False
+            in_body = False
             if current_comment:
                 post["comments"].append(current_comment)
                 current_comment = None
@@ -1740,6 +1831,13 @@ def parse_reddit_post(post_id):
                 post["summary"] += " " + stripped
             else:
                 post["summary"] = stripped
+
+        # Parse body text
+        if in_body and stripped:
+            if post["body"]:
+                post["body"] += " " + stripped
+            else:
+                post["body"] = stripped
 
         # Parse comment takeaways
         if in_takeaways:
@@ -1872,15 +1970,7 @@ def generate_community_cards(posts):
         reddit_url = f"https://reddit.com/r/LocalLLaMA/comments/{post_id}"
         cats = " ".join(post["categories"])
 
-        # Build search text from all meaningful fields (cleaned), then reduce it to
-        # the canonical search form. html_escape runs first because it also applies
-        # sanitize_public_text, whose word-boundary redactions need the punctuation
-        # and the original casing still in place.
-        search_text = normalize_search_text(html_escape(clean_markdown(
-            f"{post['title']} {post['summary']} "
-            f"{' '.join(post.get('tags', []))} "
-            f"{' '.join(c.get('text', '')[:100] for c in post.get('comments', [])[:3])}"
-        )))[:500]
+        search_text = build_card_search_text(post)
 
         # Build top comments (max 3, only those with actual text)
         comment_html = ""
@@ -1917,7 +2007,7 @@ def generate_community_cards(posts):
             label = HARDWARE_CATEGORIES.get(cat, {}).get("label", cat.replace("-", " ").title())
             cat_badges += f'<span class="cr-cat-badge">{html_escape(label)}</span>'
 
-        cards.append(f"""<div class="cr-card" data-search="{search_text}" data-cats="{cats}">
+        cards.append(f"""<div class="cr-card" data-search="{search_text}" data-cats="{cats}" data-id="{html_escape(post_id)}">
   <div class="cr-card-header">
     <div class="cr-title-row">
       <h4 class="cr-title"><a href="{reddit_url}" target="_blank" rel="noopener">{title}</a></h4>
@@ -4152,12 +4242,18 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     function normalizeQuery(value) {
       return value.toLowerCase().replace(/[\\\\_.\\/-]/g, '').replace(/\\s+/g, ' ').trim();
     }
+    // Cite-then-find: a reader who follows a Field Notes citation can paste the
+    // Reddit id in and land on that one card. Compared for EQUALITY, not
+    // containment, because ids are 7 base36 characters and a substring test
+    // would make two-character queries like m4 or q8 collide with unrelated ids.
     function applyFilters() {
       const q = normalizeQuery(searchInput ? searchInput.value : '');
       crCards.forEach(card => {
         const text = card.getAttribute('data-search') || '';
         const cats = card.getAttribute('data-cats') || '';
-        card.style.display = ((!q || text.includes(q)) && (activeCat === 'all' || cats.split(' ').includes(activeCat))) ? '' : 'none';
+        const id = card.getAttribute('data-id') || '';
+        const hit = !q || text.includes(q) || id === q;
+        card.style.display = (hit && (activeCat === 'all' || cats.split(' ').includes(activeCat))) ? '' : 'none';
       });
       const container = document.getElementById('community-cards');
       if (container) {
