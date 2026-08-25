@@ -811,14 +811,17 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     tell you whether the boundary rule cleared exactly the bad matches or also
     swallowed the genuine SLI and ARM posts."""
 
-    # Re-derived for the 669-entry index of 2026-08-24. high-gpu moved 66 -> 67:
-    # the cycle's 1vwhj0l matches on "3090", where the author says they run
-    # GLM-4.5-Air on 3090s. That post is a GLM announcement rather than a Gemma
-    # benchmark, so the Field Notes section reports the count change without
-    # attributing any throughput to Gemma. Prior derivation, for the 660-entry
+    # Re-derived for the 673-entry index of 2026-08-25. high-gpu moved 67 -> 68:
+    # the cycle's 1vxfd18 matches on "rtx 3090" and "3090", and that match is
+    # genuine, because the author is planning a 128k-context workflow on a single
+    # 24 GB RTX 3090. It is a question rather than a measurement, so the Field
+    # Notes section reports the count change without attributing any throughput
+    # to Gemma. Prior derivation, for the 669-entry index of 2026-08-24: high-gpu
+    # moved 66 -> 67 on 1vwhj0l, which matches "3090" in a GLM-4.5-Air
+    # announcement rather than a Gemma benchmark. Before that, for the 660-entry
     # index of 2026-08-19: the capacity-token rule left high-gpu at 66 (1vbw2pm
     # lost a spurious DDR match, 1u5ul4k gained a genuine "triple gpu" one).
-    HIGH_GPU_EXPECTED = 67
+    HIGH_GPU_EXPECTED = 68
     # Unchanged at 14 since that same 2026-08-19 index: no post in the cycles
     # since then mentions CPU-only or Pi-class inference. It moved 10 -> 14 when
     # "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with 1vrojhv the fourth.
@@ -870,7 +873,11 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     tell you whether the boundary rule actually cleared the 21 bad matches or
     silently swallowed genuine Apple posts too."""
 
-    APPLE_SILICON_EXPECTED = 74
+    # Re-derived for the 673-entry index of 2026-08-25, where it moved 74 -> 75.
+    # The one new entry is 1vwwa62, which matches on "mac mini" and "mac ", and
+    # both matches are genuine: the author runs Gemma 4 12B QAT on a 16 GB Mac
+    # mini. No 2026-08-25 entry matched Apple Silicon spuriously.
+    APPLE_SILICON_EXPECTED = 75
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
