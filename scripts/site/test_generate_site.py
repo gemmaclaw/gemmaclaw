@@ -372,6 +372,16 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         self.assertTrue(self._matches(post, "Q8_0"))
         self.assertTrue(self._matches(post, "18.35"))
 
+    def test_model_pair_shorthand_indexes_the_second_variant(self):
+        post = self._post(
+            body=(
+                "All 4 models tested (Qwen 3.5 2B and 4B, and Gemma 4 E2B and E4B) "
+                "showed clear sycophancy directions in some layers."
+            ),
+        )
+        for query in ("Qwen 3.5 4B", "Gemma 4 E4B", "Gemma 4 E2B"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
     def test_summary_duplicates_body_needs_both_halves(self):
         self.assertFalse(gen.summary_duplicates_body("anything", ""))
         self.assertFalse(gen.summary_duplicates_body("", "anything"))
