@@ -1,3 +1,53 @@
+## Field Notes - 2026-08-26
+
+A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.
+Curated from the latest Gemma-mentioning hardware-index entry (1 new Gemma 4 card from the August 26, 2026 ingest, 674 community index entries total) and its archived thread.
+Confidence is **low** for hardware guidance from this cycle and **medium** that the correct action is to leave the hardware recommendations unchanged. This is a **behavior-technique cycle** rather than a hardware cycle: the only new card tests runtime activation steering on small Qwen and Gemma models. It names **Gemma 4 E2B** and **Gemma 4 E4B**, but it gives no host, GPU, RAM, VRAM, quantization, backend, context length, token rate, power draw or stability log. Treat it as a credible research pointer for small Gemma 4 behavior control, not as a configuration report.
+
+_August 26 sweep, 2026-08-26 00:00 UTC:_ a **one-post hardware-index cycle**, with the post dated **August 25, 2026**, one day before the sweep. The index moved from **673 to 674**: one id added, none aged out. [1vy8wy6](https://reddit.com/r/localllama/comments/1vy8wy6) lands on **Other**, taking it from **216 to 217**. **Apple Silicon stays at 75, High-end GPU at 68, Mid-range GPU at 42, Laptops at 40, Quantization and Backends at 388 and CPU / Raspberry Pi at 14.** The entry is **single-author, placeholder-score (20) and zero-comment**, and it carries archived body text, with a **1,202-byte** excerpt block. The author is **u/ASL_Dev**. **No hardware tier gains a measured recommendation this cycle.**
+
+Two related August 25 Gemma 4 research items are not counted as card additions because they are absent from the generated 674-entry hardware index. [1vy1q1l](https://reddit.com/r/localllama/comments/1vy1q1l) reports an abliteration comparison across Gemma 4 12B variants over **165 GPU hours** on a **single RTX 5090**, with weight forensics, KL divergence, **13** benchmark tasks and HarmBench. That is useful evidence about one consumer GPU handling a multi-week research run, not about inference fit, throughput or memory. [1vy3t5h](https://reddit.com/r/localllama/comments/1vy3t5h) includes a Gemma4-26B-A4B Q4_K_P plus QAT-draft configuration in a Windows V620 ROCm/Vulkan benchmark post, but the archived body truncates before the Gemma result table, so this update does not publish a V620 Gemma rate.
+
+### Best current setup (this cycle's additions)
+
+- **Single consumer GPU: no change on measured evidence.** This card does not name a GPU or VRAM budget. If you have one card, the useful takeaway is only that Gemma 4 E2B and E4B may be candidates for runtime behavior-steering experiments; the card does not say whether steering changes throughput, memory use, KV-cache size or stability.
+- **Single RTX 5090 research runs: credible for evaluation, not yet a serving guide.** The digest-level abliteration report shows a single RTX 5090 can carry a 165-GPU-hour Gemma 4 12B comparison over several weeks, but it reports research workload cost rather than live inference speed, context length, VRAM use or user-facing stability ([1vy1q1l](https://reddit.com/r/localllama/comments/1vy1q1l)).
+- **Laptop users: treat E2B and E4B as the plausible test sizes, not as a proven laptop recipe.** The post studies the small Gemma 4 variants, which are the variants a laptop owner would naturally try first, but it does not name a laptop, RAM ceiling, battery behavior, thermal limit, backend or context length. Confidence for a laptop recommendation from this cycle is therefore low.
+- **Apple Silicon: no Apple-specific conclusion.** The card does not mention Mac, Metal, MLX, unified memory or Ollama. A reader on Apple Silicon can test the same runtime-steering idea only after choosing a backend that exposes the needed activation control, and this post gives no evidence that such control exists in the common Mac paths.
+- **Multi-GPU workstations: no topology signal.** There is no tensor split, layer split, RPC, NVLink, PCIe, batching or cache-sharing report here. Do not use this cycle to pick a multi-GPU Gemma 4 configuration.
+- **CPU-only and Raspberry Pi: possible only as an experiment, not as a recommendation.** The post gives no CPU runtime, no RAM use and no token rate. If steering is implemented outside the model weights it might be portable across runtimes, but the cycle supplies no Pi-class or CPU-only measurement.
+- **Enterprise and cloud: watch the runtime-control question.** The promising part for hosted systems is that the technique steers behavior without changing weights, which could be easier to A/B test than a finetune. The missing part is everything operational: no serving stack, no concurrency, no request latency, no GPU memory overhead, no rollback story and no evidence across quantized deployment formats.
+
+### What works
+
+- **Runtime activation steering is the actionable finding in the new card.** The author tests steering in the opposite direction of sycophancy during inference, without changing weights, across Qwen 3.5 2B and 4B plus Gemma 4 E2B and E4B ([1vy8wy6](https://reddit.com/r/localllama/comments/1vy8wy6)).
+- **The report says every tested model exposed a sycophancy direction in some layers.** That is useful because it suggests the behavior is observable inside the small Gemma 4 variants rather than only in larger checkpoints. It is still an anecdotal, single-author report until someone publishes layer choices, coefficients, prompts and failures.
+- **The 4B-class result is the practical lead to test next.** The author reports that the 4B models from both families improved quite a lot at reducing sycophancy without increasing stubbornness too much. For Gemma 4 readers, that points more strongly at **E4B** than **E2B** for follow-up testing, but the archived body truncates before the full Gemma-specific result, so this section does not turn it into a recommendation.
+
+### Known limits
+
+- **The card is not a hardware report.** It contains no GPU, no host CPU, no RAM, no VRAM, no quantization, no backend or runtime, no context length, no tokens per second, no prompt-processing rate, no power figure and no stability log. Every hardware category above is therefore unchanged on measured grounds.
+- **It is zero-comment and placeholder-score.** No one supplied a reproduction, a configuration, a contradiction or a working implementation path in the archived thread.
+- **The body is useful but incomplete.** The post carries a 1,202-byte excerpt block, yet the archive ends mid-sentence after "Gemma 4 actually ha...", so the exact Gemma 4 E4B outcome and any method details after that point are missing.
+- **There is no quantization evidence.** A direction found in one precision or runtime may not survive unchanged through GGUF conversion, Q4/Q8 quantization, KV-cache quantization or backend-specific kernels. The source does not test any of those.
+- **The V620 item is a configuration pointer only.** The archived post names Windows 11, ROCm, Vulkan, TheRock nightly tooling, Gemma4-26B-A4B Q4_K_P and a QAT draft model, but the captured text stops before the Gemma rows can be read, so there is no published Gemma V620 throughput or memory claim in this update ([1vy3t5h](https://reddit.com/r/localllama/comments/1vy3t5h)).
+- **There is no stubbornness tradeoff curve.** The author says the 4B models reduced sycophancy without increasing stubbornness too much, but the excerpt gives no numeric stubbornness rate, no prompt set size and no threshold for "too much."
+
+### Open questions
+
+- Which runtime exposes the activation hook cleanly enough for Gemma 4 E2B or E4B: llama.cpp, Ollama, MLX, vLLM, a Python wrapper, or a custom fork?
+- Does the steering direction survive common local deployment choices such as Q4_K_M, Q8_0, QAT builds, GGUF conversion and quantized KV cache?
+- What is the latency and memory overhead when steering runs on a consumer GPU, an Apple Silicon laptop, a CPU-only host or a batched server?
+- Does the result hold at longer contexts, under tool-use prompts, and after multi-turn conversations where sycophancy and stubbornness can both appear?
+
+### Sources
+
+The one Gemma 4 hardware-index entry driving this update (August 26 sweep). **It is placeholder-score (20), zero-comment, single-author, and carries archived body text running to 1,202 bytes of excerpt**:
+
+- [Reducing Sycophancy in Qwen and Gemma Using Runtime Activation Steering](https://reddit.com/r/localllama/comments/1vy8wy6) (Aug 25, 2026, u/ASL_Dev. Tests runtime activation steering on Qwen 3.5 2B and 4B plus Gemma 4 E2B and E4B. Reports clear sycophancy directions in some layers for all four tested models, and says the 4B models improved quite a lot at reducing sycophancy without increasing stubbornness too much. No host, GPU, RAM, VRAM, quantization, backend or runtime, context length, throughput, power figure or implementation path is stated. Zero comments, so no configuration follow-up. Categorised Other)
+
+_Last updated: 2026-08-26 (August 26 sweep). Confidence: low for hardware guidance, medium for the decision not to move hardware tiers. Key finding: one new card, [1vy8wy6](https://reddit.com/r/localllama/comments/1vy8wy6), adds a runtime activation-steering report for Gemma 4 E2B and E4B. It is useful for small-model behavior testing, but it reports no hardware, quantization, runtime, context length or rate. The index moved from 673 to 674, one id added and none aged out, and the Other chip moved from 216 to 217 with every hardware category chip unchanged. Next update fires when the daily Gemma 4 research cron flags notable new findings._
+
 ## Field Notes - 2026-08-25
 
 A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.

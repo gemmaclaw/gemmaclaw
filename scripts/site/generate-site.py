@@ -1509,6 +1509,28 @@ def summary_duplicates_body(summary, body):
     return canonical_summary in normalize_search_text(html_escape(clean_markdown(body)))
 
 
+MODEL_PAIR_ALIAS_RE = re.compile(
+    r"\b((?:gemma\s*4|qwen\s*3(?:\.\d+)?))\s+(e?\d+b|\d+b|a\d+b)\s+and\s+(e?\d+b|\d+b|a\d+b)\b",
+    re.IGNORECASE,
+)
+
+
+def model_pair_search_aliases(text):
+    """Expand model pair shorthand so each named variant is searchable.
+
+    Community posts often write "Gemma 4 E2B and E4B" or "Qwen 3.5 2B and 4B".
+    A literal substring index then contains "Gemma 4 E2B" but not "Gemma 4 E4B",
+    even though the card cites both variants. Keep the source text intact and add
+    deterministic aliases for the second item in the pair.
+    """
+    aliases = []
+    for match in MODEL_PAIR_ALIAS_RE.finditer(clean_markdown(text)):
+        prefix, first, second = match.groups()
+        aliases.append(f"{prefix} {first}")
+        aliases.append(f"{prefix} {second}")
+    return " ".join(aliases)
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1545,6 +1567,9 @@ def build_card_search_text(post):
     # sanitize_public_text, whose word-boundary redactions need the punctuation
     # and the original casing still in place.
     joined = " ".join(part for part in parts if part)
+    aliases = model_pair_search_aliases(joined)
+    if aliases:
+        joined = f"{joined} {aliases}"
     return normalize_search_text(html_escape(clean_markdown(joined)))[:COMMUNITY_SEARCH_INDEX_LIMIT]
 
 
