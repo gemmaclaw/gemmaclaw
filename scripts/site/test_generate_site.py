@@ -382,6 +382,16 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         for query in ("Qwen 3.5 4B", "Gemma 4 E4B", "Gemma 4 E2B"):
             self.assertTrue(self._matches(post, query), f"query {query!r} must match")
 
+    def test_bare_nvidia_card_number_indexes_the_rtx_alias(self):
+        post = self._post(
+            body=(
+                "I ran Gemma 4 12B evaluation over 165 GPU hours on a single 5090 "
+                "with full HarmBench traces."
+            ),
+        )
+        for query in ("5090", "RTX 5090", "rtx5090"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
     def test_summary_duplicates_body_needs_both_halves(self):
         self.assertFalse(gen.summary_duplicates_body("anything", ""))
         self.assertFalse(gen.summary_duplicates_body("", "anything"))
@@ -831,7 +841,10 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # announcement rather than a Gemma benchmark. Before that, for the 660-entry
     # index of 2026-08-19: the capacity-token rule left high-gpu at 66 (1vbw2pm
     # lost a spurious DDR match, 1u5ul4k gained a genuine "triple gpu" one).
-    HIGH_GPU_EXPECTED = 68
+    # August 27, 2026 adds 1vy1q1l, a single-RTX-5090 Gemma 4 12B evaluation
+    # workload. It is still not a serving benchmark, but it is a genuine
+    # high-end GPU card and the Field Notes section cites the 68 -> 69 move.
+    HIGH_GPU_EXPECTED = 69
     # Unchanged at 14 since that same 2026-08-19 index: no post in the cycles
     # since then mentions CPU-only or Pi-class inference. It moved 10 -> 14 when
     # "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with 1vrojhv the fourth.
