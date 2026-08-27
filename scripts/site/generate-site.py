@@ -1531,6 +1531,30 @@ def model_pair_search_aliases(text):
     return " ".join(aliases)
 
 
+NVIDIA_RTX_GPU_NUMBERS = {
+    "3060", "3070", "3090",
+    "4060", "4070", "4090",
+    "5060", "5070", "5090",
+}
+
+
+def hardware_search_aliases(text):
+    """Expand bare Nvidia card numbers to the RTX form readers type.
+
+    Community reports often say "a single 5090" after the title has already set
+    the hardware context. The guide cites that as RTX 5090, and cite-then-find
+    should still work without rewriting archived source text.
+    """
+    aliases = []
+    cleaned = clean_markdown(text)
+    for number in sorted(NVIDIA_RTX_GPU_NUMBERS):
+        if re.search(rf"\b(?:rtx\s*)?{number}\b", cleaned, flags=re.IGNORECASE):
+            aliases.append(f"rtx {number}")
+            aliases.append(f"rtx{number}")
+            aliases.append(number)
+    return " ".join(aliases)
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1567,7 +1591,10 @@ def build_card_search_text(post):
     # sanitize_public_text, whose word-boundary redactions need the punctuation
     # and the original casing still in place.
     joined = " ".join(part for part in parts if part)
-    aliases = model_pair_search_aliases(joined)
+    aliases = " ".join(filter(None, [
+        model_pair_search_aliases(joined),
+        hardware_search_aliases(joined),
+    ]))
     if aliases:
         joined = f"{joined} {aliases}"
     return normalize_search_text(html_escape(clean_markdown(joined)))[:COMMUNITY_SEARCH_INDEX_LIMIT]
