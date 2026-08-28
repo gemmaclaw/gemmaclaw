@@ -403,6 +403,37 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         post = self._post(title="T", summary="S", body="B", tags=["gemma"])
         self.assertEqual(gen.build_card_search_text(post), gen.build_card_search_text(post))
 
+    def test_service_named_only_in_a_url_is_reachable(self):
+        """Mirrors 1vyzopv, the 2026-08-28 cycle. The whole post is about two
+        leaderboards disagreeing, and it names the first one only as a bare URL.
+        clean_markdown() strips bare URLs, so before url_host_search_aliases()
+        the card was unreachable by the one term that identifies its subject."""
+        post = self._post(
+            title="Gemma4 31B vs Qwen3.8 27B - why the huge difference in benchmarks?",
+            body=("But this is truly baffling: AA says Qwen 3.8 27B is better by miles: "
+                  "https://artificialanalysis.ai/models/comparisons/qwen3-8-27b-vs-gemma-4-31b "
+                  "While Arena says Gemma 4 31B is almost 20 places ahead"),
+        )
+        self.assertTrue(self._matches(post, "artificialanalysis.ai"))
+        self.assertTrue(self._matches(post, "artificialanalysis"))
+
+    def test_url_host_aliases_drop_www_and_are_sorted_and_deduplicated(self):
+        text = "see https://www.Example.COM/a and https://example.com/b and http://sub.example.org/c"
+        self.assertEqual(
+            gen.url_host_search_aliases(text),
+            "example example.com sub.example sub.example.org",
+        )
+
+    def test_url_host_aliases_ignore_hostless_and_bare_schemes(self):
+        self.assertEqual(gen.url_host_search_aliases("http://localhost/x"), "")
+        self.assertEqual(gen.url_host_search_aliases("no links here at all"), "")
+
+    def test_url_host_aliases_do_not_leak_the_path(self):
+        """Only the host is indexed: a long tracking path must not enter the index."""
+        indexed = gen.url_host_search_aliases("https://arena.ai/leaderboard/text/overall")
+        self.assertIn("arena.ai", indexed)
+        self.assertNotIn("leaderboard", indexed)
+
     def test_index_is_capped(self):
         post = self._post(body="tok " * 5000)
         self.assertLessEqual(len(gen.build_card_search_text(post)), gen.COMMUNITY_SEARCH_INDEX_LIMIT)
