@@ -1555,6 +1555,33 @@ def hardware_search_aliases(text):
     return " ".join(aliases)
 
 
+def url_host_search_aliases(text):
+    """Recover service names that a post mentions only inside a URL.
+
+    clean_markdown() strips bare URLs, which is right for display text but drops
+    the only occurrence of a named service when the post cites it by link rather
+    than by name. 1vyzopv is the worked example: its whole subject is that two
+    leaderboards rank Gemma 4 31B and Qwen 3.8 27B in opposite orders, and it
+    names the first one only as https://artificialanalysis.ai/..., so the card
+    was unreachable by that term while its own field note cited it.
+
+    Emits the bare host and the host without its final label, so both
+    artificialanalysis.ai and artificialanalysis reach the card. Hosts are
+    deduplicated and emitted in sorted order, so the same post in always
+    produces the same string out.
+    """
+    hosts = set()
+    for raw_host in re.findall(r'https?://([^/\s)\]]+)', str(text), flags=re.IGNORECASE):
+        host = raw_host.lower().strip('.')
+        if host.startswith("www."):
+            host = host[4:]
+        if '.' not in host:
+            continue
+        hosts.add(host)
+        hosts.add(host.rsplit('.', 1)[0])
+    return " ".join(sorted(hosts))
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1594,6 +1621,7 @@ def build_card_search_text(post):
     aliases = " ".join(filter(None, [
         model_pair_search_aliases(joined),
         hardware_search_aliases(joined),
+        url_host_search_aliases(joined),
     ]))
     if aliases:
         joined = f"{joined} {aliases}"
