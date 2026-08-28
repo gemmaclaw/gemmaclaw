@@ -1567,8 +1567,8 @@ def url_host_search_aliases(text):
 
     Emits the bare host and the host without its final label, so both
     artificialanalysis.ai and artificialanalysis reach the card. Hosts are
-    deduplicated and emitted in sorted order, so the same post in always
-    produces the same string out.
+    deduplicated and emitted in sorted order, so the same post always produces
+    the same string out.
     """
     hosts = set()
     for raw_host in re.findall(r'https?://([^/\s)\]]+)', str(text), flags=re.IGNORECASE):
