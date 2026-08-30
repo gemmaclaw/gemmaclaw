@@ -1510,7 +1510,7 @@ def summary_duplicates_body(summary, body):
 
 
 MODEL_PAIR_ALIAS_RE = re.compile(
-    r"\b((?:gemma\s*4|qwen\s*3(?:\.\d+)?))\s+(e?\d+b|\d+b|a\d+b)\s+and\s+(e?\d+b|\d+b|a\d+b)\b",
+    r"\b((?:gemma\s*4|qwen\s*3(?:\.\d+)?))\s+(e?\d+b|\d+b|a\d+b)\s+(?:and|or)\s+(e?\d+b|\d+b|a\d+b)\b",
     re.IGNORECASE,
 )
 
@@ -1519,6 +1519,7 @@ def model_pair_search_aliases(text):
     """Expand model pair shorthand so each named variant is searchable.
 
     Community posts often write "Gemma 4 E2B and E4B" or "Qwen 3.5 2B and 4B".
+    They also use "or" for planned hardware mixes such as "Gemma 4 26B or 12B".
     A literal substring index then contains "Gemma 4 E2B" but not "Gemma 4 E4B",
     even though the card cites both variants. Keep the source text intact and add
     deterministic aliases for the second item in the pair.

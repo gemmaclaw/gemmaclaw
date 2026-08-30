@@ -382,6 +382,16 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         for query in ("Qwen 3.5 4B", "Gemma 4 E4B", "Gemma 4 E2B"):
             self.assertTrue(self._matches(post, query), f"query {query!r} must match")
 
+    def test_model_pair_or_shorthand_indexes_the_second_variant(self):
+        post = self._post(
+            body=(
+                "For multiple models it would be 35B and Gemma 4 26B or 12B "
+                "on the Strix Halo box."
+            ),
+        )
+        for query in ("Gemma 4 26B", "Gemma 4 12B"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
     def test_bare_nvidia_card_number_indexes_the_rtx_alias(self):
         post = self._post(
             body=(
