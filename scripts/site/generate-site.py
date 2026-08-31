@@ -1587,10 +1587,11 @@ def code_ref_search_aliases(text):
     """Recover a pull-request or issue number cited only as a bare URL.
 
     Same family as url_host_search_aliases() above, one level deeper into the
-    path. This archive is full of llama.cpp pull-request announcements, and 110
-    archived posts cite a GitHub pull or issue link; clean_markdown() strips the
-    URL, so the number that identifies the change is the one term a reader is
-    most likely to type and the one term the card could not be found by. 1w2hlm8
+    path. This archive is full of llama.cpp pull-request announcements, and 124
+    archived posts cite a GitHub pull or issue link, 110 of them a pull request
+    specifically; clean_markdown() strips the URL, so the number that identifies
+    the change is the one term a reader is most likely to type and the one term
+    the card could not be found by. 1w2hlm8
     is the worked example: its whole subject is pull request 27986, it names the
     number nowhere but in the link, and the host alias reduced it to "github".
 
