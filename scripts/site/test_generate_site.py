@@ -444,6 +444,40 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         self.assertIn("arena.ai", indexed)
         self.assertNotIn("leaderboard", indexed)
 
+    def test_pull_request_number_named_only_in_a_url_is_reachable(self):
+        """Mirrors 1w2hlm8, the 2026-08-31 cycle. The post's whole subject is
+        llama.cpp pull request 27986 and it names the number nowhere but in the
+        link, so the host alias reduced the one identifying term to "github"."""
+        post = self._post(
+            title="--numa mirror for llama.cpp: replicate weights per NUMA node",
+            body="The pr is the following: https://github.com/ggml-org/llama.cpp/pull/27986",
+        )
+        for query in ("27986", "pr 27986", "pull request 27986"):
+            with self.subTest(query=query):
+                self.assertTrue(self._matches(post, query))
+
+    def test_code_ref_aliases_cover_issues_and_are_sorted_and_deduplicated(self):
+        text = ("https://github.com/ggml-org/llama.cpp/issues/40 and "
+                "https://www.github.com/ggml-org/llama.cpp/pull/9 and "
+                "https://github.com/ggml-org/llama.cpp/pull/40")
+        self.assertEqual(
+            gen.code_ref_search_aliases(text),
+            "9 pr 9 pull request 9 40 pr 40 pull request 40",
+        )
+
+    def test_code_ref_aliases_ignore_other_paths_and_hosts(self):
+        """Only a GitHub pull or issue number is indexed. A release tag, a blob
+        path or another forge must not push arbitrary digits into the index."""
+        self.assertEqual(
+            gen.code_ref_search_aliases("https://github.com/ggml-org/llama.cpp/releases/tag/b1234"),
+            "",
+        )
+        self.assertEqual(
+            gen.code_ref_search_aliases("https://gitlab.com/owner/repo/pull/27986"),
+            "",
+        )
+        self.assertEqual(gen.code_ref_search_aliases("no links here at all"), "")
+
     def test_index_is_capped(self):
         post = self._post(body="tok " * 5000)
         self.assertLessEqual(len(gen.build_card_search_text(post)), gen.COMMUNITY_SEARCH_INDEX_LIMIT)
@@ -668,6 +702,29 @@ class TestCategorizePost(unittest.TestCase):
         post = self._post(title="Thoughts on prompt style", summary="No hardware here.")
         self.assertEqual(gen.categorize_post(post), ["general"])
 
+    def test_dual_socket_epyc_numa_benchmark_is_cpu_only(self):
+        """A server-CPU inference report can describe a GPU-less build without
+        ever writing "cpu only", "no gpu" or "on cpu". The NUMA-mirror benchmark
+        measures Gemma 4 31B decode across two EPYC sockets and used to land in
+        Quantization alone, so the CPU / Raspberry Pi filter missed the one
+        measured CPU datapoint of its cycle."""
+        post = self._post(
+            title="--numa mirror for llama.cpp: replicate weights per NUMA node, "
+            "+64% to +137% decode on my dual EPYC.",
+            summary="On my box (2x EPYC 7532, NPS1) local read is 137 GB/s vs "
+            "47.7 GB/s cross-socket.",
+        )
+        self.assertIn("cpu-only", gen.categorize_post(post))
+
+    def test_gpu_build_naming_only_its_host_ram_is_not_cpu_only(self):
+        """"ddr4" and "ddr5" were rejected as CPU keywords precisely because a
+        GPU build names its system RAM in passing. Guard that exclusion."""
+        post = self._post(
+            title="My build",
+            summary="Ryzen 9 5950X, 48GB DDR4 3600, 2x RTX 3090 24GB doing all the work.",
+        )
+        self.assertNotIn("cpu-only", gen.categorize_post(post))
+
 
 class TestShortChipTokenBoundaries(unittest.TestCase):
     """"m1" through "m5" are two characters long, so a plain substring test drags
@@ -886,10 +943,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # workload. It is still not a serving benchmark, but it is a genuine
     # high-end GPU card and the Field Notes section cites the 68 -> 69 move.
     HIGH_GPU_EXPECTED = 69
-    # Unchanged at 14 since that same 2026-08-19 index: no post in the cycles
-    # since then mentions CPU-only or Pi-class inference. It moved 10 -> 14 when
-    # "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with 1vrojhv the fourth.
-    CPU_ONLY_EXPECTED = 14
+    # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
+    # It had been unchanged at 14 since the 2026-08-19 index, and before that it
+    # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
+    # 1vrojhv the fourth. The single new entry is 1w2hlm8, admitted by the "epyc"
+    # and "numa" keywords added this cycle: it is a GPU-less dual-socket EPYC
+    # benchmark that measures Gemma 4 31B Q4_0 decode on CPU and had been landing
+    # in Quantization alone, because it never writes "cpu only", "no gpu" or
+    # "on cpu". Both keywords were censused over the whole index at 1 occurrence
+    # each and zero spurious matches before being added.
+    CPU_ONLY_EXPECTED = 15
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -937,11 +1000,15 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     tell you whether the boundary rule actually cleared the 21 bad matches or
     silently swallowed genuine Apple posts too."""
 
-    # Re-derived for the 673-entry index of 2026-08-25, where it moved 74 -> 75.
-    # The one new entry is 1vwwa62, which matches on "mac mini" and "mac ", and
-    # both matches are genuine: the author runs Gemma 4 12B QAT on a 16 GB Mac
-    # mini. No 2026-08-25 entry matched Apple Silicon spuriously.
-    APPLE_SILICON_EXPECTED = 75
+    # Re-derived for the 684-entry index of 2026-08-31, where it moved 75 -> 76.
+    # The one new entry is 1w2gmxz, which matches on "macos", and the match is
+    # genuine: the on-device agent client it announces ships a macOS build on
+    # Apple's Metal backend. It is a platform-support match rather than a
+    # measurement, and the Field Notes section says so. Prior derivation, for the
+    # 673-entry index of 2026-08-25, where it moved 74 -> 75: the one new entry
+    # was 1vwwa62, matching "mac mini" and "mac ", both genuine, because the
+    # author runs Gemma 4 12B QAT on a 16 GB Mac mini.
+    APPLE_SILICON_EXPECTED = 76
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
