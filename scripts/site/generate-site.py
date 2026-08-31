@@ -1583,6 +1583,34 @@ def url_host_search_aliases(text):
     return " ".join(sorted(hosts))
 
 
+def code_ref_search_aliases(text):
+    """Recover a pull-request or issue number cited only as a bare URL.
+
+    Same family as url_host_search_aliases() above, one level deeper into the
+    path. This archive is full of llama.cpp pull-request announcements, and 110
+    archived posts cite a GitHub pull or issue link; clean_markdown() strips the
+    URL, so the number that identifies the change is the one term a reader is
+    most likely to type and the one term the card could not be found by. 1w2hlm8
+    is the worked example: its whole subject is pull request 27986, it names the
+    number nowhere but in the link, and the host alias reduced it to "github".
+
+    Emits the bare number plus the two phrasings a reader actually types, so
+    "27986", "pr 27986" and "pull request 27986" all reach the card. Numbers are
+    deduplicated and emitted in sorted order, so the same post always produces
+    the same string out.
+    """
+    numbers = set()
+    for number in re.findall(
+        r'https?://(?:www\.)?github\.com/[^/\s)\]]+/[^/\s)\]]+/(?:pull|issues)/(\d+)',
+        str(text),
+        flags=re.IGNORECASE,
+    ):
+        numbers.add(number)
+    return " ".join(
+        f"{n} pr {n} pull request {n}" for n in sorted(numbers, key=lambda v: (len(v), v))
+    )
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1623,6 +1651,7 @@ def build_card_search_text(post):
         model_pair_search_aliases(joined),
         hardware_search_aliases(joined),
         url_host_search_aliases(joined),
+        code_ref_search_aliases(joined),
     ]))
     if aliases:
         joined = f"{joined} {aliases}"
@@ -1713,9 +1742,19 @@ HARDWARE_CATEGORIES = {
     },
     "cpu-only": {
         "label": "CPU / Raspberry Pi",
+        # "epyc" and "numa" carry a server-CPU inference build that names no
+        # consumer CPU-only phrase. The dual-socket EPYC NUMA-mirror benchmark
+        # 1w2hlm8 measures Gemma 4 31B decode on CPU with no GPU anywhere in it,
+        # and matched only "quantization" because it never writes "cpu only",
+        # "no gpu" or "on cpu". Censused over the whole 684-entry index before
+        # being added: "epyc" 1 occurrence and "numa" 1 occurrence, both that
+        # post, zero spurious. "xeon" was rejected at 4 occurrences with 1
+        # spurious (1ssb61r is an MI50 GPU build whose Xeon is only the host),
+        # and "ddr4"/"ddr5" at 12 and 10 occurrences that are overwhelmingly
+        # GPU builds naming their system RAM.
         "keywords": ["cpu only", "cpu-only", "no gpu", "raspberry pi", "gemma.cpp",
                       "arm", "aarch64", "pi 5", "cpu inference", "cpu only",
-                      "on cpu"],
+                      "on cpu", "epyc", "numa"],
         "icon": "cpu",
     },
     "laptop": {
