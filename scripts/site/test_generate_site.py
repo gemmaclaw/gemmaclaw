@@ -725,6 +725,46 @@ class TestCategorizePost(unittest.TestCase):
         )
         self.assertNotIn("cpu-only", gen.categorize_post(post))
 
+    def test_software_framework_is_not_a_laptop(self):
+        """On this subreddit "framework" almost always means a software
+        framework. Over the 686-entry index the word occurs thirteen times
+        across nine posts and exactly one occurrence names the hardware brand,
+        so the bare token was replaced by the product forms."""
+        for text in [
+            "my orchestration framework that autonomously built a c compiler",
+            "Qwen 3.6 vs 6 other models across 5 agent frameworks on M3 Ultra",
+            "Has anyone tried fine-tuning on framework-specific toolsets?",
+            "better compatibility with frameworks like pytorch and tensorflow",
+            "in addition, the inference framework is still experimental",
+            "5700, 48GB RAM and a 3090 24Gb. Best OS and framework/model?",
+            "runs on litert-lm (like google's ai edge). framework: on-device",
+        ]:
+            with self.subTest(text=text):
+                self.assertNotIn("laptop", gen.categorize_post(self._post(summary=text)))
+
+    def test_framework_the_hardware_brand_is_still_a_laptop(self):
+        """The positive control for the exclusion above: the product forms must
+        keep matching, or the fix would have silently emptied a real chip."""
+        for text in [
+            "128 GB AMD Ryzen AI Max+ 395 Framework Desktop vs an Nvidia DGX Spark",
+            "a 32gb unified RAM setup (Framework 13), llama.cpp, 64k context",
+            "Framework 16 7840hs with 96gb RAM and a 780m iGPU",
+            "running it on my Framework laptop",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("laptop", gen.categorize_post(self._post(summary=text)))
+
+    def test_rtx_3080_is_a_mid_range_gpu(self):
+        """The RTX 3080 appeared in no keyword list at all, so its posts were
+        reachable from neither GPU filter unless they named a second card."""
+        for text in [
+            "IndexTTS 2.5 running on an NVIDIA 3080 to use voices from LibreVox",
+            "i had a 3080ti 12gb and added a 3080 20gb",
+            "2x RTX 3080 12G and 2x RTX 3090 24GB",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("mid-gpu", gen.categorize_post(self._post(summary=text)))
+
 
 class TestShortChipTokenBoundaries(unittest.TestCase):
     """"m1" through "m5" are two characters long, so a plain substring test drags
@@ -953,6 +993,19 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # "on cpu". Both keywords were censused over the whole index at 1 occurrence
     # each and zero spurious matches before being added.
     CPU_ONLY_EXPECTED = 15
+    # Derived for the 686-entry index of 2026-09-01, where it moved 41 -> 35.
+    # Nothing joined; six posts left when the bare "framework" keyword was
+    # replaced by the product forms, because they held the chip on the software
+    # sense of the word alone: 1sojag2, 1vlicb0, 1tsyqxh, 1u2n3x7, 1veoe08 and
+    # 1v6mna4. The cycle's own 1w39y4n would have been a seventh and never
+    # joins. 1ta7ce9 is the one post naming Framework the hardware brand and it
+    # keeps the chip, independently, on "strix halo".
+    LAPTOP_EXPECTED = 35
+    # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
+    # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
+    # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
+    # whole index is a genuine Nvidia RTX 3080 mention; there are no others.
+    MID_GPU_EXPECTED = 47
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -961,6 +1014,8 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         for cat, expected in (
             ("high-gpu", self.HIGH_GPU_EXPECTED),
             ("cpu-only", self.CPU_ONLY_EXPECTED),
+            ("laptop", self.LAPTOP_EXPECTED),
+            ("mid-gpu", self.MID_GPU_EXPECTED),
         ):
             with self.subTest(category=cat):
                 count = sum(1 for c in configs if cat in c.get("categories", []))
@@ -988,6 +1043,32 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             with self.subTest(post=post_id):
                 self.assertIn(post_id, configs, f"{post_id} missing from the index")
                 self.assertIn("cpu-only", configs[post_id].get("categories", []))
+
+    def test_software_framework_posts_left_the_laptop_chip(self):
+        """The six posts that held Laptops on the software sense of the word,
+        plus 1w39y4n, which this cycle adds and which would have been a
+        seventh. None of the seven names a laptop."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1sojag2", "1vlicb0", "1tsyqxh", "1u2n3x7", "1veoe08", "1v6mna4", "1w39y4n"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertNotIn("laptop", configs[post_id].get("categories", []))
+
+    def test_the_real_framework_hardware_post_kept_the_laptop_chip(self):
+        """1ta7ce9 is the only post in the index naming Framework the hardware
+        brand. It must not have been dropped along with the seven above."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        self.assertIn("1ta7ce9", configs)
+        self.assertIn("laptop", configs["1ta7ce9"].get("categories", []))
+
+    def test_rtx_3080_posts_joined_the_mid_range_gpu_chip(self):
+        """Every post carrying "3080" in its indexed text. 1w3u815 and 1u355x2
+        were reachable from no GPU filter at all before this cycle."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1u355x2", "1uad893", "1w3u815", "1u6u723"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertIn("mid-gpu", configs[post_id].get("categories", []))
 
 
 @unittest.skipUnless(
