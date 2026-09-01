@@ -1736,9 +1736,20 @@ HARDWARE_CATEGORIES = {
     },
     "mid-gpu": {
         "label": "Mid-range GPU (8-16 GB)",
+        # "3080" closes a hole between the two GPU chips. The RTX 3080 ships at
+        # 10 GB and 12 GB, so it belongs to this band, but it appeared in no
+        # keyword list at all and its posts were reachable from neither GPU
+        # filter unless they happened to name a second card. Censused over the
+        # whole 686-entry index: four posts carry "3080" in their indexed text
+        # (1u355x2, 1uad893, 1w3u815, 1u6u723) and all four are genuine Nvidia
+        # RTX 3080 mentions, zero spurious. Two of them name the 20 GB
+        # aftermarket variant, which sits above this chip's nominal ceiling; the
+        # chip keys on the card model rather than on a modded VRAM figure, and
+        # the Field Notes section says so.
         "keywords": ["rtx 3060", "rtx 3070", "rtx 4060", "rtx 4070", "rtx 5060",
                       "rtx 5070", "rx 7900", "rx 7800", "8gb vram", "12gb vram",
-                      "16gb vram", "3060", "3070", "4060", "4070", "5060", "5070"],
+                      "16gb vram", "3060", "3070", "3080", "4060", "4070", "5060",
+                      "5070"],
         "icon": "gpu-mid",
     },
     "cpu-only": {
@@ -1760,8 +1771,20 @@ HARDWARE_CATEGORIES = {
     },
     "laptop": {
         "label": "Laptops",
-        "keywords": ["laptop", "notebook", "portable", "strix halo", "framework",
-                      "thinkpad", "zenbook", "surface", "dell xps", "legion"],
+        # The bare token "framework" is the same failure as "sli" and "arm", in
+        # the strongest form yet: on this subreddit the overwhelmingly common
+        # sense is a software framework. Censused over the whole 686-entry
+        # index, "framework" occurs thirteen times across nine posts and exactly
+        # one occurrence names Framework the hardware brand, 1ta7ce9's "Framework
+        # Desktop"; the rest are agent frameworks, inference frameworks,
+        # "framework-specific toolsets", pytorch and tensorflow, and "best OS and
+        # framework/model?". Seven posts held the Laptops chip on that word
+        # alone. Replacing it with the product forms keeps 1ta7ce9 (which also
+        # matches "strix halo" independently) and drops all seven.
+        "keywords": ["laptop", "notebook", "portable", "strix halo",
+                      "framework 13", "framework 16", "framework laptop",
+                      "framework desktop", "thinkpad", "zenbook", "surface",
+                      "dell xps", "legion"],
         "icon": "laptop",
     },
     "quantization": {
