@@ -1465,7 +1465,12 @@ def unescape_upstream_entities(text):
 # 26ba4b. Dropping it from the generated index and the typed query alike is what
 # keeps the two sides symmetric. The backslash is in the set as a backstop: any
 # markdown escape that survives upstream cleaning cannot then poison the index.
-SEARCH_PUNCTUATION_RE = re.compile(r'[\\_./-]')
+# The comma is here as a thousands separator, not as sentence punctuation: a
+# reader who copies "90,000 context" or "1,062 GPU hours" out of a Field Notes
+# citation must land on the card that wrote it as 90000. Removing it between
+# words simply joins them to the following space, which the collapse below
+# folds away, so no ordinary prose token changes shape.
+SEARCH_PUNCTUATION_RE = re.compile(r'[\\_./,-]')
 
 
 def normalize_search_text(text):
@@ -1477,6 +1482,22 @@ def normalize_search_text(text):
     side mirrors this in generate_community_page(); the two must stay in step.
     """
     return re.sub(r'\s+', ' ', SEARCH_PUNCTUATION_RE.sub('', str(text).lower())).strip()
+
+
+def squash_search_text(text):
+    """Canonical form with word spacing removed as well.
+
+    Used only as a *fallback* comparison, never as the stored index. Stripping
+    the identifier punctuation above turns a hyphenated flag into one word, so
+    "draft-n-max" becomes "draftnmax", but the archived post that reported it
+    wrote "draft n max" and keeps its spaces. The two spellings name the same
+    flag and must reach the same card, so both sides also compare with spacing
+    removed. Kept as a second pass rather than folded into the canonical form
+    because the canonical form is what preserves word boundaries: a two-word
+    query like "rtx 5080" must not match a card that merely contains "rtx" and
+    "5080" hundreds of characters apart.
+    """
+    return normalize_search_text(text).replace(' ', '')
 
 
 # Upper bound on one card's search index, in canonical-form characters. Sized to
@@ -4401,19 +4422,27 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     // typed query is converted here. Both sides must apply the identical rule or
     // a token like Q4_K_M becomes unreachable no matter how it is spelled.
     function normalizeQuery(value) {
-      return value.toLowerCase().replace(/[\\\\_.\\/-]/g, '').replace(/\\s+/g, ' ').trim();
+      return value.toLowerCase().replace(/[\\\\_.\\/,-]/g, '').replace(/\\s+/g, ' ').trim();
     }
+    // Mirror of squash_search_text(). Fallback only: a hyphenated flag collapses
+    // to one word while the post that reported it wrote the words with spaces,
+    // so "draft-n-max" has to reach the card that says "draft n max". Squashed
+    // per card once at load rather than per keystroke, because this runs over
+    // every card on every input event.
+    function squash(value) { return value.replace(/ /g, ''); }
+    const squashedIndex = Array.prototype.map.call(crCards, card => squash(card.getAttribute('data-search') || ''));
     // Cite-then-find: a reader who follows a Field Notes citation can paste the
     // Reddit id in and land on that one card. Compared for EQUALITY, not
     // containment, because ids are 7 base36 characters and a substring test
     // would make two-character queries like m4 or q8 collide with unrelated ids.
     function applyFilters() {
       const q = normalizeQuery(searchInput ? searchInput.value : '');
-      crCards.forEach(card => {
+      const qSquashed = squash(q);
+      crCards.forEach((card, i) => {
         const text = card.getAttribute('data-search') || '';
         const cats = card.getAttribute('data-cats') || '';
         const id = card.getAttribute('data-id') || '';
-        const hit = !q || text.includes(q) || id === q;
+        const hit = !q || text.includes(q) || squashedIndex[i].includes(qSquashed) || id === q;
         card.style.display = (hit && (activeCat === 'all' || cats.split(' ').includes(activeCat))) ? '' : 'none';
       });
       const container = document.getElementById('community-cards');
