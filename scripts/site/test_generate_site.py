@@ -982,7 +982,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # August 27, 2026 adds 1vy1q1l, a single-RTX-5090 Gemma 4 12B evaluation
     # workload. It is still not a serving benchmark, but it is a genuine
     # high-end GPU card and the Field Notes section cites the 68 -> 69 move.
-    HIGH_GPU_EXPECTED = 69
+    # Re-derived for the 691-entry index of 2026-09-02, where it moved 69 -> 70.
+    # The single arrival is 1w4f7x5, an evaluation-harness write-up run on a
+    # single RTX 3090. Every figure in that post is a gpt-oss figure rather than
+    # a Gemma 4 one, but the card is genuine and this chip keys on hardware, so
+    # the Field Notes section reports the count move and attributes no
+    # throughput to Gemma.
+    HIGH_GPU_EXPECTED = 70
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1005,7 +1011,18 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
     # whole index is a genuine Nvidia RTX 3080 mention; there are no others.
-    MID_GPU_EXPECTED = 47
+    # Re-derived for the 691-entry index of 2026-09-02, where it moved 47 -> 56.
+    # Nine arrivals from two new keywords, both censused over the whole index at
+    # six occurrences each with zero spurious matches. "9060" contributes all
+    # six of its posts, because not one of them reached either GPU chip before:
+    # 1t0kxdw, 1tl9woz, 1u44f73, 1ucenk7, 1ui0u4v and 1w4dfi1, every one of them
+    # naming the 16 GB Radeon RX 9060 XT and four of them carrying a Gemma 4
+    # throughput figure. "5080" contributes three, 1sw2fjc, 1u8eq0g and 1uvelii;
+    # its other three posts (1so3rsx, 1th7f24, 1ufy09k) already held the chip on
+    # another keyword. 1w4g0oh names an RTX 5080 too and deliberately does NOT
+    # join, because that card appears only in the archived body, which the
+    # categoriser does not read.
+    MID_GPU_EXPECTED = 56
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1025,6 +1042,42 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                     f"{cat} post count moved; if the index grew, re-derive this "
                     "number and update the Field Notes prose that cites it",
                 )
+
+    def test_every_radeon_9060_post_reaches_the_mid_range_chip(self):
+        """The six posts naming the RX 9060 XT. Before the 2026-09-02 keyword
+        they reached neither GPU filter, and four of them carry a Gemma 4
+        throughput figure, so this is the positive control for that keyword."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1t0kxdw", "1tl9woz", "1u44f73", "1ucenk7", "1ui0u4v", "1w4dfi1"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertIn("mid-gpu", configs[post_id].get("categories", []))
+
+    def test_the_9060_keyword_matched_nothing_spurious(self):
+        """Negative control for the same keyword: no post outside the censused
+        six carries "9060" in the text the categoriser actually reads."""
+        expected = {"1t0kxdw", "1tl9woz", "1u44f73", "1ucenk7", "1ui0u4v", "1w4dfi1"}
+        matched = set()
+        for post in gen.load_community_configs():
+            text = " ".join([
+                post.get("title", ""),
+                post.get("summary", ""),
+                " ".join(post.get("tags", [])),
+                " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+            ]).lower()
+            if "9060" in text:
+                matched.add(post.get("id"))
+        self.assertEqual(matched, expected)
+
+    def test_a_card_named_only_in_the_body_does_not_reach_the_chip(self):
+        """1w4g0oh names an RTX 5080 with 16 GB, exactly what the 2026-09-02
+        "5080" keyword is for, and still falls through to general, because the
+        categoriser reads title, summary, tags and the top three comments only.
+        The Field Notes section cites this post as the demonstration, so the
+        behaviour is pinned rather than left to drift."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        self.assertIn("1w4g0oh", configs)
+        self.assertEqual(configs["1w4g0oh"].get("categories", []), ["general"])
 
     def test_slightly_posts_left_the_high_end_gpu_chip(self):
         """1vr2oq8 matched on "freudian slip" and 1tw0lua, 1ura4d0, 1u941oi and
