@@ -303,6 +303,60 @@ class TestQuantSearchNormalization(unittest.TestCase):
         self.assertEqual({gen.normalize_search_text(s) for s in spellings}, {"q4km"})
 
 
+class TestHyphenSpaceAndThousandsSeparatorRecall(unittest.TestCase):
+    """A Field Notes citation and the post it cites rarely spell a token the same
+    way. The section writes the canonical flag "draft-n-max" while the archived
+    post wrote "draft n max", and it writes a context length as "90,000" while
+    the post wrote "90000". Stripping identifier punctuation turns the first
+    spelling into one word and leaves the second as three, so the canonical form
+    alone cannot match them. Both are terms a reader copies straight out of a
+    citation, so both must return the cited card.
+    """
+
+    def _hit(self, query, indexed):
+        """Mirror of the client-side test in generate_community_page()."""
+        q = gen.normalize_search_text(query)
+        text = gen.normalize_search_text(indexed)
+        return q in text or gen.squash_search_text(query) in gen.squash_search_text(indexed)
+
+    def test_hyphenated_query_matches_space_separated_source(self):
+        self.assertTrue(self._hit("draft-n-max", "at draft n max = 1 I get 32 t/s"))
+        self.assertTrue(self._hit("gemma-4-120b-a12b-coder", "this gemma 4 120b a12b coder model"))
+
+    def test_space_separated_query_matches_hyphenated_source(self):
+        self.assertTrue(self._hit("draft n max", "ran with --draft-n-max 4"))
+
+    def test_thousands_separator_is_ignored_on_both_sides(self):
+        self.assertTrue(self._hit("90,000", "38tps at 90000 context"))
+        self.assertTrue(self._hit("90000", "38tps at 90,000 context"))
+        self.assertTrue(self._hit("1,062 GPU hours", "over 1062 gpu hours"))
+
+    def test_comma_between_words_does_not_fuse_them(self):
+        # Removing a comma leaves the space, so ordinary prose keeps its word
+        # boundaries and does not turn into a single run-on token.
+        self.assertEqual(gen.normalize_search_text("hey, wondering"), "hey wondering")
+
+    def test_squash_is_a_fallback_not_the_stored_form(self):
+        # The canonical form must keep spaces, because it is what preserves word
+        # boundaries for ordinary multi-word queries.
+        self.assertEqual(gen.normalize_search_text("rtx 5080"), "rtx 5080")
+        self.assertEqual(gen.squash_search_text("rtx 5080"), "rtx5080")
+
+    def test_squash_is_idempotent(self):
+        once = gen.squash_search_text("Draft-N-Max  1")
+        self.assertEqual(once, "draftnmax1")
+        self.assertEqual(gen.squash_search_text(once), once)
+
+    def test_client_regex_matches_the_python_punctuation_set(self):
+        # The two sides must strip the identical character class or a token
+        # becomes unreachable no matter how it is spelled.
+        # A non-zero count is required: the search UI and its script are only
+        # emitted when the page actually has cards to filter.
+        page = gen.generate_community_page('<div id="community-cards"></div>', 1, "")
+        self.assertIn(r"replace(/[\\_.\/,-]/g, '')", page)
+        self.assertIn("squashedIndex", page)
+
+
 class TestBodyTextIsSearchable(unittest.TestCase):
     """The community search index used to cover only the title, the Short summary,
     the tags and the top three comments. Short summary is an upstream truncation
