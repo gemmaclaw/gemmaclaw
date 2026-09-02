@@ -418,6 +418,38 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         self.assertTrue(self._matches(post, "Strix Halo"))
         self.assertTrue(self._matches(post, "linked gist"))
 
+    def test_every_comment_is_indexed_whole(self):
+        """Hermetic form of the 1tl9woz defect. The index used to hold the top
+        three comments cut to 100 characters each, and a field note quotes the
+        reply that disputes a report, which is rarely the top one and rarely
+        inside its first sentence."""
+        post = self._post(
+            title="Gemma4 26B A4B on an RX 9060 XT",
+            comments=[
+                {"text": "Source: I made it up without real testing."},
+                {"text": "x" * 110 + " bartowski Q4_K_M was faster on my 7800XT (also 16gb)"},
+                {"text": "Test it yourself, also rule 4."},
+                {"text": 'Running llama.cpp Vulkan: "RADV_PERFTEST=nogttspill ./llama-server"'},
+                {"text": "I am getting loops with unsloth."},
+            ],
+        )
+        for query in ("RADV_PERFTEST", "nogttspill", "7800XT", "getting loops"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must match")
+
+    def test_an_unclosed_link_in_one_part_cannot_eat_another_part(self):
+        """Hermetic form of the 1t9voxs defect. clean_markdown()'s link rule spans
+        whitespace, so cleaning the joined string let a summary truncated
+        mid-link swallow the tags, the comments and the head of the body up to
+        the next closing paren. Parts are cleaned independently for this reason."""
+        post = self._post(
+            summary="Turboderp shipped [improved caching efficiency](https://github.com/turboderp-org/exllamav3",
+            body="DFlash support came 2 weeks ago (with these results) at 140.61 t/s.",
+            tags=["hardware", "gemma"],
+            comments=[{"text": "is exllama has no cpu offload?"}],
+        )
+        for query in ("hardware gemma", "exllama has no cpu offload", "DFlash support"):
+            self.assertTrue(self._matches(post, query), f"query {query!r} must survive the unclosed link")
+
     def test_a_truncated_summary_copy_is_not_indexed_twice(self):
         body = "Ran Gemma 4 26B A4B at Q8_0 overnight and it held 18.35 tok/s the whole time."
         post = self._post(summary="Ran Gemma 4 26B A4B at Q8_0 overnight and it held...", body=body)
@@ -595,6 +627,48 @@ class TestSearchIndexOverTheRealIndex(unittest.TestCase):
         self.assertIsNotNone(post, "expected 1vvtu9z in the live community index")
         indexed = gen.build_card_search_text(post)
         for query in ("Q4_K_M", "q4km", "fp16", "ollama", "llama.cpp"):
+            self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
+
+    def test_terms_the_field_notes_quote_from_a_comment_reach_their_card(self):
+        """The comment-side twin of the case above, and the reason the caps went.
+
+        Each of these is quoted by a Field Notes section as a distinguishing
+        detail of one specific card, and each lives in a reply the old
+        top-three-at-100-characters window could not see. "7800 XT" matches
+        through the squash fallback, because the comment writes it "7800XT".
+        """
+        posts = {p["id"]: p for p in gen.load_community_configs()}
+        cases = [
+            ("1tl9woz", "RADV_PERFTEST"),
+            ("1tl9woz", "nogttspill"),
+            ("1tl9woz", "7800 XT"),
+            ("1tb160j", "usually isn't worth generating more than 2 or 3 tokens"),
+            ("1t7mdrl", "not just a matter of acceptance rate"),
+        ]
+        for post_id, query in cases:
+            with self.subTest(post=post_id, query=query):
+                self.assertIn(post_id, posts, f"expected {post_id} in the live community index")
+                indexed = gen.build_card_search_text(posts[post_id])
+                hit = (
+                    gen.normalize_search_text(query) in indexed
+                    or gen.squash_search_text(query) in gen.squash_search_text(indexed)
+                )
+                self.assertTrue(hit, f"query {query!r} must reach {post_id}")
+
+    def test_a_summary_truncated_mid_link_does_not_eat_the_rest_of_the_index(self):
+        """1t9voxs: Short summary stops inside a markdown link, so over a joined
+        string that unclosed "(" swallowed the tags, all five comments and the
+        head of the body. Cleaning each part on its own bounds the damage to the
+        summary. Pinned on the live post so a regression in either the parser or
+        clean_markdown() is caught where it actually bites."""
+        post = next((p for p in gen.load_community_configs() if p["id"] == "1t9voxs"), None)
+        self.assertIsNotNone(post, "expected 1t9voxs in the live community index")
+        self.assertGreater(
+            post["summary"].count("("), post["summary"].count(")"),
+            "expected 1t9voxs to still carry the unclosed link this test exists for",
+        )
+        indexed = gen.build_card_search_text(post)
+        for query in ("exllama has no cpu offload", "mind-blowing", "hardware gemma"):
             self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
 
 
