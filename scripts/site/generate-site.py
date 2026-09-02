@@ -1746,10 +1746,27 @@ HARDWARE_CATEGORIES = {
         # aftermarket variant, which sits above this chip's nominal ceiling; the
         # chip keys on the card model rather than on a modded VRAM figure, and
         # the Field Notes section says so.
+        #
+        # "9060" is the same hole one card generation later, and it was the
+        # widest one left. Every archived mention of the AMD Radeon RX 9060 XT
+        # names the 16 GB card, the top of this band, and it is the
+        # best-documented mid-range platform in the whole Gemma 4 archive:
+        # censused over the whole 691-entry index, six posts carry "9060" in
+        # their indexed text
+        # (1t0kxdw, 1tl9woz, 1u44f73, 1ucenk7, 1ui0u4v, 1w4dfi1), all six are
+        # genuine Radeon RX 9060 XT mentions with zero spurious matches, and
+        # before this change not one of them reached either GPU filter. Three of
+        # the six report a Gemma 4 throughput figure.
+        #
+        # "5080" closes the Nvidia half of the same generation. The RTX 5080
+        # ships at 16 GB, the top of this band. Censused over the same index it
+        # occurs in six posts (1so3rsx, 1sw2fjc, 1th7f24, 1u8eq0g, 1uvelii,
+        # 1ufy09k), all six genuine, zero spurious; three already held this chip
+        # on another keyword, so three newly gain it.
         "keywords": ["rtx 3060", "rtx 3070", "rtx 4060", "rtx 4070", "rtx 5060",
                       "rtx 5070", "rx 7900", "rx 7800", "8gb vram", "12gb vram",
                       "16gb vram", "3060", "3070", "3080", "4060", "4070", "5060",
-                      "5070"],
+                      "5070", "5080", "9060"],
         "icon": "gpu-mid",
     },
     "cpu-only": {
