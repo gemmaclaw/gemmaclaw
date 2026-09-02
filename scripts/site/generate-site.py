@@ -1501,12 +1501,15 @@ def squash_search_text(text):
 
 
 # Upper bound on one card's search index, in canonical-form characters. Sized to
-# clear the longest archived post (2031 characters at the time of writing) with
-# headroom, so nothing currently in the corpus is truncated. It exists to stop a
-# single runaway body from bloating the page, not to trim ordinary reports: the
-# old 500-character cap silently dropped the tail of most posts, which is one of
-# the two reasons quant and backend terms were unreachable.
-COMMUNITY_SEARCH_INDEX_LIMIT = 2400
+# clear the longest archived post (2743 characters once whole comments are
+# indexed) with headroom, so nothing currently in the corpus is truncated. It
+# exists to stop a single runaway body from bloating the page, not to trim
+# ordinary reports: the old 500-character cap silently dropped the tail of most
+# posts, which is one of the reasons quant and backend terms were unreachable.
+# Raised from 2400 when build_card_search_text() stopped cutting comments to the
+# top three at 100 characters; 20 archived posts cross the old bound, and a card
+# truncated here loses its BODY first, because the body is the last part joined.
+COMMUNITY_SEARCH_INDEX_LIMIT = 3200
 
 
 def summary_duplicates_body(summary, body):
@@ -1636,13 +1639,26 @@ def code_ref_search_aliases(text):
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
-    Indexes the Reddit id, title, tags, top comments and the archived post body.
-    The body is the important addition: Short summary is an upstream truncation
-    that routinely stops mid-sentence, so a report's quant, backend or download
+    Indexes the title, tags, every archived comment and the archived post body.
+    The body matters because Short summary is an upstream truncation that
+    routinely stops mid-sentence, so a report's quant, backend or download
     instruction often exists only in the body. 1vvtu9z is the worked example,
     publishing "fp16 -> Q4_K_M weights ... ready for use with llama.cpp or
     ollama" there and nowhere else, which left that card unreachable by every one
     of those terms while its own field note quoted them.
+
+    Comments are indexed WHOLE, and all of them. They used to be cut to the top
+    three at 100 characters each, which is the comment-side twin of that same
+    body defect and outlived the body fix: a field note routinely quotes the
+    reply that DISPUTES a report, and a dispute is normally neither the top
+    comment nor inside the first sentence of one. 1tl9woz is the worked example.
+    Its field note cites the launch line "llama.cpp Vulkan with
+    RADV_PERFTEST=nogttspill", which lives in comment 4, and a counter-report on
+    a "7800XT (also 16gb)", which lives in comment 2 past the 100-character cut
+    at "better overall results on". Neither term reached the card. The archiver
+    already bounds this input for us: it captures at most 5 comments per post and
+    truncates each to roughly 350 characters, so uncapping here adds about 174
+    characters to the average card and cannot run away.
 
     The Reddit id is deliberately NOT folded in here. Cite-then-find is served by
     the separate data-id attribute, which the client compares for equality: ids
@@ -1662,22 +1678,41 @@ def build_card_search_text(post):
     if not summary_duplicates_body(summary, body):
         parts.append(summary)
     parts.append(" ".join(post.get("tags", [])))
-    parts.append(" ".join(c.get("text", "")[:100] for c in post.get("comments", [])[:3]))
+    parts.append(" ".join(c.get("text", "") for c in post.get("comments", [])))
     parts.append(body)
 
-    # clean_markdown runs before html_escape because html_escape also applies
-    # sanitize_public_text, whose word-boundary redactions need the punctuation
-    # and the original casing still in place.
-    joined = " ".join(part for part in parts if part)
+    parts = [part for part in parts if part]
+
+    # The aliases are derived from the RAW join, because the URL-shaped ones read
+    # the very URLs clean_markdown() strips out.
+    joined = " ".join(parts)
     aliases = " ".join(filter(None, [
         model_pair_search_aliases(joined),
         hardware_search_aliases(joined),
         url_host_search_aliases(joined),
         code_ref_search_aliases(joined),
     ]))
+
+    # clean_markdown runs PER PART, not over the join, and that is load-bearing
+    # rather than tidiness. Its markdown-link rule spans whitespace, so a single
+    # unclosed "(" swallows everything up to the next ")" anywhere later in the
+    # string, and Short summary is an upstream truncation that lands mid-link
+    # constantly. 1t9voxs is the worked example: its summary stops inside
+    # "[improved caching efficiency](https://github.com/turboderp-org/exllamav3",
+    # and over the join that one missing character ate the tags, all five
+    # comments and the head of the body, so the card was unreachable by any term
+    # in them. Cleaning each part alone bounds the damage to the broken part. It
+    # changes 26 archived cards and costs nothing: 22 of them recover real text,
+    # and the other 4 differ only by one or two stray markdown characters that
+    # now get stripped instead of leaking into the index.
+    #
+    # It still runs before html_escape, because html_escape also applies
+    # sanitize_public_text, whose word-boundary redactions need the punctuation
+    # and the original casing still in place.
+    cleaned = " ".join(filter(None, (clean_markdown(part) for part in parts)))
     if aliases:
-        joined = f"{joined} {aliases}"
-    return normalize_search_text(html_escape(clean_markdown(joined)))[:COMMUNITY_SEARCH_INDEX_LIMIT]
+        cleaned = f"{cleaned} {aliases}"
+    return normalize_search_text(html_escape(cleaned))[:COMMUNITY_SEARCH_INDEX_LIMIT]
 
 
 def clean_markdown(text):
