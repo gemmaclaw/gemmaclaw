@@ -14,6 +14,9 @@ import { normalizeToolName } from "../../tool-policy.js";
 import { shouldAllowProviderOwnedThinkingReplay } from "../../transcript-policy.js";
 import type { TranscriptPolicy } from "../../transcript-policy.js";
 import { wrapStreamObjectEvents } from "./stream-wrapper.js";
+import { randomUUID } from "node:crypto";
+import { createStreamIteratorWrapper } from "../../stream-iterator-wrapper.js";
+import { log } from "../logger.js";
 
 type UnknownToolLoopGuardState = {
   lastUnknownToolName?: string;
@@ -890,5 +893,513 @@ export function wrapStreamFnSanitizeMalformedToolCalls(
       messages: nextMessages,
     } as unknown;
     return baseFn(model, nextContext as typeof context, options);
+  };
+}
+
+function parseGemma4Args(argsStr: string): Record<string, unknown> {
+  argsStr = argsStr.trim();
+  if (argsStr.startsWith('{') && argsStr.endsWith('}')) {
+    argsStr = argsStr.slice(1, -1).trim();
+  }
+  
+  const keyRegex = /(?:^|,)\s*(\w+)\s*:/g;
+  const keys: { name: string; index: number; valueStartIndex: number }[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = keyRegex.exec(argsStr)) !== null) {
+    keys.push({
+      name: match[1],
+      index: match.index,
+      valueStartIndex: match.index + match[0].length
+    });
+  }
+  
+  if (keys.length === 0) {
+    return {};
+  }
+  
+  const obj: Record<string, unknown> = {};
+  for (let i = 0; i < keys.length; i++) {
+    const currentKey = keys[i];
+    const nextKey = keys[i + 1];
+    let valStr = argsStr.slice(currentKey.valueStartIndex, nextKey ? nextKey.index : argsStr.length).trim();
+    
+    if (valStr.endsWith(',')) {
+      valStr = valStr.slice(0, -1).trim();
+    }
+    
+    let parsedVal: unknown;
+    if (valStr.startsWith('<|"|>') && valStr.endsWith('<|"|>')) {
+      const inner = valStr.slice(5, -5);
+      parsedVal = inner.replace(/<\|"\|>/g, '"');
+    } else if (valStr.startsWith('"') && valStr.endsWith('"')) {
+      try {
+        parsedVal = JSON.parse(valStr);
+      } catch {
+        parsedVal = valStr.slice(1, -1);
+      }
+    } else {
+      if (valStr === 'true') parsedVal = true;
+      else if (valStr === 'false') parsedVal = false;
+      else if (valStr === 'null') parsedVal = null;
+      else if (!isNaN(Number(valStr)) && valStr !== '') parsedVal = Number(valStr);
+      else {
+        parsedVal = valStr.replace(/<\|"\|>/g, '"');
+      }
+    }
+    obj[currentKey.name] = parsedVal;
+  }
+  return obj;
+}
+
+export function wrapStreamParseGemma4ToolCalls(
+  stream: ReturnType<typeof streamSimple>
+): ReturnType<typeof streamSimple> {
+  console.log("[ASD_DEBUG] wrapStreamParseGemma4ToolCalls instantiated");
+  const originalAsyncIterator = stream[Symbol.asyncIterator].bind(stream);
+  
+  (stream as any)[Symbol.asyncIterator] = function () {
+    const iterator = originalAsyncIterator();
+    
+    let status:
+      | "TEXT"
+      | "BUFFERING_PREFIX"
+      | "BUFFERING_FALLBACK_PREFIX"
+      | "BUFFERING_TOOL_NAME"
+      | "PARSING_TOOL_CALL" = "TEXT";
+    let prefixBuffer = "";
+    let fallbackPrefixBuffer = "";
+    let toolCallBuffer = "";
+    let currentTextContentIndex = -1;
+    let toolCallContentIndex = -1;
+    let currentToolName = "";
+    let currentToolCallId = "";
+    const pendingEvents: any[] = [];
+    
+    const PREFIX = "<|tool_call>";
+    const FALLBACK_PREFIX = "call:";
+    const SUFFIX = "<tool_call|>";
+    
+    const wrapper = createStreamIteratorWrapper({
+      iterator,
+      next: async (streamIterator) => {
+        if (pendingEvents.length > 0) {
+          const ev = pendingEvents.shift();
+          console.log("[ASD_DEBUG] Yielding pending event:", ev.type);
+          return { done: false, value: ev };
+        }
+        
+        while (true) {
+          const result = await streamIterator.next();
+          if (result.done) {
+            console.log("[ASD_DEBUG] Inner stream done");
+            if (pendingEvents.length > 0) {
+              const ev = pendingEvents.shift();
+              console.log("[ASD_DEBUG] Yielding pending event on stream end:", ev.type);
+              return { done: false, value: ev };
+            }
+            if (prefixBuffer) {
+              console.log("[ASD_DEBUG] Flushing prefixBuffer on stream end:", prefixBuffer);
+              const flushedEvent = {
+                type: "text_delta",
+                contentIndex: currentTextContentIndex,
+                delta: prefixBuffer,
+                partial: null
+              };
+              prefixBuffer = "";
+              return { done: false, value: flushedEvent };
+            }
+            if (fallbackPrefixBuffer) {
+              console.log("[ASD_DEBUG] Flushing fallbackPrefixBuffer on stream end:", fallbackPrefixBuffer);
+              const flushedEvent = {
+                type: "text_delta",
+                contentIndex: currentTextContentIndex,
+                delta: fallbackPrefixBuffer,
+                partial: null
+              };
+              fallbackPrefixBuffer = "";
+              return { done: false, value: flushedEvent };
+            }
+            if (status === "BUFFERING_TOOL_NAME" || status === "PARSING_TOOL_CALL") {
+              if (toolCallBuffer) {
+                console.log("[ASD_DEBUG] Flushing toolCallBuffer on stream end:", toolCallBuffer);
+                const flushedEvent = {
+                  type: "text_delta",
+                  contentIndex: currentTextContentIndex,
+                  delta: toolCallBuffer,
+                  partial: null
+                };
+                toolCallBuffer = "";
+                status = "TEXT";
+                return { done: false, value: flushedEvent };
+              }
+            }
+            return result;
+          }
+          
+          const event = result.value as any;
+          if (!event || typeof event !== "object") {
+            return result;
+          }
+          
+          if (event.type !== "text_delta") {
+            if (event.type === "text_start") {
+              currentTextContentIndex = event.contentIndex;
+            }
+            return result;
+          }
+          
+          let delta = event.delta || "";
+          const partialOutput = event.partial;
+          currentTextContentIndex = event.contentIndex;
+          
+          let processing = true;
+          while (processing) {
+            processing = false;
+            
+            if (status === "TEXT") {
+              const prefixIdx = delta.indexOf(PREFIX);
+              const fallbackIdx = delta.indexOf(FALLBACK_PREFIX);
+
+              if (prefixIdx !== -1 && (fallbackIdx === -1 || prefixIdx < fallbackIdx)) {
+                console.log("[ASD_DEBUG] PREFIX found fully in delta at index", prefixIdx);
+                const textPart = delta.slice(0, prefixIdx);
+                const postPrefixPart = delta.slice(prefixIdx + PREFIX.length);
+                
+                if (textPart) {
+                  pendingEvents.push({ ...event, delta: textPart });
+                }
+                
+                status = "PARSING_TOOL_CALL";
+                prefixBuffer = "";
+                toolCallBuffer = "";
+                currentToolName = "";
+                currentToolCallId = "";
+                
+                if (partialOutput && currentTextContentIndex !== -1) {
+                  const textBlock = partialOutput.content[currentTextContentIndex];
+                  if (textBlock && textBlock.type === "text" && typeof textBlock.text === "string") {
+                    if (textBlock.text.endsWith(PREFIX)) {
+                      console.log("[ASD_DEBUG] Stripping PREFIX from partial textBlock");
+                      textBlock.text = textBlock.text.slice(0, -PREFIX.length);
+                    }
+                  }
+                }
+                
+                delta = postPrefixPart;
+                processing = true;
+                continue;
+              }
+
+              if (fallbackIdx !== -1 && (prefixIdx === -1 || fallbackIdx < prefixIdx)) {
+                console.log("[ASD_DEBUG] FALLBACK_PREFIX found fully in delta at index", fallbackIdx);
+                const textPart = delta.slice(0, fallbackIdx);
+                const postPrefixPart = delta.slice(fallbackIdx + FALLBACK_PREFIX.length);
+                
+                if (textPart) {
+                  pendingEvents.push({ ...event, delta: textPart });
+                }
+                
+                status = "BUFFERING_TOOL_NAME";
+                fallbackPrefixBuffer = "";
+                toolCallBuffer = FALLBACK_PREFIX;
+                currentToolName = "";
+                currentToolCallId = "";
+                
+                delta = postPrefixPart;
+                processing = true;
+                continue;
+              }
+              
+              let matchedPrefixLen = 0;
+              for (let i = PREFIX.length - 1; i > 0; i--) {
+                const prefixPart = PREFIX.slice(0, i);
+                if (delta.endsWith(prefixPart)) {
+                  matchedPrefixLen = i;
+                  break;
+                }
+              }
+
+              let matchedFallbackPrefixLen = 0;
+              for (let i = FALLBACK_PREFIX.length - 1; i > 0; i--) {
+                const prefixPart = FALLBACK_PREFIX.slice(0, i);
+                if (delta.endsWith(prefixPart)) {
+                  matchedFallbackPrefixLen = i;
+                  break;
+                }
+              }
+              
+              if (matchedPrefixLen > 0) {
+                const textPart = delta.slice(0, delta.length - matchedPrefixLen);
+                console.log("[ASD_DEBUG] Suffix of delta matches prefix of PREFIX. matchedPrefixLen=", matchedPrefixLen, "textPart=", JSON.stringify(textPart));
+                if (textPart) {
+                  pendingEvents.push({ ...event, delta: textPart });
+                }
+                prefixBuffer = PREFIX.slice(0, matchedPrefixLen);
+                status = "BUFFERING_PREFIX";
+              } else if (matchedFallbackPrefixLen > 0) {
+                const textPart = delta.slice(0, delta.length - matchedFallbackPrefixLen);
+                console.log("[ASD_DEBUG] Suffix of delta matches prefix of FALLBACK_PREFIX. matchedFallbackPrefixLen=", matchedFallbackPrefixLen, "textPart=", JSON.stringify(textPart));
+                if (textPart) {
+                  pendingEvents.push({ ...event, delta: textPart });
+                }
+                fallbackPrefixBuffer = FALLBACK_PREFIX.slice(0, matchedFallbackPrefixLen);
+                status = "BUFFERING_FALLBACK_PREFIX";
+              } else {
+                if (pendingEvents.length > 0) {
+                  const ev = pendingEvents.shift();
+                  console.log("[ASD_DEBUG] Yielding pending event from TEXT else:", ev.type);
+                  return { done: false, value: ev };
+                }
+                
+                if (delta === event.delta) {
+                  return result;
+                } else if (delta !== "") {
+                  return { done: false, value: { ...event, delta } };
+                } else {
+                  processing = false;
+                }
+              }
+            }
+
+            else if (status === "BUFFERING_FALLBACK_PREFIX") {
+              const expectedRemaining = FALLBACK_PREFIX.slice(fallbackPrefixBuffer.length);
+              if (delta.startsWith(expectedRemaining)) {
+                console.log("[ASD_DEBUG] Completed fallback prefix with delta start:", expectedRemaining);
+                const postPrefixPart = delta.slice(expectedRemaining.length);
+                
+                status = "BUFFERING_TOOL_NAME";
+                fallbackPrefixBuffer = "";
+                toolCallBuffer = FALLBACK_PREFIX;
+                currentToolName = "";
+                currentToolCallId = "";
+                
+                delta = postPrefixPart;
+                processing = true;
+                continue;
+              } else if (expectedRemaining.startsWith(delta)) {
+                fallbackPrefixBuffer += delta;
+                console.log("[ASD_DEBUG] Appended to fallbackPrefixBuffer. New fallbackPrefixBuffer=", fallbackPrefixBuffer);
+              } else {
+                console.log("[ASD_DEBUG] Fallback prefix mismatch in BUFFERING_FALLBACK_PREFIX. Flushing fallbackPrefixBuffer=", fallbackPrefixBuffer, "and reprocessing delta=", delta);
+                const flushedDelta = fallbackPrefixBuffer;
+                fallbackPrefixBuffer = "";
+                status = "TEXT";
+                
+                pendingEvents.push({ ...event, delta: flushedDelta });
+                processing = true;
+                continue;
+              }
+            }
+
+            else if (status === "BUFFERING_TOOL_NAME") {
+              let i = 0;
+              let aborted = false;
+              for (; i < delta.length; i++) {
+                const char = delta[i];
+                if (char === "{") {
+                  console.log("[ASD_DEBUG] Found '{' in BUFFERING_TOOL_NAME. Transitioning to PARSING_TOOL_CALL");
+                  currentToolName = toolCallBuffer.slice(FALLBACK_PREFIX.length);
+                  currentToolCallId = "call_" + randomUUID().replace(/-/g, "");
+                  status = "PARSING_TOOL_CALL";
+                  toolCallBuffer += "{";
+                  delta = delta.slice(i + 1);
+                  processing = true;
+                  break;
+                } else if (/[a-zA-Z0-9_.]/.test(char)) {
+                  toolCallBuffer += char;
+                } else {
+                  console.log(`[ASD_DEBUG] Invalid char '${char}' for tool name. Aborting fallback buffering.`);
+                  aborted = true;
+                  break;
+                }
+              }
+              
+              if (aborted) {
+                const flushed = toolCallBuffer + delta[i];
+                toolCallBuffer = "";
+                status = "TEXT";
+                pendingEvents.push({ ...event, delta: flushed });
+                delta = delta.slice(i + 1);
+                processing = true;
+                continue;
+              }
+            }
+            
+            else if (status === "BUFFERING_PREFIX") {
+              const expectedRemaining = PREFIX.slice(prefixBuffer.length);
+              if (delta.startsWith(expectedRemaining)) {
+                console.log("[ASD_DEBUG] Completed prefix with delta start:", expectedRemaining);
+                const postPrefixPart = delta.slice(expectedRemaining.length);
+                
+                status = "PARSING_TOOL_CALL";
+                prefixBuffer = "";
+                toolCallBuffer = "";
+                currentToolName = "";
+                currentToolCallId = "";
+                
+                if (partialOutput && currentTextContentIndex !== -1) {
+                  const textBlock = partialOutput.content[currentTextContentIndex];
+                  if (textBlock && textBlock.type === "text" && typeof textBlock.text === "string") {
+                    const alreadyAppended = PREFIX.slice(0, PREFIX.length - expectedRemaining.length);
+                    if (textBlock.text.endsWith(alreadyAppended)) {
+                      console.log("[ASD_DEBUG] Stripping already appended prefix from textBlock:", alreadyAppended);
+                      textBlock.text = textBlock.text.slice(0, -alreadyAppended.length);
+                    }
+                  }
+                }
+                
+                delta = postPrefixPart;
+                processing = true;
+                continue;
+              } else if (expectedRemaining.startsWith(delta)) {
+                prefixBuffer += delta;
+                console.log("[ASD_DEBUG] Appended to prefixBuffer. New prefixBuffer=", prefixBuffer);
+              } else {
+                console.log("[ASD_DEBUG] Prefix mismatch in BUFFERING_PREFIX. Flushing prefixBuffer=", prefixBuffer, "and reprocessing delta=", delta);
+                const flushedDelta = prefixBuffer;
+                prefixBuffer = "";
+                status = "TEXT";
+                
+                pendingEvents.push({ ...event, delta: flushedDelta });
+                processing = true;
+                continue;
+              }
+            }
+            
+            else if (status === "PARSING_TOOL_CALL") {
+              toolCallBuffer += delta;
+              console.log("[ASD_DEBUG] Buffering tool call. toolCallBuffer=", JSON.stringify(toolCallBuffer));
+              
+              if (!currentToolName) {
+                const match = /call:([a-zA-Z0-9_.]+)\{/.exec(toolCallBuffer);
+                if (match) {
+                  currentToolName = match[1];
+                  currentToolCallId = "call_" + randomUUID().replace(/-/g, "");
+                  console.log("[ASD_DEBUG] Resolved tool name:", currentToolName, "id:", currentToolCallId);
+                }
+              }
+              
+              const suffixIdx = toolCallBuffer.indexOf(SUFFIX);
+              if (suffixIdx !== -1) {
+                const fullToolCallStr = toolCallBuffer.slice(0, suffixIdx);
+                const remainingText = toolCallBuffer.slice(suffixIdx + SUFFIX.length);
+                console.log("[ASD_DEBUG] Suffix matched! fullToolCallStr=", JSON.stringify(fullToolCallStr), "remainingText=", JSON.stringify(remainingText));
+                
+                if (!currentToolName) {
+                  const match = /call:([a-zA-Z0-9_.]+)\{/.exec(fullToolCallStr);
+                  if (match) {
+                    currentToolName = match[1];
+                    console.log("[ASD_DEBUG] Resolved tool name on suffix match:", currentToolName);
+                  }
+                }
+                
+                const openBraceIdx = fullToolCallStr.indexOf('{');
+                let parsedArgs = {};
+                if (openBraceIdx !== -1) {
+                  const argsStr = fullToolCallStr.slice(openBraceIdx);
+                  try {
+                    console.log("[ASD_DEBUG] Parsing argsStr:", argsStr);
+                    parsedArgs = parseGemma4Args(argsStr);
+                    console.log("[ASD_DEBUG] Parsed args successfully:", parsedArgs);
+                  } catch (e: any) {
+                    console.error("[ASD_DEBUG] Failed to parse Gemma 4 args:", e);
+                    log("error", `Failed to parse Gemma 4 args: ${e?.message || e}`);
+                  }
+                }
+                
+                if (partialOutput && currentTextContentIndex !== -1) {
+                  const textBlock = partialOutput.content[currentTextContentIndex];
+                  if (textBlock && textBlock.type === "text" && typeof textBlock.text === "string") {
+                    const toRemoveWithPrefix = PREFIX + fullToolCallStr + SUFFIX;
+                    const toRemoveWithoutPrefix = fullToolCallStr + SUFFIX;
+                    console.log("[ASD_DEBUG] Stripping full tool call block from textBlock");
+                    
+                    let pos = textBlock.text.lastIndexOf(toRemoveWithPrefix);
+                    if (pos !== -1) {
+                      textBlock.text = textBlock.text.slice(0, pos) + textBlock.text.slice(pos + toRemoveWithPrefix.length);
+                    } else {
+                      pos = textBlock.text.lastIndexOf(toRemoveWithoutPrefix);
+                      if (pos !== -1) {
+                        textBlock.text = textBlock.text.slice(0, pos) + textBlock.text.slice(pos + toRemoveWithoutPrefix.length);
+                      } else {
+                        textBlock.text = textBlock.text.replace(toRemoveWithPrefix, "").replace(toRemoveWithoutPrefix, "");
+                      }
+                    }
+                  }
+                  
+                  const toolCallBlock = {
+                    type: "toolCall",
+                    id: currentToolCallId || ("call_" + randomUUID().replace(/-/g, "")),
+                    name: currentToolName || "unknown",
+                    arguments: parsedArgs,
+                    partialJson: JSON.stringify(parsedArgs)
+                  };
+                  partialOutput.content.push(toolCallBlock);
+                  toolCallContentIndex = partialOutput.content.length - 1;
+                  console.log("[ASD_DEBUG] Appended toolCall block to partialOutput. index=", toolCallContentIndex);
+                }
+                
+                pendingEvents.push({
+                  type: "toolcall_start",
+                  contentIndex: toolCallContentIndex,
+                  partial: partialOutput
+                });
+                
+                pendingEvents.push({
+                  type: "toolcall_end",
+                  contentIndex: toolCallContentIndex,
+                  toolCall: {
+                    type: "toolCall",
+                    id: currentToolCallId,
+                    name: currentToolName,
+                    arguments: parsedArgs
+                  },
+                  partial: partialOutput
+                });
+                
+                if (remainingText) {
+                  pendingEvents.push({
+                    ...event,
+                    delta: remainingText
+                  });
+                }
+
+                status = "TEXT";
+                toolCallBuffer = "";
+                currentToolName = "";
+                currentToolCallId = "";
+                
+                delta = "";
+                processing = true;
+                continue;
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    return wrapper;
+  };
+  
+  const originalResult = stream.result.bind(stream);
+  stream.result = async () => {
+    const message = await originalResult();
+    console.log("[ASD_DEBUG] wrapStreamParseGemma4ToolCalls final message content:", JSON.stringify(message?.content));
+    return message;
+  };
+  
+  return stream;
+}
+
+export function wrapStreamFnParseGemma4ToolCalls(baseFn: StreamFn): StreamFn {
+  return (model, context, options) => {
+    const maybeStream = baseFn(model, context, options);
+    if (maybeStream && typeof maybeStream === "object" && "then" in maybeStream) {
+      return Promise.resolve(maybeStream).then((stream) =>
+        wrapStreamParseGemma4ToolCalls(stream)
+      );
+    }
+    return wrapStreamParseGemma4ToolCalls(maybeStream);
   };
 }
