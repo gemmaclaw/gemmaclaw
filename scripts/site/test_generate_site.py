@@ -1116,7 +1116,18 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # a Gemma 4 one, but the card is genuine and this chip keys on hardware, so
     # the Field Notes section reports the count move and attributes no
     # throughput to Gemma.
-    HIGH_GPU_EXPECTED = 70
+    # Re-derived for the 696-entry index of 2026-09-03, where it moved 70 -> 76.
+    # One arrival is an ordinary index addition: 1w5nezg, which matches "3090"
+    # in its title "Best chatbot model for 3090ti". The other five come from the
+    # three keywords this cycle adds, each censused over the whole index with
+    # zero spurious matches. "multi-gpu" (three posts: 1tne40m, 1tx12t1,
+    # 1w53b96) and "dual-gpu" (one post: 1u355x2) are the hyphenated forms of
+    # "multi gpu" and "dual gpu", which were already in the list and match zero
+    # posts each, so the chip had been keying on a spelling nobody uses. "p40"
+    # (two posts: 1w54s3q, 1us3li5) admits the 24 GB Nvidia Tesla P40. 1u355x2
+    # already held mid-gpu on its 3080, so it was already reachable from a GPU
+    # filter; the other four keyword arrivals reached neither.
+    HIGH_GPU_EXPECTED = 76
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1196,6 +1207,58 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             if "9060" in text:
                 matched.add(post.get("id"))
         self.assertEqual(matched, expected)
+
+    def test_multi_card_and_p40_posts_reach_the_high_end_chip(self):
+        """Positive control for the three keywords added 2026-09-03. Every one
+        of these posts names a multi-card rig or a 24 GB Tesla P40 in the text
+        the categoriser reads, and before this cycle four of the five reached
+        neither GPU filter."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1tne40m", "1tx12t1", "1w53b96", "1u355x2", "1w54s3q", "1us3li5"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertIn("high-gpu", configs[post_id].get("categories", []))
+
+    def test_the_new_high_end_keywords_matched_nothing_spurious(self):
+        """Negative control for the same three keywords, one census per keyword
+        so a spurious match cannot hide inside another keyword's hit set."""
+        expected = {
+            "multi-gpu": {"1tne40m", "1tx12t1", "1w53b96"},
+            "dual-gpu": {"1u355x2"},
+            "p40": {"1w54s3q", "1us3li5"},
+        }
+        matched = {kw: set() for kw in expected}
+        for post in gen.load_community_configs():
+            text = " ".join([
+                post.get("title", ""),
+                post.get("summary", ""),
+                " ".join(post.get("tags", [])),
+                " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+            ]).lower()
+            for kw in expected:
+                if kw in text:
+                    matched[kw].add(post.get("id"))
+        self.assertEqual(matched, expected)
+
+    def test_the_spaced_multi_card_keywords_still_match_nothing(self):
+        """The reason the hyphenated forms were added. "multi gpu" and "dual
+        gpu" were already in the high-end keyword list and match zero posts,
+        because people write the hyphen. If this ever starts failing the spaced
+        forms have become load-bearing and the comment above HIGH_GPU_EXPECTED
+        needs re-deriving rather than the assertion relaxing."""
+        for keyword in ("multi gpu", "dual gpu"):
+            with self.subTest(keyword=keyword):
+                matched = set()
+                for post in gen.load_community_configs():
+                    text = " ".join([
+                        post.get("title", ""),
+                        post.get("summary", ""),
+                        " ".join(post.get("tags", [])),
+                        " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+                    ]).lower()
+                    if keyword in text:
+                        matched.add(post.get("id"))
+                self.assertEqual(matched, set())
 
     def test_a_card_named_only_in_the_body_does_not_reach_the_chip(self):
         """1w4g0oh names an RTX 5080 with 16 GB, exactly what the 2026-09-02

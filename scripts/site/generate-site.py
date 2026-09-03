@@ -1785,9 +1785,29 @@ HARDWARE_CATEGORIES = {
     },
     "high-gpu": {
         "label": "High-end GPU (24+ GB)",
+        # "multi-gpu" and "dual-gpu" are the hyphenated twins of two keywords
+        # that were already here and match NOTHING. Censused over the whole
+        # 696-entry index in the text this categoriser actually reads, the
+        # spaced forms "multi gpu" and "dual gpu" occur in zero posts each,
+        # while "multi-gpu" occurs in three (1tne40m, 1tx12t1, 1w53b96) and
+        # "dual-gpu" in one (1u355x2), all four genuine multi-card mentions with
+        # zero spurious matches. People write the hyphen, so the chip had been
+        # keying on a form nobody uses. The spaced keywords are left in place
+        # rather than deleted: they cost nothing and removing a keyword is a
+        # different change from adding one.
+        #
+        # "p40" admits the Nvidia Tesla P40, a 24 GB datacenter card that sits
+        # squarely in this band and appeared in no keyword list. Censused over
+        # the same index it occurs in two posts (1w54s3q, 1us3li5), both genuine
+        # Tesla P40 mentions, zero spurious; "tesla p40" would match the same
+        # two, so the shorter form costs no precision here. 1w54s3q is the
+        # motivating case: a sustained two-model translation workload on a pair
+        # of P40s that reported a Gemma 4 throughput figure and reached neither
+        # GPU filter.
         "keywords": ["rtx 3090", "rtx 4090", "rtx 5090", "a100", "a6000", "h100",
                       "48gb", "24gb vram", "80gb", "3090", "4090", "5090", "a100",
-                      "titan", "dual gpu", "multi gpu", "triple gpu", "sli", "nvlink"],
+                      "titan", "dual gpu", "multi gpu", "triple gpu", "sli", "nvlink",
+                      "multi-gpu", "dual-gpu", "p40"],
         "icon": "gpu-high",
     },
     "mid-gpu": {
