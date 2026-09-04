@@ -1837,12 +1837,14 @@ HARDWARE_CATEGORIES = {
         # "mi50" and "mi60" admit the AMD Instinct datacenter cards, which had
         # no keyword anywhere. Censused over the same index, "mi50" occurs in
         # five posts (1ssb61r, 1tfzmpq, 1tlliw4, 1u3dkl3, 1un28zb) and "mi60" in
-        # one (1tlliw4), all genuine, zero spurious. Every archived mention that
-        # states a capacity states 32 GB, which is why they sit in this band;
-        # the MI50 also shipped as a 16 GB part, and one post (1un28zb, a
-        # card-purchase question) names no capacity at all, so this chip is
-        # keying on the card family rather than on a stated VRAM figure, exactly
-        # as it already does for the RTX 3080 in the mid-range list.
+        # one (1tlliw4), all genuine, zero spurious. All five state 32 GB, which
+        # is why they sit in this band, though in 1un28zb that appears only in a
+        # closing edit line in the body ("Talking about the 32GB version of each
+        # of these cards listed above") and categorize_post reads title, summary,
+        # tags and the top three comments, not the body. The MI50 also shipped as
+        # a 16 GB part, so this chip is keying on the card family rather than on
+        # a stated VRAM figure, exactly as it already does for the RTX 3080 in
+        # the mid-range list.
         #
         # "r9700" and "ai pro 9700" are the two spellings of the 32 GB AMD
         # Radeon AI PRO R9700. Censused over the same index, "r9700" occurs in
