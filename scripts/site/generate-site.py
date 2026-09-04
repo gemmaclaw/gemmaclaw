@@ -1804,10 +1804,44 @@ HARDWARE_CATEGORIES = {
         # motivating case: a sustained two-model translation workload on a pair
         # of P40s that reported a Gemma 4 throughput figure and reached neither
         # GPU filter.
+        #
+        # "pro 6000" and "rtx 6000 pro" are the two orderings people write for
+        # the same 96 GB Nvidia Blackwell workstation card, and the chip had
+        # neither. They are kept as a PAIR for the same reason the hyphenated
+        # multi-gpu twins above are: whichever single form you pick, most of the
+        # posts spell it the other way. Censused over the whole 699-entry index
+        # in the text this categoriser actually reads, "pro 6000" occurs in
+        # three posts (1sxjnv4, 1th7f24, 1u8nyvw) and "rtx 6000 pro" in eight
+        # (1trf0r0, 1t19iil, 1su0mvt, 1vhmypj, 1u8kr2o, 1uq0h4o, 1ubdpta,
+        # 1u8nyvw), ten distinct posts between them, every one a genuine RTX
+        # 6000 Pro / RTX Pro 6000 mention and zero spurious. Two of the newly
+        # reachable ones are the archive's before/after MTP benchmark pair,
+        # 1trf0r0 and 1uq0h4o, and a third, 1u8nyvw, states "96 gb vram"
+        # outright.
+        #
+        # "mi50" and "mi60" admit the AMD Instinct datacenter cards, which had
+        # no keyword anywhere. Censused over the same index, "mi50" occurs in
+        # five posts (1ssb61r, 1tfzmpq, 1tlliw4, 1u3dkl3, 1un28zb) and "mi60" in
+        # one (1tlliw4), all genuine, zero spurious. Every archived mention that
+        # states a capacity states 32 GB, which is why they sit in this band;
+        # the MI50 also shipped as a 16 GB part, and one post (1un28zb, a
+        # card-purchase question) names no capacity at all, so this chip is
+        # keying on the card family rather than on a stated VRAM figure, exactly
+        # as it already does for the RTX 3080 in the mid-range list.
+        #
+        # "r9700" and "ai pro 9700" are the two spellings of the 32 GB AMD
+        # Radeon AI PRO R9700. Censused over the same index, "r9700" occurs in
+        # three posts (1v3vy45, 1vhmypj, 1v70r06) and "ai pro 9700" in one
+        # (1t9gcar), all four genuine, zero spurious. The bare token "9700"
+        # would match the same four in one keyword and was rejected anyway: the
+        # Intel Core i7-9700K is a plausible future mention in a CPU-only build,
+        # and it would file that build under High-end GPU. Two spellings with a
+        # qualifier cost nothing and cannot collide.
         "keywords": ["rtx 3090", "rtx 4090", "rtx 5090", "a100", "a6000", "h100",
                       "48gb", "24gb vram", "80gb", "3090", "4090", "5090", "a100",
                       "titan", "dual gpu", "multi gpu", "triple gpu", "sli", "nvlink",
-                      "multi-gpu", "dual-gpu", "p40"],
+                      "multi-gpu", "dual-gpu", "p40", "pro 6000", "rtx 6000 pro",
+                      "mi50", "mi60", "r9700", "ai pro 9700"],
         "icon": "gpu-high",
     },
     "mid-gpu": {
@@ -1839,10 +1873,19 @@ HARDWARE_CATEGORIES = {
         # occurs in six posts (1so3rsx, 1sw2fjc, 1th7f24, 1u8eq0g, 1uvelii,
         # 1ufy09k), all six genuine, zero spurious; three already held this chip
         # on another keyword, so three newly gain it.
+        #
+        # "4080" was the last gap in that same Nvidia row: every other 40-series
+        # and 50-series consumer number is here, and the RTX 4080 and 4080 Super
+        # both ship at 16 GB, the top of this band. Censused over the whole
+        # 699-entry index it occurs in three posts (1u8eq0g, 1w55htn, 1tw364k),
+        # all three genuine RTX 4080 mentions and zero spurious; 1u8eq0g already
+        # held this chip on "5080", so two newly gain it. 1w55htn is the
+        # motivating case: the September 3 sweep's own burst-serving measurement
+        # runs Gemma 4 E4B on an RTX 4080 and reached neither GPU filter.
         "keywords": ["rtx 3060", "rtx 3070", "rtx 4060", "rtx 4070", "rtx 5060",
                       "rtx 5070", "rx 7900", "rx 7800", "8gb vram", "12gb vram",
                       "16gb vram", "3060", "3070", "3080", "4060", "4070", "5060",
-                      "5070", "5080", "9060"],
+                      "5070", "5080", "9060", "4080"],
         "icon": "gpu-mid",
     },
     "cpu-only": {

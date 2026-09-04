@@ -1127,7 +1127,20 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # (two posts: 1w54s3q, 1us3li5) admits the 24 GB Nvidia Tesla P40. 1u355x2
     # already held mid-gpu on its 3080, so it was already reachable from a GPU
     # filter; the other four keyword arrivals reached neither.
-    HIGH_GPU_EXPECTED = 76
+    # Re-derived for the 699-entry index of 2026-09-04, where it moved 76 -> 91.
+    # None of that cycle's three additions names a GPU, so all fifteen arrivals
+    # come from the six keywords it adds, each censused over the whole index
+    # with zero spurious matches, and not one of the fifteen reached either GPU
+    # filter before. "pro 6000" (1sxjnv4, 1th7f24, 1u8nyvw) and "rtx 6000 pro"
+    # (1trf0r0, 1t19iil, 1su0mvt, 1vhmypj, 1u8kr2o, 1uq0h4o, 1ubdpta, 1u8nyvw)
+    # are the two orderings people write for the 96 GB Nvidia Blackwell
+    # workstation card, ten distinct posts between them of which 1th7f24,
+    # 1vhmypj and 1u8kr2o already held the chip. "mi50" (1ssb61r, 1tfzmpq,
+    # 1tlliw4, 1u3dkl3, 1un28zb) and "mi60" (1tlliw4) admit the AMD Instinct
+    # cards; every archived mention that states a capacity states 32 GB.
+    # "r9700" (1v3vy45, 1vhmypj, 1v70r06) and "ai pro 9700" (1t9gcar) are the
+    # two spellings of the 32 GB Radeon AI PRO R9700.
+    HIGH_GPU_EXPECTED = 91
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1161,7 +1174,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # another keyword. 1w4g0oh names an RTX 5080 too and deliberately does NOT
     # join, because that card appears only in the archived body, which the
     # categoriser does not read.
-    MID_GPU_EXPECTED = 56
+    # Re-derived for the 699-entry index of 2026-09-04, where it moved 56 -> 58.
+    # Both arrivals come from the new "4080" keyword, which was the last gap in
+    # the Nvidia consumer row: it occurs in three posts (1u8eq0g, 1w55htn,
+    # 1tw364k), all three genuine RTX 4080 or 4080 Super mentions at 16 GB and
+    # zero spurious, and 1u8eq0g already held this chip on "5080". Neither
+    # 1w55htn nor 1tw364k reached either GPU filter before.
+    MID_GPU_EXPECTED = 58
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1239,6 +1258,77 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                 if kw in text:
                     matched[kw].add(post.get("id"))
         self.assertEqual(matched, expected)
+
+    def test_workstation_and_instinct_posts_reach_the_high_end_chip(self):
+        """Positive control for the six keywords added 2026-09-04. Every one of
+        these posts names the 96 GB RTX 6000 Pro, an AMD Instinct MI50 or MI60,
+        or a 32 GB Radeon AI PRO R9700 in the text the categoriser reads, and
+        before this cycle not one of the fifteen reached either GPU filter."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1sxjnv4", "1u8nyvw", "1trf0r0", "1t19iil", "1su0mvt",
+                        "1uq0h4o", "1ubdpta", "1ssb61r", "1tfzmpq", "1tlliw4",
+                        "1u3dkl3", "1un28zb", "1v3vy45", "1v70r06", "1t9gcar"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertIn("high-gpu", configs[post_id].get("categories", []))
+
+    def test_the_2026_09_04_high_end_keywords_matched_nothing_spurious(self):
+        """Negative control for the same six keywords, one census per keyword so
+        a spurious match cannot hide inside another keyword's hit set."""
+        expected = {
+            "pro 6000": {"1sxjnv4", "1th7f24", "1u8nyvw"},
+            "rtx 6000 pro": {"1trf0r0", "1t19iil", "1su0mvt", "1vhmypj",
+                              "1u8kr2o", "1uq0h4o", "1ubdpta", "1u8nyvw"},
+            "mi50": {"1ssb61r", "1tfzmpq", "1tlliw4", "1u3dkl3", "1un28zb"},
+            "mi60": {"1tlliw4"},
+            "r9700": {"1v3vy45", "1vhmypj", "1v70r06"},
+            "ai pro 9700": {"1t9gcar"},
+        }
+        matched = {kw: set() for kw in expected}
+        for post in gen.load_community_configs():
+            text = " ".join([
+                post.get("title", ""),
+                post.get("summary", ""),
+                " ".join(post.get("tags", [])),
+                " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+            ]).lower()
+            for kw in expected:
+                if kw in text:
+                    matched[kw].add(post.get("id"))
+        self.assertEqual(matched, expected)
+
+    def test_the_4080_keyword_is_exactly_three_genuine_posts(self):
+        """Positive and negative control in one, for the mid-range keyword added
+        2026-09-04. The RTX 4080 and 4080 Super both ship at 16 GB, the top of
+        that band. 1u8eq0g already held the chip on "5080"; the other two
+        reached neither GPU filter before."""
+        expected = {"1u8eq0g", "1w55htn", "1tw364k"}
+        configs = gen.load_community_configs()
+        matched = set()
+        for post in configs:
+            text = " ".join([
+                post.get("title", ""),
+                post.get("summary", ""),
+                " ".join(post.get("tags", [])),
+                " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+            ]).lower()
+            if "4080" in text:
+                matched.add(post.get("id"))
+        self.assertEqual(matched, expected)
+        by_id = {c.get("id"): c for c in configs}
+        for post_id in expected:
+            with self.subTest(post=post_id):
+                self.assertIn("mid-gpu", by_id[post_id].get("categories", []))
+
+    def test_the_bare_9700_token_is_not_used_as_a_keyword(self):
+        """"9700" alone would match the same four Radeon AI PRO posts today, and
+        it was rejected anyway: the Intel Core i7-9700K is a plausible future
+        mention in a CPU-only build and would file that build under High-end
+        GPU. The qualified spellings are what ship."""
+        keywords = gen.HARDWARE_CATEGORIES["high-gpu"]["keywords"]
+        self.assertNotIn("9700", keywords)
+        self.assertIn("r9700", keywords)
+        self.assertIn("ai pro 9700", keywords)
 
     def test_the_spaced_multi_card_keywords_still_match_nothing(self):
         """The reason the hyphenated forms were added. "multi gpu" and "dual
