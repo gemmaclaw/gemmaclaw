@@ -1678,7 +1678,22 @@ def build_card_search_text(post):
     if not summary_duplicates_body(summary, body):
         parts.append(summary)
     parts.append(" ".join(post.get("tags", [])))
-    parts.append(" ".join(c.get("text", "") for c in post.get("comments", [])))
+    # Each comment is its OWN part, for the same reason the parts below are
+    # cleaned separately rather than over the join, one level finer. The
+    # archiver truncates every comment to roughly 350 characters, so a comment
+    # that happened to be quoting a link gets cut mid-URL and leaves an
+    # unclosed "(" behind, and clean_markdown()'s link rule then spans
+    # whitespace and eats everything up to the next ")" anywhere later in the
+    # string. Joining the comments first put all of them in one part, so one
+    # truncated comment silently deleted the comments after it. 1t9gcar is the
+    # worked example: comment 1 stops inside
+    # "[diagram](https://www.reddit.com/r/LocalLLaMA/comments/1hesft1/thi" and
+    # swallowed comments 2 through 4, which is where that thread's only
+    # hardware report lives, "PP speeds were like 45% of what they used to be
+    # on my Radeon AI Pro 9700 GPU's ... dropping from 1400t/s PP down to
+    # 650t/s PP". Radeon AI Pro 9700, 1400t/s and 650t/s all returned zero
+    # cards while the field note quoted them.
+    parts.extend(c.get("text", "") for c in post.get("comments", []))
     parts.append(body)
 
     parts = [part for part in parts if part]

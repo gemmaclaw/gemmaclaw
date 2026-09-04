@@ -450,6 +450,30 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         for query in ("hardware gemma", "exllama has no cpu offload", "DFlash support"):
             self.assertTrue(self._matches(post, query), f"query {query!r} must survive the unclosed link")
 
+    def test_an_unclosed_link_in_one_comment_cannot_eat_the_next_comment(self):
+        """Hermetic form of the 1t9gcar defect, which is the test above one level
+        finer. Cleaning parts independently bounded the damage to a part, but
+        every comment shared ONE part, so a comment the archiver truncated
+        mid-link swallowed the comments after it. In 1t9gcar the top comment
+        stops inside "[diagram](https://www.reddit.com/r/LocalLLaMA/comments/..."
+        and deleted comments 2 through 4, which is where that thread's only
+        hardware report lives; Radeon AI Pro 9700, 1400t/s and 650t/s all
+        returned zero cards while the September 4 field note quoted them."""
+        post = self._post(
+            comments=[
+                {"text": "Keep in mind MoE is worse. There is a posting with a "
+                         "[diagram](https://www.reddit.com/r/LocalLLaMA/comments/1hesft1/thi"},
+                {"text": "PP speeds were like 45% of what they used to be on my Radeon AI "
+                         "Pro 9700 GPU's. We're talking dropping from 1400t/s PP down to 650t/s PP"},
+                {"text": "Dense models benefit the most from it."},
+            ],
+        )
+        for query in ("Radeon AI Pro 9700", "1400t/s", "650t/s", "Dense models benefit"):
+            self.assertTrue(
+                self._matches(post, query),
+                f"query {query!r} must survive an unclosed link in an earlier comment",
+            )
+
     def test_a_truncated_summary_copy_is_not_indexed_twice(self):
         body = "Ran Gemma 4 26B A4B at Q8_0 overnight and it held 18.35 tok/s the whole time."
         post = self._post(summary="Ran Gemma 4 26B A4B at Q8_0 overnight and it held...", body=body)
