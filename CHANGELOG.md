@@ -143,6 +143,31 @@ Docs: https://docs.openclaw.ai
 - Gateway: require Talk secret authority before setup-code handoff can include Talk secrets. (#85690) Thanks @ngutman.
 - Agents: keep fallback error reporting scoped to the active model candidate so stale prior-provider quota/auth text is not reported for later fallback attempts. (#86134) thanks @zhangguiping-xydt.
 
+## [2026.9.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.3...gemmaclaw-v2026.9.0) (2026-09-05)
+
+
+### Features
+
+* **community:** add Gemma 4 field notes for 2026-07-02 sweep ([4d3e0f3](https://github.com/gemmaclaw/gemmaclaw/commit/4d3e0f3d5916b4b20578bed06cd7f47c242366ac))
+* **community:** add Gemma 4 field notes for 2026-07-03 sweep ([#326](https://github.com/gemmaclaw/gemmaclaw/issues/326)) ([a4e960e](https://github.com/gemmaclaw/gemmaclaw/commit/a4e960e3038da80a3104c7c66fc4ec4675a9d2a5))
+* **community:** add Gemma 4 field notes for 2026-07-04 sweep ([#327](https://github.com/gemmaclaw/gemmaclaw/issues/327)) ([d100a36](https://github.com/gemmaclaw/gemmaclaw/commit/d100a36a32c6184ac301faf0e70e0eff5ad82fe0))
+
+
+### Bug Fixes
+
+* defer busy interval heartbeats ([c3851b8](https://github.com/gemmaclaw/gemmaclaw/commit/c3851b843543baf64be0a8ec042031121789a622))
+* honor compaction reserve during tool loops ([4bdc6dc](https://github.com/gemmaclaw/gemmaclaw/commit/4bdc6dc0758be9357c1622cc032948ce1d8b3c52))
+* honor compaction reserve during tool loops ([14ec6bd](https://github.com/gemmaclaw/gemmaclaw/commit/14ec6bdbd63216f8ca2c64fb39140542af44acb9))
+* isolate link HTML tags from emphasis parsing ([3b90778](https://github.com/gemmaclaw/gemmaclaw/commit/3b90778a16ac6b8664ef89cec86606734412b69e))
+* isolate link HTML tags from emphasis parsing in generate-site.py ([bfdd363](https://github.com/gemmaclaw/gemmaclaw/commit/bfdd36364734330cdd48873b59ec3ee7f2cb9671))
+* keep long local turns visibly active ([37bef9d](https://github.com/gemmaclaw/gemmaclaw/commit/37bef9db270272fba513ec09582f1e9349e630cf))
+* resume channel restart after slow drain ([75b507f](https://github.com/gemmaclaw/gemmaclaw/commit/75b507fbc8bc0759eab438e8cbd91b3aa3cc57b1))
+* **site:** correct the 2026-08-01 Field Notes sweep-summary counts ([#356](https://github.com/gemmaclaw/gemmaclaw/issues/356)) ([6c82dc8](https://github.com/gemmaclaw/gemmaclaw/commit/6c82dc8956c0706aca2e66e1245564106bc0433a))
+* **site:** make Q4_K_M and every underscored quant searchable on the community page ([#358](https://github.com/gemmaclaw/gemmaclaw/issues/358)) ([50343f8](https://github.com/gemmaclaw/gemmaclaw/commit/50343f8c5106b3bc962523df3972852e4d01a4ff))
+* **site:** match m1-m5 chip keywords on word boundaries ([#387](https://github.com/gemmaclaw/gemmaclaw/issues/387)) ([af4b888](https://github.com/gemmaclaw/gemmaclaw/commit/af4b88895ef854627fb386914bf1783c3334e36a))
+* **site:** stop the community renderer eating trailing underscores in Reddit handles ([#359](https://github.com/gemmaclaw/gemmaclaw/issues/359)) ([db1dccc](https://github.com/gemmaclaw/gemmaclaw/commit/db1dccc5e15596ff5ccfe78178b3cd4d7cb29e7b))
+* **telegram:** coalesce repeated tool progress ([50d3469](https://github.com/gemmaclaw/gemmaclaw/commit/50d3469b829af303f87ac358c43f43b7b3aedc89))
+
 ## [2026.8.3](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.2...gemmaclaw-v2026.8.3) (2026-06-23)
 
 
