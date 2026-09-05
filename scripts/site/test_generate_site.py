@@ -623,7 +623,12 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         self.assertNotIn("No comments captured", post["body"])
         self.assertEqual(post["summary"], "Truncated prefix of the body...")
         self.assertEqual(post["tags"], ["quantization"])
-        self.assertTrue(gen.build_card_search_text(post).endswith("ollama"))
+        # The body is still the last CONTENT part, but the author handle is
+        # appended after it as of 2026-09-05, so this pins the body reaching the
+        # tail of the index rather than the index ending at the body.
+        indexed = gen.build_card_search_text(post)
+        self.assertIn(gen.normalize_search_text("ollama"), indexed)
+        self.assertTrue(indexed.endswith(gen.normalize_search_text("tester")))
 
 
 @unittest.skipUnless(
@@ -652,6 +657,28 @@ class TestSearchIndexOverTheRealIndex(unittest.TestCase):
         indexed = gen.build_card_search_text(post)
         for query in ("Q4_K_M", "q4km", "fp16", "ollama", "llama.cpp"):
             self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
+
+    def test_every_cited_author_handle_reaches_its_own_card(self):
+        """The attribution-side twin of the two cases above, added 2026-09-05.
+
+        Every Field Notes section attributes its reports by handle, and before
+        this change the index carried title, summary, tags, comments and body and
+        the author appeared in none of them, so the one term the prose makes most
+        prominent returned zero cards. Each handle below is named by a Field
+        Notes section as the author of that specific card."""
+        by_id = {p["id"]: p for p in gen.load_community_configs()}
+        for post_id, handle in (
+            ("1uknx14", "Fabulous_Pollution10"),
+            ("1typjmc", "janvitos"),
+            ("1w76enm", "rorowhat"),
+            ("1w7j1il", "Ok_Warning2146"),
+            ("1w71vg1", "ReinforcedKnowledge"),
+            ("1w7670i", "Charming_Barber_3317"),
+        ):
+            with self.subTest(post=post_id, handle=handle):
+                self.assertIn(post_id, by_id, f"expected {post_id} in the live community index")
+                indexed = gen.build_card_search_text(by_id[post_id])
+                self.assertIn(gen.normalize_search_text(handle), indexed)
 
     def test_terms_the_field_notes_quote_from_a_comment_reach_their_card(self):
         """The comment-side twin of the case above, and the reason the caps went.
@@ -1072,6 +1099,34 @@ class TestBareCapacityTokensAreNotAlwaysVram(unittest.TestCase):
             "comments": comments or [],
         }
 
+    def test_12gb_of_system_ram_is_not_a_mid_range_gpu_signal(self):
+        """The mid-range capacity token added 2026-09-05 carries the same suffix
+        guard, so a system-RAM or unified-memory line cannot file a box under
+        Mid-range GPU."""
+        for text in [
+            "a cheap box with 12gb ddr4 and no discrete card",
+            "12gb of ram and an igpu",
+            "m4 pro with 12gb unified memory",
+        ]:
+            with self.subTest(text=text):
+                self.assertNotIn("mid-gpu", gen.categorize_post(self._post(summary=text)))
+
+    def test_12gb_spelled_any_way_is_still_a_mid_range_gpu(self):
+        for text in [
+            "the latency is pretty good on my 12gb video card",
+            "i have 3060 12gb and 32gb ddr3 ram",
+            "120 tok/s on 12gb vram with gemma 4 12b qat mtp",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("mid-gpu", gen.categorize_post(self._post(summary=text)))
+
+    def test_bare_12gb_does_not_fire_inside_a_larger_capacity(self):
+        """A plain substring test would match "512gb"; the boundary rule is what
+        keeps a 512 GB Mac off the Mid-range GPU chip."""
+        for text in ["models to download for m5 ultra 512gb", "a 112gb pool"]:
+            with self.subTest(text=text):
+                self.assertFalse(gen.keyword_matches("12gb", text))
+
     def test_system_ram_capacity_is_not_a_high_end_gpu_signal(self):
         for text in [
             "os: kubuntu 26.04, cpu: ryzen 5 3600, ram: 48gb ddr4",
@@ -1164,7 +1219,10 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # cards; every archived mention that states a capacity states 32 GB.
     # "r9700" (1v3vy45, 1vhmypj, 1v70r06) and "ai pro 9700" (1t9gcar) are the
     # two spellings of the 32 GB Radeon AI PRO R9700.
-    HIGH_GPU_EXPECTED = 91
+    # Re-derived for the 703-entry index of 2026-09-05, where it moved 91 -> 92.
+    # The single arrival is 1w7j1il, a new addition that names a 3090 in its own
+    # title. No keyword changed for this chip.
+    HIGH_GPU_EXPECTED = 92
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1204,7 +1262,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # 1tw364k), all three genuine RTX 4080 or 4080 Super mentions at 16 GB and
     # zero spurious, and 1u8eq0g already held this chip on "5080". Neither
     # 1w55htn nor 1tw364k reached either GPU filter before.
-    MID_GPU_EXPECTED = 58
+    # Re-derived for the 703-entry index of 2026-09-05, where it moved 58 -> 59.
+    # The single arrival comes from the new bare "12gb" capacity keyword: it
+    # occurs thirteen times across nine posts, all genuine GPU VRAM and zero
+    # spurious, and eight of the nine already held this chip on a card number.
+    # The one that newly gains it is 1w76enm, whose only hardware statement is
+    # "my 12gb video card".
+    MID_GPU_EXPECTED = 59
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1337,6 +1401,32 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                 " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
             ]).lower()
             if "4080" in text:
+                matched.add(post.get("id"))
+        self.assertEqual(matched, expected)
+        by_id = {c.get("id"): c for c in configs}
+        for post_id in expected:
+            with self.subTest(post=post_id):
+                self.assertIn("mid-gpu", by_id[post_id].get("categories", []))
+
+    def test_the_bare_12gb_keyword_is_exactly_nine_genuine_posts(self):
+        """Positive and negative control in one, for the mid-range capacity
+        keyword added 2026-09-05. Censused over the 703-entry index the bare
+        token occurs thirteen times across nine posts and every occurrence is a
+        GPU VRAM mention. Eight already held the chip on a card number; 1w76enm
+        is the one that newly gains it, and its only hardware statement is "my
+        12gb video card"."""
+        expected = {"1temio0", "1tknbzh", "1szziv0", "1tsp869", "1typjmc",
+                    "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm"}
+        configs = gen.load_community_configs()
+        matched = set()
+        for post in configs:
+            text = " ".join([
+                post.get("title", ""),
+                post.get("summary", ""),
+                " ".join(post.get("tags", [])),
+                " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+            ]).lower()
+            if gen.keyword_matches("12gb", text):
                 matched.add(post.get("id"))
         self.assertEqual(matched, expected)
         by_id = {c.get("id"): c for c in configs}

@@ -1695,6 +1695,18 @@ def build_card_search_text(post):
     # cards while the field note quoted them.
     parts.extend(c.get("text", "") for c in post.get("comments", []))
     parts.append(body)
+    # The author handle, indexed 2026-09-05. Every Field Notes section on this
+    # site attributes its reports by handle ("u/janvitos measured ...", "the
+    # same author's earlier post"), and not one of those handles reached its own
+    # card: the index carried title, summary, tags, comments and body, and the
+    # author appeared in none of them. A reader who follows an attribution into
+    # the search box got zero results for the one term the prose made most
+    # prominent. This is the same shape as the body gap PR #402 closed and the
+    # comment gap that followed it, and it is the cheapest of the three: the
+    # handle is one short token, so it adds about 15 characters to a card that
+    # already runs to thousands. It is appended as its own part for the same
+    # reason the comments are, so a malformed handle cannot damage a neighbour.
+    parts.append(post.get("author", ""))
 
     parts = [part for part in parts if part]
 
@@ -1899,10 +1911,27 @@ HARDWARE_CATEGORIES = {
         # held this chip on "5080", so two newly gain it. 1w55htn is the
         # motivating case: the September 3 sweep's own burst-serving measurement
         # runs Gemma 4 E4B on an RTX 4080 and reached neither GPU filter.
+        #
+        # "12gb" is the bare-capacity twin of "12gb vram", which was already
+        # here and only fires when the poster spells the noun out. 12 GB is the
+        # most common single-consumer-card tier in this archive and people write
+        # it every other way: "12gb video card", "12gb graphics card", "3060
+        # 12gb". Censused over the whole 703-entry index in the text this
+        # categoriser reads, the bare token occurs thirteen times across nine
+        # posts (1temio0, 1tknbzh, 1szziv0, 1tsp869, 1typjmc, 1u355x2, 1u2c4yz,
+        # 1w4dfi1, 1w76enm) and every one of the thirteen is a genuine GPU VRAM
+        # mention, zero spurious. Eight of the nine already held this chip on a
+        # card number, so exactly one post newly gains it: 1w76enm, this cycle's
+        # STT-to-TTS assistant, whose only hardware statement is "my 12gb video
+        # card" and which reached neither GPU filter. It goes in
+        # CAPACITY_KEYWORDS rather than the plain substring list for the reason
+        # "48gb" does: a plain substring also fires inside "512gb", and
+        # "12gb ddr4" is a plausible future system-RAM line even though the
+        # archive holds none today.
         "keywords": ["rtx 3060", "rtx 3070", "rtx 4060", "rtx 4070", "rtx 5060",
                       "rtx 5070", "rx 7900", "rx 7800", "8gb vram", "12gb vram",
                       "16gb vram", "3060", "3070", "3080", "4060", "4070", "5060",
-                      "5070", "5080", "9060", "4080"],
+                      "5070", "5080", "9060", "4080", "12gb"],
         "icon": "gpu-mid",
     },
     "cpu-only": {
@@ -1997,7 +2026,13 @@ _BOUNDARY_PATTERNS = {
 # ("macbook 4 pro with 48gb has", "m5 pro with 48gb,") still matches. Fixing
 # that needs a preceding-context rule with its own census, and both posts
 # already carry apple-silicon, so they are left alone rather than guessed at.
-CAPACITY_KEYWORDS = {"48gb", "80gb"}
+#
+# "12gb" joins them for the mid-range chip, censused in the Mid-range GPU
+# keyword note above: thirteen occurrences across nine posts, all genuine GPU
+# VRAM. None of the thirteen is disqualified by the suffix rule today; it is
+# carried for the same forward-looking reason as "80gb", which is also
+# unaffected by it at present.
+CAPACITY_KEYWORDS = {"48gb", "80gb", "12gb"}
 
 _NON_VRAM_SUFFIX = r"(?!\s*(?:of\s+)?(?:ddr\d|ram(?![a-z])|unified(?![a-z])))"
 
