@@ -1788,8 +1788,13 @@ jobs:
       - name: Lint Python skill scripts
         run: python -m ruff check skills
 
-      - name: Test skill Python scripts
-        run: python -m pytest -q skills
+      # scripts/site carries its own stdlib unittest suites (test_generate_site.py,
+      # test_copy_community_data.py) that no other job ran, so a site-generator
+      # regression could only be caught by hand. Lint stays scoped to skills:
+      # generate-site.py has a pre-existing import-order finding, and fixing it is
+      # not this job's business.
+      - name: Test skill and site Python scripts
+        run: python -m pytest -q skills scripts/site
 
   checks-windows:
     permissions:

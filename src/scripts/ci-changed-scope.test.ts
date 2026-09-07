@@ -177,6 +177,18 @@ describe("detectChangedScope", () => {
     });
   });
 
+  it("runs Python skill tests when site generator scripts change", () => {
+    expect(detectChangedScope(["scripts/site/copy-community-data.py"])).toEqual({
+      runNode: true,
+      runMacos: false,
+      runAndroid: false,
+      runWindows: false,
+      runSkillsPython: true,
+      runChangedSmoke: false,
+      runControlUiI18n: false,
+    });
+  });
+
   it("runs Python skill tests when shared Python config changes", () => {
     expect(detectChangedScope(["pyproject.toml"])).toEqual({
       runNode: true,
