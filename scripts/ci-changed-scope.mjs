@@ -24,7 +24,10 @@ const EMPTY_SCOPE = {
 };
 
 const DOCS_PATH_RE = /^(docs\/|.*\.mdx?$)/;
-const SKILLS_PYTHON_SCOPE_RE = /^(skills\/|pyproject\.toml$)/;
+// scripts/site/ is in scope because the site generator and the community-data
+// copy step ship stdlib unittest suites next to them (test_generate_site.py,
+// test_copy_community_data.py) that nothing else in CI executes.
+const SKILLS_PYTHON_SCOPE_RE = /^(skills\/|scripts\/site\/|pyproject\.toml$)/;
 const INSTALL_SMOKE_WORKFLOW_SCOPE_RE = /^\.github\/workflows\/install-smoke\.yml$/;
 const MACOS_PROTOCOL_GEN_RE =
   /^(apps\/macos\/Sources\/OpenClawProtocol\/|apps\/shared\/OpenClawKit\/Sources\/OpenClawProtocol\/)/;
