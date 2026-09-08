@@ -1268,7 +1268,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # spurious, and eight of the nine already held this chip on a card number.
     # The one that newly gains it is 1w76enm, whose only hardware statement is
     # "my 12gb video card".
-    MID_GPU_EXPECTED = 59
+    # Re-derived for the 707-entry index of 2026-09-08, where it moved 59 -> 60.
+    # No keyword changed this cycle. The single arrival is a new post, 1w9z7lk,
+    # which matches three keywords that were already here: "rx 7900" from its
+    # title, plus "8gb vram" and "16gb vram" from the two cards it names. It is
+    # a genuine two-card system (RX 7900 GRE 16GB plus RX 480 8GB) and it does
+    # NOT reach the High-end GPU chip, because it writes none of that chip's
+    # five multi-card forms ("dual gpu", "multi gpu", "triple gpu", "multi-gpu",
+    # "dual-gpu"). The cycle's other two additions, 1wa0aww and 1w9ylhh, reach
+    # no GPU chip at all, so high-gpu, cpu-only and laptop are unmoved.
+    MID_GPU_EXPECTED = 60
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
