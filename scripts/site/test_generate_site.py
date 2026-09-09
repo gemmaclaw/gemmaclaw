@@ -1222,7 +1222,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Re-derived for the 703-entry index of 2026-09-05, where it moved 91 -> 92.
     # The single arrival is 1w7j1il, a new addition that names a 3090 in its own
     # title. No keyword changed for this chip.
-    HIGH_GPU_EXPECTED = 92
+    # Re-derived for the 710-entry index of 2026-09-09, where it moved 92 -> 93.
+    # No keyword changed this cycle either. The single arrival is a new post,
+    # 1wajsp7, which matches "rtx 4090" and "4090", both of which were already
+    # here, from its own title and body. The cycle's other two additions reach
+    # no GPU chip at all: 1waefz4 names an RTX PRO 4500 Blackwell and a Jetson
+    # Orin NX, neither of which any chip has a keyword for, so it lands on
+    # quantization alone via "llama.cpp"; and 1walsw6 names no hardware and
+    # falls through to "general". So cpu-only, laptop and mid-gpu are unmoved,
+    # and quantization moves 405 -> 407 while general moves 222 -> 223.
+    HIGH_GPU_EXPECTED = 93
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
