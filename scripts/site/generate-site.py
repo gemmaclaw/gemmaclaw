@@ -4558,11 +4558,14 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     </div>"""
     # WCAG 2.1 SC 2.4.1 Bypass Blocks. Field Notes grows by roughly 40 citation
     # anchors every content cycle and sits ahead of the hardware index in DOM
-    # order, so the category filter chips were tab stop 2581 of 4013. This link
-    # is the second focusable element on the page, so the chips are four Tab
-    # presses away and stay there no matter how long Field Notes gets. It is
-    # offscreen until focused, so it costs a keyboard user one stop and a mouse
-    # user nothing.
+    # order, so the category filter chips were tab stop 2581 of 4013. Measured on
+    # the generated page with real Tab presses, at 1280x900 and 390x844 alike:
+    # this link is tab stop 14 (10 global nav links, the Home breadcrumb, then the
+    # 2 TOC links), Enter on it moves focus to div#community, and 2 further Tabs
+    # reach the first chip. That is 16 stops from the top instead of 2581, and it
+    # stays 16 no matter how long Field Notes gets. Within section#community-page
+    # the link is the FIRST focusable element, not the second. It is offscreen
+    # until focused, so it costs a keyboard user one stop and a mouse user nothing.
     #
     # It has to sit AFTER the <h2>, not between <section> and <h2>: build_page_toc()
     # matches '<section id="..."> \s* <h2>' and anything inserted in that gap drops

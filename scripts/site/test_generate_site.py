@@ -1808,7 +1808,10 @@ class TestCategoryChipFocusVisible(unittest.TestCase):
     def test_bypass_blocks_link_precedes_the_field_notes_archive(self):
         """SC 2.4.1. Field Notes grows by roughly 40 citation anchors a cycle and
         sits ahead of the chips in DOM order, which put them at tab stop 2581 of
-        4013. The skip link keeps that distance constant."""
+        4013. The skip link does not keep 2581 constant, it collapses it: the link
+        is tab stop 14, Enter moves focus to div#community and 2 further Tabs reach
+        the first chip, so the chips sit a constant 16 stops from the top however
+        large Field Notes grows."""
         page = gen.generate_community_page("<div id=\"community-cards\"></div>", 7, "<p>notes</p>")
         self.assertIn('class="skip-to-index" href="#community"', page)
         self.assertIn('id="community" tabindex="-1"', page)
