@@ -353,8 +353,124 @@ class TestHyphenSpaceAndThousandsSeparatorRecall(unittest.TestCase):
         # A non-zero count is required: the search UI and its script are only
         # emitted when the page actually has cards to filter.
         page = gen.generate_community_page('<div id="community-cards"></div>', 1, "")
-        self.assertIn(r"replace(/[\\_.\/,-]/g, '')", page)
+        self.assertIn(r"""replace(/[\\_.\/,='"-]/g, '')""", page)
         self.assertIn("squashedIndex", page)
+
+    def test_client_mirrors_the_typographic_fold(self):
+        """The fold has to be on the query side too. data-search is emitted in
+        canonical form, so a reader who PASTES a smart-quoted reply out of the
+        thread rather than retyping it in ASCII gets a query the index cannot
+        contain unless the client folds it the same way."""
+        page = gen.generate_community_page('<div id="community-cards"></div>', 1, "")
+        for fragment in (
+            r"replace(/[\u2018\u2019\u201a\u201b\u2032]/g",
+            r"replace(/[\u201c\u201d\u201e\u201f\u2033]/g",
+            r"replace(/[\u2010-\u2015\u2212]/g",
+            r"replace(/\u2026/g",
+            r"replace(/[\u00a0\u2007\u2009\u202f]/g",
+        ):
+            self.assertIn(fragment, page, f"client normalizer must emit {fragment}")
+        # Codepoint escapes, never literal characters: a literal en or em dash in
+        # this generator would fail the repository's typographic-dash gate, so
+        # the fix that closes a recall hole would break the prose gate.
+        script = page[page.index("function normalizeQuery"):]
+        script = script[:script.index("function applyFilters")]
+        for codepoint in (0x2012, 0x2013, 0x2014, 0x2015, 0x2018, 0x2019, 0x201C, 0x201D):
+            self.assertNotIn(chr(codepoint), script,
+                             f"U+{codepoint:04X} must be written as an escape, not a literal")
+
+
+class TestTypographicPunctuationIsTypeable(unittest.TestCase):
+    """Field Notes prose is ASCII by house style and by the dash gate; archived
+    Reddit replies are full of smart quotes, and clean_markdown() keeps them
+    because they are correct in rendered card text. Before the fold those two
+    rules made every verbatim quotation of a smart-quoted reply unreachable: the
+    text was indexed and no spelling a reader could type would match it.
+
+    This is the fourth generator-side recall defect on this page and the first
+    that drops nothing. The three before it (bodies discarded, comments capped at
+    three-by-100, one unclosed markdown link) all removed text from the index.
+    """
+
+    def test_ascii_transcription_reaches_a_smart_quoted_source(self):
+        self.assertEqual(
+            gen.normalize_search_text("prompts aren\u2019t the contract"),
+            gen.normalize_search_text("prompts aren't the contract"),
+        )
+
+    def test_every_quote_form_reduces_to_one_token(self):
+        for typographic, ascii_form in (
+            ("\u2018maybe\u2019", "'maybe'"),
+            ("\u201cclear winner\u201d", '"clear winner"'),
+            ("\u201ewinner\u201f", '"winner"'),
+            ("6\u2032 tall", "6' tall"),
+            ("40\u2033 panel", '40" panel'),
+        ):
+            self.assertEqual(gen.normalize_search_text(typographic),
+                             gen.normalize_search_text(ascii_form),
+                             f"{typographic!r} must canonicalise like {ascii_form!r}")
+
+    def test_typographic_dashes_and_ellipsis_fold_onto_stripped_ascii(self):
+        # Folding runs BEFORE the strip, so a dash lands on the hyphen the strip
+        # already removes and an ellipsis lands on three dots it also removes.
+        self.assertEqual(gen.normalize_search_text("26B\u201332B"), "26b32b")
+        self.assertEqual(gen.normalize_search_text("gemma \u2014 4"), "gemma 4")
+        self.assertEqual(gen.normalize_search_text("tr\u2026"), "tr")
+        self.assertEqual(gen.normalize_search_text("a\u00a0b"), "a b")
+
+    def test_the_fold_is_idempotent(self):
+        once = gen.normalize_search_text("\u201cGemma\u2019s\u201d \u2014 26B\u201332B\u2026")
+        self.assertEqual(gen.normalize_search_text(once), once)
+
+
+class TestConfigKeyValueLinesAreTypeable(unittest.TestCase):
+    """1szziv0 publishes a whole llama.cpp models.ini, so the index holds
+    "n-gpu-layers = 999" while a Field Notes citation naturally writes the flag
+    and its value as a pair with no equals sign between them. Without "=" in the
+    strip set the prose form can never match, and the failure is quiet: the bare
+    flag token on its own DOES return the card, so a sweep built from single
+    tokens passes."""
+
+    def test_prose_pair_matches_an_ini_assignment(self):
+        indexed = gen.normalize_search_text(
+            "; --- Hardware --- n-gpu-layers = 999 threads = 8 "
+            "batch-size = 4096 ubatch-size = 4096 ctx-size = 65536"
+        )
+        for query in ("n-gpu-layers 999", "ngpulayers 999", "batch-size 4096",
+                      "ubatch-size 4096", "ctx-size 65536", "threads 8"):
+            self.assertIn(gen.normalize_search_text(query), indexed,
+                          f"query {query!r} must match the ini assignment")
+
+    def test_a_pasted_quotation_keeps_its_quote_marks_and_still_matches(self):
+        """Field Notes publishes quotations as **"just not very smart"**, so the
+        quote marks are part of what a reader SELECTS on the rendered page. The
+        archived reply is prose and carries none, so before quote marks joined the
+        strip set the pasted form returned zero cards while the unquoted form
+        returned the card. Found by sweeping the section's own bolded spans; a
+        retyped term list drops the marks silently and never sees it."""
+        indexed = gen.normalize_search_text(
+            "running reasonably well, just not very smart, and it doesn't chip in"
+        )
+        for query in ('"just not very smart"', "'just not very smart'",
+                      '"running reasonably well"', "just not very smart",
+                      "doesnt chip in", "doesn't chip in"):
+            self.assertIn(gen.normalize_search_text(query), indexed,
+                          f"query {query!r} must match the unquoted source prose")
+
+    def test_a_spaced_assignment_keeps_its_word_boundary(self):
+        # This is the shape the archived ini blocks actually use, and it is why
+        # the prose pair matches: the spaces around "=" survive the strip and the
+        # collapse folds the doubled space away.
+        self.assertEqual(gen.normalize_search_text("ctx-size = 65536"), "ctxsize 65536")
+
+    def test_an_unspaced_assignment_fuses_and_the_squash_pass_covers_it(self):
+        # Unlike the comma case, an "=" with no space around it DOES join its
+        # operands, exactly as the underscore in Q4_K_M does. That is the same
+        # identifier-punctuation rule rather than a regression, and the squash
+        # fallback is what keeps the spaced prose spelling reachable anyway.
+        self.assertEqual(gen.normalize_search_text("osl=192"), "osl192")
+        self.assertEqual(gen.squash_search_text("OSL 192"),
+                         gen.squash_search_text("osl=192"))
 
 
 class TestBodyTextIsSearchable(unittest.TestCase):
@@ -740,6 +856,61 @@ class TestSearchIndexOverTheRealIndex(unittest.TestCase):
         indexed = gen.build_card_search_text(post)
         for query in ("quite strong for coding", "atomic.chat", "unsloth"):
             self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
+
+    def _result_set(self, posts, query):
+        """The client matcher, reproduced exactly.
+
+        hit = text.includes(q) || squashedIndex[i].includes(qSquashed) || id === q
+        Returns the ids of every card the live page would leave visible, so a
+        test can assert the CITED id is in the set rather than merely that the
+        set is non-empty. PR #400/#401 shipped a term that returned a neighbour
+        instead of the card the prose attributed it to, and a results-count
+        check passes that."""
+        q = gen.normalize_search_text(query)
+        q_squashed = gen.squash_search_text(query)
+        hits = []
+        for post in posts:
+            indexed = gen.build_card_search_text(post)
+            if (q in indexed
+                    or q_squashed in gen.squash_search_text(indexed)
+                    or post["id"] == q):
+                hits.append(post["id"])
+        return hits
+
+    def test_a_verbatim_smart_quoted_reply_returns_its_own_card(self):
+        """1szsdyb archives u/IrfanZahoor_950 with a U+2019 apostrophe. The
+        2026-09-11 field note quotes the reply verbatim in ASCII, because the
+        dash gate and house style require it, and before the typographic fold
+        that exact sentence returned ZERO cards on production."""
+        posts = gen.load_community_configs()
+        for query in ("prompts aren't the contract, the orchestration layer is",
+                      "never let the model directly decide what gets written to disk",
+                      "it's all working with no tool calls issues"):
+            hits = self._result_set(posts, query)
+            self.assertTrue(hits, f"query {query!r} returned no cards at all")
+
+    def test_the_ascii_and_typographic_spellings_return_the_same_cards(self):
+        """Both directions, because data-search and the typed query are folded by
+        two separate implementations that must stay in step."""
+        posts = gen.load_community_configs()
+        ascii_form = "prompts aren't the contract, the orchestration layer is"
+        typographic = "prompts aren\u2019t the contract, the orchestration layer is"
+        hits = self._result_set(posts, ascii_form)
+        self.assertIn("1szsdyb", hits,
+                      "the ASCII transcription must return the card it is quoted from")
+        self.assertEqual(hits, self._result_set(posts, typographic))
+
+    def test_ini_flag_and_value_pairs_return_the_card_that_published_them(self):
+        """The 2026-09-11 field note lists 1szziv0's models.ini settings. The
+        archive spells them with an equals sign and the prose spells them as
+        pairs; the cited id has to be in the result set for each."""
+        posts = gen.load_community_configs()
+        for query in ("n-gpu-layers 999", "batch-size 4096", "ubatch-size 4096",
+                      "ctx-size 65536", "flash-attn true", "kv-unified true"):
+            hits = self._result_set(posts, query)
+            self.assertIn("1szziv0", hits,
+                          f"query {query!r} must return the card that published it, "
+                          f"got {hits}")
 
     def test_every_cited_author_handle_reaches_its_own_card(self):
         """The attribution-side twin of the two cases above, added 2026-09-05.
