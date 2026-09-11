@@ -175,6 +175,37 @@
     a.inline { color: var(--accent); text-decoration: none; }
     a.inline:hover { text-decoration: underline; }
 
+    /* Bypass-blocks link over the Field Notes archive. Offscreen rather than
+       display:none so it stays in the tab order; revealed on :focus, not on
+       :focus-visible, because only a keyboard can ever reach it and :focus is
+       the form every browser supports. */
+    .skip-to-index {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0; border: 0;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .skip-to-index:focus {
+      position: static;
+      width: auto; height: auto;
+      margin: 0 0 1rem; padding: 0.45rem 0.95rem;
+      overflow: visible; clip: auto; clip-path: none;
+      display: inline-block;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--fg);
+      font-size: 0.85rem; font-weight: 500;
+      text-decoration: none;
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
+    /* The skip target takes tabindex="-1" so activating the link moves keyboard
+       focus and not just the scroll position. That focus is programmatic, so it
+       must not paint a ring around the whole section. */
+    .community-section:focus { outline: none; }
+
     /* Field Notes (curated weekly synthesis) */
     .field-notes {
       background: var(--bg-elev);
@@ -890,9 +921,24 @@
       background: var(--bg-elev); border: 1px solid var(--border);
       color: var(--muted); font-size: 0.82rem; font-weight: 500;
       padding: 0.4rem 0.9rem; border-radius: 20px;
-      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+      cursor: pointer; white-space: nowrap;
+      /* Named properties rather than "all": "all" also animates outline-width,
+         outline-color and outline-offset, so the keyboard focus ring below faded
+         in over 150ms instead of appearing at once. A focus indicator should be
+         instant, and an animated one also reads as absent to any harness that
+         samples the computed style right after the Tab. */
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
     }
     .cat-filter-btn:hover { border-color: var(--accent); color: var(--fg-soft); }
+    /* WCAG 2.1 SC 2.4.7 Focus Visible. --fg is the only palette colour that clears
+       the SC 1.4.11 3:1 non-text contrast floor against BOTH chip fills: 15.80:1 on
+       the page background the offset ring is drawn on, 14.84:1 on the inactive chip
+       #f6f8fa and 4.43:1 on the active chip #4285f4. An --accent ring would score
+       1.00:1 on the active chip, which is why the indicator is not the accent. */
+    .cat-filter-btn:focus-visible {
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
     .cat-filter-btn.active {
       background: var(--accent); border-color: var(--accent);
       color: #fff; font-weight: 600;

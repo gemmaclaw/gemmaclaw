@@ -184,6 +184,37 @@
     a.inline { color: var(--accent); text-decoration: none; }
     a.inline:hover { text-decoration: underline; }
 
+    /* Bypass-blocks link over the Field Notes archive. Offscreen rather than
+       display:none so it stays in the tab order; revealed on :focus, not on
+       :focus-visible, because only a keyboard can ever reach it and :focus is
+       the form every browser supports. */
+    .skip-to-index {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0; border: 0;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .skip-to-index:focus {
+      position: static;
+      width: auto; height: auto;
+      margin: 0 0 1rem; padding: 0.45rem 0.95rem;
+      overflow: visible; clip: auto; clip-path: none;
+      display: inline-block;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--fg);
+      font-size: 0.85rem; font-weight: 500;
+      text-decoration: none;
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
+    /* The skip target takes tabindex="-1" so activating the link moves keyboard
+       focus and not just the scroll position. That focus is programmatic, so it
+       must not paint a ring around the whole section. */
+    .community-section:focus { outline: none; }
+
     /* Field Notes (curated weekly synthesis) */
     .field-notes {
       background: var(--bg-elev);
@@ -899,9 +930,24 @@
       background: var(--bg-elev); border: 1px solid var(--border);
       color: var(--muted); font-size: 0.82rem; font-weight: 500;
       padding: 0.4rem 0.9rem; border-radius: 20px;
-      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+      cursor: pointer; white-space: nowrap;
+      /* Named properties rather than "all": "all" also animates outline-width,
+         outline-color and outline-offset, so the keyboard focus ring below faded
+         in over 150ms instead of appearing at once. A focus indicator should be
+         instant, and an animated one also reads as absent to any harness that
+         samples the computed style right after the Tab. */
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
     }
     .cat-filter-btn:hover { border-color: var(--accent); color: var(--fg-soft); }
+    /* WCAG 2.1 SC 2.4.7 Focus Visible. --fg is the only palette colour that clears
+       the SC 1.4.11 3:1 non-text contrast floor against BOTH chip fills: 15.80:1 on
+       the page background the offset ring is drawn on, 14.84:1 on the inactive chip
+       #f6f8fa and 4.43:1 on the active chip #4285f4. An --accent ring would score
+       1.00:1 on the active chip, which is why the indicator is not the accent. */
+    .cat-filter-btn:focus-visible {
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
     .cat-filter-btn.active {
       background: var(--accent); border-color: var(--accent);
       color: #fff; font-weight: 600;
@@ -1845,6 +1891,7 @@
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
+      <a class="skip-to-index" href="#community">Skip Field Notes and jump to the hardware index</a>
       <section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p><div class="field-notes"><h2>Field Notes - 2026-09-11</h2>
 <p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use. Curated from the latest Gemma hardware-index sweep (1 Gemma 4 card addition from the September 11, 2026 ingest, 712 community index entries total) and the archived threads it promotes into the site index. Confidence is <strong>none</strong> for everything the cycle's own addition says about Gemma 4 speed, memory, context length, file size, power or latency, because <strong>the addition is a question and states no figure of any kind</strong>. Swept mechanically in three passes over the archived file, for unit-suffixed rates, for benchmark-table rows and for latency forms written as times, it returns <strong>nothing on all three passes</strong>, and it names <strong>no GPU, no VRAM figure and no machine</strong>. What it adds is a <strong>demand signal</strong>, and a precisely aimed one: a reader asking which small local models are good enough for coding, whether Gemma 4 26B or 31B is enough for local development, and what rig to buy for them. This section answers the Gemma 4 half of that from the archive rather than from the post, and the confidence attaches to each archived report rather than to this cycle: <strong>low at 12 GB</strong>, where the three archived reports disagree by roughly a factor of ten, and <strong>low to medium at 24 GB and on 64 GB Apple Silicon</strong>, where the numbers are single-author and uncontested rather than reproduced.</p>
 <p><em>September 11 sweep, 2026-09-11 00:00 UTC:</em> a <strong>one-post sweep</strong>. The addition, <a href="https://reddit.com/r/localllama/comments/1wcbtba" target="_blank" rel="noopener">1wcbtba</a>, is dated <strong>September 10, 2026</strong>, one day before the sweep that ingested it. The index moved from <strong>711 to 712</strong>: one id added, none aged out. It is <strong>placeholder-score (20) and zero-comment</strong>, and the September 11 ingest notes record that Reddit JSON was blocked and the batch fell back to Atom, so that score and that comment count are the batch's placeholder shape rather than a popularity or agreement signal. That has a second-order consequence worth stating for a post that is purely a question: <strong>the archive cannot tell whether anyone answered this reader</strong>, because no replies were fetched at all. Its archived body excerpt runs to <strong>336 bytes</strong> and is character-identical to the Atom summary, because the whole post is four sentences of question. Measured with the site's own categoriser rather than by impression, it matches <strong>no hardware keyword at all</strong> and falls through to <strong>Other</strong>, taking that chip from <strong>223 to 224</strong>; <strong>Quantization and Backends stays at 408, High-end GPU at 93, Apple Silicon at 76, Mid-range GPU at 60, Laptops at 35 and CPU / Raspberry Pi at 15.</strong></p>
@@ -5704,7 +5751,7 @@
 </ul>
 <p>The full set of 266 community reports lives in the Community Reports section above, filterable by hardware category and search.</p>
 <p><em>Last updated: 2026-06-13 (June 13 sweep). Confidence: medium. Next update fires when the daily Gemma 4 research cron flags notable new findings.</em></p></div></section>
-      <div class="community-section" id="community">
+      <div class="community-section" id="community" tabindex="-1">
       <h3>Community Reports (712 from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="search" id="community-search" aria-label="Search community reports" placeholder="Search community reports..." autocomplete="off"></div>
