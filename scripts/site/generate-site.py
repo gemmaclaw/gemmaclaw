@@ -85,6 +85,13 @@ POSTS_DIR = WORKSPACE_DIR / "knowledge" / "reddit" / "localllama" / "posts"
 # Heading the Reddit archiver writes above a post's own body text.
 BODY_SECTION_HEADING = "## Post text (excerpt)"
 
+# Heading the archiver writes above replies captured on a LATER pass than the
+# original ingest. It carries the ingest date, so it is a prefix rather than a
+# fixed string: "## New notable comments (added 2026-05-08)". The block holds
+# the same numbered "N. [u/user (score N)](url)" entries as
+# "## Key takeaways from comments" and 681 of the 7,257 archived posts have one.
+NEW_COMMENTS_SECTION_PREFIX = "## New notable comments"
+
 
 def load_benchmark_results():
     """Load all benchmark result JSON files."""
@@ -1509,7 +1516,12 @@ def squash_search_text(text):
 # Raised from 2400 when build_card_search_text() stopped cutting comments to the
 # top three at 100 characters; 20 archived posts cross the old bound, and a card
 # truncated here loses its BODY first, because the body is the last part joined.
-COMMUNITY_SEARCH_INDEX_LIMIT = 3200
+# Raised again from 3200 when parse_reddit_post() started keeping the
+# "## New notable comments" block: 138 of the 712 cards gained 311 comment
+# entries between them and 5 crossed 3200, the longest reaching 3943
+# (1tknbzh). Sizing a cap below the corpus maximum reintroduces the exact defect
+# the uncapping fixed, one card at a time, so this stays above it with headroom.
+COMMUNITY_SEARCH_INDEX_LIMIT = 4400
 
 
 def summary_duplicates_body(summary, body):
@@ -2141,6 +2153,28 @@ def parse_reddit_post(post_id):
             in_takeaways = False
             in_tags = False
             in_body = True
+            if current_comment:
+                post["comments"].append(current_comment)
+                current_comment = None
+            continue
+        # Replies captured on a later pass than the original ingest. They are
+        # ordinary archived comments in every way that matters here: same
+        # numbered format, same truncation, same attribution. Before this branch
+        # existed they fell through the generic "## " branch below and were
+        # dropped entirely, so they reached neither post["comments"] nor
+        # build_card_search_text(). That is the comment-side twin of the body
+        # defect the body branch above documents. 1t0epei is the worked example:
+        # it archives nine replies, five under Key takeaways and four here, and
+        # the author's own walk-back of their headline verdict, "I would say
+        # QWEN 27B is quite strong for coding. Gemma is also good. Try and
+        # compare." (u/gladkos, score 2), lives in this block. A field note
+        # quoted it three times while the phrase returned zero cards in the live
+        # community search.
+        if stripped.startswith(NEW_COMMENTS_SECTION_PREFIX):
+            in_summary = False
+            in_takeaways = True
+            in_tags = False
+            in_body = False
             if current_comment:
                 post["comments"].append(current_comment)
                 current_comment = None

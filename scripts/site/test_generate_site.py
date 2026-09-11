@@ -630,6 +630,75 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         self.assertIn(gen.normalize_search_text("ollama"), indexed)
         self.assertTrue(indexed.endswith(gen.normalize_search_text("tester")))
 
+    def test_parser_reads_a_new_notable_comments_section(self):
+        """Replies captured on a later pass live under a dated
+        '## New notable comments (added YYYY-MM-DD)' heading. That block used to
+        fall through the generic '## ' branch and be discarded whole, so those
+        replies reached neither post['comments'] nor the search index, which is
+        the comment-side twin of the body defect above. The heading carries the
+        ingest date, so the parser must match it as a PREFIX."""
+        raw = (
+            "# A title\n\n- Score: 969\n- Author: u/gladkos\n- Date: 2026-05-01T09:00:00.000Z\n\n"
+            "## Short summary\n\nA one-shot build comparison...\n\n"
+            "## Key takeaways from comments\n\n"
+            "1. [u/klicker0 (score 78)](https://reddit.com/r/LocalLLaMA/comments/x/a/)\n\n"
+            "   re-ran the prompt and posted a screenshot\n\n"
+            "## Tags\n\n- apple-silicon\n\n"
+            "## New notable comments (added 2026-05-08)\n\n"
+            "1. [u/gladkos (score 2)](https://reddit.com/r/LocalLLaMA/comments/x/b/)\n\n"
+            "   I would say QWEN 27B is quite strong for coding. Gemma is also good.\n\n"
+            "2. [u/Choubix (score 1)](https://reddit.com/r/LocalLLaMA/comments/x/c/)\n\n"
+            "   Thanks I will check it out!\n\n"
+            "## Post text (excerpt)\n\nRan the same prompt on both models.\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            posts_dir = Path(tmp)
+            (posts_dir / "1t0epei.md").write_text(raw, encoding="utf-8")
+            original = gen.POSTS_DIR
+            gen.POSTS_DIR = posts_dir
+            try:
+                post = gen.parse_reddit_post("1t0epei")
+            finally:
+                gen.POSTS_DIR = original
+        self.assertIsNotNone(post, "expected the archived post to parse")
+        self.assertEqual(
+            [(c["user"], c["score"]) for c in post["comments"]],
+            [("klicker0", 78), ("gladkos", 2), ("Choubix", 1)],
+            "both comment blocks must parse, in file order",
+        )
+        self.assertIn("quite strong for coding", post["comments"][1]["text"])
+        # The heading itself and the tail section must not leak into a comment.
+        self.assertNotIn("New notable", post["comments"][0]["text"])
+        self.assertNotIn("Post text", post["comments"][2]["text"])
+        self.assertEqual(post["body"], "Ran the same prompt on both models.")
+        self.assertEqual(post["tags"], ["apple-silicon"])
+        indexed = gen.build_card_search_text(post)
+        self.assertIn(gen.normalize_search_text("quite strong for coding"), indexed)
+
+    def test_parser_still_discards_an_unrelated_heading(self):
+        """The new prefix branch must not widen into every '## ' heading. Some
+        archived bodies carry flattened markdown headings of their own, and those
+        are not comment blocks."""
+        raw = (
+            "# A title\n\n- Score: 20\n- Author: u/tester\n- Date: 2026-08-23T01:30:21.000Z\n\n"
+            "## Short summary\n\nA summary.\n\n"
+            "## Key takeaways from comments\n\n(No comments captured)\n\n"
+            "## Tags\n\n- quantization\n\n"
+            "## Newsletter signup\n\n"
+            "1. [u/spam (score 9)](https://reddit.com/r/LocalLLaMA/comments/x/d/)\n\n"
+            "   not a captured reply\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            posts_dir = Path(tmp)
+            (posts_dir / "1aaaaaa.md").write_text(raw, encoding="utf-8")
+            original = gen.POSTS_DIR
+            gen.POSTS_DIR = posts_dir
+            try:
+                post = gen.parse_reddit_post("1aaaaaa")
+            finally:
+                gen.POSTS_DIR = original
+        self.assertEqual(post["comments"], [])
+
 
 @unittest.skipUnless(
     _WORKSPACE_POSTS_AVAILABLE,
@@ -656,6 +725,20 @@ class TestSearchIndexOverTheRealIndex(unittest.TestCase):
         self.assertIsNotNone(post, "expected 1vvtu9z in the live community index")
         indexed = gen.build_card_search_text(post)
         for query in ("Q4_K_M", "q4km", "fp16", "ollama", "llama.cpp"):
+            self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
+
+    def test_new_notable_replies_reach_the_live_index(self):
+        """1t0epei is the worked example for the comment-block half of the same
+        defect. It archives nine replies, five under Key takeaways and four under
+        New notable comments, and the author's own walk-back of the headline
+        verdict lives in the second block. The 2026-09-11 field note quotes it
+        three times while the phrase returned zero cards."""
+        post = next((p for p in gen.load_community_configs() if p["id"] == "1t0epei"), None)
+        self.assertIsNotNone(post, "expected 1t0epei in the live community index")
+        self.assertEqual(len(post["comments"]), 9,
+                         "expected both archived comment blocks, 5 + 4")
+        indexed = gen.build_card_search_text(post)
+        for query in ("quite strong for coding", "atomic.chat", "unsloth"):
             self.assertIn(gen.normalize_search_text(query), indexed, f"query {query!r} must match")
 
     def test_every_cited_author_handle_reaches_its_own_card(self):
