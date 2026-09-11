@@ -1477,18 +1477,72 @@ def unescape_upstream_entities(text):
 # citation must land on the card that wrote it as 90000. Removing it between
 # words simply joins them to the following space, which the collapse below
 # folds away, so no ordinary prose token changes shape.
-SEARCH_PUNCTUATION_RE = re.compile(r'[\\_./,-]')
+#
+# The equals sign joined the set for archived config blocks. 1szziv0 publishes a
+# whole llama.cpp models.ini, so the index holds "n-gpu-layers = 999" and
+# "ctx-size = 65536", while a Field Notes citation writes the flag and its value
+# as a pair with no equals sign between them. Dropping it turns both spellings
+# into "ngpulayers 999", which is the same symmetry the underscore already buys
+# for Q4_K_M. Note the difference from the comma: an archived assignment is
+# written with spaces around the sign, so the word boundary survives, but an
+# unspaced "osl=192" fuses into one token exactly as Q4_K_M does. The squash
+# fallback below is what keeps the spaced prose spelling of that form reachable.
+#
+# Quote marks joined the set for the same reason, found by sweeping the Field
+# Notes section's own bolded spans rather than a retyped term list. A quotation is
+# published as **"just not very smart"**, so the quote marks are part of the text
+# a reader selects on the page, and pasting that selection into the search box
+# returned zero cards while the unquoted form returned the card: the index has no
+# quote marks around the phrase because the archived reply is prose. Stripping
+# them on both sides makes the two spellings converge, and it makes the
+# typographic fold below total, since a folded U+2019 now lands on an apostrophe
+# that is itself removed, so "aren't", "aren’t" and "arent" all agree.
+SEARCH_PUNCTUATION_RE = re.compile(r"""[\\_./,='"-]""")
+
+# Typographic punctuation folded to its ASCII equivalent BEFORE the strip above.
+# Reddit replies are full of smart quotes, and clean_markdown() deliberately
+# keeps them in card text because they are correct there; the dash gate and this
+# site's house style equally deliberately force Field Notes prose into ASCII. The
+# two rules collide in the search box: 1szsdyb archives an "aren\u2019t" with
+# U+2019 in "prompts aren't the contract, the orchestration layer is", the
+# section quotes it with an ASCII apostrophe, and before this fold the quotation
+# returned zero cards. It is not a dropped-text defect like the body and comment
+# caps that preceded it: the text is indexed, and no spelling a reader can type
+# reaches it. Folding runs before the strip so a typographic dash lands on the
+# hyphen the strip already removes and an ellipsis lands on three dots it also
+# removes.
+#
+# Written as codepoint escapes, never as literal characters: this repository's
+# dash gate scans added source lines for U+2012 through U+2015, so spelling the
+# dash rows out would make the fix that closes a recall hole fail the gate that
+# guards the prose.
+SEARCH_TYPOGRAPHIC_FOLD = {
+    # Single quotes and the prime that stands in for one.
+    0x2018: "'", 0x2019: "'", 0x201A: "'", 0x201B: "'", 0x2032: "'",
+    # Double quotes and the double prime.
+    0x201C: '"', 0x201D: '"', 0x201E: '"', 0x201F: '"', 0x2033: '"',
+    # Hyphen, non-breaking hyphen, figure/en/em/horizontal dash, minus sign.
+    0x2010: '-', 0x2011: '-', 0x2012: '-', 0x2013: '-', 0x2014: '-',
+    0x2015: '-', 0x2212: '-',
+    # Ellipsis, which the archiver appends to every truncated Short summary.
+    0x2026: '...',
+    # Spaces the whitespace collapse below would otherwise keep as characters.
+    0x00A0: ' ', 0x2007: ' ', 0x2009: ' ', 0x202F: ' ',
+}
 
 
 def normalize_search_text(text):
     """Canonical form shared by the community search index and the typed query.
 
-    Pure and deterministic: lowercase, drop identifier punctuation, collapse
-    whitespace. Applied identically on both sides so Q4_K_M, q4_k_m, Q4\\_K\\_M
-    and q4km all reduce to the same token and match the same cards. The client
-    side mirrors this in generate_community_page(); the two must stay in step.
+    Pure and deterministic: lowercase, fold typographic punctuation to ASCII,
+    drop identifier punctuation, collapse whitespace. Applied identically on both
+    sides so Q4_K_M, q4_k_m, Q4\\_K\\_M and q4km all reduce to the same token and
+    match the same cards, and so an ASCII transcription of a smart-quoted reply
+    reaches the card that reply is on. The client side mirrors this in
+    generate_community_page(); the two must stay in step.
     """
-    return re.sub(r'\s+', ' ', SEARCH_PUNCTUATION_RE.sub('', str(text).lower())).strip()
+    folded = str(text).lower().translate(SEARCH_TYPOGRAPHIC_FOLD)
+    return re.sub(r'\s+', ' ', SEARCH_PUNCTUATION_RE.sub('', folded)).strip()
 
 
 def squash_search_text(text):
@@ -4625,8 +4679,19 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     // data-search value is emitted in that canonical form already, so only the
     // typed query is converted here. Both sides must apply the identical rule or
     // a token like Q4_K_M becomes unreachable no matter how it is spelled.
+    // The typographic fold mirrors SEARCH_TYPOGRAPHIC_FOLD and runs first, so a
+    // reader who pastes a smart-quoted reply and a reader who retypes the same
+    // sentence in ASCII land on the same card. Written as codepoint escapes and
+    // never as literal characters, so this file stays inside the repository's
+    // typographic-dash gate.
     function normalizeQuery(value) {
-      return value.toLowerCase().replace(/[\\\\_.\\/,-]/g, '').replace(/\\s+/g, ' ').trim();
+      return value.toLowerCase()
+        .replace(/[\\u2018\\u2019\\u201a\\u201b\\u2032]/g, "'")
+        .replace(/[\\u201c\\u201d\\u201e\\u201f\\u2033]/g, '"')
+        .replace(/[\\u2010-\\u2015\\u2212]/g, '-')
+        .replace(/\\u2026/g, '...')
+        .replace(/[\\u00a0\\u2007\\u2009\\u202f]/g, ' ')
+        .replace(/[\\\\_.\\/,='"-]/g, '').replace(/\\s+/g, ' ').trim();
     }
     // Mirror of squash_search_text(). Fallback only: a hyphenated flag collapses
     // to one word while the post that reported it wrote the words with spaces,
