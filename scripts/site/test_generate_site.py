@@ -1690,5 +1690,310 @@ class TestFieldNotesLinkDoubleEscape(unittest.TestCase):
         self.assertNotIn("<b>", out)
 
 
+def _root_custom_properties():
+    """Resolve the :root custom properties out of the generator's CSS string."""
+    root = re.search(r":root\s*\{(.*?)\}", gen.CSS, flags=re.S)
+    if not root:
+        return {}
+    return {
+        name: value.strip()
+        for name, value in re.findall(r"(--[\w-]+)\s*:\s*([^;]+);", root.group(1))
+    }
+
+
+def _hex_to_rgb(value):
+    value = value.strip().lstrip("#")
+    if len(value) == 3:
+        value = "".join(c * 2 for c in value)
+    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _relative_luminance(rgb):
+    def channel(c):
+        c = c / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (channel(v) for v in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast_ratio(a, b):
+    la, lb = _relative_luminance(a), _relative_luminance(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+class TestCategoryChipFocusVisible(unittest.TestCase):
+    """WCAG 2.1 SC 2.4.7 Focus Visible on the community category filter chips.
+
+    The chips shipped for dozens of content cycles with no :focus or
+    :focus-visible rule of any kind, leaving the indicator entirely to the
+    browser default. That default is a near-white ring on the ACTIVE chip and
+    measures 2.80:1 against its rgb(66,133,244) fill, below the 3:1 that SC
+    1.4.11 requires of a non-text indicator.
+
+    These are static assertions over the generator's own CSS string so they run
+    in CI with no browser. The behavioural counterpart is
+    TestCategoryChipFocusRingRenders below.
+    """
+
+    def setUp(self):
+        self.vars = _root_custom_properties()
+        rule = re.search(
+            r"\.cat-filter-btn:focus-visible\s*\{(.*?)\}", gen.CSS, flags=re.S
+        )
+        self.assertIsNotNone(
+            rule,
+            "no .cat-filter-btn:focus-visible rule in the generator CSS: a keyboard "
+            "user cannot see which category chip they are on",
+        )
+        self.rule = rule.group(1)
+
+    def _ring_rgb(self):
+        outline = re.search(r"outline\s*:\s*([^;]+);", self.rule)
+        self.assertIsNotNone(outline, "the focus-visible rule sets no outline")
+        parts = outline.group(1).split()
+        width = next(p for p in parts if p.endswith("px"))
+        self.assertGreaterEqual(
+            float(width.rstrip("px")), 2.0,
+            "a focus ring thinner than 2px is not a reliable indicator",
+        )
+        colour = parts[-1]
+        var_ref = re.match(r"var\((--[\w-]+)\)", colour)
+        if var_ref:
+            colour = self.vars[var_ref.group(1)]
+        return _hex_to_rgb(colour)
+
+    def test_ring_clears_3_to_1_against_both_chip_states(self):
+        """SC 1.4.11. One colour has to work on the grey chip AND the blue one.
+
+        This is the assertion that rejects the obvious choice: an --accent ring
+        scores 1.00:1 on the active chip, because the active chip IS --accent.
+        """
+        ring = self._ring_rgb()
+        surfaces = {
+            "page background --bg": self.vars["--bg"],
+            "inactive chip --bg-elev": self.vars["--bg-elev"],
+            "active chip --accent": self.vars["--accent"],
+        }
+        for name, colour in surfaces.items():
+            ratio = _contrast_ratio(ring, _hex_to_rgb(colour))
+            self.assertGreaterEqual(
+                round(ratio, 2), 3.0,
+                f"focus ring contrast against {name} is {ratio:.2f}:1, below the "
+                f"3:1 WCAG 1.4.11 floor for a non-text indicator",
+            )
+
+    def test_ring_is_offset_so_it_is_not_mistaken_for_the_chip_border(self):
+        offset = re.search(r"outline-offset\s*:\s*([\d.]+)px", self.rule)
+        self.assertIsNotNone(offset, "the focus ring sets no outline-offset")
+        self.assertGreaterEqual(float(offset.group(1)), 2.0)
+
+    def test_chip_transition_does_not_animate_the_outline(self):
+        """`transition: all` fades the ring in over its duration.
+
+        That is bad for a keyboard user and it also makes every computed-style
+        harness read the ring as absent, because the sample lands at t=0 of the
+        transition. Name the animated properties instead.
+        """
+        base = re.search(r"\.cat-filter-btn\s*\{(.*?)\}", gen.CSS, flags=re.S)
+        self.assertIsNotNone(base)
+        transition = re.search(r"transition\s*:\s*([^;]+);", base.group(1))
+        if transition:
+            self.assertNotIn(
+                "all", transition.group(1).split(),
+                "transition: all on .cat-filter-btn animates outline-width, "
+                "outline-color and outline-offset, so the focus ring is not instant",
+            )
+
+    def test_bypass_blocks_link_precedes_the_field_notes_archive(self):
+        """SC 2.4.1. Field Notes grows by roughly 40 citation anchors a cycle and
+        sits ahead of the chips in DOM order, which put them at tab stop 2581 of
+        4013. The skip link keeps that distance constant."""
+        page = gen.generate_community_page("<div id=\"community-cards\"></div>", 7, "<p>notes</p>")
+        self.assertIn('class="skip-to-index" href="#community"', page)
+        self.assertIn('id="community" tabindex="-1"', page)
+        self.assertLess(
+            page.index("skip-to-index"), page.index('id="field-notes"'),
+            "the skip link has to come before the block it skips",
+        )
+
+    def test_skip_link_stays_in_the_tab_order_while_hidden(self):
+        """display:none or visibility:hidden would remove it from the tab order
+        and make the link unreachable, which is the classic way this pattern is
+        broken. It has to be clipped, not hidden."""
+        rule = re.search(r"\.skip-to-index\s*\{(.*?)\}", gen.CSS, flags=re.S)
+        self.assertIsNotNone(rule)
+        self.assertNotIn("display: none", rule.group(1))
+        self.assertNotIn("visibility: hidden", rule.group(1))
+        self.assertIsNotNone(re.search(r"\.skip-to-index:focus\s*\{", gen.CSS))
+
+    def test_toc_still_lists_the_community_section(self):
+        """build_page_toc() matches '<section id="..."> \\s* <h2>'. Anything
+        inserted into that gap silently drops the section from the on-page table
+        of contents, which is exactly what an earlier placement of the skip link
+        did."""
+        page = gen.generate_community_page("<div id=\"community-cards\"></div>", 7, "<p>notes</p>")
+        toc = re.search(r'<nav class="page-toc".*?</nav>', page, flags=re.S)
+        self.assertIsNotNone(toc)
+        self.assertIn('href="#community-page"', toc.group(0))
+
+
+def _browser_available():
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+    except Exception:
+        return False
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            p.chromium.launch().close()
+        return True
+    except Exception:
+        return False
+
+
+_GENERATED_COMMUNITY = GEN_PATH.resolve().parent.parent.parent / "site" / "community.html"
+_BROWSER_OK = _GENERATED_COMMUNITY.exists() and _browser_available()
+
+
+@unittest.skipUnless(
+    _BROWSER_OK,
+    "needs Playwright Chromium and a generated site/community.html; the static "
+    "CSS assertions above cover CI",
+)
+class TestCategoryChipFocusRingRenders(unittest.TestCase):
+    """The behavioural half: focus a chip with a REAL Tab and read the paint.
+
+    Two traps this encodes, both of which produced a false 'no indicator' reading
+    during the 2026-09-11 investigation.
+
+    1. A programmatic element.focus() does not engage Chromium's :focus-visible
+       heuristic the same way a keypress does, and with outline-style:auto it
+       reports outline-width 0px. Focus the PREVIOUS focusable element and press
+       a real Tab.
+    2. outlineStyle must be in the compared property set. The browser default
+       ring differs from unfocused ONLY in outline-style/width/color, so a
+       comparison over backgroundColor/borderColor/boxShadow alone sees nothing
+       whether the rule is present or absent.
+    """
+
+    PROPERTIES = (
+        "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset",
+        "boxShadow", "backgroundColor", "borderColor",
+    )
+
+    READ = """
+    (el) => {
+      const cs = getComputedStyle(el);
+      return {
+        outlineWidth: cs.outlineWidth, outlineStyle: cs.outlineStyle,
+        outlineColor: cs.outlineColor, outlineOffset: cs.outlineOffset,
+        boxShadow: cs.boxShadow, backgroundColor: cs.backgroundColor,
+        borderColor: cs.borderTopColor,
+      };
+    }
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Fixture is the SHIPPED chip markup plus the SHIPPED CSS, lifted out of
+        the generated page, so it cannot drift into agreeing with the code."""
+        html = _GENERATED_COMMUNITY.read_text(encoding="utf-8")
+        bar = re.search(r'<div class="cat-filter-bar".*?</div>', html, flags=re.S)
+        assert bar, "no .cat-filter-bar in the generated community page"
+        cls.fixture = (
+            "<!doctype html><meta charset=utf-8><style>" + gen.CSS + "</style>"
+            "<body><a href='#x' id='before'>before</a>" + bar.group(0) + "</body>"
+        )
+
+    @staticmethod
+    def _parse_rgb(value):
+        nums = re.findall(r"[\d.]+", value or "")
+        if len(nums) < 3:
+            return None
+        return tuple(int(float(n)) for n in nums[:3])
+
+    def _focused_vs_unfocused(self, page, chip_index):
+        page.evaluate("() => document.activeElement && document.activeElement.blur()")
+        chips = page.query_selector_all(".cat-filter-btn")
+        unfocused = chips[chip_index].evaluate(self.READ)
+        page.evaluate(
+            "(i) => { const c = document.querySelectorAll('.cat-filter-btn');"
+            "  (i === 0 ? document.getElementById('before') : c[i - 1]).focus(); }",
+            chip_index,
+        )
+        page.keyboard.press("Tab")
+        page.wait_for_timeout(400)  # let any transition settle before sampling
+        active = page.evaluate_handle("() => document.activeElement").as_element()
+        self.assertTrue(
+            active.evaluate("(el) => el.classList.contains('cat-filter-btn')"),
+            "Tab did not land on a category chip",
+        )
+        self.assertTrue(
+            active.evaluate("(el) => el.matches(':focus-visible')"),
+            "the chip is focused but Chromium is not treating it as keyboard-focused",
+        )
+        return unfocused, active.evaluate(self.READ)
+
+    def test_keyboard_focus_changes_the_paint_on_both_chip_states(self):
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            page.set_content(self.fixture)
+            try:
+                for index, label in ((0, "the active chip"), (1, "an inactive chip")):
+                    unfocused, focused = self._focused_vs_unfocused(page, index)
+                    differing = [
+                        k for k in self.PROPERTIES if unfocused[k] != focused[k]
+                    ]
+                    self.assertTrue(
+                        differing,
+                        f"keyboard focus on {label} renders identically to no focus "
+                        f"at all: {focused}",
+                    )
+                    self.assertIn(
+                        "outlineWidth", differing,
+                        f"{label} has no outline width change on focus; the site is "
+                        f"relying on the browser default ring again",
+                    )
+                    # Deleting our rule does NOT make the two assertions above
+                    # fail, because Chromium then paints its own outline:auto
+                    # ring and outlineWidth still changes. Verified by removing
+                    # the rule: this class went green and only the static tests
+                    # caught it. So pin the ring to one WE specified and whose
+                    # contrast we measured, and reject the uncontrolled default.
+                    self.assertEqual(
+                        "solid", focused["outlineStyle"],
+                        f"{label} is falling back to the browser default ring "
+                        f"(outline-style {focused['outlineStyle']}), whose colour "
+                        f"the site does not control and has not measured",
+                    )
+                    self.assertGreaterEqual(
+                        float(focused["outlineWidth"].rstrip("px")), 2.0)
+                    self.assertNotEqual("0px", focused["outlineOffset"])
+
+                    ring = self._parse_rgb(focused["outlineColor"])
+                    fill = self._parse_rgb(focused["backgroundColor"])
+                    page_bg = self._parse_rgb(
+                        page.evaluate(
+                            "() => getComputedStyle(document.body).backgroundColor"
+                        )
+                    ) or (255, 255, 255)
+                    for surface_name, surface in (
+                        (f"{label} fill", fill), ("the page background", page_bg)
+                    ):
+                        ratio = _contrast_ratio(ring, surface)
+                        self.assertGreaterEqual(
+                            round(ratio, 2), 3.0,
+                            f"rendered focus ring on {label} measures {ratio:.2f}:1 "
+                            f"against {surface_name}, below the WCAG 1.4.11 floor",
+                        )
+            finally:
+                browser.close()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

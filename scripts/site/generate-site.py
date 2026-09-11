@@ -4550,16 +4550,33 @@ def generate_community_page(community_cards, community_count, field_notes_html):
     field_notes_section = f'<section id="field-notes" class="field-notes-section"><h2>Field Notes</h2><p>A weekly synthesis of what the r/LocalLLaMA community is reporting about Gemma 4 in real use.</p>{field_notes_html}</section>' if field_notes_html else ""
     community_section = ""
     if community_count:
-        community_section = f"""<div class="community-section" id="community">
+        community_section = f"""<div class="community-section" id="community" tabindex="-1">
       <h3>Community Reports ({community_count} from r/LocalLLaMA)</h3>
       <p>Real-world hardware experiences from the community. Filter by hardware category or search. These are user reports, not official benchmarks.</p>
       <div class="search-bar"><input type="search" id="community-search" aria-label="Search community reports" placeholder="Search community reports..." autocomplete="off"></div>
       {community_cards}
     </div>"""
+    # WCAG 2.1 SC 2.4.1 Bypass Blocks. Field Notes grows by roughly 40 citation
+    # anchors every content cycle and sits ahead of the hardware index in DOM
+    # order, so the category filter chips were tab stop 2581 of 4013. This link
+    # is the second focusable element on the page, so the chips are four Tab
+    # presses away and stay there no matter how long Field Notes gets. It is
+    # offscreen until focused, so it costs a keyboard user one stop and a mouse
+    # user nothing.
+    #
+    # It has to sit AFTER the <h2>, not between <section> and <h2>: build_page_toc()
+    # matches '<section id="..."> \s* <h2>' and anything inserted in that gap drops
+    # the section out of the on-page table of contents entirely.
+    skip_link = (
+        '<a class="skip-to-index" href="#community">Skip Field Notes and jump to the hardware index</a>'
+        if (field_notes_section and community_section)
+        else ""
+    )
     body = f"""<div class="breadcrumb"><a href="index.html">Home</a> / Community</div>
     <section id="community-page">
       <h2>Community & Hardware Reports</h2>
       <p>Real-world experiences running Gemma models, curated from the community. Browse hardware reports, read the weekly field notes, or search for your setup.</p>
+      {skip_link}
       {field_notes_section}
       {community_section}
     </section>"""
@@ -5348,6 +5365,37 @@ CSS = """
     a.inline { color: var(--accent); text-decoration: none; }
     a.inline:hover { text-decoration: underline; }
 
+    /* Bypass-blocks link over the Field Notes archive. Offscreen rather than
+       display:none so it stays in the tab order; revealed on :focus, not on
+       :focus-visible, because only a keyboard can ever reach it and :focus is
+       the form every browser supports. */
+    .skip-to-index {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0; border: 0;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .skip-to-index:focus {
+      position: static;
+      width: auto; height: auto;
+      margin: 0 0 1rem; padding: 0.45rem 0.95rem;
+      overflow: visible; clip: auto; clip-path: none;
+      display: inline-block;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--fg);
+      font-size: 0.85rem; font-weight: 500;
+      text-decoration: none;
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
+    /* The skip target takes tabindex="-1" so activating the link moves keyboard
+       focus and not just the scroll position. That focus is programmatic, so it
+       must not paint a ring around the whole section. */
+    .community-section:focus { outline: none; }
+
     /* Field Notes (curated weekly synthesis) */
     .field-notes {
       background: var(--bg-elev);
@@ -6063,9 +6111,24 @@ CSS = """
       background: var(--bg-elev); border: 1px solid var(--border);
       color: var(--muted); font-size: 0.82rem; font-weight: 500;
       padding: 0.4rem 0.9rem; border-radius: 20px;
-      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+      cursor: pointer; white-space: nowrap;
+      /* Named properties rather than "all": "all" also animates outline-width,
+         outline-color and outline-offset, so the keyboard focus ring below faded
+         in over 150ms instead of appearing at once. A focus indicator should be
+         instant, and an animated one also reads as absent to any harness that
+         samples the computed style right after the Tab. */
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
     }
     .cat-filter-btn:hover { border-color: var(--accent); color: var(--fg-soft); }
+    /* WCAG 2.1 SC 2.4.7 Focus Visible. --fg is the only palette colour that clears
+       the SC 1.4.11 3:1 non-text contrast floor against BOTH chip fills: 15.80:1 on
+       the page background the offset ring is drawn on, 14.84:1 on the inactive chip
+       #f6f8fa and 4.43:1 on the active chip #4285f4. An --accent ring would score
+       1.00:1 on the active chip, which is why the indicator is not the accent. */
+    .cat-filter-btn:focus-visible {
+      outline: 2px solid var(--fg);
+      outline-offset: 2px;
+    }
     .cat-filter-btn.active {
       background: var(--accent); border-color: var(--accent);
       color: #fff; font-weight: 600;
