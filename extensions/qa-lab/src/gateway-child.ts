@@ -450,6 +450,7 @@ export async function startQaGatewayChild(params: {
   forwardHostHome?: boolean;
   mutateConfig?: (cfg: OpenClawConfig) => OpenClawConfig;
 }) {
+  const isParentVerbose = process.argv.includes("--verbose") || process.argv.includes("-v");
   const tempRoot = await fs.mkdtemp(
     path.join(resolvePreferredOpenClawTmpDir(), "openclaw-qa-suite-"),
   );
@@ -608,18 +609,22 @@ export async function startQaGatewayChild(params: {
         throw new Error("qa gateway runtime env not initialized");
       }
 
+      const gatewayArgs = [
+        distEntryPath,
+        "gateway",
+        "run",
+        "--port",
+        String(gatewayPort),
+        "--bind",
+        "loopback",
+        "--allow-unconfigured",
+      ];
+      if (isParentVerbose) {
+        gatewayArgs.push("--verbose");
+      }
       const attemptChild = spawn(
         nodeExecPath,
-        [
-          distEntryPath,
-          "gateway",
-          "run",
-          "--port",
-          String(gatewayPort),
-          "--bind",
-          "loopback",
-          "--allow-unconfigured",
-        ],
+        gatewayArgs,
         {
           cwd: runtimeCwd,
           env,
@@ -714,18 +719,22 @@ export async function startQaGatewayChild(params: {
     const runningEnv = env;
 
     const spawnReplacementGatewayChild = async () => {
+      const gatewayArgs = [
+        distEntryPath,
+        "gateway",
+        "run",
+        "--port",
+        String(gatewayPort),
+        "--bind",
+        "loopback",
+        "--allow-unconfigured",
+      ];
+      if (isParentVerbose) {
+        gatewayArgs.push("--verbose");
+      }
       const nextChild = spawn(
         nodeExecPath,
-        [
-          distEntryPath,
-          "gateway",
-          "run",
-          "--port",
-          String(gatewayPort),
-          "--bind",
-          "loopback",
-          "--allow-unconfigured",
-        ],
+        gatewayArgs,
         {
           cwd: runtimeCwd,
           env: runningEnv,

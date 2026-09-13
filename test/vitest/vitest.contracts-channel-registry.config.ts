@@ -3,4 +3,4 @@ import {
   createContractsVitestConfig,
 } from "./vitest.contracts-shared.ts";
 
-export default createContractsVitestConfig(channelRegistryContractPatterns);
+export default createContractsVitestConfig(channelRegistryContractPatterns, "contracts-channel-registry");
