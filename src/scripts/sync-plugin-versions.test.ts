@@ -73,4 +73,37 @@ describe("syncPluginVersions", () => {
     expect(updatedPackage.openclaw?.compat?.pluginApi).toBe(">=2026.4.1");
     expect(updatedPackage.openclaw?.build?.openclawVersion).toBe("2026.4.1");
   });
+
+  it("syncs gemmaclaw peer ranges and preserves workspace gemmaclaw devDependencies", () => {
+    const rootDir = makeTempDir(tempDirs, "gemmaclaw-sync-plugin-versions-");
+
+    writeJson(path.join(rootDir, "package.json"), {
+      name: "gemmaclaw",
+      version: "2026.4.1",
+    });
+    writeJson(path.join(rootDir, "extensions/bluebubbles/package.json"), {
+      name: "@openclaw/bluebubbles",
+      version: "2026.3.30",
+      devDependencies: {
+        gemmaclaw: "workspace:*",
+      },
+      peerDependencies: {
+        gemmaclaw: ">=2026.3.30",
+      },
+    });
+
+    const summary = syncPluginVersions(rootDir);
+    const updatedPackage = JSON.parse(
+      fs.readFileSync(path.join(rootDir, "extensions/bluebubbles/package.json"), "utf8"),
+    ) as {
+      version?: string;
+      devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+
+    expect(summary.updated).toContain("@openclaw/bluebubbles");
+    expect(updatedPackage.version).toBe("2026.4.1");
+    expect(updatedPackage.devDependencies?.gemmaclaw).toBe("workspace:*");
+    expect(updatedPackage.peerDependencies?.gemmaclaw).toBe(">=2026.4.1");
+  });
 });
