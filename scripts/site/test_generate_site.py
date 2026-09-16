@@ -746,6 +746,50 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         self.assertIn(gen.normalize_search_text("ollama"), indexed)
         self.assertTrue(indexed.endswith(gen.normalize_search_text("tester")))
 
+    def test_comment_author_handles_reach_the_search_index(self):
+        """Regression for 2026-09-16. Comment TEXT has been indexed whole since
+        the comment-cap fix, and the POST author handle since 2026-09-05, but the
+        handle on a COMMENT reached the index through neither path. Field Notes
+        sections attribute replies by name and score, because the caveat that
+        makes a number honest usually lives in a reply, so the one term the prose
+        made most prominent returned zero cards. 1tcrrfq is the worked example:
+        its two load-bearing replies are u/CatTwoYes at a comment score of 44 and
+        u/Inevitable-Log5414 at 34, and the 2026-09-16 section quotes both by
+        name. Pins the text AND both handles, so a future refactor cannot drop
+        one while keeping the other."""
+        raw = (
+            "# The future is fictional\n\n- Score: 108\n- Author: u/PromptInjection_\n"
+            "- Date: 2026-05-14T08:20:51.000Z\n\n"
+            "## Short summary\n\nModels treat post-cutoff events as fictional...\n\n"
+            "## Key takeaways from comments\n\n"
+            "1. [u/CatTwoYes (score 44)](https://reddit.com/r/LocalLLaMA/comments/x/a/)\n\n"
+            "   It gets worse the more RLHF was applied\n\n"
+            "2. [u/Inevitable-Log5414 (score 34)](https://reddit.com/r/LocalLLaMA/comments/x/b/)\n\n"
+            "   This is current factual information, not speculation.\n\n"
+            "## Tags\n\n- gemma\n\n"
+            "## Post text (excerpt)\n\nLook at this search result rejection\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            posts_dir = Path(tmp)
+            (posts_dir / "1tcrrfq.md").write_text(raw, encoding="utf-8")
+            original = gen.POSTS_DIR
+            gen.POSTS_DIR = posts_dir
+            try:
+                post = gen.parse_reddit_post("1tcrrfq")
+            finally:
+                gen.POSTS_DIR = original
+        self.assertIsNotNone(post, "expected the archived post to parse")
+        self.assertEqual([c["user"] for c in post["comments"]],
+                         ["CatTwoYes", "Inevitable-Log5414"])
+        indexed = gen.build_card_search_text(post)
+        for term in ("u/CatTwoYes", "CatTwoYes", "u/Inevitable-Log5414",
+                     "Inevitable-Log5414", "not speculation", "RLHF"):
+            with self.subTest(term=term):
+                self.assertIn(gen.normalize_search_text(term), indexed)
+        # The POST author stays last, so the handle fix above did not displace
+        # the 2026-09-05 one.
+        self.assertTrue(indexed.endswith(gen.normalize_search_text("PromptInjection_")))
+
     def test_parser_reads_a_new_notable_comments_section(self):
         """Replies captured on a later pass live under a dated
         '## New notable comments (added YYYY-MM-DD)' heading. That block used to
@@ -1470,7 +1514,10 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # workstation card, ten distinct posts between them of which 1th7f24,
     # 1vhmypj and 1u8kr2o already held the chip. "mi50" (1ssb61r, 1tfzmpq,
     # 1tlliw4, 1u3dkl3, 1un28zb) and "mi60" (1tlliw4) admit the AMD Instinct
-    # cards; every archived mention that states a capacity states 32 GB.
+    # cards; every archived mention that stated a capacity stated 32 GB as of
+    # that cycle. That no longer holds: 1wgpnah, added 2026-09-16, states 16 GB,
+    # and the MI50 shipped in both capacities, so the keyword admits a card that
+    # may or may not clear this chip's 24 GB threshold.
     # "r9700" (1v3vy45, 1vhmypj, 1v70r06) and "ai pro 9700" (1t9gcar) are the
     # two spellings of the 32 GB Radeon AI PRO R9700.
     # Re-derived for the 703-entry index of 2026-09-05, where it moved 91 -> 92.
@@ -1485,7 +1532,20 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # quantization alone via "llama.cpp"; and 1walsw6 names no hardware and
     # falls through to "general". So cpu-only, laptop and mid-gpu are unmoved,
     # and quantization moves 405 -> 407 while general moves 222 -> 223.
-    HIGH_GPU_EXPECTED = 93
+    # Re-derived for the 718-entry index of 2026-09-16, where it moved 93 -> 94.
+    # No keyword changed this cycle. The single arrival is a new post, 1wgpnah,
+    # and it reaches this chip on "mi50" alone. The match is genuine in that the
+    # post really does name an AMD Instinct MI50, but it is the first mi50
+    # mention in this index to state 16 GB rather than 32 GB ("Radeon MI50
+    # Instinct 16GB Vram"), which is why the capacity claim in the 2026-09-04
+    # derivation above has been corrected. The MI50 shipped in both 16 GB and 32
+    # GB variants, so this keyword cannot be read as a capacity signal on its
+    # own. The same post also holds mid-gpu on "16gb vram", so it sits on both
+    # GPU chips at once. The cycle's other two additions reach no GPU chip at
+    # all: 1wguq4i lands on quantization alone via "lm studio" and 1whdwlw on
+    # quantization alone via "nvfp4". So cpu-only and laptop are unmoved, and
+    # quantization moves 409 -> 412.
+    HIGH_GPU_EXPECTED = 94
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1540,7 +1600,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # five multi-card forms ("dual gpu", "multi gpu", "triple gpu", "multi-gpu",
     # "dual-gpu"). The cycle's other two additions, 1wa0aww and 1w9ylhh, reach
     # no GPU chip at all, so high-gpu, cpu-only and laptop are unmoved.
-    MID_GPU_EXPECTED = 60
+    # Re-derived for the 718-entry index of 2026-09-16, where it moved 60 -> 61.
+    # No keyword changed this cycle. The single arrival is a new post, 1wgpnah,
+    # which matches "16gb vram" alone here, from the 16 GB AMD card it names.
+    # Unlike 1w9z7lk above it ALSO reaches High-end GPU, on "mi50", so it is on
+    # both GPU chips at once; see the HIGH_GPU_EXPECTED derivation. The cycle's
+    # other two additions, 1wguq4i and 1whdwlw, reach no GPU chip at all.
+    MID_GPU_EXPECTED = 61
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1639,7 +1705,9 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             "pro 6000": {"1sxjnv4", "1th7f24", "1u8nyvw"},
             "rtx 6000 pro": {"1trf0r0", "1t19iil", "1su0mvt", "1vhmypj",
                               "1u8kr2o", "1uq0h4o", "1ubdpta", "1u8nyvw"},
-            "mi50": {"1ssb61r", "1tfzmpq", "1tlliw4", "1u3dkl3", "1un28zb"},
+            "mi50": {"1ssb61r", "1tfzmpq", "1tlliw4", "1u3dkl3", "1un28zb",
+                     # 2026-09-16: genuine, and the first mi50 post at 16 GB.
+                     "1wgpnah"},
             "mi60": {"1tlliw4"},
             "r9700": {"1v3vy45", "1vhmypj", "1v70r06"},
             "ai pro 9700": {"1t9gcar"},
