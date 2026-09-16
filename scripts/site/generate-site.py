@@ -1759,7 +1759,26 @@ def build_card_search_text(post):
     # on my Radeon AI Pro 9700 GPU's ... dropping from 1400t/s PP down to
     # 650t/s PP". Radeon AI Pro 9700, 1400t/s and 650t/s all returned zero
     # cards while the field note quoted them.
-    parts.extend(c.get("text", "") for c in post.get("comments", []))
+    # Each comment contributes its author handle as well as its text, indexed
+    # 2026-09-16. This is the comment-side twin of the post-handle fix below
+    # and it fails the same way: Field Notes sections attribute a reply by
+    # name and score ("u/Inevitable-Log5414 at a comment score of 34"),
+    # because a caveat that makes a number honest usually lives in a reply
+    # rather than in the post. The comment TEXT was already indexed whole,
+    # but the handle lives in the archiver's "user" field and reached the
+    # index through neither path, so the one term the prose made most
+    # prominent returned zero cards. 1tcrrfq is the worked example: its two
+    # load-bearing replies are by u/CatTwoYes at a comment score of 44 and
+    # u/Inevitable-Log5414 at 34, and both handles returned nothing while the
+    # 2026-09-16 section quoted them by name. The handle is prefixed with
+    # "u/" to match the way the prose and the rendered card both write it,
+    # and each comment stays its own part so a malformed handle or a
+    # truncated comment cannot damage its neighbours.
+    for comment in post.get("comments", []):
+        parts.append(comment.get("text", ""))
+        user = comment.get("user", "")
+        if user:
+            parts.append(f"u/{user}")
     parts.append(body)
     # The author handle, indexed 2026-09-05. Every Field Notes section on this
     # site attributes its reports by handle ("u/janvitos measured ...", "the
