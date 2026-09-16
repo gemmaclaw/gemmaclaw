@@ -1672,6 +1672,34 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                          "1wgpnah is the most recent both-chip entry, not the first")
         self.assertEqual(len(by_date), 12)
 
+    def test_1tcrrfq_has_six_captured_replies_across_two_comment_blocks(self):
+        """Regression for the 2026-09-16 QA round-2 reject. The section published
+        "this archive captured five of its replies" three times and walked the
+        ordinals to the fifth, but parse_reddit_post returns SIX: the archived
+        file carries a second heading, "New notable comments (added 2026-05-21)",
+        holding u/BoxWoodVoid at score 1, and that heading sits BELOW the Tags
+        block so a top-down read of the file stops short of it. The parser reads
+        both blocks, so the deployed card and the prose disagreed, and the site's
+        own search returned the card for the sixth commenter's handle. Roughly
+        681 of the archived post files carry that second block, so this is a
+        recurring trap rather than a quirk of one post: count comments with the
+        parser, never by eye. Pins the full ordered score column, because the
+        prose classifies the replies by ordinal position."""
+        post = gen.parse_reddit_post("1tcrrfq")
+        if post is None:
+            self.skipTest("archived post unavailable (workspace data unavailable)")
+        self.assertEqual(
+            [(c["user"], c["score"]) for c in post["comments"]],
+            [("CYTR_", 71), ("CatTwoYes", 44), ("DeliberatelySus", 36),
+             ("Inevitable-Log5414", 34), ("CYTR_", 30), ("BoxWoodVoid", 1)],
+            "the captured reply column moved; re-derive every ordinal and count "
+            "in the 2026-09-16 Field Notes prose that walks it",
+        )
+        # 54 is the thread's comment count, not the number this archive kept.
+        # The prose says "54 comments on the thread" for exactly this reason.
+        self.assertEqual(post["comments_count"], 54)
+        self.assertEqual(len(post["comments"]), 6)
+
     def test_the_8gb_vram_keyword_collides_with_48gb_vram_in_exactly_one_entry(self):
         """1ti2ga0 is titled "48GB VRAM users, ..." and reaches Mid-range GPU
         only because "8gb vram" is a substring of "48gb vram". Recorded in the
