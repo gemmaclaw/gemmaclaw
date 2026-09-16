@@ -1541,7 +1541,18 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # derivation above has been corrected. The MI50 shipped in both 16 GB and 32
     # GB variants, so this keyword cannot be read as a capacity signal on its
     # own. The same post also holds mid-gpu on "16gb vram", so it sits on both
-    # GPU chips at once. The cycle's other two additions reach no GPU chip at
+    # GPU chips at once. That is NOT a first and must not be written as one: it
+    # is the TWELFTH index entry to hold both GPU chips and the most recent,
+    # after 1so3rsx (2026-04-17), 1tf9iyk, 1tgqpa8, 1ti2ga0, 1th7f24, 1th633w,
+    # 1tzo5lb, 1u355x2, 1u6u723, 1uad893 and 1vndaih, all eleven of which
+    # already held both chips at the 715-entry index. The 2026-09-16 Field Notes
+    # section shipped "the first entry in this index to reach both GPU chips at
+    # once" by escalating this hedge and was rejected in QA for it, so the count
+    # is pinned here rather than left to prose. What IS distinctive about
+    # 1wgpnah is the reason: its two firings are adjacent words describing one
+    # card ("Radeon MI50 Instinct 16GB Vram"), so the chips disagree about a
+    # single card instead of reporting two. The cycle's other two additions
+    # reach no GPU chip at
     # all: 1wguq4i lands on quantization alone via "lm studio" and 1whdwlw on
     # quantization alone via "nvfp4". So cpu-only and laptop are unmoved, and
     # quantization moves 409 -> 412.
@@ -1626,6 +1637,67 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                     f"{cat} post count moved; if the index grew, re-derive this "
                     "number and update the Field Notes prose that cites it",
                 )
+
+    # Every index entry holding BOTH GPU chips, ordered by archived date. The
+    # 2026-09-16 section published "1wgpnah is the first entry in this index to
+    # reach both GPU chips at once" and QA rejected it: 1wgpnah is the twelfth
+    # and most recent, and the eleven before it run back to 2026-04-17. A
+    # "first in this index" claim is ambiguous between chronology and iteration
+    # order and it is settled in ten lines of code, so it is settled here.
+    # Ordered by (date, id): 1th633w, 1th7f24 and 1ti2ga0 all share 2026-05-19,
+    # so the id is the tiebreaker and the order below is deterministic rather
+    # than meaningful. Only the last position is load-bearing for the prose.
+    BOTH_GPU_CHIPS_EXPECTED = (
+        "1so3rsx", "1tf9iyk", "1tgqpa8", "1th633w", "1th7f24", "1ti2ga0",
+        "1tzo5lb", "1u355x2", "1u6u723", "1uad893", "1vndaih", "1wgpnah",
+    )
+
+    def test_1wgpnah_is_the_twelfth_entry_on_both_gpu_chips_not_the_first(self):
+        """Regression for the 2026-09-16 QA reject. Pins the whole both-chip
+        population and 1wgpnah's position in it, so the next cycle cannot
+        re-escalate "it sits on both GPU chips at once" into a superlative."""
+        configs = gen.load_community_configs()
+        if not configs:
+            self.skipTest("community index enrichment produced no posts (workspace data unavailable)")
+        both = [c for c in configs
+                if "high-gpu" in c.get("categories", [])
+                and "mid-gpu" in c.get("categories", [])]
+        by_date = sorted(both, key=lambda c: (c.get("date", ""), c.get("id", "")))
+        self.assertEqual(
+            tuple(c["id"] for c in by_date), self.BOTH_GPU_CHIPS_EXPECTED,
+            "the both-GPU-chip population moved; re-derive it and update any "
+            "Field Notes prose that counts or ranks it",
+        )
+        self.assertEqual(by_date[-1]["id"], "1wgpnah",
+                         "1wgpnah is the most recent both-chip entry, not the first")
+        self.assertEqual(len(by_date), 12)
+
+    def test_the_8gb_vram_keyword_collides_with_48gb_vram_in_exactly_one_entry(self):
+        """1ti2ga0 is titled "48GB VRAM users, ..." and reaches Mid-range GPU
+        only because "8gb vram" is a substring of "48gb vram". Recorded in the
+        2026-09-16 Known limits. The keyword is deliberately NOT changed here:
+        that would move a chip tally and belongs in its own PR, as the
+        2026-09-02 section decided for the Radeon 9070. This test pins the
+        blast radius so that PR knows exactly what it is fixing."""
+        collisions, genuine = set(), set()
+        for post in gen.load_community_configs():
+            text = " ".join([
+                post.get("title", ""),
+                post.get("summary", ""),
+                " ".join(post.get("tags", [])),
+                " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+            ]).lower()
+            spots = [m.start() for m in re.finditer(re.escape("8gb vram"), text)]
+            if not spots:
+                continue
+            if all(i > 0 and text[i - 1].isdigit() for i in spots):
+                collisions.add(post.get("id"))
+            else:
+                genuine.add(post.get("id"))
+        if not collisions and not genuine:
+            self.skipTest("community index enrichment produced no posts (workspace data unavailable)")
+        self.assertEqual(collisions, {"1ti2ga0"})
+        self.assertEqual(genuine, {"1snztwz", "1w9z7lk", "1tbshsl", "1vq128f"})
 
     def test_every_radeon_9060_post_reaches_the_mid_range_chip(self):
         """The six posts naming the RX 9060 XT. Before the 2026-09-02 keyword
