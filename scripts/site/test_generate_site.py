@@ -1556,7 +1556,23 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # all: 1wguq4i lands on quantization alone via "lm studio" and 1whdwlw on
     # quantization alone via "nvfp4". So cpu-only and laptop are unmoved, and
     # quantization moves 409 -> 412.
-    HIGH_GPU_EXPECTED = 94
+    # Re-derived for the 725-entry index of 2026-09-20, where it moved 94 -> 96.
+    # No keyword changed this cycle. Both arrivals are new posts by the same
+    # author as 1wgpnah, and both reach this chip through "mi50" again:
+    # 1wkc3q6 on "mi50" alone, and 1wkypcs on "mi50" plus "dual gpu". Both
+    # state the MI50 at 16 GB, not 32 GB, so the 2026-09-16 correction to the
+    # 2026-09-04 capacity claim now has three supporting entries rather than
+    # one, and the keyword is confirmed not to be a capacity signal. Both also
+    # hold mid-gpu on "16gb vram", so the both-chip population moves 12 -> 14;
+    # see BOTH_GPU_CHIPS_EXPECTED. 1wkypcs is also the first index entry ever
+    # to match the spaced "dual gpu" form, which had matched zero posts since
+    # it was written; it changes no categorisation, because "mi50" already
+    # admits that post. The cycle's other five additions reach no GPU chip:
+    # 1wjm492 lands on cpu-only alone via "cpu-only", 1wjjmj9, 1wk94rq and
+    # 1wkwy6g on quantization alone, and 1wk0st3 matches no keyword at all and
+    # falls through to general. So laptop is unmoved at 35, cpu-only moves
+    # 15 -> 16, quantization moves 412 -> 417 and general moves 226 -> 227.
+    HIGH_GPU_EXPECTED = 96
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1566,7 +1582,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # in Quantization alone, because it never writes "cpu only", "no gpu" or
     # "on cpu". Both keywords were censused over the whole index at 1 occurrence
     # each and zero spurious matches before being added.
-    CPU_ONLY_EXPECTED = 15
+    # Re-derived for the 725-entry index of 2026-09-20, where it moved 15 -> 16.
+    # No keyword changed this cycle. The single arrival is 1wjm492, a 294-byte
+    # opinion post whose summary writes "cpu-only friendliness", matching the
+    # existing "cpu-only" keyword. It is the only chip that post reaches, and
+    # it states no measurement, so the Field Notes section reports the count
+    # move and attributes no throughput to it.
+    CPU_ONLY_EXPECTED = 16
     # Derived for the 686-entry index of 2026-09-01, where it moved 41 -> 35.
     # Nothing joined; six posts left when the bare "framework" keyword was
     # replaced by the product forms, because they held the chip on the software
@@ -1617,7 +1639,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Unlike 1w9z7lk above it ALSO reaches High-end GPU, on "mi50", so it is on
     # both GPU chips at once; see the HIGH_GPU_EXPECTED derivation. The cycle's
     # other two additions, 1wguq4i and 1whdwlw, reach no GPU chip at all.
-    MID_GPU_EXPECTED = 61
+    # Re-derived for the 725-entry index of 2026-09-20, where it moved 61 -> 63.
+    # No keyword changed this cycle. Both arrivals are new posts: 1wkc3q6 on
+    # "rx 7900" and "16gb vram", and 1wkypcs on "16gb vram" alone. Both also
+    # reach High-end GPU on "mi50", so both sit on both GPU chips at once; see
+    # the HIGH_GPU_EXPECTED derivation and BOTH_GPU_CHIPS_EXPECTED.
+    MID_GPU_EXPECTED = 63
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1650,12 +1677,21 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     BOTH_GPU_CHIPS_EXPECTED = (
         "1so3rsx", "1tf9iyk", "1tgqpa8", "1th633w", "1th7f24", "1ti2ga0",
         "1tzo5lb", "1u355x2", "1u6u723", "1uad893", "1vndaih", "1wgpnah",
+        # 2026-09-20: two more, both u/tabletuser_blogspot and both reaching
+        # High-end GPU on "mi50" at a stated 16 GB while reaching Mid-range GPU
+        # on "16gb vram". 1wkc3q6 (04:20:07Z) precedes 1wkypcs (21:51:27Z) on
+        # the same archived date, so the (date, id) ordering below is also the
+        # chronological one for this pair.
+        "1wkc3q6", "1wkypcs",
     )
 
-    def test_1wgpnah_is_the_twelfth_entry_on_both_gpu_chips_not_the_first(self):
+    def test_1wkypcs_is_the_fourteenth_entry_on_both_gpu_chips_not_the_first(self):
         """Regression for the 2026-09-16 QA reject. Pins the whole both-chip
-        population and 1wgpnah's position in it, so the next cycle cannot
-        re-escalate "it sits on both GPU chips at once" into a superlative."""
+        population and the most recent entry's position in it, so no cycle can
+        re-escalate "it sits on both GPU chips at once" into a superlative.
+        Re-derived 2026-09-20: the population moved 12 -> 14 when 1wkc3q6 and
+        1wkypcs joined, both on "mi50" plus "16gb vram", so 1wgpnah is no
+        longer the most recent and the tail assertion now names 1wkypcs."""
         configs = gen.load_community_configs()
         if not configs:
             self.skipTest("community index enrichment produced no posts (workspace data unavailable)")
@@ -1668,9 +1704,10 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             "the both-GPU-chip population moved; re-derive it and update any "
             "Field Notes prose that counts or ranks it",
         )
-        self.assertEqual(by_date[-1]["id"], "1wgpnah",
-                         "1wgpnah is the most recent both-chip entry, not the first")
-        self.assertEqual(len(by_date), 12)
+        self.assertEqual(by_date[-1]["id"], "1wkypcs",
+                         "1wkypcs is the most recent both-chip entry, not the first")
+        self.assertEqual(by_date.index(next(c for c in by_date if c["id"] == "1wgpnah")), 11)
+        self.assertEqual(len(by_date), 14)
 
     def test_1tcrrfq_has_six_captured_replies_across_two_comment_blocks(self):
         """Regression for the 2026-09-16 QA round-2 reject. The section published
@@ -1807,7 +1844,15 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                               "1u8kr2o", "1uq0h4o", "1ubdpta", "1u8nyvw"},
             "mi50": {"1ssb61r", "1tfzmpq", "1tlliw4", "1u3dkl3", "1un28zb",
                      # 2026-09-16: genuine, and the first mi50 post at 16 GB.
-                     "1wgpnah"},
+                     "1wgpnah",
+                     # 2026-09-20: two more genuine mi50 posts, both at 16 GB
+                     # and both by the same author as 1wgpnah. 1wkc3q6 writes
+                     # "China version of the Mi50 (Radeon VII) 16GB VRAM GPU"
+                     # and 1wkypcs writes "AMD Radeon MI50 16GB VRAM". Between
+                     # them they also settle the MI50-versus-Radeon-VII naming
+                     # that 1wgpnah left unreconciled: it is one card, an MI50
+                     # running Radeon VII firmware. Zero spurious.
+                     "1wkc3q6", "1wkypcs"},
             "mi60": {"1tlliw4"},
             "r9700": {"1v3vy45", "1vhmypj", "1v70r06"},
             "ai pro 9700": {"1t9gcar"},
@@ -1884,13 +1929,23 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         self.assertIn("r9700", keywords)
         self.assertIn("ai pro 9700", keywords)
 
-    def test_the_spaced_multi_card_keywords_still_match_nothing(self):
+    def test_the_spaced_multi_card_keywords_are_censused_not_assumed_empty(self):
         """The reason the hyphenated forms were added. "multi gpu" and "dual
-        gpu" were already in the high-end keyword list and match zero posts,
-        because people write the hyphen. If this ever starts failing the spaced
-        forms have become load-bearing and the comment above HIGH_GPU_EXPECTED
-        needs re-deriving rather than the assertion relaxing."""
-        for keyword in ("multi gpu", "dual gpu"):
+        gpu" were already in the high-end keyword list and matched zero posts
+        each, because people write the hyphen.
+
+        Re-derived for the 725-entry index of 2026-09-20 rather than relaxed.
+        "dual gpu" now has exactly one match, 1wkypcs, whose title is "From
+        GTX-1080Ti to dual GPU with Radeon MI50". It is the first match the
+        spaced form has ever had, and it is genuine rather than spurious: the
+        post really does run two cards. It is NOT load-bearing for any
+        categorisation, because "mi50" independently admits that same post to
+        the High-end GPU chip, so removing "dual gpu" would not move the count.
+        "multi gpu" is still empty. Pinning the id sets rather than asserting
+        emptiness is what lets the next spaced-form arrival be noticed instead
+        of silently changing a chip tally."""
+        expected = {"multi gpu": set(), "dual gpu": {"1wkypcs"}}
+        for keyword, want in expected.items():
             with self.subTest(keyword=keyword):
                 matched = set()
                 for post in gen.load_community_configs():
@@ -1902,7 +1957,26 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                     ]).lower()
                     if keyword in text:
                         matched.add(post.get("id"))
-                self.assertEqual(matched, set())
+                self.assertEqual(matched, want)
+
+    def test_the_dual_gpu_spaced_keyword_is_not_load_bearing(self):
+        """Companion to the census above. 1wkypcs must keep the High-end GPU
+        chip with "dual gpu" removed from the keyword list, because "mi50"
+        already admits it. If this ever fails, the spaced form has become the
+        only route for some post and the HIGH_GPU_EXPECTED derivation needs
+        re-deriving."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        self.assertIn("1wkypcs", configs)
+        post = configs["1wkypcs"]
+        text = " ".join([
+            post.get("title", ""),
+            post.get("summary", ""),
+            " ".join(post.get("tags", [])),
+            " ".join(c.get("text", "") for c in post.get("comments", [])[:3]),
+        ]).lower()
+        survivors = [kw for kw in gen.HARDWARE_CATEGORIES["high-gpu"]["keywords"]
+                     if kw != "dual gpu" and gen.keyword_matches(kw, text)]
+        self.assertEqual(survivors, ["mi50"])
 
     def test_a_card_named_only_in_the_body_does_not_reach_the_chip(self):
         """1w4g0oh names an RTX 5080 with 16 GB, exactly what the 2026-09-02
