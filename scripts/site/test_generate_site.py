@@ -1596,7 +1596,14 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # 1v6mna4. The cycle's own 1w39y4n would have been a seventh and never
     # joins. 1ta7ce9 is the one post naming Framework the hardware brand and it
     # keeps the chip, independently, on "strix halo".
-    LAPTOP_EXPECTED = 35
+    # Re-derived for the 728-entry index of 2026-09-21, where it moved 35 -> 36.
+    # No keyword changed this cycle. The single arrival is a new post, 1wlklqx,
+    # which matches "laptop" from its own summary, where the author writes that
+    # the machine being moved to is "(a laptop)". It is a genuine laptop mention
+    # and it also reaches Mid-range GPU; see MID_GPU_EXPECTED. The cycle's other
+    # two additions, 1wlt33y and 1wle1f4, reach no hardware chip at all and land
+    # on Quantization and Backends alone.
+    LAPTOP_EXPECTED = 36
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -1644,7 +1651,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # "rx 7900" and "16gb vram", and 1wkypcs on "16gb vram" alone. Both also
     # reach High-end GPU on "mi50", so both sit on both GPU chips at once; see
     # the HIGH_GPU_EXPECTED derivation and BOTH_GPU_CHIPS_EXPECTED.
-    MID_GPU_EXPECTED = 63
+    # Re-derived for the 728-entry index of 2026-09-21, where it moved 63 -> 64.
+    # No keyword changed this cycle. The single arrival is a new post, 1wlklqx,
+    # which matches three keywords that were already here: "3060" and "5070"
+    # from the two cards it names, plus the bare "12gb" capacity token, which
+    # occurs twice in it and is a genuine GPU VRAM mention both times ("RTX 3060
+    # 12GB" and "RTX 5070Ti 12GB"). It does NOT reach High-end GPU, because it
+    # writes none of that chip's multi-card forms and names no 24 GB-class card,
+    # so it does not join BOTH_GPU_CHIPS_EXPECTED. It does also reach Laptops;
+    # see LAPTOP_EXPECTED. The cycle's other two additions reach no GPU chip.
+    MID_GPU_EXPECTED = 64
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1899,9 +1915,17 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         token occurs thirteen times across nine posts and every occurrence is a
         GPU VRAM mention. Eight already held the chip on a card number; 1w76enm
         is the one that newly gains it, and its only hardware statement is "my
-        12gb video card"."""
+        12gb video card".
+
+        Re-derived for the 728-entry index of 2026-09-21, where the population
+        moved nine -> ten. The arrival is 1wlklqx, which carries the token twice
+        and both occurrences are genuine GPU VRAM: "RTX 3060 12GB" for the card
+        being replaced and "RTX 5070Ti 12GB" for the laptop replacing it. It is
+        not load-bearing for the chip, because "3060" and "5070" each admit the
+        same post independently, so this census is pinned to notice the arrival
+        rather than to carry the categorisation."""
         expected = {"1temio0", "1tknbzh", "1szziv0", "1tsp869", "1typjmc",
-                    "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm"}
+                    "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm", "1wlklqx"}
         configs = gen.load_community_configs()
         matched = set()
         for post in configs:
