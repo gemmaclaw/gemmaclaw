@@ -1572,7 +1572,15 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # 1wkwy6g on quantization alone, and 1wk0st3 matches no keyword at all and
     # falls through to general. So laptop is unmoved at 35, cpu-only moves
     # 15 -> 16, quantization moves 412 -> 417 and general moves 226 -> 227.
-    HIGH_GPU_EXPECTED = 96
+    # Re-derived for the 737-entry index of 2026-09-23, where it moved 96 -> 97.
+    # No keyword changed this cycle. The single arrival is a new post, 1wm2umu,
+    # admitted by the existing "r9700" keyword from its summary, where the
+    # author writes "my single R9700 (32GB)". That is a genuine 32 GB card and
+    # the only hardware chip the post reaches; it states no measurement of any
+    # kind, so the Field Notes section reports the count move and attributes no
+    # throughput to it. It does NOT reach Mid-range GPU, because it writes none
+    # of that chip's keywords, so it does not join BOTH_GPU_CHIPS_EXPECTED.
+    HIGH_GPU_EXPECTED = 97
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1660,7 +1668,23 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # writes none of that chip's multi-card forms and names no 24 GB-class card,
     # so it does not join BOTH_GPU_CHIPS_EXPECTED. It does also reach Laptops;
     # see LAPTOP_EXPECTED. The cycle's other two additions reach no GPU chip.
-    MID_GPU_EXPECTED = 64
+    # Re-derived for the 737-entry index of 2026-09-23, where it moved 64 -> 66.
+    # No keyword changed this cycle. Both arrivals are new posts. 1wn8rgc
+    # matches four keywords that were already here, "rtx 4070", "4070",
+    # "12gb vram" and the bare "12gb" token, all from one sentence, "I have
+    # 12GB VRAM RTX 4070S and 32GB DDR5 RAM"; the capacity tokens are therefore
+    # not load-bearing for it, because either 4070 form admits it alone.
+    # 1wnot97 matches "9060" alone, from "my GPU is rx 9060 xt 16 GB of VRAM",
+    # which takes the 9060 census from six posts to seven; see
+    # test_the_9060_keyword_matched_nothing_spurious. Neither reaches High-end
+    # GPU, so neither joins BOTH_GPU_CHIPS_EXPECTED, and neither reaches
+    # Laptops, so LAPTOP_EXPECTED is unmoved at 36. The cycle's other seven
+    # additions reach no GPU chip: 1wm2umu lands on High-end GPU instead (see
+    # HIGH_GPU_EXPECTED), 1wmkr01 and 1wng98w on quantization alone, and
+    # 1wm8ede, 1wmpwtl, 1wn9w6x and 1wnhji0 match no keyword at all and fall
+    # through to general. So quantization moves 420 -> 424 and general moves
+    # 227 -> 231, while cpu-only stays at 16 and apple-silicon stays at 76.
+    MID_GPU_EXPECTED = 66
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1792,8 +1816,19 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
 
     def test_the_9060_keyword_matched_nothing_spurious(self):
         """Negative control for the same keyword: no post outside the censused
-        six carries "9060" in the text the categoriser actually reads."""
-        expected = {"1t0kxdw", "1tl9woz", "1u44f73", "1ucenk7", "1ui0u4v", "1w4dfi1"}
+        set carries "9060" in the text the categoriser actually reads.
+
+        Re-derived for the 737-entry index of 2026-09-23, where the population
+        moved six -> seven. The arrival is 1wnot97, whose summary opens "my GPU
+        is rx 9060 xt 16 GB of VRAM and I have 16 GB of DDR4". It is genuine,
+        it is the only keyword that post matches, and it carries no throughput
+        figure, so the card's measured population is unchanged at four:
+        1t0kxdw, 1tl9woz, 1ucenk7 and 1w4dfi1. Note that a whole-archive sweep
+        for the card finds an eighth file, 1u7wm3b, which is absent here
+        because it is not a hardware-index entry and so has no card; its
+        benchmark row measures gemma3:12b rather than Gemma 4."""
+        expected = {"1t0kxdw", "1tl9woz", "1u44f73", "1ucenk7", "1ui0u4v",
+                    "1w4dfi1", "1wnot97"}
         matched = set()
         for post in gen.load_community_configs():
             text = " ".join([
@@ -1870,7 +1905,14 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                      # running Radeon VII firmware. Zero spurious.
                      "1wkc3q6", "1wkypcs"},
             "mi60": {"1tlliw4"},
-            "r9700": {"1v3vy45", "1vhmypj", "1v70r06"},
+            # 2026-09-23: 1wm2umu is a genuine fourth, and the only one of the
+            # four whose R9700 mention is a statement of ownership rather than
+            # a benchmark or a shopping list: "my single R9700 (32GB)". It
+            # carries no rate, which is why the Field Notes section still
+            # reports exactly one Gemma 4 measurement on this card. Zero
+            # spurious, and the bare "9700" form still admits no Ryzen 9700X
+            # post; see test_the_bare_9700_token_is_not_used_as_a_keyword.
+            "r9700": {"1v3vy45", "1vhmypj", "1v70r06", "1wm2umu"},
             "ai pro 9700": {"1t9gcar"},
         }
         matched = {kw: set() for kw in expected}
@@ -1923,9 +1965,19 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         being replaced and "RTX 5070Ti 12GB" for the laptop replacing it. It is
         not load-bearing for the chip, because "3060" and "5070" each admit the
         same post independently, so this census is pinned to notice the arrival
-        rather than to carry the categorisation."""
+        rather than to carry the categorisation.
+
+        Re-derived for the 737-entry index of 2026-09-23, where the population
+        moved ten -> eleven. The arrival is 1wn8rgc, which carries the token
+        once, in "I have 12GB VRAM RTX 4070S and 32GB DDR5 RAM", so it is a
+        genuine GPU VRAM mention and not the 32 GB of system memory in the same
+        sentence. It is not load-bearing here either, because "rtx 4070" and
+        "4070" each admit that post independently. The test name records the
+        population at the time it was written; the pinned set is the current
+        census and is the thing to read."""
         expected = {"1temio0", "1tknbzh", "1szziv0", "1tsp869", "1typjmc",
-                    "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm", "1wlklqx"}
+                    "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm", "1wlklqx",
+                    "1wn8rgc"}
         configs = gen.load_community_configs()
         matched = set()
         for post in configs:
