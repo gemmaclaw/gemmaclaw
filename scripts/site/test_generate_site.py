@@ -704,6 +704,30 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         )
         self.assertEqual(gen.code_ref_search_aliases("no links here at all"), "")
 
+    def test_repo_slug_aliases_reach_a_project_announcement_card(self):
+        """1woie1t announces semif-go and names its owner only inside the URL,
+        so without this alias "wnzn" is unreachable and the host alias reduces
+        the whole link to "github"."""
+        post = self._post(body="So I built semif-go. https://github.com/wnzn/semif-go")
+        for query in ("wnzn", "semif-go", "wnzn/semif-go", "semifgo"):
+            with self.subTest(query=query):
+                self.assertTrue(self._matches(post, query))
+
+    def test_repo_slug_aliases_are_sorted_deduplicated_and_path_bounded(self):
+        """A deeper path contributes the repository and nothing below it, a
+        user page with no repository segment is skipped, and another forge is
+        not indexed."""
+        text = ("https://github.com/wnzn/semif-go and "
+                "https://www.github.com/ggml-org/llama.cpp/pull/40 and "
+                "https://github.com/wnzn/semif-go.git and "
+                "https://github.com/wnzn and "
+                "https://gitlab.com/owner/repo")
+        self.assertEqual(
+            gen.repo_slug_search_aliases(text),
+            "ggml-org llama.cpp ggml-org/llama.cpp wnzn semif-go wnzn/semif-go",
+        )
+        self.assertEqual(gen.repo_slug_search_aliases("no links here at all"), "")
+
     def test_index_is_capped(self):
         post = self._post(body="tok " * 5000)
         self.assertLessEqual(len(gen.build_card_search_text(post)), gen.COMMUNITY_SEARCH_INDEX_LIMIT)
