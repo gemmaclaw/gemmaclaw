@@ -1702,6 +1702,45 @@ def code_ref_search_aliases(text):
     )
 
 
+def repo_slug_search_aliases(text):
+    """Recover a GitHub owner and project name cited only as a bare URL.
+
+    Third member of the family above. url_host_search_aliases() reduces a link
+    to its host, which collapses every GitHub link in this archive to the single
+    useless token "github", and code_ref_search_aliases() recovers a number but
+    only from a /pull/ or /issues/ path. Neither reaches a project-announcement
+    post, where the repository name IS the thing a reader types, and this
+    archive carries a steady stream of them. 1woie1t is the worked example: it
+    announces semif-go and links https://github.com/wnzn/semif-go, so the owner
+    "wnzn" existed nowhere in the index while the site's own field note cited
+    that URL as the card's identifying detail.
+
+    Emits the owner, the project name and the joined slug, so "wnzn",
+    "semif-go" and "wnzn/semif-go" all reach the card; normalize_search_text()
+    later folds the slash and the hyphen away, so the query side matches
+    whichever way a reader spells it. A trailing ".git" is dropped, and a link
+    with only one path segment is a user or organisation page rather than a
+    repository and is skipped. Slugs are deduplicated and emitted in sorted
+    order, so the same post always produces the same string out.
+    """
+    slugs = set()
+    for owner, repo in re.findall(
+        r'https?://(?:www\.)?github\.com/([^/\s)\]]+)/([^/\s)\]]+)',
+        str(text),
+        flags=re.IGNORECASE,
+    ):
+        owner = owner.lower()
+        repo = repo.lower().rstrip('.,')
+        if repo.endswith('.git'):
+            repo = repo[:-4]
+        if not owner or not repo:
+            continue
+        slugs.add((owner, repo))
+    return " ".join(
+        f"{owner} {repo} {owner}/{repo}" for owner, repo in sorted(slugs)
+    )
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1803,6 +1842,7 @@ def build_card_search_text(post):
         hardware_search_aliases(joined),
         url_host_search_aliases(joined),
         code_ref_search_aliases(joined),
+        repo_slug_search_aliases(joined),
     ]))
 
     # clean_markdown runs PER PART, not over the join, and that is load-bearing
