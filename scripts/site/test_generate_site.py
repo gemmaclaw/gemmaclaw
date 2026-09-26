@@ -1635,7 +1635,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # and it also reaches Mid-range GPU; see MID_GPU_EXPECTED. The cycle's other
     # two additions, 1wlt33y and 1wle1f4, reach no hardware chip at all and land
     # on Quantization and Backends alone.
-    LAPTOP_EXPECTED = 36
+    # Re-derived for the 743-entry index of 2026-09-26, where it moved 36 -> 37.
+    # 1wq041h matches "laptop" from its title and hardware block, which name an
+    # HP OMEN 15 with an RTX 5050 Laptop GPU. It also reaches Mid-range GPU; see
+    # MID_GPU_EXPECTED. The other four additions (1wp1vex, 1wpqyaz, 1wpu6wf,
+    # 1wq4j6g) do not mention a laptop and do not change this count.
+    LAPTOP_EXPECTED = 37
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -1708,7 +1713,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # 1wm8ede, 1wmpwtl, 1wn9w6x and 1wnhji0 match no keyword at all and fall
     # through to general. So quantization moves 420 -> 424 and general moves
     # 227 -> 231, while cpu-only stays at 16 and apple-silicon stays at 76.
-    MID_GPU_EXPECTED = 66
+    # Re-derived for the 743-entry index of 2026-09-26, where it moved 66 -> 67.
+    # 1wq041h matches mid-gpu from its RTX 5050 Laptop GPU (8 GB VRAM), which
+    # the categoriser reaches through the "rtx 5050" keyword. It also reaches
+    # Laptops; see LAPTOP_EXPECTED. The other four additions (1wp1vex,
+    # 1wpqyaz, 1wpu6wf, 1wq4j6g) do not match any mid-gpu keyword.
+    MID_GPU_EXPECTED = 67
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -1826,7 +1836,9 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         if not collisions and not genuine:
             self.skipTest("community index enrichment produced no posts (workspace data unavailable)")
         self.assertEqual(collisions, {"1ti2ga0"})
-        self.assertEqual(genuine, {"1snztwz", "1w9z7lk", "1tbshsl", "1vq128f"})
+        # 1wq041h added 2026-09-26: HP OMEN 15 with "RTX 5050 Laptop 8GB VRAM"
+        # in the summary; "8gb vram" is not preceded by a digit, so it is genuine.
+        self.assertEqual(genuine, {"1snztwz", "1w9z7lk", "1tbshsl", "1vq128f", "1wq041h"})
 
     def test_every_radeon_9060_post_reaches_the_mid_range_chip(self):
         """The six posts naming the RX 9060 XT. Before the 2026-09-02 keyword
