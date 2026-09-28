@@ -1640,7 +1640,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # HP OMEN 15 with an RTX 5050 Laptop GPU. It also reaches Mid-range GPU; see
     # MID_GPU_EXPECTED. The other four additions (1wp1vex, 1wpqyaz, 1wpu6wf,
     # 1wq4j6g) do not mention a laptop and do not change this count.
-    LAPTOP_EXPECTED = 37
+    # Re-derived for the 744-entry index of 2026-09-27, where it was unmoved at 37.
+    # The single addition (1wqn1n8) carries no laptop keyword.
+    # Re-derived for the 745-entry index of 2026-09-28, where it moved 37 -> 38.
+    # 1wrx15j matches "laptop" from its summary, which names the "5080 Laptop GPU".
+    # It also reaches Mid-range GPU via the "5080" keyword; see MID_GPU_EXPECTED.
+    LAPTOP_EXPECTED = 38
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -1718,7 +1723,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # the categoriser reaches through the "rtx 5050" keyword. It also reaches
     # Laptops; see LAPTOP_EXPECTED. The other four additions (1wp1vex,
     # 1wpqyaz, 1wpu6wf, 1wq4j6g) do not match any mid-gpu keyword.
-    MID_GPU_EXPECTED = 67
+    # Re-derived for the 744-entry index of 2026-09-27, where it was unmoved at 67.
+    # The single addition (1wqn1n8) carries no mid-gpu keyword.
+    # Re-derived for the 745-entry index of 2026-09-28, where it moved 67 -> 68.
+    # 1wrx15j matches mid-gpu via the "5080" keyword, from "5080 Laptop GPU" in
+    # the summary. It also reaches Laptops; see LAPTOP_EXPECTED.
+    MID_GPU_EXPECTED = 68
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
