@@ -1741,6 +1741,67 @@ def repo_slug_search_aliases(text):
     )
 
 
+# First path segments on huggingface.co that are site sections rather than an
+# owner. A link under one of these is a paper, a blog post, a doc page or a
+# search, and carries no repository a reader would type.
+HUGGINGFACE_NON_OWNER_SEGMENTS = frozenset({
+    "blog", "chat", "docs", "join", "learn", "login", "models", "organizations",
+    "papers", "posts", "settings", "tasks",
+})
+# First path segments that prefix an owner/name pair instead of being the owner.
+HUGGINGFACE_TYPED_SEGMENTS = frozenset({"collections", "datasets", "spaces"})
+
+
+def huggingface_slug_search_aliases(text):
+    """Recover a Hugging Face owner and model name cited only as a bare URL.
+
+    Fourth member of the family above, and the Hugging Face twin of
+    repo_slug_search_aliases(). A model release in this archive is usually
+    named by its Hugging Face link rather than in prose, and
+    url_host_search_aliases() reduces every such link to "huggingface", so the
+    exact checkpoint name, the term a reader copies out of a Field Notes
+    citation, existed nowhere in the index. 1u8g3d0 is the worked example: it
+    gives its model only as
+    https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers, and
+    the 2026-09-30 Field Notes section quotes that name for the card.
+
+    Emits the owner, the model name and the joined slug, like the GitHub
+    helper, lowercased because normalize_search_text() lowercases the index
+    anyway. A spaces/, datasets/ or collections/ link contributes the pair
+    after that prefix, a link under a site section such as papers/ or blog/
+    is skipped, a query string or fragment is dropped, and a link with only an
+    owner segment is skipped. Short summary is an upstream truncation, so the
+    same link often arrives a second time cut off by an ellipsis; the cut copy
+    is dropped when the full name is also present, and kept without the
+    ellipsis when it is the only copy. Slugs are deduplicated and emitted in
+    sorted order, so the same post always produces the same string out.
+    """
+    slugs = set()
+    for path in re.findall(
+        r'https?://(?:www\.)?(?:huggingface\.co|hf\.co)/([^\s)\]]+)',
+        str(text),
+        flags=re.IGNORECASE,
+    ):
+        path = re.split(r'[?#&]|…|\.\.\.', path, maxsplit=1)[0]
+        segments = [s.lower().rstrip('.,;:') for s in path.split('/')]
+        segments = [s for s in segments if s]
+        if segments and segments[0] in HUGGINGFACE_TYPED_SEGMENTS:
+            segments = segments[1:]
+        elif segments and segments[0] in HUGGINGFACE_NON_OWNER_SEGMENTS:
+            continue
+        if len(segments) < 2:
+            continue
+        slugs.add((segments[0], segments[1]))
+    # A truncated copy is a strict prefix of a full name from the same owner.
+    slugs = {
+        (owner, name) for owner, name in slugs
+        if not any(o == owner and n != name and n.startswith(name) for o, n in slugs)
+    }
+    return " ".join(
+        f"{owner} {name} {owner}/{name}" for owner, name in sorted(slugs)
+    )
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1843,6 +1904,7 @@ def build_card_search_text(post):
         url_host_search_aliases(joined),
         code_ref_search_aliases(joined),
         repo_slug_search_aliases(joined),
+        huggingface_slug_search_aliases(joined),
     ]))
 
     # clean_markdown runs PER PART, not over the join, and that is load-bearing
