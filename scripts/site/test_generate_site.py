@@ -728,6 +728,57 @@ class TestBodyTextIsSearchable(unittest.TestCase):
         )
         self.assertEqual(gen.repo_slug_search_aliases("no links here at all"), "")
 
+    def test_huggingface_slug_aliases_reach_a_model_named_only_by_link(self):
+        """1u8g3d0 gives its model only as a Hugging Face URL, so without this
+        alias the checkpoint name the Field Notes quote is unreachable and the
+        host alias reduces the link to "huggingface"."""
+        post = self._post(body=(
+            "Links: - Demo (+ kernels): "
+            "https://huggingface.co/spaces/webml-community/gemma-4-webgpu-kernels "
+            "- Model: https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers"
+        ))
+        for query in (
+            "gemma-4-E2B-it-qat-mobile-transformers",
+            "google/gemma-4-E2B-it-qat-mobile-transformers",
+            "webml-community",
+            "gemma-4-webgpu-kernels",
+        ):
+            with self.subTest(query=query):
+                self.assertTrue(self._matches(post, query))
+
+    def test_huggingface_slug_aliases_skip_sections_and_bound_the_path(self):
+        """A typed prefix contributes the pair after it, a site section and a
+        bare owner page are skipped, a query string and a deeper file path are
+        dropped, and duplicates collapse."""
+        text = ("https://huggingface.co/unsloth/gemma-4-31B-it-GGUF/blob/main/x.gguf and "
+                "https://huggingface.co/unsloth/gemma-4-31B-it-GGUF?show_file_info=1 and "
+                "https://hf.co/datasets/org/set and "
+                "https://huggingface.co/papers/2604.00001 and "
+                "https://huggingface.co/datasets?benchmark=official&amp;sort=trending and "
+                "https://huggingface.co/unsloth and "
+                "https://gitlab.com/owner/repo")
+        self.assertEqual(
+            gen.huggingface_slug_search_aliases(text),
+            "org set org/set unsloth gemma-4-31b-it-gguf unsloth/gemma-4-31b-it-gguf",
+        )
+        self.assertEqual(gen.huggingface_slug_search_aliases("no links here at all"), "")
+
+    def test_huggingface_slug_aliases_drop_a_truncated_copy(self):
+        """Short summary cuts the same link mid-name. The cut copy is dropped
+        when the full name is present and kept, minus the ellipsis, when it is
+        the only copy, so no alias ever carries an ellipsis."""
+        full = "https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers"
+        cut = "https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-tran…"
+        self.assertEqual(
+            gen.huggingface_slug_search_aliases(f"{cut} {full}"),
+            "google gemma-4-e2b-it-qat-mobile-transformers "
+            "google/gemma-4-e2b-it-qat-mobile-transformers",
+        )
+        self.assertEqual(
+            gen.huggingface_slug_search_aliases("https://huggingface.co/unsloth/gemma-4-31B..."),
+            "unsloth gemma-4-31b unsloth/gemma-4-31b",
+        )
+
     def test_index_is_capped(self):
         post = self._post(body="tok " * 5000)
         self.assertLessEqual(len(gen.build_card_search_text(post)), gen.COMMUNITY_SEARCH_INDEX_LIMIT)
@@ -1604,7 +1655,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # kind, so the Field Notes section reports the count move and attributes no
     # throughput to it. It does NOT reach Mid-range GPU, because it writes none
     # of that chip's keywords, so it does not join BOTH_GPU_CHIPS_EXPECTED.
-    HIGH_GPU_EXPECTED = 97
+    # Re-derived for the 749-entry index of 2026-09-30, where it moved 97 -> 98.
+    # No keyword changed this cycle. The arrival is a new post, 1wtmz2p,
+    # admitted by the existing bare "4090" keyword from its title, "from Gemma
+    # 4 31B on a 4090"; "rtx 4090" does not match, because the RTX 4090 is only
+    # named in the body, which the categoriser does not read. It is a genuine
+    # 24 GB RTX 4090 and the only hardware chip the post reaches. It reaches no
+    # Mid-range GPU keyword, so it does not join BOTH_GPU_CHIPS_EXPECTED. The
+    # cycle's other addition, 1wtelk8, matches no keyword and falls through to
+    # general, which moves 237 -> 238; every other chip is unmoved.
+    HIGH_GPU_EXPECTED = 98
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
