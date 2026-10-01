@@ -1788,7 +1788,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Re-derived for the 745-entry index of 2026-09-28, where it moved 67 -> 68.
     # 1wrx15j matches mid-gpu via the "5080" keyword, from "5080 Laptop GPU" in
     # the summary. It also reaches Laptops; see LAPTOP_EXPECTED.
-    MID_GPU_EXPECTED = 68
+    # Re-derived for the 753-entry index of 2026-10-01, where it moved 68 -> 69.
+    # 1wtvx1g matches mid-gpu via the "4060" keyword, from "2x 4060 8gb" in the
+    # summary, genuine: the author runs Gemma 4 26B across two RTX 4060 8 GB
+    # cards. The other three additions (1wu0chf, 1wu2lpa, 1wujd9a) carry no
+    # mid-gpu keyword.
+    MID_GPU_EXPECTED = 69
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -2225,6 +2230,10 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     tell you whether the boundary rule actually cleared the 21 bad matches or
     silently swallowed genuine Apple posts too."""
 
+    # Re-derived for the 753-entry index of 2026-10-01, where it moved 76 -> 77.
+    # The one new match is 1wu2lpa, on "mac " from "open-source Mac meeting
+    # notetaker" in its title, and the match is genuine: LokalBot is a macOS app
+    # and the post's own figures are from an M4 Max with 48 GB. Prior derivation:
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 75 -> 76.
     # The one new entry is 1w2gmxz, which matches on "macos", and the match is
     # genuine: the on-device agent client it announces ships a macOS build on
@@ -2233,7 +2242,7 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     # 673-entry index of 2026-08-25, where it moved 74 -> 75: the one new entry
     # was 1vwwa62, matching "mac mini" and "mac ", both genuine, because the
     # author runs Gemma 4 12B QAT on a 16 GB Mac mini.
-    APPLE_SILICON_EXPECTED = 76
+    APPLE_SILICON_EXPECTED = 77
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
