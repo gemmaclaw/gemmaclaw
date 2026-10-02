@@ -1664,7 +1664,15 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Mid-range GPU keyword, so it does not join BOTH_GPU_CHIPS_EXPECTED. The
     # cycle's other addition, 1wtelk8, matches no keyword and falls through to
     # general, which moves 237 -> 238; every other chip is unmoved.
-    HIGH_GPU_EXPECTED = 98
+    # Re-derived for the 755-entry index of 2026-10-02, where it moved 98 -> 99.
+    # No keyword changed this cycle. The arrival is a new post, 1wv0h6l, a
+    # FreeToken against llama.cpp benchmark admitted by "rtx 3090" and the bare
+    # "3090" from its title, "on one RTX 3090". It is a genuine single 24 GB
+    # RTX 3090 and reaches no Mid-range GPU keyword, so it does not join
+    # BOTH_GPU_CHIPS_EXPECTED. It also reaches quantization (428 -> 429) through
+    # gguf, 4-bit and llama.cpp. The cycle's other addition, 1wv0gyv, matches no
+    # keyword and falls through to general, which moves 240 -> 241.
+    HIGH_GPU_EXPECTED = 99
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
