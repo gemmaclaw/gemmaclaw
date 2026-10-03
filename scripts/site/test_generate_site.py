@@ -1801,7 +1801,14 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # summary, genuine: the author runs Gemma 4 26B across two RTX 4060 8 GB
     # cards. The other three additions (1wu0chf, 1wu2lpa, 1wujd9a) carry no
     # mid-gpu keyword.
-    MID_GPU_EXPECTED = 69
+    # Re-derived for the 758-entry index of 2026-10-03, where it moved 69 -> 70.
+    # No keyword changed this cycle. 1wvihh4 matches mid-gpu via "3060", "3070"
+    # and the bare "12gb" token, all from one sentence, "1 3070 8gb and 2x 3060
+    # 12gb", genuine: the author asks whether Gemma 4 31B fits across those
+    # three cards. It reaches no High-end GPU or Laptops keyword, so it joins
+    # neither BOTH_GPU_CHIPS_EXPECTED nor LAPTOP_EXPECTED. The other two
+    # additions (1ww2hux, 1ww528l) carry no mid-gpu keyword.
+    MID_GPU_EXPECTED = 70
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -2093,10 +2100,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         sentence. It is not load-bearing here either, because "rtx 4070" and
         "4070" each admit that post independently. The test name records the
         population at the time it was written; the pinned set is the current
-        census and is the thing to read."""
+        census and is the thing to read.
+
+        Re-derived for the 758-entry index of 2026-10-03, where the population
+        moved eleven -> twelve. The arrival is 1wvihh4, which carries the token
+        once, in "1 3070 8gb and 2x 3060 12gb", a genuine GPU VRAM mention for
+        the two RTX 3060 cards. It is not load-bearing, because "3060" and
+        "3070" each admit that post independently."""
         expected = {"1temio0", "1tknbzh", "1szziv0", "1tsp869", "1typjmc",
                     "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm", "1wlklqx",
-                    "1wn8rgc"}
+                    "1wn8rgc", "1wvihh4"}
         configs = gen.load_community_configs()
         matched = set()
         for post in configs:
