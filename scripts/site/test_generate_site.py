@@ -1672,7 +1672,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # BOTH_GPU_CHIPS_EXPECTED. It also reaches quantization (428 -> 429) through
     # gguf, 4-bit and llama.cpp. The cycle's other addition, 1wv0gyv, matches no
     # keyword and falls through to general, which moves 240 -> 241.
-    HIGH_GPU_EXPECTED = 99
+    # Re-derived for the 760-entry index of 2026-10-04, where it moved 99 -> 100.
+    # No keyword changed this cycle. The arrival is a new post, 1wwxuoh, by the
+    # same author as 1wgpnah, 1wkc3q6 and 1wkypcs, admitted by "mi50" alone from
+    # its summary, "I changed the firmware on one MI50". It is genuine: two MI50
+    # cards at 16 GB each, pooling 32 GB. It does NOT reach Mid-range GPU,
+    # because "16gb vram" sits only in its body, which the categoriser does not
+    # read, so it does not join BOTH_GPU_CHIPS_EXPECTED. It also reaches
+    # quantization (431 -> 433, with the cycle's other addition 1wwqclz) through
+    # the "quantization" ingest tag. Every other chip is unmoved.
+    HIGH_GPU_EXPECTED = 100
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -2029,7 +2038,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                      # them they also settle the MI50-versus-Radeon-VII naming
                      # that 1wgpnah left unreconciled: it is one card, an MI50
                      # running Radeon VII firmware. Zero spurious.
-                     "1wkc3q6", "1wkypcs"},
+                     "1wkc3q6", "1wkypcs",
+                     # 2026-10-04: genuine, the fourth mi50 entry by the author
+                     # of 1wgpnah, 1wkc3q6 and 1wkypcs, and the first of those
+                     # four to run two MI50s rather than one MI50 beside a
+                     # different card: "Each GPU has 16GB of HBM2 VRAM".
+                     "1wwxuoh"},
             "mi60": {"1tlliw4"},
             # 2026-09-23: 1wm2umu is a genuine fourth, and the only one of the
             # four whose R9700 mention is a statement of ownership rather than
