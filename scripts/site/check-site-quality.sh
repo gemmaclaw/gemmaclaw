@@ -251,6 +251,18 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# A Field Notes section that cites an earlier one by date must name a section
+# that actually carries what it attributes there.
+if ! python3 "$SCRIPT_DIR/check-field-notes-xrefs.py"; then
+  FAILURES=$((FAILURES + 1))
+fi
+if python3 "$SCRIPT_DIR/test_check_field_notes_xrefs.py" >/dev/null 2>&1; then
+  echo "PASS: Field Notes cross-reference guard tests"
+else
+  echo "FAIL: Field Notes cross-reference guard tests"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo ""
 if [ "$FAILURES" -gt 0 ]; then
   echo "FAILED: $FAILURES check(s) failed"
