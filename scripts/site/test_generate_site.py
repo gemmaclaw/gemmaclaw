@@ -1681,7 +1681,12 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # read, so it does not join BOTH_GPU_CHIPS_EXPECTED. It also reaches
     # quantization (431 -> 433, with the cycle's other addition 1wwqclz) through
     # the "quantization" ingest tag. Every other chip is unmoved.
-    HIGH_GPU_EXPECTED = 100
+    # Re-derived for the 763-entry index of 2026-10-06, where it moved 100 -> 101.
+    # No keyword changed this cycle. The arrival is a new post, 1wyc1sc
+    # (Speakrail), admitted by "rtx 4090" and "4090" from its own title, "runs on
+    # a single RTX 4090". It is genuine. It reaches no other chip, so it does not
+    # join BOTH_GPU_CHIPS_EXPECTED.
+    HIGH_GPU_EXPECTED = 101
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1817,7 +1822,14 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # three cards. It reaches no High-end GPU or Laptops keyword, so it joins
     # neither BOTH_GPU_CHIPS_EXPECTED nor LAPTOP_EXPECTED. The other two
     # additions (1ww2hux, 1ww528l) carry no mid-gpu keyword.
-    MID_GPU_EXPECTED = 70
+    # Re-derived for the 763-entry index of 2026-10-06, where it moved 70 -> 71.
+    # No keyword changed this cycle. The arrival is a new post, 1wygt6g, admitted
+    # by "rtx 3060" and "3060" from "RTX 3060 Ti 8 GB" in its summary. It is a
+    # genuine mid-range Nvidia card (the Ti variant). The same summary's "RTX 2080
+    # Ti 11 GB" matches no keyword of either GPU chip, so it does not join
+    # BOTH_GPU_CHIPS_EXPECTED. It also reaches Apple Silicon on "m4"; see
+    # APPLE_SILICON_EXPECTED.
+    MID_GPU_EXPECTED = 71
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -2277,7 +2289,12 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     # 673-entry index of 2026-08-25, where it moved 74 -> 75: the one new entry
     # was 1vwwa62, matching "mac mini" and "mac ", both genuine, because the
     # author runs Gemma 4 12B QAT on a 16 GB Mac mini.
-    APPLE_SILICON_EXPECTED = 77
+    # Re-derived for the 763-entry index of 2026-10-06, where it moved 77 -> 78.
+    # The one new match is 1wygt6g, on "m4" from "an M4 32 GB as a
+    # coordinator/router" in its summary. The match is genuine Apple hardware the
+    # author owns, but it is not where any Gemma 4 run is stated to have happened,
+    # and the Field Notes section says so.
+    APPLE_SILICON_EXPECTED = 78
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
