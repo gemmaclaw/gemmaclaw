@@ -326,6 +326,23 @@ class TestHyphenSpaceAndThousandsSeparatorRecall(unittest.TestCase):
     def test_space_separated_query_matches_hyphenated_source(self):
         self.assertTrue(self._hit("draft n max", "ran with --draft-n-max 4"))
 
+    def test_numeric_range_query_matches_hyphenated_source(self):
+        post = {
+            "id": "range01",
+            "title": "Looping report",
+            "summary": "Gemma4 31B has been looping for the past 3-4 days.",
+            "tags": [],
+            "comments": [],
+            "categories": ["general"],
+            "author": "tester",
+            "date": "2026-10-07",
+            "score": 10,
+            "flair": "",
+        }
+        indexed = gen.build_card_search_text(post)
+        self.assertIn(gen.normalize_search_text("3 to 4 days"), indexed)
+        self.assertNotIn("26 to 4", gen.numeric_range_search_aliases("26B-A4B"))
+
     def test_thousands_separator_is_ignored_on_both_sides(self):
         self.assertTrue(self._hit("90,000", "38tps at 90000 context"))
         self.assertTrue(self._hit("90000", "38tps at 90,000 context"))
