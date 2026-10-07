@@ -1622,6 +1622,33 @@ def model_pair_search_aliases(text):
     return " ".join(aliases)
 
 
+NUMERIC_RANGE_ALIAS_RE = re.compile(
+    r"(?<![A-Za-z0-9])"
+    r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)"
+    r"(?![A-Za-z0-9])(?:\s*([A-Za-z][A-Za-z0-9/%]*))?",
+    re.IGNORECASE,
+)
+
+
+def numeric_range_search_aliases(text):
+    """Make source ranges searchable by the prose form Field Notes uses.
+
+    normalize_search_text() strips hyphens because model, quant and flag names
+    such as Q4_K_M, 26B-A4B and draft-n-max have to converge to one token. That
+    turns a source phrase like "3-4 days" into "34 days", while the editorial
+    section naturally writes "3 to 4 days". Keep the identifier rule intact and
+    add a narrow alias only for digit-to-digit prose ranges.
+    """
+    aliases = []
+    folded = str(text).translate(SEARCH_TYPOGRAPHIC_FOLD)
+    for low, high, unit in NUMERIC_RANGE_ALIAS_RE.findall(folded):
+        alias = f"{low} to {high}"
+        if unit:
+            alias = f"{alias} {unit}"
+        aliases.append(alias)
+    return " ".join(aliases)
+
+
 NVIDIA_RTX_GPU_NUMBERS = {
     "3060", "3070", "3090",
     "4060", "4070", "4090",
@@ -1900,6 +1927,7 @@ def build_card_search_text(post):
     joined = " ".join(parts)
     aliases = " ".join(filter(None, [
         model_pair_search_aliases(joined),
+        numeric_range_search_aliases(joined),
         hardware_search_aliases(joined),
         url_host_search_aliases(joined),
         code_ref_search_aliases(joined),
