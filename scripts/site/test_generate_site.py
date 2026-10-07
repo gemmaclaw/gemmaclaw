@@ -1727,7 +1727,11 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Re-derived for the 745-entry index of 2026-09-28, where it moved 37 -> 38.
     # 1wrx15j matches "laptop" from its summary, which names the "5080 Laptop GPU".
     # It also reaches Mid-range GPU via the "5080" keyword; see MID_GPU_EXPECTED.
-    LAPTOP_EXPECTED = 38
+    # Re-derived for the 768-entry index of 2026-10-07, where it moved 38 -> 39.
+    # 1wz75gs matches "laptop" from its title/body and is a genuine laptop report:
+    # an EndeavourOS laptop with an RX6800S 8GB of VRAM and Ryzen 9 6900HS. It
+    # also reaches Quantization and Backends through Ollama/ROCm/LM Studio.
+    LAPTOP_EXPECTED = 39
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
