@@ -1748,7 +1748,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # 1wz75gs matches "laptop" from its title/body and is a genuine laptop report:
     # an EndeavourOS laptop with an RX6800S 8GB of VRAM and Ryzen 9 6900HS. It
     # also reaches Quantization and Backends through Ollama/ROCm/LM Studio.
-    LAPTOP_EXPECTED = 39
+    # Re-derived for the 770-entry index of 2026-10-08, where it moved 39 -> 40.
+    # 1x0bttq matches "laptop" from its title, which names an Intel Gen9 laptop
+    # beside an AMD RDNA 3 handheld, so it is a genuine laptop mention. It also
+    # matches "portable" from its summary, but there the word is software ("the
+    # portable path"), so the title is what admits it. The cycle's other
+    # addition, 1x06p4l, reaches Quantization and Backends alone via its tags.
+    LAPTOP_EXPECTED = 40
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
