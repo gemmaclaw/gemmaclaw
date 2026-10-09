@@ -1856,7 +1856,14 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Ti 11 GB" matches no keyword of either GPU chip, so it does not join
     # BOTH_GPU_CHIPS_EXPECTED. It also reaches Apple Silicon on "m4"; see
     # APPLE_SILICON_EXPECTED.
-    MID_GPU_EXPECTED = 71
+    # Re-derived for the 771-entry index of 2026-10-09, where it moved 71 -> 72.
+    # No keyword changed this cycle. The single arrival is a new post, 1x0lxg0,
+    # admitted by "16gb vram" alone, from "16gb vram and 900GB/s bandwidth" in its
+    # summary. It is a genuine GPU capacity mention, although the post names no
+    # card. It reaches no High-end GPU or Laptops keyword, so it joins neither
+    # BOTH_GPU_CHIPS_EXPECTED nor LAPTOP_EXPECTED. It also reaches Quantization
+    # and Backends on "quant", "quantiz" and "ollama".
+    MID_GPU_EXPECTED = 72
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
