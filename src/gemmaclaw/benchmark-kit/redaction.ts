@@ -30,15 +30,15 @@ const SECRET_PROFILES: ReadonlySet<RedactionProfile> = new Set<RedactionProfile>
 const PUBLIC_ONLY: ReadonlySet<RedactionProfile> = new Set<RedactionProfile>(["public"]);
 
 const INTERNAL_HOSTNAMES = [
-  "frank-pc",
+  "example-tailnet-host-c77ea0",
   "frank-wsl",
-  "frankpi",
+  "example-tailnet-host-50a809",
   "DESKTOP-DDEC81D",
-  "clawed-nina",
-  "clawed-peter",
-  "clawed-adamas",
-  "clawed-george",
-  "clawed-jason_wwsa",
+  "example-private-host-33ba82",
+  "example-private-host-098509",
+  "example-private-host-9a4992",
+  "example-private-host-3fbba7",
+  "example-private-host-f0f7d4",
   "clawed-wwsa",
 ];
 

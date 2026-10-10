@@ -44,10 +44,10 @@ describe("resolveGemmaclawStateDir", () => {
 
   it("expands GEMMACLAW_HOME with tilde prefix", () => {
     const result = resolveGemmaclawStateDir(
-      { HOME: "/home/frank", GEMMACLAW_HOME: "~/.my-gemmaclaw" },
-      () => "/home/frank",
+      { HOME: "/home/example-user", GEMMACLAW_HOME: "~/.my-gemmaclaw" },
+      () => "/home/example-user",
     );
-    expect(result).toBe("/home/frank/.my-gemmaclaw");
+    expect(result).toBe("/home/example-user/.my-gemmaclaw");
   });
 
   it("GEMMACLAW_HOME wins over OPENCLAW_STATE_DIR", () => {

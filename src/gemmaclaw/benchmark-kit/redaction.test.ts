@@ -21,30 +21,30 @@ describe("sanitize", () => {
   it("redacts emails, IPs, hostnames, paths under 'public' profile", () => {
     const text = [
       "email=person@example.com",
-      "tailscale=100.69.102.71",
+      "tailscale=100.64.0.163",
       "ipv4=192.168.1.10",
-      "host=frank-pc",
-      "path=/home/frank/.openclaw/workspace/state",
-      "phone=(647) 802-3321",
+      "host=example-tailnet-host-c77ea0",
+      "path=/home/example-user/.openclaw/workspace/state",
+      "phone=+15559553227",
     ].join(" ");
     const out = sanitize(text, "public");
     expect(out).not.toContain("person@example.com");
-    expect(out).not.toContain("100.69.102.71");
+    expect(out).not.toContain("100.64.0.163");
     expect(out).not.toContain("192.168.1.10");
-    expect(out).not.toContain("frank-pc");
-    expect(out).not.toContain("/home/frank/");
-    expect(out).not.toContain("(647) 802-3321");
+    expect(out).not.toContain("example-tailnet-host-c77ea0");
+    expect(out).not.toContain("/home/example-user/");
+    expect(out).not.toContain("+15559553227");
   });
 
   it("is idempotent (sanitize(sanitize(x)) == sanitize(x))", () => {
-    const text = "email=a@b.com host=frank-pc";
+    const text = "email=a@b.com host=example-tailnet-host-c77ea0";
     const once = sanitize(text, "public");
     const twice = sanitize(once, "public");
     expect(twice).toBe(once);
   });
 
   it("'none' profile passes through unchanged", () => {
-    const text = "any sensitive frank-pc 192.168.1.1 a@b.com";
+    const text = "any sensitive example-tailnet-host-c77ea0 192.168.1.1 a@b.com";
     expect(sanitize(text, "none")).toBe(text);
   });
 });
@@ -52,8 +52,8 @@ describe("sanitize", () => {
 describe("sanitizeObject", () => {
   it("walks dicts/lists recursively", () => {
     const obj = {
-      hostname: "frank-pc",
-      list: ["1@b.com", { nested: "/home/frank/x" }],
+      hostname: "example-tailnet-host-c77ea0",
+      list: ["1@b.com", { nested: "/home/example-user/x" }],
       keep: 42,
     };
     const out = sanitizeObject(obj, "public");
@@ -66,7 +66,7 @@ describe("sanitizeObject", () => {
 
 describe("audit", () => {
   it("returns findings for sensitive content in default mode", () => {
-    const findings = audit("contact a@b.com on 100.69.102.71");
+    const findings = audit("contact a@b.com on 100.64.0.163");
     expect(findings.length).toBeGreaterThanOrEqual(2);
     expect(findings.some((f) => f.rule === "email")).toBe(true);
     expect(findings.some((f) => f.rule === "tailscale_ip")).toBe(true);

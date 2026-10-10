@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-WORKSPACE="${WORKSPACE:-/home/frank/.openclaw/workspace}"
+WORKSPACE="${WORKSPACE:-/home/example-user/.openclaw/workspace}"
 CONFIGS_SRC="$WORKSPACE/knowledge/reddit/localllama/gemma4-hardware-configs.json"
 
 echo "=== deploy-site-update: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

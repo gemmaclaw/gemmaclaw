@@ -221,7 +221,7 @@ describe("validateTaskArtifact", () => {
     const runDir = freshRunDir();
     writeTaskArtifacts(runDir, baseTask.id, {
       trajectoryJsonl:
-        '{"type":"tool.exec","cmd":"ls /home/frank/.config/gogcli/state","result":"..."}\n',
+        '{"type":"tool.exec","cmd":"ls /home/example-user/.config/gogcli/state","result":"..."}\n',
     });
     const validation = validateTaskArtifact({ runDir, task: baseTask, result: makeResult() });
     expect(validation.valid).toBe(false);
@@ -277,7 +277,7 @@ describe("validateTaskArtifact", () => {
     expect(REAL_ACCOUNT_MARKERS).toContain("lifrank1994@gmail.com");
     expect(REAL_ACCOUNT_MARKERS).toContain("wsfccorp@gmail.com");
     expect(HOST_OAUTH_MARKERS.length).toBeGreaterThan(0);
-    expect(HOST_PATH_MARKERS).toContain("/home/frank/.config/gogcli/state");
+    expect(HOST_PATH_MARKERS).toContain("/home/example-user/.config/gogcli/state");
   });
 });
 

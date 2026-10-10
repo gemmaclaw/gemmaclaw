@@ -130,9 +130,9 @@ export const HOST_OAUTH_MARKERS: readonly RegExp[] = [
 ];
 
 export const HOST_PATH_MARKERS: readonly string[] = [
-  "/home/frank/.config/gogcli/state",
-  "/home/frank/.openclaw/agents/main",
-  "/home/frank/.openclaw/workspace/.secrets",
+  "/home/example-user/.config/gogcli/state",
+  "/home/example-user/.openclaw/agents/main",
+  "/home/example-user/.openclaw/workspace/.secrets",
 ];
 
 const EVIDENCE_CLIP = 240;
