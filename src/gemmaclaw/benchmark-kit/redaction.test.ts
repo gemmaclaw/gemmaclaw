@@ -1,6 +1,70 @@
-import { describe, expect, it } from "vitest";
-import { audit, auditPack, ruleNames, sanitize, sanitizeObject } from "./redaction.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  audit,
+  auditPack,
+  HOSTNAMES_ENV,
+  HOSTNAMES_FILE_ENV,
+  privateHostnamesConfigured,
+  reloadPrivateHostnames,
+  ruleNames,
+  sanitize,
+  sanitizeObject,
+} from "./redaction.js";
 import { loadAgentFixtureTasks } from "./task-loader.js";
+
+// The real hostname list lives outside the repo; pin the fixture fakes so the
+// tests do not depend on what the machine running them has configured.
+const FAKE_HOSTNAMES = ["example-tailnet-host-c77ea0", "example-private-host-33ba82"];
+const ABSENT_FILE = path.join(os.tmpdir(), "gemmaclaw-redaction-test-absent.txt");
+
+function pinFakeHostnames(): void {
+  reloadPrivateHostnames({
+    [HOSTNAMES_ENV]: FAKE_HOSTNAMES.join(","),
+    [HOSTNAMES_FILE_ENV]: ABSENT_FILE,
+  });
+}
+
+beforeEach(pinFakeHostnames);
+afterAll(() => {
+  reloadPrivateHostnames();
+});
+
+describe("private hostname config", () => {
+  it("matches configured hostnames case-insensitively", () => {
+    expect(sanitize("box EXAMPLE-TAILNET-HOST-C77EA0 up", "public")).toBe(
+      "box <REDACTED:hostname> up",
+    );
+  });
+
+  it("loads names from the env list and the config file", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemmaclaw-redaction-"));
+    const file = path.join(dir, "hosts.txt");
+    fs.writeFileSync(file, "# private list\nexample-file-host  # note\n\n");
+    const names = reloadPrivateHostnames({
+      [HOSTNAMES_ENV]: "example-env-a, example-env-b",
+      [HOSTNAMES_FILE_ENV]: file,
+    });
+    expect(names.toSorted()).toEqual(["example-env-a", "example-env-b", "example-file-host"]);
+    expect(sanitize("example-file-host example-env-b", "public")).toBe(
+      "<REDACTED:hostname> <REDACTED:hostname>",
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("has no hostname rule when nothing is configured", () => {
+    expect(reloadPrivateHostnames({ [HOSTNAMES_FILE_ENV]: ABSENT_FILE })).toEqual([]);
+    expect(privateHostnamesConfigured()).toBe(false);
+    expect(ruleNames("public")).not.toContain("internal_hostname");
+    expect(sanitize("example-tailnet-host-c77ea0", "public")).toBe("example-tailnet-host-c77ea0");
+  });
+
+  it("redacts Tailscale MagicDNS names without config", () => {
+    expect(sanitize("ssh box-1.tail0000.ts.net now", "public")).toBe("ssh <REDACTED:hostname> now");
+  });
+});
 
 describe("sanitize", () => {
   it("redacts API keys (anthropic, openai, aws) under 'internal' profile", () => {
