@@ -1719,7 +1719,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # existing "cpu-only" keyword. It is the only chip that post reaches, and
     # it states no measurement, so the Field Notes section reports the count
     # move and attributes no throughput to it.
-    CPU_ONLY_EXPECTED = 16
+    # Re-derived for the 772-entry index of 2026-10-10, where it moved 16 -> 17.
+    # No keyword changed this cycle. The single arrival is a new post, 1x20tgs
+    # (SlopSoup TV), admitted by "no gpu" and "on cpu" from its summary, "16
+    # vCPU, no GPU" and "runs on CPU next to a live x264 encoder". The CPU is
+    # genuine but it is the host of the pipeline: the archived text routes its
+    # LLM tiers "via HF API" and lists Gemma 4 in that run of tiers as the
+    # vision model, so the Field Notes section reports the count move and
+    # attributes no CPU inference of Gemma 4 to it. It also reaches Quantization and Backends on "quant" and
+    # "quantiz" from its ingest tag.
+    CPU_ONLY_EXPECTED = 17
     # Derived for the 686-entry index of 2026-09-01, where it moved 41 -> 35.
     # Nothing joined; six posts left when the bare "framework" keyword was
     # replaced by the product forms, because they held the chip on the software
