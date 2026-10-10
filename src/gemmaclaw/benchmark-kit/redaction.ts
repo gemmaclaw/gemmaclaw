@@ -14,6 +14,9 @@
  * sensitive pattern survives a sanitization pass on a vendored pack.
  */
 
+import fs from "node:fs";
+import os from "node:os";
+
 export type RedactionProfile = "none" | "internal" | "public";
 
 type Rule = {
@@ -29,20 +32,40 @@ const SECRET_PROFILES: ReadonlySet<RedactionProfile> = new Set<RedactionProfile>
 ]);
 const PUBLIC_ONLY: ReadonlySet<RedactionProfile> = new Set<RedactionProfile>(["public"]);
 
-const INTERNAL_HOSTNAMES = [
-  "example-tailnet-host-c77ea0",
-  "frank-wsl",
-  "example-tailnet-host-50a809",
-  "DESKTOP-DDEC81D",
-  "example-private-host-33ba82",
-  "example-private-host-098509",
-  "example-private-host-9a4992",
-  "example-private-host-3fbba7",
-  "example-private-host-f0f7d4",
-  "clawed-wwsa",
-];
+// Private hostnames are runtime config, never source. The public profile reads
+// them from GEMMACLAW_PRIVATE_HOSTNAMES (comma or whitespace separated) and from
+// the file named by GEMMACLAW_PRIVATE_HOSTNAMES_FILE (default below; one name per
+// line, "#" starts a comment). Matching is case-insensitive.
+export const HOSTNAMES_ENV = "GEMMACLAW_PRIVATE_HOSTNAMES";
+export const HOSTNAMES_FILE_ENV = "GEMMACLAW_PRIVATE_HOSTNAMES_FILE";
+export const DEFAULT_HOSTNAMES_FILE = "~/.config/gemmaclaw/private-hostnames.txt";
 
-const RULES: Rule[] = [
+export function loadPrivateHostnames(env: NodeJS.ProcessEnv = process.env): string[] {
+  const names: string[] = (env[HOSTNAMES_ENV] ?? "").split(/[,\s]+/);
+  const file = (env[HOSTNAMES_FILE_ENV] || DEFAULT_HOSTNAMES_FILE).replace(
+    /^~(?=$|\/)/,
+    os.homedir(),
+  );
+  try {
+    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+      names.push(line.split("#", 1)[0].trim());
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+  }
+  const seen = new Map<string, string>();
+  for (const n of names) {
+    if (n && !seen.has(n.toLowerCase())) {
+      seen.set(n.toLowerCase(), n);
+    }
+  }
+  // Longest first so a name that prefixes another cannot cut it short.
+  return [...seen.values()].toSorted((a, b) => b.length - a.length);
+}
+
+const BASE_RULES: Rule[] = [
   // --- Secrets (always redacted, even in 'internal' mode) ---
   {
     name: "anthropic_key",
@@ -113,21 +136,57 @@ const RULES: Rule[] = [
     replacement: "<REDACTED:phone>",
     profiles: PUBLIC_ONLY,
   },
-  // Internal hostnames (single alternation, word-bounded).
-  {
-    name: "internal_hostname",
-    pattern: new RegExp("\\b(?:" + INTERNAL_HOSTNAMES.map(escapeRegExp).join("|") + ")\\b", "g"),
+];
+
+// Absolute home/root paths.
+const HOME_PATH_RULE: Rule = {
+  name: "home_path",
+  pattern: /\/(?:home|Users|root|var\/lib)\/[A-Za-z0-9._\-/]+/g,
+  replacement: "<REDACTED:path>",
+  profiles: PUBLIC_ONLY,
+};
+
+function buildRules(hostnames: readonly string[]): Rule[] {
+  const out = [...BASE_RULES];
+  // Tailscale MagicDNS names (<host>.<tailnet>.ts.net) need no config.
+  out.push({
+    name: "tailnet_dns",
+    pattern: /\b[a-z0-9][a-z0-9-]*\.[a-z0-9-]+\.ts\.net\b/gi,
     replacement: "<REDACTED:hostname>",
     profiles: PUBLIC_ONLY,
-  },
-  // Absolute home/root paths.
-  {
-    name: "home_path",
-    pattern: /\/(?:home|Users|root|var\/lib)\/[A-Za-z0-9._\-/]+/g,
-    replacement: "<REDACTED:path>",
-    profiles: PUBLIC_ONLY,
-  },
-];
+  });
+  // Internal hostnames from runtime config (single alternation, word-bounded).
+  if (hostnames.length > 0) {
+    out.push({
+      name: "internal_hostname",
+      pattern: new RegExp("\\b(?:" + hostnames.map(escapeRegExp).join("|") + ")\\b", "gi"),
+      replacement: "<REDACTED:hostname>",
+      profiles: PUBLIC_ONLY,
+    });
+  }
+  out.push(HOME_PATH_RULE);
+  return out;
+}
+
+let RULES: Rule[] | undefined;
+
+function rules(): Rule[] {
+  RULES ??= buildRules(loadPrivateHostnames());
+  return RULES;
+}
+
+/**
+ * Re-read the hostname config (after the env or file changed).
+ */
+export function reloadPrivateHostnames(env: NodeJS.ProcessEnv = process.env): string[] {
+  const names = loadPrivateHostnames(env);
+  RULES = buildRules(names);
+  return names;
+}
+
+export function privateHostnamesConfigured(): boolean {
+  return rules().some((r) => r.name === "internal_hostname");
+}
 
 /**
  * Domains and IPs that are intentionally allowed in fictional fixtures or
@@ -155,7 +214,7 @@ export function sanitize(text: string, profile: RedactionProfile = "public"): st
     return text;
   }
   let out = text;
-  for (const rule of RULES) {
+  for (const rule of rules()) {
     if (!rule.profiles.has(profile)) {
       continue;
     }
@@ -194,7 +253,7 @@ export function audit(text: string, opts: AuditOptions = {}): LeakFinding[] {
   const allowLoopback = opts.allowLoopbackIps ?? false;
 
   const findings: LeakFinding[] = [];
-  for (const rule of RULES) {
+  for (const rule of rules()) {
     // Reset lastIndex for each scan.
     const regex = new RegExp(rule.pattern.source, rule.pattern.flags);
     let m: RegExpExecArray | null = regex.exec(text);
@@ -244,5 +303,7 @@ export function ruleNames(profile: RedactionProfile = "public"): string[] {
   if (profile === "none") {
     return [];
   }
-  return RULES.filter((r) => r.profiles.has(profile)).map((r) => r.name);
+  return rules()
+    .filter((r) => r.profiles.has(profile))
+    .map((r) => r.name);
 }

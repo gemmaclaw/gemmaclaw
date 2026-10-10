@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest";
 import type { AgentTaskResult } from "./agent-runner.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
 import {
+  HOST_HOMES_ENV,
   HOST_OAUTH_MARKERS,
   HOST_PATH_MARKERS,
   REAL_ACCOUNT_MARKERS,
+  hostPathMarkers,
   inspectTaskQuality,
   summarizeValidation,
   summarizeQualityInspection,
@@ -221,7 +223,11 @@ describe("validateTaskArtifact", () => {
     const runDir = freshRunDir();
     writeTaskArtifacts(runDir, baseTask.id, {
       trajectoryJsonl:
-        '{"type":"tool.exec","cmd":"ls /home/example-user/.config/gogcli/state","result":"..."}\n',
+        JSON.stringify({
+          type: "tool.exec",
+          cmd: `ls ${os.homedir()}/.config/gogcli/state`,
+          result: "...",
+        }) + "\n",
     });
     const validation = validateTaskArtifact({ runDir, task: baseTask, result: makeResult() });
     expect(validation.valid).toBe(false);
@@ -277,7 +283,19 @@ describe("validateTaskArtifact", () => {
     expect(REAL_ACCOUNT_MARKERS).toContain("lifrank1994@gmail.com");
     expect(REAL_ACCOUNT_MARKERS).toContain("wsfccorp@gmail.com");
     expect(HOST_OAUTH_MARKERS.length).toBeGreaterThan(0);
-    expect(HOST_PATH_MARKERS).toContain("/home/example-user/.config/gogcli/state");
+    expect(HOST_PATH_MARKERS).toContain(`${os.homedir()}/.config/gogcli/state`);
+  });
+
+  it("builds host path markers from runtime homes, not source", () => {
+    const markers = hostPathMarkers(
+      { [HOST_HOMES_ENV]: "/home/other-user/, /srv/bench" },
+      "/home/example-user",
+    );
+    expect(markers).toContain("/home/example-user/.config/gogcli/state");
+    expect(markers).toContain("/home/other-user/.openclaw/agents/main");
+    expect(markers).toContain("/srv/bench/.openclaw/workspace/.secrets");
+    expect(markers).toHaveLength(9);
+    expect(hostPathMarkers({}, "/")).toEqual([]);
   });
 });
 

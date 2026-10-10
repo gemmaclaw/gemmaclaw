@@ -41,6 +41,7 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   evaluateDeterministicAgentTaskConversation,
@@ -129,11 +130,30 @@ export const HOST_OAUTH_MARKERS: readonly RegExp[] = [
   /\bsk-ant-[A-Za-z0-9-]{20,}/,
 ];
 
-export const HOST_PATH_MARKERS: readonly string[] = [
-  "/home/example-user/.config/gogcli/state",
-  "/home/example-user/.openclaw/agents/main",
-  "/home/example-user/.openclaw/workspace/.secrets",
+/**
+ * Real user state dirs, relative to a host home. The homes come from the
+ * runtime (the runner's own home plus GEMMACLAW_HOST_HOMES, comma separated)
+ * so no real user path is written into source.
+ */
+export const HOST_PATH_SUFFIXES: readonly string[] = [
+  ".config/gogcli/state",
+  ".openclaw/agents/main",
+  ".openclaw/workspace/.secrets",
 ];
+
+export const HOST_HOMES_ENV = "GEMMACLAW_HOST_HOMES";
+
+export function hostPathMarkers(
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = os.homedir(),
+): string[] {
+  const homes = [home, ...(env[HOST_HOMES_ENV] ?? "").split(/[,\s]+/)]
+    .map((h) => h.replace(/\/+$/, ""))
+    .filter(Boolean);
+  return [...new Set(homes)].flatMap((h) => HOST_PATH_SUFFIXES.map((s) => `${h}/${s}`));
+}
+
+export const HOST_PATH_MARKERS: readonly string[] = hostPathMarkers();
 
 const EVIDENCE_CLIP = 240;
 
