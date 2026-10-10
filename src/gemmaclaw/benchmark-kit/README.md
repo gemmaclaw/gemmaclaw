@@ -151,7 +151,7 @@ Results follow a standardized JSON schema covering hardware info, model metadata
 
 ## Privacy
 
-The vendored `tasks/agent-fixtures.json` is run through the redaction audit on every test run. Adding any real internal hostname (`frank-pc`, `frankpi`, etc.), real email address, Tailscale IP, real phone number, home/root path, or known secret pattern to the vendored pack will fail the `redaction.test.ts` "vendored agent-fixtures.json has zero leak findings" test.
+The vendored `tasks/agent-fixtures.json` is run through the redaction audit on every test run. Adding any real internal hostname (`example-tailnet-host-c77ea0`, `example-tailnet-host-50a809`, etc.), real email address, Tailscale IP, real phone number, home/root path, or known secret pattern to the vendored pack will fail the `redaction.test.ts` "vendored agent-fixtures.json has zero leak findings" test.
 
 The redaction utilities (`sanitize`, `sanitizeObject`, `audit`, `auditPack`) are also useful for run artifacts and reports. Three profiles:
 

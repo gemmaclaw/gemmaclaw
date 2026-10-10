@@ -204,7 +204,7 @@ describe("createLaneTextDeliverer", () => {
       text: "Here is the cougar",
       payload: {
         text: "Here is the cougar",
-        mediaUrl: "/home/frank/.gemmaclaw/workspace/cougar.jpg",
+        mediaUrl: "/home/example-user/.gemmaclaw/workspace/cougar.jpg",
       },
       infoKind: "final",
     });
@@ -215,7 +215,7 @@ describe("createLaneTextDeliverer", () => {
     expect(harness.sendPayload).toHaveBeenCalledWith(
       expect.objectContaining({
         text: "Here is the cougar",
-        mediaUrl: "/home/frank/.gemmaclaw/workspace/cougar.jpg",
+        mediaUrl: "/home/example-user/.gemmaclaw/workspace/cougar.jpg",
       }),
     );
   });

@@ -19,8 +19,8 @@
 #     --tasks "task_a,task_b,task_c" \
 #     --model gemma4:31b --quant Q4_K_M --thinking high \
 #     --run-id gemma4-31b-q4-high \
-#     --output-dir /home/frank/gemmaclaw-benchmarks/results \
-#     --log-dir /home/frank/gemmaclaw-benchmarks/q4-rerun-logs \
+#     --output-dir /home/example-user/gemmaclaw-benchmarks/results \
+#     --log-dir /home/example-user/gemmaclaw-benchmarks/q4-rerun-logs \
 #     [--no-activity-timeout 600] [--hard-cap 28800]
 #
 # Detached state lives in --log-dir:

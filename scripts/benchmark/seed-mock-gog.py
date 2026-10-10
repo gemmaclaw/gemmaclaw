@@ -1573,7 +1573,7 @@ def main() -> None:
                 "2026-05-11T15:16:00Z process snapshot\n"
                 "PID 4242 docker run --name q4-container-runner gemmaclaw-benchmark --task q4 --model gemma4:31b\n"
                 "  latest stdout 2026-05-11T15:15:40Z: [container] q4/conditional_logic starting fresh container rerun\n"
-                "PID 5151 python /home/frank/litert-lm-benchmarks/scripts/probe_gpu.py\n"
+                "PID 5151 python /home/example-user/litert-lm-benchmarks/scripts/probe_gpu.py\n"
                 "  latest stdout 2026-05-11T15:14:22Z: checking Vulkan ICD visibility for RTX 3090\n"
                 "No process found for q4-duplicate-hardtests.\n"
                 "No process found for hard-test-authoring.\n"
