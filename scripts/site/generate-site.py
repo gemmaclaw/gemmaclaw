@@ -1829,6 +1829,62 @@ def huggingface_slug_search_aliases(text):
     )
 
 
+# File extensions a reader would type when a Field Notes section quotes a file
+# by name: chat templates, model and config files, scripts and notebooks. An
+# allowlist rather than "anything with a dot", because the commonest file-shaped
+# URL tail in this archive is a preview.redd.it image named by a random hash,
+# and indexing those would hand short queries such as q8 or m4 the same
+# accidental collisions the data-id note in build_card_search_text() describes.
+URL_FILENAME_EXTENSIONS = frozenset({
+    "cfg", "cpp", "cu", "gguf", "ini", "ipynb", "jinja", "jinja2", "js",
+    "json", "litertlm", "md", "py", "rs", "safetensors", "sh", "toml", "ts",
+    "txt", "yaml", "yml",
+})
+
+# Hosts whose first two path segments are an owner and a project name.
+CODE_HOST_NAMES = frozenset({"github.com", "gitlab.com", "huggingface.co", "hf.co"})
+
+
+def url_filename_search_aliases(text):
+    """Recover a file name cited only as the last segment of a URL.
+
+    Fifth member of the family above. The repo and Hugging Face helpers keep
+    the owner and the project and deliberately drop deeper paths, so a post
+    that names a chat template or a script only by linking to it reaches its
+    card by the repository and never by the file. 1x2s3ru is the worked
+    example: it lists Google's updated chat_template.jinja, a community
+    gemma4-improved.jinja and the vLLM project's tool_chat_template_gemma4.jinja
+    as bare links, and the 2026-10-11 Field Notes section quotes two of those
+    names, so all three returned zero cards or missed the cited one.
+
+    Emits each file name lowercased, once, in sorted order. A query string,
+    fragment or ellipsis is dropped first, so a link cut mid-name by the
+    upstream truncation leaves no extension and is skipped rather than indexed
+    as a fragment. Only extensions in URL_FILENAME_EXTENSIONS count, and on a
+    code host the owner and project segments never do, so a project named
+    like a file, such as llama.cpp, is left to repo_slug_search_aliases().
+    """
+    names = set()
+    for path in re.findall(r'https?://[^\s)\]]+', str(text), flags=re.IGNORECASE):
+        path = re.split(r'[?#&]|…|\.\.\.', path, maxsplit=1)[0]
+        host = path.split('/')[2].lower() if path.count('/') >= 2 else ''
+        segments = [s for s in path.split('/')[3:] if s]
+        # On a code host the first two segments are owner and project, and a
+        # project can be named like a file (ggml-org/llama.cpp), so only a
+        # deeper segment is a file there.
+        if host.removeprefix('www.') in CODE_HOST_NAMES and len(segments) <= 2:
+            continue
+        if not segments:
+            continue
+        # Reddit serves underscores pre-escaped, so chat\_template.jinja and
+        # chat_template.jinja are the same file.
+        name = segments[-1].replace('\\_', '_').lower().rstrip('.,;:')
+        stem, dot, ext = name.rpartition('.')
+        if dot and stem and ext in URL_FILENAME_EXTENSIONS:
+            names.add(name)
+    return " ".join(sorted(names))
+
+
 def build_card_search_text(post):
     """Canonical search index for one community report card.
 
@@ -1933,6 +1989,7 @@ def build_card_search_text(post):
         code_ref_search_aliases(joined),
         repo_slug_search_aliases(joined),
         huggingface_slug_search_aliases(joined),
+        url_filename_search_aliases(joined),
     ]))
 
     # clean_markdown runs PER PART, not over the join, and that is load-bearing

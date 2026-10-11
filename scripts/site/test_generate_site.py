@@ -796,6 +796,44 @@ class TestBodyTextIsSearchable(unittest.TestCase):
             "unsloth gemma-4-31b unsloth/gemma-4-31b",
         )
 
+    def test_url_filename_aliases_reach_a_template_named_only_by_link(self):
+        """1x2s3ru names the chat templates it tried only as bare links, and the
+        2026-10-11 Field Notes section quotes chat_template.jinja and
+        gemma4-improved.jinja for it, so both must return the card."""
+        post = self._post(body=(
+            "google released an update: "
+            "https://huggingface.co/google/gemma-4-31B-it/blob/main/chat_template.jinja "
+            "I tried others: "
+            "https://huggingface.co/stevelikesrhino/gemma-4-31B-it-nvfp4-GGUF/blob/main/gemma4-improved.jinja "
+            "https://github.com/vllm-project/vllm/blob/main/examples/tool_chat_template_gemma4.jinja"
+        ))
+        for query in (
+            "chat_template.jinja",
+            "gemma4-improved.jinja",
+            "tool_chat_template_gemma4",
+        ):
+            with self.subTest(query=query):
+                self.assertTrue(self._matches(post, query))
+
+    def test_url_filename_aliases_skip_images_cut_links_and_bare_paths(self):
+        """Only allowlisted extensions count, so a preview.redd.it hash image
+        adds nothing; a link cut by the ellipsis is skipped, a query string is
+        dropped, a code-host project named like a file (llama.cpp) is not a
+        file, and duplicates collapse in sorted order."""
+        text = ("https://preview.redd.it/ab12q8m4.png?width=1920&format=png and "
+                "https://huggingface.co/google/gemma-4-31B-it/blob/main/chat_templ… and "
+                "https://github.com/ggml-org/llama.cpp and "
+                "https://example.com/run.sh?x=1 and "
+                "https://example.com/a/run.sh and "
+                "https://huggingface.co/u/m/blob/main/Model-Q4_K_M.GGUF. and "
+                "https://huggingface.co/g/m/blob/main/chat\\_template.jinja and "
+                "https://huggingface.co/g/n/blob/main/chat_template.jinja")
+        self.assertEqual(
+            gen.url_filename_search_aliases(text),
+            "chat_template.jinja model-q4_k_m.gguf run.sh",
+        )
+        self.assertEqual(gen.url_filename_search_aliases("no links here at all"), "")
+
     def test_index_is_capped(self):
         post = self._post(body="tok " * 5000)
         self.assertLessEqual(len(gen.build_card_search_text(post)), gen.COMMUNITY_SEARCH_INDEX_LIMIT)
