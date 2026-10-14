@@ -1741,7 +1741,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # (Speakrail), admitted by "rtx 4090" and "4090" from its own title, "runs on
     # a single RTX 4090". It is genuine. It reaches no other chip, so it does not
     # join BOTH_GPU_CHIPS_EXPECTED.
-    HIGH_GPU_EXPECTED = 101
+    # Re-derived for the 782-entry index of 2026-10-14, where it moved 101 -> 103.
+    # No keyword changed this cycle. Both arrivals are new posts admitted from
+    # their own titles or summaries: 1x56712 (ninfer-ext) by "rtx 5090" and
+    # "5090", "for a single RTX 5090", and 1x4s695 (OpenConsult) by "rtx 4090"
+    # and "4090", "on one RTX 4090". Both are genuine single-card reports and
+    # neither reaches Mid-range GPU, so BOTH_GPU_CHIPS_EXPECTED is unchanged.
+    HIGH_GPU_EXPECTED = 103
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1801,7 +1807,14 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # matches "portable" from its summary, but there the word is software ("the
     # portable path"), so the title is what admits it. The cycle's other
     # addition, 1x06p4l, reaches Quantization and Backends alone via its tags.
-    LAPTOP_EXPECTED = 40
+    # Re-derived for the 782-entry index of 2026-10-14, where it moved 40 -> 41.
+    # 1x4scub (SonicBoom) matches "laptop" from its title, "on a laptop RTX
+    # 3050", and is a genuine laptop report on an 8 GB laptop RTX 3050. It does
+    # not reach Mid-range GPU, because no GPU keyword covers the 3050. The
+    # cycle's MacBook post, 1x4x5km, matches no laptop keyword ("macbook" is an
+    # Apple Silicon keyword, and the post writes it only in its body anyway); it
+    # reaches Apple Silicon through its title instead, see APPLE_SILICON_EXPECTED.
+    LAPTOP_EXPECTED = 41
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -2375,7 +2388,12 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     # coordinator/router" in its summary. The match is genuine Apple hardware the
     # author owns, but it is not where any Gemma 4 run is stated to have happened,
     # and the Field Notes section says so.
-    APPLE_SILICON_EXPECTED = 78
+    # Re-derived for the 782-entry index of 2026-10-14, where it moved 78 -> 79.
+    # The one new match is 1x4x5km (LokalBot autocomplete), on "m4" and "m4 max"
+    # from "~50 ms/suggestion on M4 Max" in its title, and the match is genuine.
+    # 1x56712's "Gemma 4 31B IT M1" would match "m1", but that is a model row
+    # label in its body, which the categoriser does not read, so it stays off.
+    APPLE_SILICON_EXPECTED = 79
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
