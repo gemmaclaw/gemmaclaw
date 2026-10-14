@@ -6499,5 +6499,52 @@
       "TL;DR: Five quants of Qwen3.8-27B (UD-Q4_K_XL to Q8_0, plus NVFP4) score the same on GSM8K, MMLU-Pro and IFEval, all within \u00b12 pts, even though Q4 picks a different token than Q8 once every 28. In math, the 27B, Flash-Next (NVFP4 and a ~3-bit GSQ IQ3_S on Strata), Gemma 4 26B/31B and Claude Sonnet 5.5 all land between 96.8% and 98.5%. The gap only shows up on agentic coding tasks the models can't have seen. On my own bench (112 runs per model, bugs injected into my own repos, hidden tests, OpenCode), 27B NVFP4 solves 77% and Flash-Next NVFP4 98%; on the 6 hardest tasks it's 1/12 vs 12/12. SWE-rebench agrees (69% vs 82%, paired p \u2248 0.007). The harness matters too: with the 27B, four harnesses solved the same share of easy tasks, but OpenCode was 2-4\u00d7 faster and passed every safety probe. Flash-Next at ~3 bits on Strata, run locally, matches NVFP4 on 11 of the 12 tasks that separate the two models. It misses one specific bug every single time. People keep asking me \"ok, but what about quality?\" about running models locally. Vendor tables are full precision with the vendor's own harness, and almost nobody tests the quants we actually run. So I spent a few weeks measuring. ### Setup -\u2026"
     ]
   },
-  { "post": "1x3hkw2", "file": "1x3hkw2.md", "hardware_mentions": ["- Score: 20"] }
+  { "post": "1x3hkw2", "file": "1x3hkw2.md", "hardware_mentions": ["- Score: 20"] },
+  {
+    "post": "1x59hdr",
+    "file": "1x59hdr.md",
+    "hardware_mentions": ["- Score: 20"]
+  },
+  {
+    "post": "1x56712",
+    "file": "1x56712.md",
+    "hardware_mentions": [
+      "- Score: 20",
+      "ninfer-ext is an extended fork of NInfer for a single RTX 5090 Repo: https://github.com/giveen/ninfer-ext Artifacts: https://huggingface.co/jabbatheduck/ninfer-ext-models Prefill Prompt tokens per second at 1, 2, 4 and 8 concurrent requests. These are measured at the largest prompt each concurrency admits, and you can see the trade: 130-260k tokens at one lane, 65-130k at two, 8-65k at four and 7\u2026",
+      "ninfer-ext is an extended fork of NInfer for a single RTX 5090 Repo: https://github.com/giveen/ninfer-ext Artifacts: https://huggingface.co/jabbatheduck/ninfer-ext-models Prefill Prompt tokens per second at 1, 2, 4 and 8 concurrent requests. These are measured at the largest prompt each concurrency admits, and you can see the trade: 130-260k tokens at one lane, 65-130k at two, 8-65k at four and 7.7k at eight. Model C=1 C=2 C=4 C=8 Gemma 4 26B-A4B (QAT int4) 2,729 * 4,219 6,556 6,626 Gemma 4 31B IT M1 1,150 * 1,859 1,942 - Qwen3.6-35B-A3B 5,310 * 9,230 11,861 16,173 Qwen3.6-35B-A3B nvfp4 5,838 * 10,896 14,678 21,897 Qwen3.8-27B groupwise-int 2,255 * 2,378 2,687 3,111 Qwen3.8-27B nvfp4 4,034 * 4,590 6,056 8,786 Qwen3.8-Flash-Next nvfp4 3,319 * 4,376 4,128 3,774 * at one lane the figure is the true per-request prefill rate; at two lanes and above it is the point aggregate - every prompt token over the whole makespan, which includes each request's own decode time, so it reads a few percent lower. The Gemma 4 31B's eight-lane configuration did not fit in 32 GB, and its one-lane column is its longest admitted prompt (65,837 tokens). Decode Steady decode over complete one-second interval\u2026"
+    ]
+  },
+  {
+    "post": "1x4scub",
+    "file": "1x4scub.md",
+    "hardware_mentions": [
+      "# SonicBoom: 52 tok/s decode on a laptop RTX 3050 (llama.cpp: 45) with the same quantized kernels, the difference is a graph compiler. No Python.",
+      "- Score: 20",
+      "- URL: https://www.reddit.com/r/LocalLLaMA/comments/1x4scub/sonicboom_52_toks_decode_on_a_laptop_rtx_3050/",
+      "I\u2019ve been building SonicBoom, a native tensor runtime written in C++/CUDA with a C ABI and no Python anywhere in the stack. I just tagged v0.0.1, and the first target is local LLM inference on consumer GPUs. Numbers (Gemma 4 E4B-it Q3_K_M on a laptop RTX 3050 8 GB, both runtimes using the same GGUF on the same machine, llama.cpp at commit 43fe9c64281 ): SonicBoom llama.cpp Decode (tg64) 51.65 tok\u2026",
+      "I\u2019ve been building SonicBoom, a native tensor runtime written in C++/CUDA with a C ABI and no Python anywhere in the stack. I just tagged v0.0.1, and the first target is local LLM inference on consumer GPUs. Numbers (Gemma 4 E4B-it Q3_K_M on a laptop RTX 3050 8 GB, both runtimes using the same GGUF on the same machine, llama.cpp at commit 43fe9c64281 ): SonicBoom llama.cpp Decode (tg64) 51.65 tok/s 45.20 tok/s Decode @ depth 2048 47.13 tok/s 45.21 tok/s Prefill 4100 tokens 1051 tok/s ~1944 tok/s TTFT, 4000-token prefix + 100 new 503 ms (prefix reuse) Why it matters: the quantized matmul kernels (MMVQ/MMQ) are ported from ggml, so the kernels are the same ones llama.cpp uses. The 14% decode lead comes entirely from the layer above them. A graph planner rewrites the model before it runs: activations are quantized once and reused, norm and activation are fused with quantization, dead computation is removed, and each decode step is captured and replayed as a single CUDA Graph. Code derived from ggml is about 8% of the core. The rest is the runtime. Prefix reuse is exact: a continuation is token-for-token identical to a full prefill, which makes multi-turn chat and coding-assistant wor\u2026"
+    ]
+  },
+  {
+    "post": "1x4s695",
+    "file": "1x4s695.md",
+    "hardware_mentions": [
+      "# How do I cut response time for a live clinical assistant on one RTX 4090? Engines, models and CPU offload",
+      "- Score: 20",
+      "I am a GP in London, and I built OpenConsult, a research prototype that listens to a consultation and suggests questions and possible diagnoses as it goes. At the end of the consultation, OpenConsult writes a SOAP note and generates a diarised transcript. It is fully local; the doctor stays in charge, and every case is acted out or scripted. No real patients. In auto mode, it asks the patient questions itself, so the patient waits while the model thinks. I want the next question spoken within 3 seconds of the patient finishing. The machine: one RTX 4090 (24 GB), 96 GB RAM, i9-13900K. The speech model and an embedding model share the card with the language model. What I found so far: - MedGemma 27B (Q4_K_M) took 18 seconds per pass. Gemma 4 26B-A4B QAT took 5 seconds, with the same or slightly better clinical scores. - Ollama and llama.cpp were the same speed. vLLM was faster at 3.5 seconds, but it held 94% of the card against 70%, and the speech models need room too. - Sending the two calls of a pass together cut it to 3.8 seconds on Ollama and 2.8 seconds on vLLM. - Keeping one context for the whole consultation did not help. A fresh context at every call was at least as good. -\u2026"
+    ]
+  },
+  {
+    "post": "1x4wcnn",
+    "file": "1x4wcnn.md",
+    "hardware_mentions": ["- Score: 20"]
+  },
+  {
+    "post": "1x4x5km",
+    "file": "1x4x5km.md",
+    "hardware_mentions": [
+      "# Built an open-source Cotypist/Granola hybrid: autocomplete on Gemma 4 E2B (~50 ms/suggestion on M4 Max) using your own meeting notes as context",
+      "- Score: 20"
+    ]
+  }
 ]
