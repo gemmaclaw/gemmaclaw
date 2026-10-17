@@ -1528,6 +1528,12 @@ SEARCH_TYPOGRAPHIC_FOLD = {
     0x2026: '...',
     # Spaces the whitespace collapse below would otherwise keep as characters.
     0x00A0: ' ', 0x2007: ' ', 0x2009: ' ', 0x202F: ' ',
+    # The multiplication sign. Posts write card counts and speedups with it
+    # ("8\u00d7 B200", "1.74\u00d7 faster", "3.5\u00d7 faster"), 24 of the 791
+    # cards of 2026-10-17 carry one, and the ASCII letter is what a reader types
+    # and what Field Notes prose writes, so before this fold "8x B200" returned
+    # zero cards while the index held the post.
+    0x00D7: 'x',
 }
 
 
@@ -2235,9 +2241,20 @@ HARDWARE_CATEGORIES = {
         # framework/model?". Seven posts held the Laptops chip on that word
         # alone. Replacing it with the product forms keeps 1ta7ce9 (which also
         # matches "strix halo" independently) and drops all seven.
+        #
+        # The bare token "surface" is the same failure again. Censused over the
+        # 791-entry index of 2026-10-17, it occurs in the categoriser's text of
+        # exactly two posts and neither names Microsoft's hardware: 1v0eszf
+        # hopes a thread "surfaces some overlooked models" and 1x7l0ct says
+        # cosine routing "gets easily baited by surface keywords". Both held
+        # the Laptops chip on that word alone. The product forms replace it and
+        # are boundary-matched (see BOUNDARY_KEYWORDS), so "surface pro" cannot
+        # fire inside "surface problems".
         "keywords": ["laptop", "notebook", "portable", "strix halo",
                       "framework 13", "framework 16", "framework laptop",
-                      "framework desktop", "thinkpad", "zenbook", "surface",
+                      "framework desktop", "thinkpad", "zenbook",
+                      "surface pro", "surface laptop", "surface book",
+                      "surface studio", "surface go", "microsoft surface",
                       "dell xps", "legion"],
         "icon": "laptop",
     },
@@ -2272,7 +2289,15 @@ HARDWARE_CATEGORIES = {
 # ("agent on cpu", "6-7tg/s on cpu"), but as a substring it also sits inside
 # "xeon cpu". Over the 660-entry index the phrase occurs six times and exactly
 # that one, a $100 x79 and Xeon build, is spurious.
-BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5", "sli", "arm", "on cpu"}
+#
+# The Microsoft Surface product forms join for the same reason: as substrings
+# "surface pro" sits inside "surface problems" and "surface go" inside "surface
+# goes", so they need the lookaround as well.
+SURFACE_PRODUCT_KEYWORDS = {
+    "surface pro", "surface laptop", "surface book", "surface studio",
+    "surface go", "microsoft surface",
+}
+BOUNDARY_KEYWORDS = {"m1", "m2", "m3", "m4", "m5", "sli", "arm", "on cpu"} | SURFACE_PRODUCT_KEYWORDS
 
 _BOUNDARY_PATTERNS = {
     kw: re.compile(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])")
@@ -4897,6 +4922,7 @@ def generate_community_page(community_cards, community_count, field_notes_html):
         .replace(/[\\u2010-\\u2015\\u2212]/g, '-')
         .replace(/\\u2026/g, '...')
         .replace(/[\\u00a0\\u2007\\u2009\\u202f]/g, ' ')
+        .replace(/\\u00d7/g, 'x')
         .replace(/[\\\\_.\\/,='"-]/g, '').replace(/\\s+/g, ' ').trim();
     }
     // Mirror of squash_search_text(). Fallback only: a hyphenated flag collapses

@@ -385,6 +385,7 @@ class TestHyphenSpaceAndThousandsSeparatorRecall(unittest.TestCase):
             r"replace(/[\u2010-\u2015\u2212]/g",
             r"replace(/\u2026/g",
             r"replace(/[\u00a0\u2007\u2009\u202f]/g",
+            r"replace(/\u00d7/g, 'x')",
         ):
             self.assertIn(fragment, page, f"client normalizer must emit {fragment}")
         # Codepoint escapes, never literal characters: a literal en or em dash in
@@ -434,6 +435,13 @@ class TestTypographicPunctuationIsTypeable(unittest.TestCase):
         self.assertEqual(gen.normalize_search_text("gemma \u2014 4"), "gemma 4")
         self.assertEqual(gen.normalize_search_text("tr\u2026"), "tr")
         self.assertEqual(gen.normalize_search_text("a\u00a0b"), "a b")
+
+    def test_multiplication_sign_folds_onto_the_letter_x(self):
+        # 1x7polk archives "7,708 tokens/s on 8\u00d7 B200" and "1.74\u00d7
+        # faster"; the prose and a reader both type the letter.
+        self.assertEqual(gen.normalize_search_text("8\u00d7 B200"), "8x b200")
+        self.assertEqual(gen.normalize_search_text("1.74\u00d7 faster"),
+                         gen.normalize_search_text("1.74x faster"))
 
     def test_the_fold_is_idempotent(self):
         once = gen.normalize_search_text("\u201cGemma\u2019s\u201d \u2014 26B\u201332B\u2026")
@@ -1361,6 +1369,33 @@ class TestCategorizePost(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn("laptop", gen.categorize_post(self._post(summary=text)))
 
+    def test_software_surface_is_not_a_laptop(self):
+        """The bare token "surface" held the Laptops chip for two posts in the
+        791-entry index and neither names Microsoft's hardware. The phrases
+        below are those two, plus the substring traps the boundary rule on the
+        product forms exists to stop."""
+        for text in [
+            "i'm hoping this thread surfaces some overlooked models",
+            "direct cosine similarity gets easily baited by surface keywords",
+            "the surface problems with this template are well known",
+            "the regression surface goes away once the template is fixed",
+        ]:
+            with self.subTest(text=text):
+                self.assertNotIn("laptop", gen.categorize_post(self._post(summary=text)))
+
+    def test_surface_the_hardware_brand_is_still_a_laptop(self):
+        """Positive control for the exclusion above: the product forms must
+        keep matching, or the fix would have silently dropped a real Surface."""
+        for text in [
+            "Gemma 4 E4B on my Surface Pro 11 with 32GB",
+            "new Microsoft Surface and RTX Spark laptops start at 2.6k",
+            "running it on a Surface Laptop 7",
+            "a Surface Book 3 with a GTX 1660 Ti",
+            "my Surface Go 4 manages E2B",
+        ]:
+            with self.subTest(text=text):
+                self.assertIn("laptop", gen.categorize_post(self._post(summary=text)))
+
     def test_rtx_3080_is_a_mid_range_gpu(self):
         """The RTX 3080 appeared in no keyword list at all, so its posts were
         reachable from neither GPU filter unless they named a second card."""
@@ -1747,7 +1782,15 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # "5090", "for a single RTX 5090", and 1x4s695 (OpenConsult) by "rtx 4090"
     # and "4090", "on one RTX 4090". Both are genuine single-card reports and
     # neither reaches Mid-range GPU, so BOTH_GPU_CHIPS_EXPECTED is unchanged.
-    HIGH_GPU_EXPECTED = 103
+    # Re-derived for the 791-entry index of 2026-10-17, where it moved 103 -> 104.
+    # No High-end GPU keyword changed this cycle. The arrival is a new post,
+    # 1x7polk (ORL diffusion LLMs), admitted by "rtx 5090" and "5090" from its
+    # own title, "2,788 tokens/s on a single RTX 5090". The card is genuine, but
+    # that rate is LLaDA-2.1-mini's; the post's only Gemma-family figure is a
+    # DiffusionGemma 26B MoE rate on 8x B200, and the Field Notes section says
+    # so. 1x7msmj names an RTX 5090 only in its body, which the categoriser does
+    # not read, so it stays off. Neither reaches Mid-range GPU.
+    HIGH_GPU_EXPECTED = 104
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -1814,7 +1857,13 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # cycle's MacBook post, 1x4x5km, matches no laptop keyword ("macbook" is an
     # Apple Silicon keyword, and the post writes it only in its body anyway); it
     # reaches Apple Silicon through its title instead, see APPLE_SILICON_EXPECTED.
-    LAPTOP_EXPECTED = 41
+    # Re-derived for the 791-entry index of 2026-10-17, where it moved 41 -> 40.
+    # Nothing joined. The bare "surface" keyword was replaced by boundary-matched
+    # Microsoft Surface product forms, and the one existing post that held the
+    # chip on that word alone, 1v0eszf ("surfaces some overlooked models"),
+    # left it. The cycle's 1x7l0ct ("baited by surface keywords") would have
+    # joined on the same word and does not. Both land on Other.
+    LAPTOP_EXPECTED = 40
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -2344,6 +2393,15 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
                 self.assertIn(post_id, configs, f"{post_id} missing from the index")
                 self.assertNotIn("laptop", configs[post_id].get("categories", []))
 
+    def test_software_surface_posts_left_the_laptop_chip(self):
+        """1v0eszf ("surfaces some overlooked models") and 1x7l0ct ("baited by
+        surface keywords") held Laptops on the bare word alone."""
+        configs = {c.get("id"): c for c in gen.load_community_configs()}
+        for post_id in ("1v0eszf", "1x7l0ct"):
+            with self.subTest(post=post_id):
+                self.assertIn(post_id, configs, f"{post_id} missing from the index")
+                self.assertNotIn("laptop", configs[post_id].get("categories", []))
+
     def test_the_real_framework_hardware_post_kept_the_laptop_chip(self):
         """1ta7ce9 is the only post in the index naming Framework the hardware
         brand. It must not have been dropped along with the seven above."""
@@ -2393,7 +2451,11 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     # from "~50 ms/suggestion on M4 Max" in its title, and the match is genuine.
     # 1x56712's "Gemma 4 31B IT M1" would match "m1", but that is a model row
     # label in its body, which the categoriser does not read, so it stays off.
-    APPLE_SILICON_EXPECTED = 79
+    # Re-derived for the 791-entry index of 2026-10-17, where it moved 79 -> 80.
+    # The one new match is 1x7o5tw (Gridworld), on "m5" from "running locally
+    # on M5 Air" in its summary, and the match is genuine. The post states no
+    # RAM size, quant, backend or rate, and the Field Notes section says so.
+    APPLE_SILICON_EXPECTED = 80
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
