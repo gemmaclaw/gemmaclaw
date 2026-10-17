@@ -155,6 +155,10 @@ describe("Gemma 3n easy agent benchmark tasks", () => {
     );
     expect(evalStub.deterministicScorer).toMatchObject({ score: 5, passed: true });
     expect(evalStub.llmJudge).toBeNull();
+    const report = fs.readFileSync(path.join(outputDir, "runs", evalRuns[0], "RESULTS.md"), "utf8");
+    expect(report).toContain("Execution completed");
+    expect(report).toContain("not task success");
+    expect(report).toContain("Artifact validation");
   });
 
   it("registers the full hard OpenClaw-style workflow suite by default without private fixture terms", () => {
