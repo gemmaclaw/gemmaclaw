@@ -84,6 +84,7 @@ export type QualityInspectionIssueKind =
   | "task_not_completed"
   | "llm_judge_missing"
   | "tool_command_failed"
+  | "tool_result_error"
   | "malformed_calendar_output"
   | "shell_dollar_expansion_risk"
   | "deterministic_score_low";
@@ -527,6 +528,28 @@ function pushQualityIssue(issues: QualityInspectionIssue[], issue: QualityInspec
   }
 }
 
+function findStructuredToolError(conversation: ConversationTurn[]): string | undefined {
+  for (const turn of conversation) {
+    if (turn.role !== "tool_result") {
+      continue;
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(turn.content);
+    } catch {
+      continue;
+    }
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      continue;
+    }
+    const result = payload as Record<string, unknown>;
+    if (result.status === "error" || result.isError === true) {
+      return clip(turn.content);
+    }
+  }
+  return undefined;
+}
+
 function transcriptContainsCommandFailure(transcript: string): string | undefined {
   const match = transcript.match(/\(Command exited with code [1-9][0-9]*\)/);
   if (!match) {
@@ -620,6 +643,17 @@ export function inspectTaskQuality(input: {
       severity: "info",
       message:
         "No LLM judge score is attached yet. This artifact is runnable, but not a publishable evaluated result.",
+    });
+  }
+
+  const toolError = findStructuredToolError(result.conversation ?? []);
+  if (toolError) {
+    pushQualityIssue(issues, {
+      kind: "tool_result_error",
+      severity: "warn",
+      message:
+        "A tool returned a structured error. Execution completion does not establish task success; inspect recovery and grade the outcome.",
+      evidence: toolError,
     });
   }
 
