@@ -1,9 +1,9 @@
-import { createCodingTools, createReadTool } from "@mariozechner/pi-coding-agent";
-import type { ModelCompatConfig } from "../config/types.models.js";
+import { createCodingTools, createReadTool } from "@earendil-works/pi-coding-agent";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import { resolveMergedSafeBinProfileFixtures } from "../infra/exec-safe-bin-runtime-policy.js";
 import { logWarn } from "../logger.js";
+import type { RuntimeModelCompat } from "../plugins/provider-model-compat.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import {
   normalizeLowercaseStringOrEmpty,
@@ -140,7 +140,7 @@ function applyModelProviderToolPolicy(
     modelApi?: string;
     modelId?: string;
     agentDir?: string;
-    modelCompat?: ModelCompatConfig;
+    modelCompat?: RuntimeModelCompat;
   },
 ): AnyAgentTool[] {
   if (params?.config?.agents?.defaults?.experimental?.localModelLean === true) {
@@ -295,7 +295,7 @@ export function createOpenClawCodingTools(options?: {
   /** Model context window in tokens (used to scale read-tool output budget). */
   modelContextWindowTokens?: number;
   /** Resolved runtime model compatibility hints. */
-  modelCompat?: ModelCompatConfig;
+  modelCompat?: RuntimeModelCompat;
   /**
    * Auth mode for the current provider. We only need this for Anthropic OAuth
    * tool-name blocking quirks.

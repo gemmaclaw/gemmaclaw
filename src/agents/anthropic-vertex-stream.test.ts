@@ -1,4 +1,4 @@
-import type { Model } from "@mariozechner/pi-ai";
+import type { Model } from "@earendil-works/pi-ai";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SYSTEM_PROMPT_CACHE_BOUNDARY } from "./system-prompt-cache-boundary.js";
 
@@ -14,9 +14,9 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock("@mariozechner/pi-ai", async () => {
+vi.mock("@earendil-works/pi-ai", async () => {
   const original =
-    await vi.importActual<typeof import("@mariozechner/pi-ai")>("@mariozechner/pi-ai");
+    await vi.importActual<typeof import("@earendil-works/pi-ai")>("@earendil-works/pi-ai");
   return {
     ...original,
     streamAnthropic: (model: unknown, context: unknown, options: unknown) =>

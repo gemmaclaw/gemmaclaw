@@ -1,5 +1,6 @@
-import type { Model } from "@mariozechner/pi-ai";
+import type { Model } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
+import type { RuntimeModelCompat } from "../plugins/provider-model-compat.js";
 import {
   buildOpenAIResponsesParams,
   buildOpenAICompletionsParams,
@@ -718,7 +719,7 @@ describe("openai transport stream", () => {
   });
 
   it("raises minimal OpenAI Responses reasoning when web_search is available", () => {
-    const model = {
+    const model: Model<"openai-responses"> & { compat: RuntimeModelCompat } = {
       id: "gpt-5.4",
       name: "GPT-5.4",
       api: "openai-responses",
@@ -732,7 +733,7 @@ describe("openai transport stream", () => {
       compat: {
         supportedReasoningEfforts: ["minimal", "low", "medium", "high"],
       },
-    } satisfies Model<"openai-responses">;
+    };
 
     const params = buildOpenAIResponsesParams(
       model,
@@ -756,7 +757,7 @@ describe("openai transport stream", () => {
   });
 
   it("keeps minimal OpenAI Responses reasoning without web_search", () => {
-    const model = {
+    const model: Model<"openai-responses"> & { compat: RuntimeModelCompat } = {
       id: "gpt-5.4",
       name: "GPT-5.4",
       api: "openai-responses",
@@ -770,7 +771,7 @@ describe("openai transport stream", () => {
       compat: {
         supportedReasoningEfforts: ["minimal", "low", "medium", "high"],
       },
-    } satisfies Model<"openai-responses">;
+    };
 
     const params = buildOpenAIResponsesParams(
       model,

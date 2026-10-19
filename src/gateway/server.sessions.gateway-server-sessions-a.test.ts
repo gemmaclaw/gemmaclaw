@@ -2,7 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AssistantMessage, UserMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { isSessionPatchEvent, type InternalHookEvent } from "../hooks/internal-hooks.js";
@@ -23,12 +23,12 @@ import {
 } from "./test-helpers.js";
 
 let sessionManagerModulePromise:
-  | Promise<typeof import("@mariozechner/pi-coding-agent")>
+  | Promise<typeof import("@earendil-works/pi-coding-agent")>
   | undefined;
 let gatewayConfigModulePromise: Promise<typeof import("../config/config.js")> | undefined;
 
 async function getSessionManagerModule() {
-  sessionManagerModulePromise ??= import("@mariozechner/pi-coding-agent");
+  sessionManagerModulePromise ??= import("@earendil-works/pi-coding-agent");
   return await sessionManagerModulePromise;
 }
 

@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import {
   calculateCost,
   getEnvApiKey,
@@ -8,9 +8,9 @@ import {
   type Model,
   type SimpleStreamOptions,
   type ThinkingLevel,
-} from "@mariozechner/pi-ai";
-import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
+} from "@earendil-works/pi-ai";
 import { readResponseTextSnippet } from "../media/read-response-with-limit.js";
+import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 import {
   applyAnthropicPayloadPolicyToParams,
   resolveAnthropicPayloadPolicy,

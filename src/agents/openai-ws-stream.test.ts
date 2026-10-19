@@ -8,7 +8,7 @@
  *  - Session registry helpers (releaseWsSession, hasWsSession)
  */
 
-import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResponseObject } from "./openai-ws-connection.js";
 import { buildOpenAIWebSocketResponseCreatePayload } from "./openai-ws-request.js";

@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { readStringValue } from "../shared/string-coerce.js";
 import { mapOpenAIReasoningEffortForModel } from "./openai-reasoning-compat.js";
 import { normalizeOpenAIReasoningEffort } from "./openai-reasoning-effort.js";

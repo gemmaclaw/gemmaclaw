@@ -25,10 +25,10 @@ OpenClaw uses the pi SDK to embed an AI coding agent into its messaging gateway 
 
 ```json
 {
-  "@mariozechner/pi-agent-core": "0.68.1",
-  "@mariozechner/pi-ai": "0.68.1",
-  "@mariozechner/pi-coding-agent": "0.68.1",
-  "@mariozechner/pi-tui": "0.68.1"
+  "@earendil-works/pi-agent-core": "0.78.1",
+  "@earendil-works/pi-ai": "0.78.1",
+  "@earendil-works/pi-coding-agent": "0.78.1",
+  "@earendil-works/pi-tui": "0.78.1"
 }
 ```
 
@@ -173,7 +173,7 @@ import {
   DefaultResourceLoader,
   SessionManager,
   SettingsManager,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 const resourceLoader = new DefaultResourceLoader({
   cwd: resolvedWorkspace,
@@ -520,7 +520,7 @@ OpenClaw also has a local TUI mode that uses pi-tui components directly:
 
 ```typescript
 // src/tui/tui.ts
-import { ... } from "@mariozechner/pi-tui";
+import { ... } from "@earendil-works/pi-tui";
 ```
 
 This provides the interactive terminal experience similar to pi's native mode.

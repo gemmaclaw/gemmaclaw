@@ -1,4 +1,4 @@
-import type { OpenAICompletionsCompat } from "@mariozechner/pi-ai";
+import type { OpenAICompletionsCompat } from "@earendil-works/pi-ai";
 import type { AgentRuntimePolicyConfig } from "./types.agents-shared.js";
 import type { ConfiguredModelProviderRequest } from "./types.provider-request.js";
 import type { SecretInput } from "./types.secrets.js";
@@ -30,18 +30,15 @@ type SupportedOpenAICompatFields = Pick<
   | "requiresThinkingAsText"
 >;
 
-export type SupportedThinkingFormat =
-  | NonNullable<OpenAICompletionsCompat["thinkingFormat"]>
-  | "openrouter"
-  | "qwen-chat-template";
-
 export const MODEL_THINKING_FORMATS = [
   "openai",
   "openrouter",
   "qwen",
   "qwen-chat-template",
   "zai",
-] as const satisfies readonly SupportedThinkingFormat[];
+] as const;
+
+export type SupportedThinkingFormat = (typeof MODEL_THINKING_FORMATS)[number];
 
 export function isModelThinkingFormat(value: string): value is SupportedThinkingFormat {
   return (MODEL_THINKING_FORMATS as readonly string[]).includes(value);

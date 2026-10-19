@@ -1,4 +1,4 @@
-import { getModels } from "@mariozechner/pi-ai";
+import { getModels } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import { registerSingleProviderPlugin } from "../../test/helpers/plugins/plugin-registration.js";
 import { expectPassthroughReplayPolicy } from "../../test/helpers/provider-replay-policy.ts";
