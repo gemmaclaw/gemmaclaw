@@ -13,6 +13,8 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Security/dependencies: update vulnerable runtime libraries and WhatsApp Baileys, retire the upstream-fixed media patch, and keep proxy-backed media uploads compatible with Node and Bun.
+
 - Agents/model-fallback: a single-provider primary (no fallback chain configured — the common local-model setup) now re-probes through the existing cooldown throttle instead of staying suspended until a far-future provider-reported reset, so rate/subscription-cap recovery resumes without a restart. The 30s probe throttle still gates recovery probes. (upstream `6da3b1f6a3`, #90717, fixes #90702)
 - Gateway/security: add `AUTH_RATE_LIMIT_SCOPE_BOOTSTRAP_TOKEN` rate-limit scope to prevent DoS on the bootstrap-token verify path, preserving device-token fallback. (upstream ecbd97e9)
 - Google/providers: fix Gemini model ID normalization — `gemini-3.1-flash-lite` no longer maps to the deprecated preview endpoint (shutdown 2026-05-25), `gemini-3-pro-preview` now normalizes to `gemini-3.1-pro-preview`, and `google/` prefix is handled recursively. (upstream fix)
