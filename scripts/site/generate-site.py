@@ -2153,6 +2153,9 @@ HARDWARE_CATEGORIES = {
     },
     "mid-gpu": {
         "label": "Mid-range GPU (8-16 GB)",
+        # Require the capacity for RTX 3050: the archive also contains a 4 GB
+        # laptop variant (1tzaw60), which does not belong in this chip. The
+        # two 8 GB SonicBoom reports, 1x4scub and 1x9mitw, do.
         # "3080" closes a hole between the two GPU chips. The RTX 3080 ships at
         # 10 GB and 12 GB, so it belongs to this band, but it appeared in no
         # keyword list at all and its posts were reachable from neither GPU
@@ -2209,7 +2212,7 @@ HARDWARE_CATEGORIES = {
         "keywords": ["rtx 3060", "rtx 3070", "rtx 4060", "rtx 4070", "rtx 5060",
                       "rtx 5070", "rx 7900", "rx 7800", "8gb vram", "12gb vram",
                       "16gb vram", "3060", "3070", "3080", "4060", "4070", "5060",
-                      "5070", "5080", "9060", "4080", "12gb"],
+                      "5070", "5080", "9060", "4080", "3050 8 gb", "12gb"],
         "icon": "gpu-mid",
     },
     "cpu-only": {

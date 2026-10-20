@@ -1972,7 +1972,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # card. It reaches no High-end GPU or Laptops keyword, so it joins neither
     # BOTH_GPU_CHIPS_EXPECTED nor LAPTOP_EXPECTED. It also reaches Quantization
     # and Backends on "quant", "quantiz" and "ollama".
-    MID_GPU_EXPECTED = 72
+    # The 2026-10-20 index and capacity-qualified keyword add the two 8 GB
+    # SonicBoom RTX 3050 reports (1x4scub and 1x9mitw). The 4 GB 3050
+    # question 1tzaw60 stays outside this 8-16 GB chip.
+    MID_GPU_EXPECTED = 74
+
+    def test_3050_capacity_qualifies_mid_gpu(self):
+        configs = {post["id"]: post for post in gen.load_community_configs()}
+        for post_id in ("1x4scub", "1x9mitw"):
+            self.assertIn("mid-gpu", configs[post_id]["categories"])
+        self.assertNotIn("mid-gpu", configs["1tzaw60"]["categories"])
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
