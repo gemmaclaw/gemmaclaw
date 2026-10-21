@@ -1790,7 +1790,7 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # DiffusionGemma 26B MoE rate on 8x B200, and the Field Notes section says
     # so. 1x7msmj names an RTX 5090 only in its body, which the categoriser does
     # not read, so it stays off. Neither reaches Mid-range GPU.
-    HIGH_GPU_EXPECTED = 104
+    HIGH_GPU_EXPECTED = 105
     # Re-derived for the 684-entry index of 2026-08-31, where it moved 14 -> 15.
     # It had been unchanged at 14 since the 2026-08-19 index, and before that it
     # moved 10 -> 14 when "on cpu" added 1vq2fk7, 1ttyzpi and 1t0k6fj, with
@@ -2330,7 +2330,7 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         "multi gpu" is still empty. Pinning the id sets rather than asserting
         emptiness is what lets the next spaced-form arrival be noticed instead
         of silently changing a chip tally."""
-        expected = {"multi gpu": set(), "dual gpu": {"1wkypcs"}}
+        expected = {"multi gpu": set(), "dual gpu": {"1wkypcs", "1xagsfh"}}
         for keyword, want in expected.items():
             with self.subTest(keyword=keyword):
                 matched = set()
