@@ -254,6 +254,7 @@ import {
   sanitizeReplayToolCallIdsForStream,
   wrapStreamFnSanitizeMalformedToolCalls,
   wrapStreamFnTrimToolCallNames,
+  wrapStreamFnParseGemma4ToolCalls,
 } from "./attempt.tool-call-normalization.js";
 import { buildEmbeddedAttemptToolRunContext } from "./attempt.tool-run-context.js";
 import { waitForCompactionRetryWithAggregateTimeout } from "./compaction-retry-aggregate-timeout.js";
@@ -303,6 +304,7 @@ export {
 export {
   wrapStreamFnSanitizeMalformedToolCalls,
   wrapStreamFnTrimToolCallNames,
+  wrapStreamFnParseGemma4ToolCalls,
 } from "./attempt.tool-call-normalization.js";
 export {
   resetEmbeddedAgentBaseStreamFnCacheForTest,
@@ -1528,6 +1530,13 @@ export async function runEmbeddedAttempt(
           unknownToolThreshold: resolveUnknownToolGuardThreshold(clientToolLoopDetection),
         },
       );
+
+      if (params.model.api === "openai-responses" && params.modelId.toLowerCase().includes("gemma-4")) {
+        console.log(`[ASD_DEBUG] Applying wrapStreamFnParseGemma4ToolCalls for model=${params.modelId}`);
+        activeSession.agent.streamFn = wrapStreamFnParseGemma4ToolCalls(
+          activeSession.agent.streamFn,
+        );
+      }
 
       if (
         shouldRepairMalformedToolCallArguments({

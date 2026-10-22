@@ -251,6 +251,7 @@ export function registerQaLabCli(program: Command) {
     .option("--cpus <count>", "Multipass vCPU count", (value: string) => Number(value))
     .option("--memory <size>", "Multipass memory size")
     .option("--disk <size>", "Multipass disk size")
+    .option("--verbose", "Verbose logging", false)
     .action(
       async (opts: {
         repoRoot?: string;
@@ -271,6 +272,7 @@ export function registerQaLabCli(program: Command) {
         memory?: string;
         disk?: string;
         preflight?: boolean;
+        verbose?: boolean;
       }) => {
         await runQaSuite({
           repoRoot: opts.repoRoot,

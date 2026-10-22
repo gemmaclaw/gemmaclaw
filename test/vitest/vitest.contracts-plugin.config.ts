@@ -1,3 +1,3 @@
 import { createContractsVitestConfig, pluginContractPatterns } from "./vitest.contracts-shared.ts";
 
-export default createContractsVitestConfig(pluginContractPatterns);
+export default createContractsVitestConfig(pluginContractPatterns, "contracts-plugin");
