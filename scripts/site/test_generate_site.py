@@ -1863,7 +1863,9 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # chip on that word alone, 1v0eszf ("surfaces some overlooked models"),
     # left it. The cycle's 1x7l0ct ("baited by surface keywords") would have
     # joined on the same word and does not. Both land on Other.
-    LAPTOP_EXPECTED = 40
+    # Re-derived for the 798-entry index of 2026-10-23. 1xce50t names a
+    # MacBook Pro M2 in its title and "workstation laptop" in its summary.
+    LAPTOP_EXPECTED = 41
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -1975,7 +1977,10 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # The 2026-10-20 index and capacity-qualified keyword add the two 8 GB
     # SonicBoom RTX 3050 reports (1x4scub and 1x9mitw). The 4 GB 3050
     # question 1tzaw60 stays outside this 8-16 GB chip.
-    MID_GPU_EXPECTED = 74
+    # Re-derived for the 798-entry index of 2026-10-23. 1xce50t also names
+    # four RTX 5060 Ti 16 GB cards in the author's separate GPU rig. This
+    # chip describes a mentioned machine, not the MacBook being considered.
+    MID_GPU_EXPECTED = 75
 
     def test_3050_capacity_qualifies_mid_gpu(self):
         configs = {post["id"]: post for post in gen.load_community_configs()}
@@ -2464,7 +2469,9 @@ class TestAppleSiliconIndexCount(unittest.TestCase):
     # The one new match is 1x7o5tw (Gridworld), on "m5" from "running locally
     # on M5 Air" in its summary, and the match is genuine. The post states no
     # RAM size, quant, backend or rate, and the Field Notes section says so.
-    APPLE_SILICON_EXPECTED = 80
+    # Re-derived for the 798-entry index of 2026-10-23. 1xce50t names an
+    # M2 MacBook Pro with 24 GB unified memory in its title and summary.
+    APPLE_SILICON_EXPECTED = 81
 
     def test_apple_silicon_count_over_the_real_index(self):
         configs = gen.load_community_configs()
