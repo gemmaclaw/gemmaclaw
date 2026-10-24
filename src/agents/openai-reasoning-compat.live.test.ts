@@ -1,4 +1,4 @@
-import { completeSimple, type Api, type Model } from "@mariozechner/pi-ai";
+import { completeSimple, type Api, type Model } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../config/config.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";

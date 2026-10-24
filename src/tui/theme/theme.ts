@@ -3,7 +3,7 @@ import type {
   MarkdownTheme,
   SelectListTheme,
   SettingsListTheme,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import chalk from "chalk";
 import { highlight, supportsLanguage } from "cli-highlight";
 import { normalizeOptionalLowercaseString } from "../../shared/string-coerce.js";
