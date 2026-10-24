@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AgentTaskResult } from "./agent-runner.js";
 import type { AgentBenchmarkTask } from "./agent-tasks.js";
 import {
@@ -389,5 +389,71 @@ describe("inspectTaskQuality", () => {
     expect(inspection.issues.map((issue) => issue.kind)).toEqual(
       expect.arrayContaining(["validation_blocked", "task_not_completed"]),
     );
+  });
+});
+
+describe("structured tool-result quality warnings", () => {
+  let runDir: string;
+  beforeAll(() => {
+    runDir = freshRunDir();
+  });
+  afterAll(() => {
+    fs.rmSync(runDir, { recursive: true, force: true });
+  });
+
+  it.each([
+    { status: "error", tool: "cron", error: "gateway closed" },
+    { isError: true, content: "request failed" },
+  ])("warns about a failed tool result without changing execution status: %j", (payload) => {
+    const result = makeResult({
+      conversation: [
+        { role: "user", content: "Schedule a project review." },
+        { role: "tool_call", toolName: "cron", content: "{}" },
+        { role: "tool_result", content: JSON.stringify(payload) },
+        { role: "assistant", content: "I could not complete the request." },
+      ],
+    });
+    const inspection = inspectTaskQuality({
+      runDir,
+      task: baseTask,
+      result,
+      validation: { valid: true, issues: [] },
+      llmJudgePresent: true,
+    });
+    expect(inspection.issues).toContainEqual(
+      expect.objectContaining({ kind: "tool_result_error", severity: "warn" }),
+    );
+    expect(result.completionStatus).toBe("completed");
+    // Failed attempts are evidence to grade, including tasks that test recovery.
+    expect(inspection.publishable).toBe(true);
+  });
+
+  it.each([
+    '{"status":"ok","error":null}',
+    '{"data":{"status":"error"}}',
+    '[{"status":"error"}]',
+    "null",
+    "not JSON",
+  ])("does not treat ordinary tool data as an error envelope: %s", (content) => {
+    const inspection = inspectTaskQuality({
+      runDir,
+      task: baseTask,
+      result: makeResult({ conversation: [{ role: "tool_result", content }] }),
+    });
+    expect(inspection.issues.map((issue) => issue.kind)).not.toContain("tool_result_error");
+  });
+
+  it("does not flag error JSON quoted by the user or assistant", () => {
+    const inspection = inspectTaskQuality({
+      runDir,
+      task: baseTask,
+      result: makeResult({
+        conversation: [
+          { role: "user", content: '{"status":"error"}' },
+          { role: "assistant", content: '{"isError":true}' },
+        ],
+      }),
+    });
+    expect(inspection.issues.map((issue) => issue.kind)).not.toContain("tool_result_error");
   });
 });

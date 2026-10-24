@@ -76,6 +76,8 @@ When run from the host, the CLI builds `Dockerfile.benchmark` once and then star
 
 Host execution is allowed only for inspection and artifact-only work (`agent list`, `--mock`, `--assemble`, and `--evaluate`). A real non-mock agent run outside the benchmark container is refused. A direct in-container run that selects multiple real tasks is also refused unless `GEMMACLAW_BENCHMARK_ALLOW_MULTI_TASK_CONTAINER=1` is set for a deliberate debugging override.
 
+Execution status and task success are separate. `completionStatus: "completed"` means the agent run finished; `validation.valid` checks artifact integrity and isolation. Neither proves the requested action succeeded. Quality inspection (enabled by default) flags nonzero command exits and structured tool errors for review, including errors followed by recovery. Disabling it with `--no-quality-inspect-per-task` omits those warnings. Inspect tool results and deterministic or judge scores before claiming a task pass.
+
 ### Sweep / Upload (legacy programmatic surface)
 
 `runSweep` and `uploadResult` remain available as library functions:

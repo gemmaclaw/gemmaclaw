@@ -681,7 +681,7 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   console.log("  Run Summary");
   console.log("========================================\n");
   console.log(`Tasks:      ${result.summary.totalTasks}`);
-  console.log(`Completed:  ${result.summary.completedCount}`);
+  console.log(`Execution completed: ${result.summary.completedCount}`);
   console.log(`Errors:     ${result.summary.errorCount}`);
   console.log(`Timeouts:   ${result.summary.timeoutCount}`);
   console.log(
@@ -689,7 +689,9 @@ async function runAgentMode(opts: Record<string, string | boolean>): Promise<voi
   );
   console.log(`Total time: ${(result.summary.totalTimeMs / 1000).toFixed(1)}s`);
   console.log("");
-  console.log("Results are ready for PR. LLM evaluation is a separate step.");
+  console.log(
+    "Execution completion is not task success. Artifact validation checks transcript integrity and isolation, not whether the requested action succeeded. Review task scores and tool results before claiming a pass.",
+  );
   console.log("");
 }
 
