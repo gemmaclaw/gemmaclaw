@@ -1982,8 +1982,9 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # chip describes a mentioned machine, not the MacBook being considered.
     # Re-derived for the 801-entry index of 2026-10-24, where it moved 75 -> 76.
     # 1xduy84 matches "rtx 3070" and "3070" from "RTX 3070 Ti (8GB)" in its
-    # Short summary, a genuine single 8 GB mid-range card running Gemma 4 26B
-    # (QAT) with MoE offload to 32 GB RAM. It also reaches Quantization &
+    # Short summary, a genuine single 8 GB mid-range card that the author runs
+    # Gemma 4 26B (QAT) on with 32 GB of system RAM (no placement split is
+    # stated). It also reaches Quantization &
     # Backends on "lm studio". The other two additions (1xdtbor, 1xdiecx) reach
     # Quantization & Backends alone.
     MID_GPU_EXPECTED = 76
