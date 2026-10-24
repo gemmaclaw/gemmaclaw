@@ -6,10 +6,14 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Agents/security: migrate the Pi runtime and bundled provider plugins to maintained `@earendil-works` packages at 0.78.1, removing the deprecated runtime and its vulnerable ZIP extractor. Node.js 22.19 or newer is now required.
+
 - Upstream sync 2026-06-06: reviewed the recent openclaw/openclaw slice (15,722 commits ahead of the fork). Applied one compatible runtime fix to single-provider cooldown recovery; the other recent high-value upstream fixes (streaming content-type tolerance, context-engine heartbeat forwarding, compaction prompt-fence/thinking-signature handling) were assessed and found inapplicable to the fork's older/refactored baseline (transport lacks the content-type assertion that regressed; context-engine `afterTurn` is a no-op; `embedded-agent-runner` was replaced by `pi-embedded-runner`).
 - Upstream sync 2026-06-02: reviewed openclaw/openclaw 2026.6.2 release (14,286 commits). Applied compatible fixes: bootstrap-token rate-limit scope for gateway security hardening, and Gemini 3.1 model ID normalization corrections (Flash Lite GA endpoint, Pro preview alias, google/ prefix handling).
 
 ### Fixes
+
+- Security/dependencies: update vulnerable runtime libraries and WhatsApp Baileys, retire the upstream-fixed media patch, and keep proxy-backed media uploads compatible with Node and Bun.
 
 - Agents/model-fallback: a single-provider primary (no fallback chain configured — the common local-model setup) now re-probes through the existing cooldown throttle instead of staying suspended until a far-future provider-reported reset, so rate/subscription-cap recovery resumes without a restart. The 30s probe throttle still gates recovery probes. (upstream `6da3b1f6a3`, #90717, fixes #90702)
 - Gateway/security: add `AUTH_RATE_LIMIT_SCOPE_BOOTSTRAP_TOKEN` rate-limit scope to prevent DoS on the bootstrap-token verify path, preserving device-token fallback. (upstream ecbd97e9)
@@ -145,60 +149,55 @@ Docs: https://docs.openclaw.ai
 
 ## [2026.8.3](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.2...gemmaclaw-v2026.8.3) (2026-06-23)
 
-
 ### Bug Fixes
 
-* brand gemmaclaw --version output Gemmaclaw not OpenClaw ([#311](https://github.com/gemmaclaw/gemmaclaw/issues/311)) ([a2e0b63](https://github.com/gemmaclaw/gemmaclaw/commit/a2e0b63f4d3a9f0d020a8e54f3560b8e01ab20e7))
+- brand gemmaclaw --version output Gemmaclaw not OpenClaw ([#311](https://github.com/gemmaclaw/gemmaclaw/issues/311)) ([a2e0b63](https://github.com/gemmaclaw/gemmaclaw/commit/a2e0b63f4d3a9f0d020a8e54f3560b8e01ab20e7))
 
 ## [2026.8.2](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.1...gemmaclaw-v2026.8.2) (2026-06-21)
 
-
 ### Bug Fixes
 
-* publish gemmaclaw releases through trusted publishing ([9a3682b](https://github.com/gemmaclaw/gemmaclaw/commit/9a3682be06c53c7799b360fff21677a7f6d1f040))
-* publish gemmaclaw releases through trusted publishing ([51f5127](https://github.com/gemmaclaw/gemmaclaw/commit/51f5127ac8f45fdcdcce258548f80ba059b56d89))
+- publish gemmaclaw releases through trusted publishing ([9a3682b](https://github.com/gemmaclaw/gemmaclaw/commit/9a3682be06c53c7799b360fff21677a7f6d1f040))
+- publish gemmaclaw releases through trusted publishing ([51f5127](https://github.com/gemmaclaw/gemmaclaw/commit/51f5127ac8f45fdcdcce258548f80ba059b56d89))
 
 ## [2026.8.1](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.8.0...gemmaclaw-v2026.8.1) (2026-06-21)
 
-
 ### Bug Fixes
 
-* **agents:** bound Anthropic Messages error response bodies ([ee61f08](https://github.com/gemmaclaw/gemmaclaw/commit/ee61f0897b1ec340bc2341bac5df7215e4c5b05d))
-* **agents:** cancel OpenRouter catalog error bodies ([c82b13d](https://github.com/gemmaclaw/gemmaclaw/commit/c82b13d5ee3efd7d9309146d178552f5ef3d4274))
-* **auth:** cancel unread WHAM probe error bodies ([5dff1d1](https://github.com/gemmaclaw/gemmaclaw/commit/5dff1d1d31b429844a013affe962aa57fd81f246))
-* **config:** enable automatic sandbox free-reign for containerized agents ([3023d09](https://github.com/gemmaclaw/gemmaclaw/commit/3023d0974545a9fedef796c3266888767de3a863))
-* **deps:** patch gaxios ESM crash on vertex token refresh ([66b12d7](https://github.com/gemmaclaw/gemmaclaw/commit/66b12d7fa37aa42cdfe64c992aaedf3fade0e220))
-* **gateway:** normalize secret fallback values ([#304](https://github.com/gemmaclaw/gemmaclaw/issues/304)) ([3ad553a](https://github.com/gemmaclaw/gemmaclaw/commit/3ad553a3fdc72e79064a143099b946c588bc8bee))
-* harden gaxios patch and Gemmaclaw setup defaults ([ba8b987](https://github.com/gemmaclaw/gemmaclaw/commit/ba8b987a90f6a2a5c6a6e1f1d6f20d7ce1cdd6bc))
-* **tools:** release bounded web response readers ([68c5f50](https://github.com/gemmaclaw/gemmaclaw/commit/68c5f500fce8ccf7f08b98645b3c7f2c657bc4fc))
-* TS compilation error in entry.ts gaxios patch ([a7e83a8](https://github.com/gemmaclaw/gemmaclaw/commit/a7e83a8939cf83e03826ff1c66c9a43cc5f0e598))
+- **agents:** bound Anthropic Messages error response bodies ([ee61f08](https://github.com/gemmaclaw/gemmaclaw/commit/ee61f0897b1ec340bc2341bac5df7215e4c5b05d))
+- **agents:** cancel OpenRouter catalog error bodies ([c82b13d](https://github.com/gemmaclaw/gemmaclaw/commit/c82b13d5ee3efd7d9309146d178552f5ef3d4274))
+- **auth:** cancel unread WHAM probe error bodies ([5dff1d1](https://github.com/gemmaclaw/gemmaclaw/commit/5dff1d1d31b429844a013affe962aa57fd81f246))
+- **config:** enable automatic sandbox free-reign for containerized agents ([3023d09](https://github.com/gemmaclaw/gemmaclaw/commit/3023d0974545a9fedef796c3266888767de3a863))
+- **deps:** patch gaxios ESM crash on vertex token refresh ([66b12d7](https://github.com/gemmaclaw/gemmaclaw/commit/66b12d7fa37aa42cdfe64c992aaedf3fade0e220))
+- **gateway:** normalize secret fallback values ([#304](https://github.com/gemmaclaw/gemmaclaw/issues/304)) ([3ad553a](https://github.com/gemmaclaw/gemmaclaw/commit/3ad553a3fdc72e79064a143099b946c588bc8bee))
+- harden gaxios patch and Gemmaclaw setup defaults ([ba8b987](https://github.com/gemmaclaw/gemmaclaw/commit/ba8b987a90f6a2a5c6a6e1f1d6f20d7ce1cdd6bc))
+- **tools:** release bounded web response readers ([68c5f50](https://github.com/gemmaclaw/gemmaclaw/commit/68c5f500fce8ccf7f08b98645b3c7f2c657bc4fc))
+- TS compilation error in entry.ts gaxios patch ([a7e83a8](https://github.com/gemmaclaw/gemmaclaw/commit/a7e83a8939cf83e03826ff1c66c9a43cc5f0e598))
 
 ## [2026.8.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.7.0...gemmaclaw-v2026.8.0) (2026-06-19)
 
-
 ### Features
 
-* add Gemma 4 12B anti-rep sampling variant benchmark run ([d6ef391](https://github.com/gemmaclaw/gemmaclaw/commit/d6ef391def5f9117d83381470aae0ebf604b97ba))
-* **setup:** merge Gemmaclaw and OpenClaw setup into unified 12-step wizard ([#288](https://github.com/gemmaclaw/gemmaclaw/issues/288)) ([4d86f44](https://github.com/gemmaclaw/gemmaclaw/commit/4d86f44fc16e632872eca83ae0040d597ba2cbef))
-* **site:** June 6 community sweep — QAT, Gemma 4 12B, MTP GGUFs, KVarN ([#274](https://github.com/gemmaclaw/gemmaclaw/issues/274)) ([0c1d580](https://github.com/gemmaclaw/gemmaclaw/commit/0c1d580c2089a51e495ff3a8d74894640e3b2a2e))
-* **site:** model-type card grouping, category breakdown, Gemma-vs-Qwen research ([702acf7](https://github.com/gemmaclaw/gemmaclaw/commit/702acf78a0a055461a0448e469a581c57336e676))
-* **site:** result-first benchmarks page with story section and featured 12B card ([73c6cc6](https://github.com/gemmaclaw/gemmaclaw/commit/73c6cc68119e3b0416ecd49be9ea5fd17e1644ea))
-* **site:** result-first benchmarks page with story section and featured 12B card ([73c6cc6](https://github.com/gemmaclaw/gemmaclaw/commit/73c6cc68119e3b0416ecd49be9ea5fd17e1644ea))
-* **site:** result-first benchmarks page with story section and featured 12B card ([b463d20](https://github.com/gemmaclaw/gemmaclaw/commit/b463d201539271b817a0b08462a9c76ce4784058))
-
+- add Gemma 4 12B anti-rep sampling variant benchmark run ([d6ef391](https://github.com/gemmaclaw/gemmaclaw/commit/d6ef391def5f9117d83381470aae0ebf604b97ba))
+- **setup:** merge Gemmaclaw and OpenClaw setup into unified 12-step wizard ([#288](https://github.com/gemmaclaw/gemmaclaw/issues/288)) ([4d86f44](https://github.com/gemmaclaw/gemmaclaw/commit/4d86f44fc16e632872eca83ae0040d597ba2cbef))
+- **site:** June 6 community sweep — QAT, Gemma 4 12B, MTP GGUFs, KVarN ([#274](https://github.com/gemmaclaw/gemmaclaw/issues/274)) ([0c1d580](https://github.com/gemmaclaw/gemmaclaw/commit/0c1d580c2089a51e495ff3a8d74894640e3b2a2e))
+- **site:** model-type card grouping, category breakdown, Gemma-vs-Qwen research ([702acf7](https://github.com/gemmaclaw/gemmaclaw/commit/702acf78a0a055461a0448e469a581c57336e676))
+- **site:** result-first benchmarks page with story section and featured 12B card ([73c6cc6](https://github.com/gemmaclaw/gemmaclaw/commit/73c6cc68119e3b0416ecd49be9ea5fd17e1644ea))
+- **site:** result-first benchmarks page with story section and featured 12B card ([73c6cc6](https://github.com/gemmaclaw/gemmaclaw/commit/73c6cc68119e3b0416ecd49be9ea5fd17e1644ea))
+- **site:** result-first benchmarks page with story section and featured 12B card ([b463d20](https://github.com/gemmaclaw/gemmaclaw/commit/b463d201539271b817a0b08462a9c76ce4784058))
 
 ### Bug Fixes
 
-* add anti-rep sampling badge to benchmarks landing page cards ([b7ab8a0](https://github.com/gemmaclaw/gemmaclaw/commit/b7ab8a09ac51678e528795aef4415d65507371bf))
-* **agents:** catch malformed image blocks in sanitizeContentBlocksImages ([#92792](https://github.com/gemmaclaw/gemmaclaw/issues/92792)) ([2045e9c](https://github.com/gemmaclaw/gemmaclaw/commit/2045e9c6d089caf32ec0a7782ceec20297a072fe))
-* **benchmark:** import v1-high artifacts, backfill judge fields, add 3-variant framing ([207a499](https://github.com/gemmaclaw/gemmaclaw/commit/207a49990013f7e9012d276c4d07e1fed249fcc9))
-* **heartbeat:** refresh stale Current time line on every helper call ([#44993](https://github.com/gemmaclaw/gemmaclaw/issues/44993)) ([#75025](https://github.com/gemmaclaw/gemmaclaw/issues/75025)) ([12e371d](https://github.com/gemmaclaw/gemmaclaw/commit/12e371d1b2449afa9fa9d221510f52f0bf97a53c))
-* **llm:** defer Anthropic stream start event until after message_start ([#90697](https://github.com/gemmaclaw/gemmaclaw/issues/90697)) ([75c1b3c](https://github.com/gemmaclaw/gemmaclaw/commit/75c1b3c4611becc900d099003e8c5e93650a2e9d))
-* **mcp:** harden stdio env filtering ([#91751](https://github.com/gemmaclaw/gemmaclaw/issues/91751)) ([7fa9c69](https://github.com/gemmaclaw/gemmaclaw/commit/7fa9c697144b7c3f9c7fae8823dd0c7368d0f886))
-* **port:** adapt web_fetch + anthropic ports to gemmaclaw seams ([bccd970](https://github.com/gemmaclaw/gemmaclaw/commit/bccd97003f5dadfd05d660e7568671a1ae2ab0a7))
-* **security:** audit oauth lock hash ([fe29c83](https://github.com/gemmaclaw/gemmaclaw/commit/fe29c83eb66e9144e96337c026266cdbb046b139))
-* **site:** remove fabricated engagement scores from June 6 field notes ([#275](https://github.com/gemmaclaw/gemmaclaw/issues/275)) ([40dc7e0](https://github.com/gemmaclaw/gemmaclaw/commit/40dc7e0079b95ac8d4c22f3960b528d562e8f2e4))
-* **web_fetch:** sanitize URL whitespace from LLM tool call arguments (fixes [#91651](https://github.com/gemmaclaw/gemmaclaw/issues/91651)) ([#91950](https://github.com/gemmaclaw/gemmaclaw/issues/91950)) ([a3fe745](https://github.com/gemmaclaw/gemmaclaw/commit/a3fe74525b1bd6fa4b0ec55121517b3cc9f7744a))
+- add anti-rep sampling badge to benchmarks landing page cards ([b7ab8a0](https://github.com/gemmaclaw/gemmaclaw/commit/b7ab8a09ac51678e528795aef4415d65507371bf))
+- **agents:** catch malformed image blocks in sanitizeContentBlocksImages ([#92792](https://github.com/gemmaclaw/gemmaclaw/issues/92792)) ([2045e9c](https://github.com/gemmaclaw/gemmaclaw/commit/2045e9c6d089caf32ec0a7782ceec20297a072fe))
+- **benchmark:** import v1-high artifacts, backfill judge fields, add 3-variant framing ([207a499](https://github.com/gemmaclaw/gemmaclaw/commit/207a49990013f7e9012d276c4d07e1fed249fcc9))
+- **heartbeat:** refresh stale Current time line on every helper call ([#44993](https://github.com/gemmaclaw/gemmaclaw/issues/44993)) ([#75025](https://github.com/gemmaclaw/gemmaclaw/issues/75025)) ([12e371d](https://github.com/gemmaclaw/gemmaclaw/commit/12e371d1b2449afa9fa9d221510f52f0bf97a53c))
+- **llm:** defer Anthropic stream start event until after message_start ([#90697](https://github.com/gemmaclaw/gemmaclaw/issues/90697)) ([75c1b3c](https://github.com/gemmaclaw/gemmaclaw/commit/75c1b3c4611becc900d099003e8c5e93650a2e9d))
+- **mcp:** harden stdio env filtering ([#91751](https://github.com/gemmaclaw/gemmaclaw/issues/91751)) ([7fa9c69](https://github.com/gemmaclaw/gemmaclaw/commit/7fa9c697144b7c3f9c7fae8823dd0c7368d0f886))
+- **port:** adapt web_fetch + anthropic ports to gemmaclaw seams ([bccd970](https://github.com/gemmaclaw/gemmaclaw/commit/bccd97003f5dadfd05d660e7568671a1ae2ab0a7))
+- **security:** audit oauth lock hash ([fe29c83](https://github.com/gemmaclaw/gemmaclaw/commit/fe29c83eb66e9144e96337c026266cdbb046b139))
+- **site:** remove fabricated engagement scores from June 6 field notes ([#275](https://github.com/gemmaclaw/gemmaclaw/issues/275)) ([40dc7e0](https://github.com/gemmaclaw/gemmaclaw/commit/40dc7e0079b95ac8d4c22f3960b528d562e8f2e4))
+- **web_fetch:** sanitize URL whitespace from LLM tool call arguments (fixes [#91651](https://github.com/gemmaclaw/gemmaclaw/issues/91651)) ([#91950](https://github.com/gemmaclaw/gemmaclaw/issues/91950)) ([a3fe745](https://github.com/gemmaclaw/gemmaclaw/commit/a3fe74525b1bd6fa4b0ec55121517b3cc9f7744a))
 
 ## [2026.7.0](https://github.com/gemmaclaw/gemmaclaw/compare/gemmaclaw-v2026.6.0...gemmaclaw-v2026.7.0) (2026-06-04)
 

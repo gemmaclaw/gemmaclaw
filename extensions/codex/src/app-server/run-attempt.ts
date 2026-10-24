@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { SessionManager } from "@mariozechner/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   buildEmbeddedAttemptToolRunContext,
   clearActiveEmbeddedRun,

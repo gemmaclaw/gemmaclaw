@@ -21,7 +21,7 @@ For onboarding details, see [Onboarding (CLI)](/start/wizard).
 
 ## Prereqs (from source)
 
-- Node 24 recommended (Node 22 LTS, currently `22.14+`, still supported)
+- Node 24 recommended (Node 22 LTS, currently `22.19+`, still supported)
 - `pnpm` preferred (or Bun if you intentionally use the [Bun workflow](/install/bun))
 - Docker (optional; only for containerized setup/e2e — see [Docker](/install/docker))
 

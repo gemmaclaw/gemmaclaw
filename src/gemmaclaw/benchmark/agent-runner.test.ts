@@ -167,7 +167,7 @@ describe("parseSessionEntry", () => {
   it("extracts a stdout-only assistant response after plugin startup logs", () => {
     const stdout = [
       "[plugins] openai installed bundled runtime deps: ws@^8.20.0",
-      "[plugins] ollama installed bundled runtime deps: @mariozechner/pi-ai@0.69.0",
+      "[plugins] ollama installed bundled runtime deps: @earendil-works/pi-ai@0.69.0",
       '{"person":"Maya Chen","date":"2026-05-08"}',
     ].join("\n");
 

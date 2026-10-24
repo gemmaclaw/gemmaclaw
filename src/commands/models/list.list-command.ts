@@ -1,4 +1,4 @@
-import type { ModelRegistry } from "@mariozechner/pi-coding-agent";
+import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { parseModelRef } from "../../agents/model-selection.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { normalizeLowercaseStringOrEmpty } from "../../shared/string-coerce.js";

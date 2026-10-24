@@ -11,7 +11,7 @@ import {
   ProcessTerminal,
   Text,
   TUI,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import { resolveAgentIdByWorkspacePath, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { loadConfig, type OpenClawConfig } from "../config/config.js";
 import { setConsoleSubsystemFilter } from "../logging/console.js";
