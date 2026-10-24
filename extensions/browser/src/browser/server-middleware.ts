@@ -27,8 +27,12 @@ export function installBrowserCommonMiddleware(app: Express) {
         abort();
       }
     });
-    // Make the signal available to browser route handlers (best-effort).
-    (req as unknown as { signal?: AbortSignal }).signal = ctrl.signal;
+    // Node 24.16+'s native request signal aborts when a POST body finishes.
+    // Browser work follows the client/response lifetime instead.
+    Object.defineProperty(req, "signal", {
+      value: ctrl.signal,
+      configurable: true,
+    });
     next();
   });
   app.use(express.json({ limit: "1mb" }));
