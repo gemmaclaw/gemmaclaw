@@ -29,7 +29,7 @@ const hoisted = vi.hoisted(() => ({
   existsSyncMock: vi.fn(() => true),
 }));
 
-vi.mock("@mariozechner/pi-coding-agent", () => ({
+vi.mock("@earendil-works/pi-coding-agent", () => ({
   SessionManager: {
     open: vi.fn(() => ({
       getEntries: hoisted.getEntriesMock,

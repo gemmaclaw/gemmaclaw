@@ -1,18 +1,31 @@
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type {
+  AnthropicMessagesCompat,
+  Api,
+  Model,
+  OpenAICompletionsCompat,
+} from "@earendil-works/pi-ai";
 import { detectOpenAICompletionsCompat } from "../agents/openai-completions-compat.js";
 import type { ModelCompatConfig } from "../config/types.models.js";
 
+// Runtime metadata may include provider hints that are not exposed in user config.
+export type RuntimeModelCompat = Omit<ModelCompatConfig, "thinkingFormat"> &
+  AnthropicMessagesCompat & {
+    thinkingFormat?:
+      | ModelCompatConfig["thinkingFormat"]
+      | OpenAICompletionsCompat["thinkingFormat"];
+  };
+
 function extractModelCompat(
-  modelOrCompat: { compat?: unknown } | ModelCompatConfig | undefined,
-): ModelCompatConfig | undefined {
+  modelOrCompat: { compat?: unknown } | RuntimeModelCompat | undefined,
+): RuntimeModelCompat | undefined {
   if (!modelOrCompat || typeof modelOrCompat !== "object") {
     return undefined;
   }
   if ("compat" in modelOrCompat) {
     const compat = (modelOrCompat as { compat?: unknown }).compat;
-    return compat && typeof compat === "object" ? (compat as ModelCompatConfig) : undefined;
+    return compat && typeof compat === "object" ? (compat as RuntimeModelCompat) : undefined;
   }
-  return modelOrCompat as ModelCompatConfig;
+  return modelOrCompat as RuntimeModelCompat;
 }
 
 export function applyModelCompatPatch<T extends { compat?: ModelCompatConfig }>(
@@ -35,26 +48,26 @@ export function applyModelCompatPatch<T extends { compat?: ModelCompatConfig }>(
 }
 
 export function hasToolSchemaProfile(
-  modelOrCompat: { compat?: unknown } | ModelCompatConfig | undefined,
+  modelOrCompat: { compat?: unknown } | RuntimeModelCompat | undefined,
   profile: string,
 ): boolean {
   return extractModelCompat(modelOrCompat)?.toolSchemaProfile === profile;
 }
 
 export function hasNativeWebSearchTool(
-  modelOrCompat: { compat?: unknown } | ModelCompatConfig | undefined,
+  modelOrCompat: { compat?: unknown } | RuntimeModelCompat | undefined,
 ): boolean {
   return extractModelCompat(modelOrCompat)?.nativeWebSearchTool === true;
 }
 
 export function resolveToolCallArgumentsEncoding(
-  modelOrCompat: { compat?: unknown } | ModelCompatConfig | undefined,
+  modelOrCompat: { compat?: unknown } | RuntimeModelCompat | undefined,
 ): ModelCompatConfig["toolCallArgumentsEncoding"] | undefined {
   return extractModelCompat(modelOrCompat)?.toolCallArgumentsEncoding;
 }
 
 export function resolveUnsupportedToolSchemaKeywords(
-  modelOrCompat: { compat?: unknown } | ModelCompatConfig | undefined,
+  modelOrCompat: { compat?: unknown } | RuntimeModelCompat | undefined,
 ): ReadonlySet<string> {
   const keywords = extractModelCompat(modelOrCompat)?.unsupportedToolSchemaKeywords ?? [];
   return new Set(

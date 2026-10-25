@@ -1,4 +1,4 @@
-import type { Context, Model } from "@mariozechner/pi-ai";
+import type { Context, Model } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import { registerSingleProviderPlugin } from "../../test/helpers/plugins/plugin-registration.js";
 import { createCapturedThinkingConfigStream } from "../../test/helpers/plugins/stream-hooks.js";

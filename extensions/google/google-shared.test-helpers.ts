@@ -1,4 +1,4 @@
-import type { Model } from "@mariozechner/pi-ai";
+import type { Model } from "@earendil-works/pi-ai";
 import { expect } from "vitest";
 
 function makeZeroUsageSnapshot() {
@@ -51,19 +51,19 @@ export const makeModel = (id: string): Model<"google-generative-ai"> =>
     maxTokens: 1,
   }) as Model<"google-generative-ai">;
 
-export const makeGeminiCliModel = (id: string): Model<"google-gemini-cli"> =>
+export const makeVertexModel = (id: string): Model<"google-vertex"> =>
   ({
     id,
     name: id,
-    api: "google-gemini-cli",
-    provider: "google-gemini-cli",
+    api: "google-vertex",
+    provider: "google-vertex",
     baseUrl: "https://example.invalid",
     reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 1,
     maxTokens: 1,
-  }) as Model<"google-gemini-cli">;
+  }) as Model<"google-vertex">;
 
 export function makeGoogleAssistantMessage(model: string, content: unknown) {
   return {
@@ -78,12 +78,12 @@ export function makeGoogleAssistantMessage(model: string, content: unknown) {
   };
 }
 
-export function makeGeminiCliAssistantMessage(model: string, content: unknown) {
+export function makeVertexAssistantMessage(model: string, content: unknown) {
   return {
     role: "assistant",
     content,
-    api: "google-gemini-cli",
-    provider: "google-gemini-cli",
+    api: "google-vertex",
+    provider: "google-vertex",
     model,
     usage: makeZeroUsageSnapshot(),
     stopReason: "stop",

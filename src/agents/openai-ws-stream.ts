@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type {
   AssistantMessage,
   AssistantMessageEvent,
   AssistantMessageEventStream,
   StopReason,
-} from "@mariozechner/pi-ai";
-import * as piAi from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
+import * as piAi from "@earendil-works/pi-ai";
 /**
  * OpenAI WebSocket StreamFn Integration
  *

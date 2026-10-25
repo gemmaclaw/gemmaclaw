@@ -1,6 +1,6 @@
 import type { TSchema } from "typebox";
-import type { ModelCompatConfig } from "../config/types.models.js";
 import { stripUnsupportedSchemaKeywords } from "../plugin-sdk/provider-tools.js";
+import type { RuntimeModelCompat } from "../plugins/provider-model-compat.js";
 import { resolveUnsupportedToolSchemaKeywords } from "../plugins/provider-model-compat.js";
 import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 import { cleanSchemaForGemini } from "./schema/clean-for-gemini.js";
@@ -8,7 +8,7 @@ import { cleanSchemaForGemini } from "./schema/clean-for-gemini.js";
 export type ToolParameterSchemaOptions = {
   modelProvider?: string;
   modelId?: string;
-  modelCompat?: ModelCompatConfig;
+  modelCompat?: RuntimeModelCompat;
 };
 
 function extractEnumValues(schema: unknown): unknown[] | undefined {
@@ -134,7 +134,7 @@ function isTrulyEmptySchema(schemaRecord: Record<string, unknown>): boolean {
 
 export function normalizeToolParameterSchema(
   schema: unknown,
-  options?: { modelProvider?: string; modelId?: string; modelCompat?: ModelCompatConfig },
+  options?: { modelProvider?: string; modelId?: string; modelCompat?: RuntimeModelCompat },
 ): TSchema {
   const schemaRecord =
     schema && typeof schema === "object" ? (schema as Record<string, unknown>) : undefined;

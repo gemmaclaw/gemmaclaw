@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { SessionManager } from "@mariozechner/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 type SessionManagerLike = ReturnType<typeof SessionManager.open>;
 type SessionEntry = ReturnType<SessionManagerLike["getEntries"]>[number];

@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from "@mariozechner/pi-coding-agent";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { getActivePluginRegistry } from "./runtime.js";
 
 export const PI_EMBEDDED_EXTENSION_RUNTIME_ID = "pi";
