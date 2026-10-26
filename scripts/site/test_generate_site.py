@@ -1988,12 +1988,30 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # Backends on "lm studio". The other two additions (1xdtbor, 1xdiecx) reach
     # Quantization & Backends alone.
     MID_GPU_EXPECTED = 76
+    MULTI_GPU_EXPECTED = 19
+    ENTERPRISE_CLOUD_EXPECTED = 30
 
     def test_3050_capacity_qualifies_mid_gpu(self):
         configs = {post["id"]: post for post in gen.load_community_configs()}
         for post_id in ("1x4scub", "1x9mitw"):
             self.assertIn("mid-gpu", configs[post_id]["categories"])
         self.assertNotIn("mid-gpu", configs["1tzaw60"]["categories"])
+
+    def test_multi_gpu_and_enterprise_cloud_chips_render_and_categorize(self):
+        configs = {post["id"]: post for post in gen.load_community_configs()}
+        for post_id in ("1u5ul4k", "1uad893", "1w54s3q", "1wkc3q6", "1wwxuoh"):
+            self.assertIn("multi-gpu", configs[post_id]["categories"])
+        for post_id in ("1tb160j", "1sv81sw", "1tttevw", "1trf0r0", "1uq0h4o"):
+            self.assertIn("enterprise-cloud", configs[post_id]["categories"])
+        cards_html = gen.generate_community_cards(list(configs.values()))
+        self.assertIn(
+            f'<button type="button" class="cat-filter-btn" data-cat="multi-gpu" aria-pressed="false">Multi-GPU ({self.MULTI_GPU_EXPECTED})</button>',
+            cards_html,
+        )
+        self.assertIn(
+            f'<button type="button" class="cat-filter-btn" data-cat="enterprise-cloud" aria-pressed="false">Enterprise / Cloud ({self.ENTERPRISE_CLOUD_EXPECTED})</button>',
+            cards_html,
+        )
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -2004,6 +2022,8 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             ("cpu-only", self.CPU_ONLY_EXPECTED),
             ("laptop", self.LAPTOP_EXPECTED),
             ("mid-gpu", self.MID_GPU_EXPECTED),
+            ("multi-gpu", self.MULTI_GPU_EXPECTED),
+            ("enterprise-cloud", self.ENTERPRISE_CLOUD_EXPECTED),
         ):
             with self.subTest(category=cat):
                 count = sum(1 for c in configs if cat in c.get("categories", []))

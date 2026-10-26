@@ -2261,6 +2261,32 @@ HARDWARE_CATEGORIES = {
                       "dell xps", "legion"],
         "icon": "laptop",
     },
+    "multi-gpu": {
+        "label": "Multi-GPU",
+        # Dedicated category filter for multi-card workstations. Every keyword
+        # here is either the existing multi-card subset of high-gpu or a
+        # two-card phrase ("2x rtx", "2x 3090", "2x 4090", "2x 3060", "2x 4060",
+        # "2x tesla", "dual amd", "dual radeon") censused across the 804-entry
+        # index with 19 genuine multi-GPU matches and zero spurious matches.
+        # Because every matched post already holds high-gpu or mid-gpu on its
+        # card model, adding this chip leaves all existing category counts and
+        # the general fallback unchanged.
+        "keywords": ["dual gpu", "multi gpu", "triple gpu", "sli", "nvlink",
+                      "multi-gpu", "dual-gpu", "2x rtx", "2x 3090", "2x 4090",
+                      "2x 3060", "2x 4060", "2x tesla", "dual amd", "dual radeon"],
+        "icon": "gpu-multi",
+    },
+    "enterprise-cloud": {
+        "label": "Enterprise / Cloud",
+        # Dedicated category filter for datacenter, server and workstation Pro
+        # accelerators (H100, A100, A6000, RTX 6000 Pro / Pro 6000, Tesla P40,
+        # Instinct MI50/MI60, Radeon AI PRO R9700, 80 GB cards). Censused across
+        # the 804-entry index at 30 genuine matches and zero spurious matches,
+        # all of which also sit in high-gpu so general fallback is unchanged.
+        "keywords": ["a100", "a6000", "h100", "80gb", "p40", "pro 6000",
+                      "rtx 6000 pro", "mi50", "mi60", "r9700", "ai pro 9700"],
+        "icon": "cloud",
+    },
     "quantization": {
         "label": "Quantization & Backends",
         "keywords": ["gguf", "gptq", "awq", "exl2", "quant", "quantiz", "4-bit",
