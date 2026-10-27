@@ -15,7 +15,7 @@ Both new posts mention a resource limit. The author of [1xfioub](https://reddit.
 
 ### What works
 
-- **One author has tried eight Gemma 4 26B-A4B tunes while lacking the resources for 31B.** In [1xfioub](https://reddit.com/r/localllama/comments/1xfioub/), **u/Whydoiexist2983** lists most of the Gemma 4 26B models they tried, eight names covering nine versions: **G4-MeroMero-26B-A4B**, **Melody1437-26B-A4B**, **Boulesis-26B-A4B**, **Kitchoon-26B-A4B**, **gemma-4-26B-A4B-heretic**, **Orion-26B-A4B**, **Gemma-4-26B-A4B-StyleTune (v1 and v2)** and **Dark-Scarlett-26B-A4B**. The author writes "I don't have enough resources to run 31B models", and the archived text does not name the author's hardware.
+- **One author lists eight Gemma 4 26B-A4B tunes among the models tried, while lacking the resources for 31B.** In [1xfioub](https://reddit.com/r/localllama/comments/1xfioub/), **u/Whydoiexist2983** lists most of the Gemma 4 26B models they tried, eight names covering nine versions: **G4-MeroMero-26B-A4B**, **Melody1437-26B-A4B**, **Boulesis-26B-A4B**, **Kitchoon-26B-A4B**, **gemma-4-26B-A4B-heretic**, **Orion-26B-A4B**, **Gemma-4-26B-A4B-StyleTune (v1 and v2)** and **Dark-Scarlett-26B-A4B**. The author writes "I don't have enough resources to run 31B models", and the archived text does not name the author's hardware.
 
 ### Known limits
 
