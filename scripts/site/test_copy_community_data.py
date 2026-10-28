@@ -155,6 +155,27 @@ class DecodedDashSanitizerTest(unittest.TestCase):
             self.assertIsNone(row["none"])
             self.assertEqual(row["f"], 1.5)
 
+    def test_daily_copy_retains_editorial_categories_for_matching_posts(self):
+        """A later extraction must not erase a reviewed exact-post chip."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = Path(tmpdir) / "in.json"
+            dst = Path(tmpdir) / "out.json"
+            src.write_text(json.dumps([
+                {"post": "one", "hardware_mentions": ["updated"]},
+                {"post": "two", "editorial_categories": [], "hardware_mentions": []},
+            ]))
+            dst.write_text(json.dumps([
+                {"post": "one", "editorial_categories": ["multi-gpu"], "hardware_mentions": ["old"]},
+                {"post": "two", "editorial_categories": ["laptop"], "hardware_mentions": []},
+                {"post": "gone", "editorial_categories": ["cpu-only"], "hardware_mentions": []},
+            ]))
+            copied = copier.copy_community_data(src, dst)
+            self.assertEqual(copied[0]["editorial_categories"], ["multi-gpu"])
+            self.assertEqual(copied[0]["hardware_mentions"], ["updated"])
+            self.assertEqual(copied[1]["editorial_categories"], [])
+            self.assertEqual(len(copied), 2)
+            self.assertEqual(json.loads(dst.read_text()), copied)
+
     def test_output_layout_matches_the_committed_format(self):
         """One row per line, ensure_ascii on, trailing newline.
 
