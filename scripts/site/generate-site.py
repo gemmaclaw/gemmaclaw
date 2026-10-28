@@ -2567,6 +2567,24 @@ def categorize_post(post):
     return categories if categories else ["general"]
 
 
+def resolve_post_categories(post, entry):
+    """Add editorially reviewed categories to the existing automatic labels.
+
+    Exact post metadata repairs misses caused by archive spelling without
+    extending a keyword rule to unrelated posts. Invalid labels fail the build.
+    """
+    categories = categorize_post(post)
+    reviewed = entry.get("editorial_categories", [])
+    if not isinstance(reviewed, list) or any(
+        not isinstance(cat, str) or cat not in HARDWARE_CATEGORIES for cat in reviewed
+    ):
+        raise ValueError(f"invalid editorial_categories for {entry.get('post', '')}")
+    if reviewed:
+        categories = [cat for cat in categories if cat != "general"]
+        categories.extend(cat for cat in reviewed if cat not in categories)
+    return categories
+
+
 def load_community_configs():
     """Load community posts from JSON index and parse from Reddit markdown files."""
     if not COMMUNITY_CONFIGS_FILE.exists():
@@ -2588,7 +2606,7 @@ def load_community_configs():
         if not parsed or not parsed["title"]:
             continue
 
-        parsed["categories"] = categorize_post(parsed)
+        parsed["categories"] = resolve_post_categories(parsed, entry)
         posts.append(parsed)
 
     # Sort by score descending

@@ -19,6 +19,7 @@ character in front of the translate table.
 """
 import json
 import sys
+from pathlib import Path
 
 # Typographic dash code points -> ASCII hyphen. Listed numerically (not as literal
 # characters) so this script itself stays free of typographic dashes. Kept in step
@@ -68,10 +69,24 @@ def serialize(data):
 
 
 def copy_community_data(src, dst):
-    """Load `src`, sanitize decoded strings, write `dst`. Returns the data."""
+    """Refresh extracted rows while retaining reviewed site category metadata."""
     with open(src, encoding="utf-8") as f:
         data = json.load(f)
     data = sanitize(data)
+    # The Reddit extractor owns hardware mentions, while site editors own exact
+    # per-post category corrections. Carry those corrections across daily copies
+    # so an archived spelling change does not silently remove a reviewed chip.
+    if Path(dst).exists():
+        with open(dst, encoding="utf-8") as f:
+            existing = json.load(f)
+        reviewed = {
+            row["post"]: row["editorial_categories"]
+            for row in existing
+            if row.get("post") and "editorial_categories" in row
+        }
+        for row in data:
+            if "editorial_categories" not in row and row.get("post") in reviewed:
+                row["editorial_categories"] = reviewed[row["post"]]
     # ensure_ascii stays at its default True, matching the extractor, so the file
     # on disk is pure ASCII and no consumer has to guess an encoding.
     with open(dst, "w", encoding="utf-8") as f:

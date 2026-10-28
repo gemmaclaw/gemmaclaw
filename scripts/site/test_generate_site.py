@@ -1865,7 +1865,7 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # joined on the same word and does not. Both land on Other.
     # Re-derived for the 798-entry index of 2026-10-23. 1xce50t names a
     # MacBook Pro M2 in its title and "workstation laptop" in its summary.
-    LAPTOP_EXPECTED = 41
+    LAPTOP_EXPECTED = 43
     # Derived for the 686-entry index of 2026-09-01, where it moved 43 -> 47.
     # All four arrivals come from the new "3080" keyword: 1u355x2, 1uad893,
     # 1w3u815 and 1u6u723. Every "3080" occurrence in the indexed text of the
@@ -1987,8 +1987,8 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
     # stated). It also reaches Quantization &
     # Backends on "lm studio". The other two additions (1xdtbor, 1xdiecx) reach
     # Quantization & Backends alone.
-    MID_GPU_EXPECTED = 76
-    MULTI_GPU_EXPECTED = 19
+    MID_GPU_EXPECTED = 77
+    MULTI_GPU_EXPECTED = 21
     ENTERPRISE_CLOUD_EXPECTED = 30
 
     def test_3050_capacity_qualifies_mid_gpu(self):
@@ -1999,7 +1999,7 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
 
     def test_multi_gpu_and_enterprise_cloud_chips_render_and_categorize(self):
         configs = {post["id"]: post for post in gen.load_community_configs()}
-        for post_id in ("1u5ul4k", "1uad893", "1w54s3q", "1wkc3q6", "1wwxuoh"):
+        for post_id in ("1u5ul4k", "1uad893", "1w54s3q", "1wkc3q6", "1wwxuoh", "1xgojqz", "1xh72iu"):
             self.assertIn("multi-gpu", configs[post_id]["categories"])
         for post_id in ("1tb160j", "1sv81sw", "1tttevw", "1trf0r0", "1uq0h4o"):
             self.assertIn("enterprise-cloud", configs[post_id]["categories"])
@@ -2012,6 +2012,16 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             f'<button type="button" class="cat-filter-btn" data-cat="enterprise-cloud" aria-pressed="false">Enterprise / Cloud ({self.ENTERPRISE_CLOUD_EXPECTED})</button>',
             cards_html,
         )
+
+    def test_editorial_categories_are_exact_and_validated(self):
+        post = {"title": "A report", "summary": "", "tags": [], "comments": []}
+        self.assertEqual(gen.categorize_post(post), ["general"])
+        self.assertEqual(
+            gen.resolve_post_categories(post, {"post": "test", "editorial_categories": ["multi-gpu"]}),
+            ["multi-gpu"],
+        )
+        with self.assertRaises(ValueError):
+            gen.resolve_post_categories(post, {"post": "test", "editorial_categories": ["missing-chip"]})
 
     def test_category_counts_over_the_real_index(self):
         configs = gen.load_community_configs()
@@ -2287,7 +2297,7 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
             with self.subTest(post=post_id):
                 self.assertIn("mid-gpu", by_id[post_id].get("categories", []))
 
-    def test_the_bare_12gb_keyword_is_exactly_nine_genuine_posts(self):
+    def test_the_bare_12gb_keyword_matches_the_reviewed_vram_posts(self):
         """Positive and negative control in one, for the mid-range capacity
         keyword added 2026-09-05. Censused over the 703-entry index the bare
         token occurs thirteen times across nine posts and every occurrence is a
@@ -2319,7 +2329,7 @@ class TestShortAlphabeticTokenIndexCounts(unittest.TestCase):
         "3070" each admit that post independently."""
         expected = {"1temio0", "1tknbzh", "1szziv0", "1tsp869", "1typjmc",
                     "1u355x2", "1u2c4yz", "1w4dfi1", "1w76enm", "1wlklqx",
-                    "1wn8rgc", "1wvihh4"}
+        "1wn8rgc", "1wvihh4", "1xgojqz"}
         configs = gen.load_community_configs()
         matched = set()
         for post in configs:
