@@ -144,7 +144,9 @@ export async function createWaSocket(
   };
   const { version } = await fetchLatestBaileysVersion();
   const agent = await resolveEnvProxyAgent(sessionLogger);
-  const fetchAgent = await resolveEnvFetchDispatcher(sessionLogger, agent);
+  const fetchAgent = process.versions.bun
+    ? await resolveEnvFetchDispatcher(sessionLogger, agent)
+    : agent;
   const sock = makeWASocket({
     auth: {
       creds: state.creds,
@@ -157,8 +159,7 @@ export async function createWaSocket(
     syncFullHistory: false,
     markOnlineOnConnect: false,
     agent,
-    // Baileys types still model `fetchAgent` as a Node agent even though the
-    // runtime path accepts an undici dispatcher for upload fetches.
+    // Baileys uses Node HTTP uploads on Node and fetch dispatchers on Bun.
     fetchAgent: fetchAgent as Agent | undefined,
   });
 

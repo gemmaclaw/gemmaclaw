@@ -1,15 +1,15 @@
-import type { Context, Tool } from "@mariozechner/pi-ai";
+import type { Context, Tool } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import {
   convertMessages,
   convertTools,
-} from "../../node_modules/@mariozechner/pi-ai/dist/providers/google-shared.js";
+} from "../../node_modules/@earendil-works/pi-ai/dist/providers/google-shared.js";
 import {
   asRecord,
   expectConvertedRoles,
   getFirstToolParameters,
-  makeGeminiCliAssistantMessage,
-  makeGeminiCliModel,
+  makeVertexAssistantMessage,
+  makeVertexModel,
   makeGoogleAssistantMessage,
   makeModel,
 } from "./google-shared.test-helpers.js";
@@ -317,15 +317,15 @@ describe("google-shared convertMessages", () => {
     expect(toolCall.functionCall).toBeTruthy();
   });
 
-  it("strips tool call and response ids for google-gemini-cli", () => {
-    const model = makeGeminiCliModel("gemini-3-flash");
+  it("strips tool call and response ids for google-vertex", () => {
+    const model = makeVertexModel("gemini-3-flash");
     const context = {
       messages: [
         {
           role: "user",
           content: "Use a tool",
         },
-        makeGeminiCliAssistantMessage(model.id, [
+        makeVertexAssistantMessage(model.id, [
           {
             type: "toolCall",
             id: "call_1",

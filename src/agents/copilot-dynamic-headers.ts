@@ -1,4 +1,4 @@
-import type { Context } from "@mariozechner/pi-ai";
+import type { Context } from "@earendil-works/pi-ai";
 
 export const COPILOT_EDITOR_VERSION = "vscode/1.96.2";
 export const COPILOT_USER_AGENT = "GitHubCopilotChat/0.26.7";

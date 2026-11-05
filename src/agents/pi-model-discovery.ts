@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Api, Model } from "@mariozechner/pi-ai";
-import * as PiCodingAgent from "@mariozechner/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import * as PiCodingAgent from "@earendil-works/pi-coding-agent";
 import type {
   AuthStorage as PiAuthStorage,
   ModelRegistry as PiModelRegistry,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { normalizeModelCompat } from "../plugins/provider-model-compat.js";
 import {
   applyProviderResolvedModelCompatWithPlugins,

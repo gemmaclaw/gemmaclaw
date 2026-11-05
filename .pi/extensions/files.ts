@@ -5,7 +5,7 @@
  * coalesced by path and sorted newest first. Selecting a file opens it in VS Code.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { showPagedSelectList } from "./ui/paged-select";
 
 interface FileEntry {

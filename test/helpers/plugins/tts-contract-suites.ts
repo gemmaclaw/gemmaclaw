@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../src/config/config.js";
 import { createEmptyPluginRegistry } from "../../../src/plugins/registry-empty.js";
@@ -20,7 +20,7 @@ let ttsRuntime: TtsRuntimeModule;
 let ttsRuntimePromise: Promise<TtsRuntimeModule> | null = null;
 let ttsRuntimeInitialized = false;
 let ttsCorePromise: Promise<TtsCoreModule> | null = null;
-let completeSimple: typeof import("@mariozechner/pi-ai").completeSimple;
+let completeSimple: typeof import("@earendil-works/pi-ai").completeSimple;
 let getApiKeyForModelMock: typeof import("../../../src/agents/model-auth.js").getApiKeyForModel;
 let requireApiKeyMock: typeof import("../../../src/agents/model-auth.js").requireApiKey;
 let resolveModelAsyncMock: typeof import("../../../src/agents/pi-embedded-runner/model.js").resolveModelAsync;
@@ -36,7 +36,7 @@ let getResolvedSpeechProviderConfig: TtsRuntimeModule["_test"]["getResolvedSpeec
 let formatTtsProviderError: TtsRuntimeModule["_test"]["formatTtsProviderError"];
 let sanitizeTtsErrorForLog: TtsRuntimeModule["_test"]["sanitizeTtsErrorForLog"];
 
-vi.mock("@mariozechner/pi-ai", () => {
+vi.mock("@earendil-works/pi-ai", () => {
   const getApiProvider = vi.fn(() => undefined);
   return {
     completeSimple: vi.fn(),
@@ -50,7 +50,7 @@ vi.mock("@mariozechner/pi-ai", () => {
   };
 });
 
-vi.mock("@mariozechner/pi-ai/oauth", () => {
+vi.mock("@earendil-works/pi-ai/oauth", () => {
   return {
     getOAuthProviders: () => [],
     getOAuthApiKey: vi.fn(async () => null),
@@ -478,7 +478,7 @@ function createResolvedSummarizationConfig(cfg: OpenClawConfig): ResolvedTtsConf
 async function setupSummarizationMocks() {
   ({ summarizeText: summarizeTextCore } = await loadTtsCore());
   prepareModelForSimpleCompletionMock = vi.fn(({ model }) => model);
-  ({ completeSimple } = await import("@mariozechner/pi-ai"));
+  ({ completeSimple } = await import("@earendil-works/pi-ai"));
   ({ getApiKeyForModel: getApiKeyForModelMock, requireApiKey: requireApiKeyMock } =
     await import("../../../src/agents/model-auth.js"));
   ({ resolveModelAsync: resolveModelAsyncMock } =

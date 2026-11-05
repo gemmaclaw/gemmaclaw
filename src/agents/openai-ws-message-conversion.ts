@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { Context, Message, StopReason } from "@mariozechner/pi-ai";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { Context, Message, StopReason } from "@earendil-works/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   encodeAssistantTextSignature,
   normalizeAssistantPhase,

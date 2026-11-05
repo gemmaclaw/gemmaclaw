@@ -1,5 +1,5 @@
-import type { Api, Model } from "@mariozechner/pi-ai";
-import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import type { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ProviderRuntimeModel } from "../../plugins/provider-runtime-model.types.js";
 import {

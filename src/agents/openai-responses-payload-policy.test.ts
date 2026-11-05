@@ -1,4 +1,4 @@
-import type { Model } from "@mariozechner/pi-ai";
+import type { AnthropicMessagesCompat, Model } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import {
   applyOpenAIResponsesPayloadPolicy,
@@ -6,6 +6,17 @@ import {
 } from "./openai-responses-payload-policy.js";
 
 describe("openai responses payload policy", () => {
+  it("accepts Anthropic runtime hints without applying OpenAI storage policy", () => {
+    const compat = { supportsTemperature: false } satisfies AnthropicMessagesCompat;
+    expect(
+      resolveOpenAIResponsesPayloadPolicy({
+        api: "anthropic-messages",
+        provider: "anthropic",
+        compat,
+      }),
+    ).toMatchObject({ explicitStore: undefined, shouldStripStore: false });
+  });
+
   it("forces store for native OpenAI responses payloads but keeps disable mode for transport defaults", () => {
     const model = {
       id: "gpt-5.4",

@@ -3,7 +3,7 @@ import path from "node:path";
 import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 import { runExec } from "../process/exec.js";
 
-type Sharp = typeof import("sharp");
+type Sharp = typeof import("sharp").default;
 type SharpFactory = (buffer: Buffer) => ReturnType<Sharp>;
 
 export type ImageMetadata = {
@@ -35,11 +35,10 @@ function prefersSips(): boolean {
 let sharpFactoryPromise: Promise<SharpFactory> | null = null;
 
 async function loadSharp(): Promise<SharpFactory> {
-  sharpFactoryPromise ??= import("sharp").then((mod) => {
-    const sharp = (mod as unknown as { default?: Sharp }).default ?? (mod as unknown as Sharp);
+  sharpFactoryPromise ??= import("sharp").then(({ default: sharp }) => {
     return (buffer: Buffer) =>
       sharp(buffer, {
-        failOnError: false,
+        failOn: "none",
         limitInputPixels: MAX_IMAGE_INPUT_PIXELS,
       });
   });

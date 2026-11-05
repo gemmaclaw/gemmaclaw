@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { isSilentReplyPayloadText, SILENT_REPLY_TOKEN } from "../../../auto-reply/tokens.js";
 import type { EmbeddedPiExecutionContract } from "../../../config/types.agent-defaults.js";
 import { normalizeLowercaseStringOrEmpty } from "../../../shared/string-coerce.js";

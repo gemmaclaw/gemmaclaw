@@ -3,7 +3,7 @@ import type {
   AgentTool,
   AgentToolResult,
   AgentToolUpdateCallback,
-} from "@mariozechner/pi-agent-core";
+} from "@earendil-works/pi-agent-core";
 import type { TSchema } from "typebox";
 import { detectMime } from "../../media/mime.js";
 import { readSnakeCaseParamRaw } from "../../param-key.js";

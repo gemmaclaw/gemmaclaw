@@ -1,4 +1,4 @@
-import { streamSimpleOpenAICompletions, type Model } from "@mariozechner/pi-ai";
+import { streamSimpleOpenAICompletions, type Model } from "@earendil-works/pi-ai";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModelProviderConfig } from "../config/config.js";
 import { withFetchPreconnect } from "../test-utils/fetch-mock.js";

@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import { normalizeOptionalLowercaseString } from "../../shared/string-coerce.js";
 import { streamWithPayloadPatch } from "./stream-payload-utils.js";
@@ -6,10 +6,10 @@ import { streamWithPayloadPatch } from "./stream-payload-utils.js";
 type MoonshotThinkingType = "enabled" | "disabled";
 type MoonshotThinkingKeep = "all";
 const MOONSHOT_THINKING_KEEP_MODEL_ID = "kimi-k2.6";
-let piAiRuntimePromise: Promise<typeof import("@mariozechner/pi-ai")> | undefined;
+let piAiRuntimePromise: Promise<typeof import("@earendil-works/pi-ai")> | undefined;
 
 async function loadDefaultStreamFn(): Promise<StreamFn> {
-  piAiRuntimePromise ??= import("@mariozechner/pi-ai");
+  piAiRuntimePromise ??= import("@earendil-works/pi-ai");
   const runtime = await piAiRuntimePromise;
   return runtime.streamSimple;
 }

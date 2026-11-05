@@ -197,10 +197,28 @@ describe("web session", () => {
     };
     expect(passed.agent).toBeDefined();
     expect(passed.fetchAgent).toBeDefined();
-    expect(passed.fetchAgent).not.toBe(passed.agent);
-    expect(typeof (passed.fetchAgent as { dispatch?: unknown } | undefined)?.dispatch).toBe(
-      "function",
-    );
+    expect(passed.fetchAgent).toBe(passed.agent);
+  });
+
+  it("uses a fetch dispatcher for media uploads on Bun", async () => {
+    vi.stubEnv("HTTPS_PROXY", "http://proxy.test:8080");
+    const originalBun = Object.getOwnPropertyDescriptor(process.versions, "bun");
+    Object.defineProperty(process.versions, "bun", { configurable: true, value: "1.3.0" });
+    try {
+      await createWaSocket(false, false);
+      const passed = (baileys.makeWASocket as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+        agent?: unknown;
+        fetchAgent?: { dispatch?: unknown };
+      };
+      expect(passed.fetchAgent).not.toBe(passed.agent);
+      expect(typeof passed.fetchAgent?.dispatch).toBe("function");
+    } finally {
+      if (originalBun) {
+        Object.defineProperty(process.versions, "bun", originalBun);
+      } else {
+        delete process.versions.bun;
+      }
+    }
   });
 
   it("does not create a proxy agent when no env proxy is configured", async () => {

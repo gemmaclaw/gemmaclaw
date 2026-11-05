@@ -24,8 +24,9 @@ const resolveStoredSessionKeyForSessionIdMock = vi.fn();
 const loggerWarnMock = vi.fn();
 let refreshRuntimeAuthOnFirstPromptError = false;
 
-vi.mock("@mariozechner/pi-ai", async () => {
-  const actual = await vi.importActual<typeof import("@mariozechner/pi-ai")>("@mariozechner/pi-ai");
+vi.mock("@earendil-works/pi-ai", async () => {
+  const actual =
+    await vi.importActual<typeof import("@earendil-works/pi-ai")>("@earendil-works/pi-ai");
 
   const buildAssistantMessage = (model: { api: string; provider: string; id: string }) => ({
     role: "assistant" as const,
@@ -154,7 +155,7 @@ const installRunEmbeddedMocks = () => {
 };
 
 let runEmbeddedPiAgent: typeof import("./pi-embedded-runner/run.js").runEmbeddedPiAgent;
-let SessionManager: typeof import("@mariozechner/pi-coding-agent").SessionManager;
+let SessionManager: typeof import("@earendil-works/pi-coding-agent").SessionManager;
 let e2eWorkspace: EmbeddedPiRunnerTestWorkspace | undefined;
 let agentDir: string;
 let workspaceDir: string;
@@ -166,7 +167,7 @@ beforeAll(async () => {
   vi.resetModules();
   installRunEmbeddedMocks();
   ({ runEmbeddedPiAgent } = await import("./pi-embedded-runner/run.js"));
-  ({ SessionManager } = await import("@mariozechner/pi-coding-agent"));
+  ({ SessionManager } = await import("@earendil-works/pi-coding-agent"));
   e2eWorkspace = await createEmbeddedPiRunnerTestWorkspace("openclaw-embedded-agent-");
   ({ agentDir, workspaceDir } = e2eWorkspace);
 }, 180_000);

@@ -9,7 +9,7 @@ type OpenAIResponsesPayloadModel = {
   id?: unknown;
   provider?: unknown;
   contextWindow?: unknown;
-  compat?: { supportsStore?: boolean };
+  compat?: object;
 };
 
 type OpenAIResponsesPayloadPolicyOptions = {
@@ -94,7 +94,12 @@ export function resolveOpenAIResponsesPayloadPolicy(
     provider: readStringValue(model.provider),
     api: readStringValue(model.api),
     baseUrl: readStringValue(model.baseUrl),
-    compat: model.compat,
+    compat:
+      model.compat &&
+      "supportsStore" in model.compat &&
+      typeof model.compat.supportsStore === "boolean"
+        ? { supportsStore: model.compat.supportsStore }
+        : undefined,
     capability: "llm",
     transport: "stream",
   }).capabilities;
@@ -124,7 +129,11 @@ export function resolveOpenAIResponsesPayloadPolicy(
     shouldStripPromptCache:
       options.enablePromptCacheStripping === true && capabilities.shouldStripResponsesPromptCache,
     shouldStripStore:
-      explicitStore !== true && model.compat?.supportsStore === false && isResponsesApi,
+      explicitStore !== true &&
+      model.compat !== undefined &&
+      "supportsStore" in model.compat &&
+      model.compat.supportsStore === false &&
+      isResponsesApi,
     useServerCompaction:
       options.enableServerCompaction === true &&
       shouldEnableOpenAIResponsesServerCompaction(

@@ -5,7 +5,7 @@
  * the selected file in VS Code's diff view.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { showPagedSelectList } from "./ui/paged-select";
 
 interface FileInfo {

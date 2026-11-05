@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from "@mariozechner/pi-coding-agent";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { buildPluginApi } from "./api-builder.js";
 import type { CodexAppServerExtensionFactory } from "./codex-app-server-extension-types.js";

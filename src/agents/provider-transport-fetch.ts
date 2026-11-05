@@ -1,4 +1,4 @@
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
 import { resolveDebugProxySettings } from "../proxy-capture/env.js";
 import {

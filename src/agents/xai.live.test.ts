@@ -1,4 +1,4 @@
-import { completeSimple, getModel, streamSimple } from "@mariozechner/pi-ai";
+import { completeSimple, getModel, streamSimple } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
 import {
@@ -26,7 +26,7 @@ type AssistantLikeMessage = {
 };
 
 function resolveLiveXaiModel() {
-  return getModel("xai", "grok-4-1-fast-reasoning" as never) ?? getModel("xai", "grok-4");
+  return getModel("xai", "grok-4.3");
 }
 
 async function collectDoneMessage(
@@ -48,7 +48,7 @@ function extractFirstToolCallId(message: AssistantLikeMessage): string | undefin
 }
 
 describeLive("xai live", () => {
-  it("returns assistant text for Grok 4.1 Fast Reasoning", async () => {
+  it("returns assistant text for Grok 4.3", async () => {
     const model = resolveLiveXaiModel();
     expect(model).toBeDefined();
     const res = await completeSimple(

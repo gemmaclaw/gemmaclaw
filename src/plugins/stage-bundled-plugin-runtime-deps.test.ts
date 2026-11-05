@@ -59,6 +59,7 @@ function writeRepoFile(repoRoot: string, relativePath: string, value: string) {
 
 function createBaileysMessagesMediaSource(params?: {
   dispatcherPatched?: boolean;
+  upstreamDispatcherGuard?: boolean;
   dispatcherHeaderDrifted?: boolean;
   encryptedStreamPatched?: boolean;
   encryptedStreamPatchedSequentially?: boolean;
@@ -115,48 +116,57 @@ function createBaileysMessagesMediaSource(params?: {
               "        stream.destroy();",
               "        logger?.debug('encrypted data successfully');",
             ];
-  const dispatcherLines = params?.dispatcherPatched
+  const dispatcherLines = params?.upstreamDispatcherGuard
     ? [
-        "                const response = await fetch(url, {",
-        "                    method: 'POST',",
-        "                    body: stream,",
-        "                    headers: {",
-        "                        'Content-Type': 'application/octet-stream',",
-        "                        Origin: DEFAULT_ORIGIN",
-        "                    },",
-        "                    // Baileys passes a generic agent here in some runtimes. Undici's",
-        "                    // `dispatcher` only works with Dispatcher-compatible implementations,",
-        "                    // so only wire it through when the object actually implements",
-        "                    // `dispatch`.",
-        "                    ...(typeof fetchAgent?.dispatch === 'function' ? { dispatcher: fetchAgent } : {}),",
-        "                    duplex: 'half',",
-        "                });",
+        "const dispatcher = typeof agent?.dispatch === 'function' ? agent : undefined;",
+        "const response = await fetch(url, {",
+        "  ...(dispatcher ? { dispatcher } : {}),",
+        "  method: 'POST',",
+        "  body: webStream,",
+        "});",
       ]
-    : params?.dispatcherHeaderDrifted
+    : params?.dispatcherPatched
       ? [
           "                const response = await fetch(url, {",
-          "                    dispatcher: fetchAgent,",
-          "                    method: 'POST',",
-          "                    body: stream,",
-          "                    headers: {",
-          "                        Origin: DEFAULT_ORIGIN,",
-          "                        'Content-Type': 'application/octet-stream'",
-          "                    },",
-          "                    duplex: 'half',",
-          "                });",
-        ]
-      : [
-          "                const response = await fetch(url, {",
-          "                    dispatcher: fetchAgent,",
           "                    method: 'POST',",
           "                    body: stream,",
           "                    headers: {",
           "                        'Content-Type': 'application/octet-stream',",
           "                        Origin: DEFAULT_ORIGIN",
           "                    },",
+          "                    // Baileys passes a generic agent here in some runtimes. Undici's",
+          "                    // `dispatcher` only works with Dispatcher-compatible implementations,",
+          "                    // so only wire it through when the object actually implements",
+          "                    // `dispatch`.",
+          "                    ...(typeof fetchAgent?.dispatch === 'function' ? { dispatcher: fetchAgent } : {}),",
           "                    duplex: 'half',",
           "                });",
-        ];
+        ]
+      : params?.dispatcherHeaderDrifted
+        ? [
+            "                const response = await fetch(url, {",
+            "                    dispatcher: fetchAgent,",
+            "                    method: 'POST',",
+            "                    body: stream,",
+            "                    headers: {",
+            "                        Origin: DEFAULT_ORIGIN,",
+            "                        'Content-Type': 'application/octet-stream'",
+            "                    },",
+            "                    duplex: 'half',",
+            "                });",
+          ]
+        : [
+            "                const response = await fetch(url, {",
+            "                    dispatcher: fetchAgent,",
+            "                    method: 'POST',",
+            "                    body: stream,",
+            "                    headers: {",
+            "                        'Content-Type': 'application/octet-stream',",
+            "                        Origin: DEFAULT_ORIGIN",
+            "                    },",
+            "                    duplex: 'half',",
+            "                });",
+          ];
   return [
     "import { once } from 'events';",
     "const encryptedStream = async () => {",
@@ -495,6 +505,23 @@ describe("stageBundledPluginRuntimeDeps", () => {
     expect(fs.readFileSync(targetPath, "utf8")).toContain(
       "...(typeof fetchAgent?.dispatch === 'function' ? { dispatcher: fetchAgent } : {}),",
     );
+  });
+
+  it("leaves upstream Baileys flush and dispatcher fixes unchanged", async () => {
+    const repoRoot = makeRepoRoot("openclaw-stage-bundled-runtime-upstream-fixes-");
+    const relativePath = "node_modules/@whiskeysockets/baileys/lib/Utils/messages-media.js";
+    const source = createBaileysMessagesMediaSource({
+      encryptedStreamPatchedSequentially: true,
+      upstreamDispatcherGuard: true,
+    });
+    writeRepoFile(repoRoot, relativePath, source);
+
+    const { applyBaileysEncryptedStreamFinishHotfix } = await loadPostinstallBundledPluginsModule();
+    expect(applyBaileysEncryptedStreamFinishHotfix({ packageRoot: repoRoot })).toEqual({
+      applied: false,
+      reason: "already_patched",
+    });
+    expect(fs.readFileSync(path.join(repoRoot, relativePath), "utf8")).toBe(source);
   });
 
   it("preserves the original module read mode when replacing Baileys", async () => {

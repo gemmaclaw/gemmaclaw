@@ -576,9 +576,14 @@ export function applyBaileysEncryptedStreamFinishHotfix(params = {}) {
       encryptedStreamResolved = true;
     }
 
-    const dispatcherAlreadyPatched = patchedText.includes(
-      "...(typeof fetchAgent?.dispatch === 'function' ? { dispatcher: fetchAgent } : {}),",
-    );
+    const dispatcherAlreadyPatched =
+      patchedText.includes(
+        "...(typeof fetchAgent?.dispatch === 'function' ? { dispatcher: fetchAgent } : {}),",
+      ) ||
+      (patchedText.includes(
+        "const dispatcher = typeof agent?.dispatch === 'function' ? agent : undefined;",
+      ) &&
+        patchedText.includes("...(dispatcher ? { dispatcher } : {}),"));
     const dispatcherPatchable =
       patchedText.includes(BAILEYS_MEDIA_DISPATCHER_NEEDLE) &&
       patchedText.includes(BAILEYS_MEDIA_DISPATCHER_HEADER_NEEDLE);

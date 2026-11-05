@@ -200,7 +200,7 @@ Doctor warnings also include account-default guidance for multi-account channels
 ### 2b) OpenCode provider overrides
 
 If you’ve added `models.providers.opencode`, `opencode-zen`, or `opencode-go`
-manually, it overrides the built-in OpenCode catalog from `@mariozechner/pi-ai`.
+manually, it overrides the built-in OpenCode catalog from `@earendil-works/pi-ai`.
 That can force models onto the wrong API or zero out costs. Doctor warns so you
 can remove the override and restore per-model API routing + costs.
 

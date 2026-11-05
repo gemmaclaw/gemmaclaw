@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ExtensionFactory } from "@mariozechner/pi-coding-agent";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   getRegisteredAgentHarness,
   registerAgentHarness as registerGlobalAgentHarness,

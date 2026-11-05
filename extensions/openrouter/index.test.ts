@@ -88,7 +88,7 @@ describe("openrouter provider hooks", () => {
   it("injects provider routing into compat before applying stream wrappers", async () => {
     const provider = await registerSingleProviderPlugin(openrouterPlugin);
     const baseStreamFn = vi.fn(
-      (..._args: Parameters<import("@mariozechner/pi-agent-core").StreamFn>) =>
+      (..._args: Parameters<import("@earendil-works/pi-agent-core").StreamFn>) =>
         ({ async *[Symbol.asyncIterator]() {} }) as never,
     );
 
